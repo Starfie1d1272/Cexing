@@ -37,7 +37,13 @@ async function testClient(mode) {
   const remote = { sendMessageRequest: async () => ({ errCode: 0, reply: {
     readBoolean: () => ready, readString: () => error
   } }) };
+  let notifications = 0;
+  const pageListener = () => { notifications++; };
+  controller.onChanged(pageListener);
+  controller.onChanged(pageListener);
   controller.start(context);
+  assert.equal(notifications, 1, 'Page observer registration must be idempotent');
+  controller.offChanged(pageListener);
   await flush();
   callbacks.onConnect({}, remote);
   await flush();
@@ -64,6 +70,7 @@ async function testClient(mode) {
     assert.equal(controller.status, VpnStatus.Disconnected, 'Late readiness must not reconnect after stop');
     assert.equal(settings.vpnWasConnected, false);
   }
+  assert.equal(notifications, 1, 'Detached page must not receive late status changes');
 }
 async function testExtension() {
   let complete;

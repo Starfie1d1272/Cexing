@@ -11,22 +11,12 @@
     "deliveryWithInstall": true,
     "installationFree": false,
     "pages": "$profile:main_pages",
-    "metadata": [
-      {
-        // 鸿蒙7「沉浸光感」应用级开关：Dialog/Toast/Toggle/Select/Sheet 等默认开材质（H7_DESIGN.md §1）
-        "name": "ohos.arkui.UIMaterial.state",
-        "value": "enable"
-      }
-    ],
     "requestPermissions": [
       {
         "name": "ohos.permission.INTERNET"
       },
       {
         "name": "ohos.permission.KEEP_BACKGROUND_RUNNING"
-      },
-      {
-        "name": "ohos.permission.VIBRATE"
       }
     ],
     "abilities": [
@@ -57,18 +47,6 @@
         "name": "ClashVpnAbility",
         "srcEntry": "./ets/vpnability/ClashVpnAbility.ets",
         "type": "vpn"
-      },
-      {
-        "name": "EntryFormAbility",
-        "srcEntry": "./ets/formability/FormAbility.ets",
-        "type": "form",
-        "exported": true,
-        "metadata": [
-          {
-            "name": "ohos.extension.form",
-            "resource": "$profile:form_config"
-          }
-        ]
       }
     ]
   }

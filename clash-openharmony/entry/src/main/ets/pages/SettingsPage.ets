@@ -1,5 +1,4 @@
 /*
- * SettingsPage.ets - 设置页（DESIGN.md §5 右）
  * 分组卡片列表（运行/连接/自动化/诊断/关于，每组带标题）
  * 二级页导航（Navigation pushPath）+ Toggle（保活/自动恢复/订阅自动更新/内核日志落盘）
  */
@@ -9,7 +8,6 @@ import { Settings, AppSettings } from '../lib/Settings';
 import { LiveViewKeeper } from '../lib/LiveViewKeeper';
 import { VpnController, VpnStatus } from '../lib/VpnController';
 import { AutoUpdater } from '../lib/AutoUpdater';
-import { tabBarSafePad } from '../lib/H7';
 
 /** 订阅自动更新可选间隔（小时） */
 const INTERVAL_OPTIONS: number[] = [12, 24, 48, 72];
@@ -51,7 +49,7 @@ export struct SettingsPage {
       title: '连接',
       rows: [
         { title: '网络设置', sub: '按应用分流 · IPv6', hasToggle: false, dest: 'network', action: '', toggleKey: '' },
-        { title: '覆写', sub: '端口 · 日志等级 · 局域网', hasToggle: false, dest: 'override', action: '', toggleKey: '' }
+        { title: '内核设置', sub: '端口 · 日志等级 · 局域网', hasToggle: false, dest: 'override', action: '', toggleKey: '' }
       ]
     },
     {
@@ -64,16 +62,7 @@ export struct SettingsPage {
     {
       title: '诊断',
       rows: [
-        { title: '连接', sub: '活跃连接查看与关闭', hasToggle: false, dest: 'connections', action: '', toggleKey: '' },
-        { title: '日志', sub: '内核日志 · 等级过滤', hasToggle: false, dest: 'logs', action: '', toggleKey: '' },
         { title: '记录内核日志到文件', sub: '关闭后内核日志仅写入系统 hilog，不再占用应用存储（下次启动内核生效）', hasToggle: true, dest: '', action: '', toggleKey: 'logToFile' },
-        { title: 'GeoX 数据', sub: '更新 geoip / geosite 数据库', hasToggle: false, dest: 'geo', action: '', toggleKey: '' }
-      ]
-    },
-    {
-      title: '关于',
-      rows: [
-        { title: '关于', sub: '版本 · 开源许可', hasToggle: false, dest: 'about', action: '', toggleKey: '' }
       ]
     }
   ];
@@ -284,8 +273,7 @@ export struct SettingsPage {
       .width('100%')
       .layoutWeight(1)
       .scrollBar(BarState.Off)
-      // 鸿蒙7：悬浮底栏遮挡避让
-      .contentEndOffset(tabBarSafePad())
+      .contentEndOffset(16)
     }
     .width('100%')
     .height('100%')

@@ -37,43 +37,14 @@ export interface ConfigsResp {
   'log-level': string;
 }
 
-export interface ConnectionMetadata {
-  network: string;
-  type: string;
-  host: string;
-  destinationIP: string;
-  destinationPort: string;
-  sourceIP: string;
-  sourcePort: string;
-  process: string;
-}
-
-export interface ConnectionItem {
-  id: string;
-  metadata: ConnectionMetadata;
-  chains: string[];
-  rule: string;
-  rulePayload: string;
-  start: string;
-  upload: number;
-  download: number;
-}
-
-export interface ConnectionsResp {
+interface ConnectionsResp {
   downloadTotal: number;
   uploadTotal: number;
-  memory: number;
-  connections: ConnectionItem[];
 }
 
 export interface TrafficMsg {
   up: number;
   down: number;
-}
-
-export interface LogMsg {
-  type: string;
-  payload: string;
 }
 
 export namespace CoreApi {
@@ -136,51 +107,10 @@ export namespace CoreApi {
     }
   }
 
-  /** 节点/分组详情：GET /proxies/{name}；失败返回 null */
-  export async function getProxyDetail(name: string): Promise<ProxyInfo | null> {
-    const s = await request(http.RequestMethod.GET, `/proxies/${encodeURIComponent(name)}`);
-    if (s === null) {
-      return null;
-    }
-    try {
-      return JSON.parse(s) as ProxyInfo;
-    } catch (e) {
-      return null;
-    }
-  }
-
   export async function selectProxy(group: string, name: string): Promise<boolean> {
     const s = await request(http.RequestMethod.PUT, `/proxies/${encodeURIComponent(group)}`,
       JSON.stringify({ name: name }));
     return s !== null;
-  }
-
-  /** 返回 name->delay(ms) map；超时的节点不会出现在 map 里 */
-  export async function groupDelayTest(group: string, url: string, timeout: number): Promise<Record<string, number> | null> {
-    const s = await request(http.RequestMethod.GET,
-      `/group/${encodeURIComponent(group)}/delay?url=${encodeURIComponent(url)}&timeout=${timeout}`);
-    if (s === null) {
-      return null;
-    }
-    try {
-      return JSON.parse(s) as Record<string, number>;
-    } catch (e) {
-      return null;
-    }
-  }
-
-  export async function nodeDelayTest(name: string, url: string, timeout: number): Promise<number> {
-    const s = await request(http.RequestMethod.GET,
-      `/proxies/${encodeURIComponent(name)}/delay?url=${encodeURIComponent(url)}&timeout=${timeout}`);
-    if (s === null) {
-      return -1;
-    }
-    try {
-      const r = JSON.parse(s) as Record<string, number>;
-      return r['delay'] ?? -1;
-    } catch (e) {
-      return -1;
-    }
   }
 
   /**
@@ -216,33 +146,6 @@ export namespace CoreApi {
     } catch (e) {
       return null;
     }
-  }
-
-  export async function getConnections(): Promise<ConnectionsResp | null> {
-    const s = await request(http.RequestMethod.GET, '/connections');
-    if (s === null) {
-      return null;
-    }
-    try {
-      return JSON.parse(s) as ConnectionsResp;
-    } catch (e) {
-      return null;
-    }
-  }
-
-  export async function closeConnection(id: string): Promise<boolean> {
-    const s = await request(http.RequestMethod.DELETE, `/connections/${encodeURIComponent(id)}`);
-    return s !== null;
-  }
-
-  export async function closeAllConnections(): Promise<boolean> {
-    const s = await request(http.RequestMethod.DELETE, '/connections');
-    return s !== null;
-  }
-
-  export async function updateGeoDatabases(): Promise<boolean> {
-    const s = await request(http.RequestMethod.POST, '/configs/geo');
-    return s !== null;
   }
 
   /** 热切换配置：PUT /configs?force=true {"path": 绝对路径}（路径须在 mihomo homeDir 下） */
@@ -344,17 +247,4 @@ export function formatRate(bytesPerSec: number): string {
     return `${(bytesPerSec / 1024).toFixed(1)} KB/s`;
   }
   return `${(bytesPerSec / 1024 / 1024).toFixed(2)} MB/s`;
-}
-
-export function formatBytes(bytes: number): string {
-  if (bytes < 1024) {
-    return `${bytes} B`;
-  }
-  if (bytes < 1024 * 1024) {
-    return `${(bytes / 1024).toFixed(1)} KB`;
-  }
-  if (bytes < 1024 * 1024 * 1024) {
-    return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
-  }
-  return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GB`;
 }

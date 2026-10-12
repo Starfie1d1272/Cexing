@@ -1,7 +1,7 @@
 /*
  * AutoUpdater.ets - 订阅自动更新（按设置周期拉取激活配置的来源 URL）
  * 仅对激活配置生效；本地导入（无来源 URL）自动跳过。
- * 周期检查由 HomePage onCoreUp() 启动、onCoreDown() 停止；
+ * 周期检查由 AppRuntime 按 VPN 状态启动和停止；
  * 上次成功时间戳与 Settings 同 store（clashoh_settings）不同 key，互不影响。
  */
 import { preferences } from '@kit.ArkData';

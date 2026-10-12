@@ -104,7 +104,16 @@ export namespace VpnController {
   let startAttempt = 0;
 
   export function onChanged(cb: StatusListener): void {
-    listeners.push(cb);
+    if (listeners.indexOf(cb) < 0) {
+      listeners.push(cb);
+    }
+  }
+
+  export function offChanged(cb: StatusListener): void {
+    const index = listeners.indexOf(cb);
+    if (index >= 0) {
+      listeners.splice(index, 1);
+    }
   }
 
   export function consumeLastStartError(): string {
@@ -114,9 +123,9 @@ export namespace VpnController {
   }
 
   /**
-   * 冷启动恢复：UI 进程重建后探测内核是否仍在（REST 通则 VPN 活着）。
+   * 冷启动恢复：UI 进程重建后探测内核是否仍在（REST 不证明系统 TUN 健康）。
    * 可选完成回调 onDone(alive)：探活落定后（含非断开态早退场景）回调，供调用方在
-   * 「真实状态已确认」之后再决策（如卡片点击 toggle 需先探活再定启停，见 EntryAbility）。
+   * Controller 探活完成后再决策；系统会话健康需另外核对。
    */
   export function recover(onDone?: (alive: boolean) => void): void {
     if (status !== VpnStatus.Disconnected) {

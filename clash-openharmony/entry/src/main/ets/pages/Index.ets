@@ -1,130 +1,50 @@
-/*
- * Index.ets - 应用主框架（DESIGN.md §2）
- * Navigation（二级页路由）+ 底部 Tabs：首页 / 代理 / 配置 / 设置
- */
 import { HomePage } from './HomePage';
-import { ProxyPage } from './ProxyPage';
 import { ProfilePage } from './ProfilePage';
 import { SettingsPage } from './SettingsPage';
-import { ConnectionsPage } from './ConnectionsPage';
-import { LogsPage } from './LogsPage';
+import { ProxyPage } from './ProxyPage';
 import { NetworkSettingsPage } from './NetworkSettingsPage';
 import { OverridePage } from './OverridePage';
-import { AboutPage } from './AboutPage';
-import { ProxyGroupPage, ProxyGroupBus } from './ProxyGroupPage';
 import { ProfileEditPage } from './ProfileEditPage';
-import { GeoPage } from './GeoPage';
-import { H7, tabBarFloating } from '../lib/H7';
 
 @Entry
 @Component
 struct Index {
-  @State currentTab: number = 0;
   @Provide('nav') navStack: NavPathStack = new NavPathStack();
   @Provide('tab') currentVisibleTab: number = 0;
   @Provide('tabJump') @Watch('onTabJump') tabJump: number = -1;
+  @State currentTab: number = 0;
 
   private onTabJump(): void {
     if (this.tabJump >= 0) {
       this.currentTab = this.tabJump;
+      this.currentVisibleTab = this.tabJump;
       this.tabJump = -1;
     }
   }
 
   @Builder
   PageMap(name: string) {
-    if (name === 'connections') {
-      NavDestination() {
-        ConnectionsPage()
-      }
-      .title('连接')
-    } else if (name === 'logs') {
-      NavDestination() {
-        LogsPage()
-      }
-      .title('日志')
+    if (name === 'proxies') {
+      NavDestination() { ProxyPage() }.title('代理组')
     } else if (name === 'network') {
-      NavDestination() {
-        NetworkSettingsPage()
-      }
-      .title('网络设置')
+      NavDestination() { NetworkSettingsPage() }.title('网络设置')
     } else if (name === 'override') {
-      NavDestination() {
-        OverridePage()
-      }
-      .title('覆写')
-    } else if (name === 'about') {
-      NavDestination() {
-        AboutPage()
-      }
-      .title('关于')
-    } else if (name === 'proxyGroup') {
-      NavDestination() {
-        ProxyGroupPage()
-      }
-      .title(ProxyGroupBus.current)
+      NavDestination() { OverridePage() }.title('内核设置')
     } else if (name === 'profileEdit') {
-      NavDestination() {
-        ProfileEditPage()
-      }
-      .title('编辑配置')
-    } else if (name === 'geo') {
-      NavDestination() {
-        GeoPage()
-      }
-      .title('GeoX 数据')
+      NavDestination() { ProfileEditPage() }.title('编辑配置')
     }
-  }
-
-  @Builder
-  TabBarItem(symbol: Resource, symbolActive: Resource, label: string, index: number) {
-    Column({ space: 3 }) {
-      SymbolGlyph(this.currentTab === index ? symbolActive : symbol)
-        .fontSize(22)
-        .fontColor(this.currentTab === index ? [$r('sys.color.brand')] : [$r('sys.color.icon_secondary')])
-        // 鸿蒙7：选中弹跳反馈（BounceSymbolEffect @since 12，新旧系统均可用）
-        .symbolEffect(new BounceSymbolEffect(EffectScope.LAYER, EffectDirection.DOWN), this.currentTab === index)
-      Text(label)
-        .fontSize(11)
-        .fontColor(this.currentTab === index ? $r('sys.color.brand') : $r('sys.color.font_secondary'))
-        .fontWeight(this.currentTab === index ? FontWeight.Medium : FontWeight.Regular)
-    }
-    .width('100%')
-    .height('100%')
-    .justifyContent(FlexAlign.Center)
   }
 
   build() {
     Navigation(this.navStack) {
       Tabs({ barPosition: BarPosition.End, index: this.currentTab }) {
-        TabContent() {
-          HomePage()
-        }
-        .tabBar(this.TabBarItem($r('sys.symbol.house'), $r('sys.symbol.house_fill'), '首页', 0))
-
-        TabContent() {
-          ProxyPage()
-        }
-        .tabBar(this.TabBarItem($r('sys.symbol.bolt'), $r('sys.symbol.bolt_fill'), '代理', 1))
-
-        TabContent() {
-          ProfilePage()
-        }
-        .tabBar(this.TabBarItem($r('sys.symbol.doc_plaintext'), $r('sys.symbol.doc_plaintext_fill'), '配置', 2))
-
-        TabContent() {
-          SettingsPage()
-        }
-        .tabBar(this.TabBarItem($r('sys.symbol.gearshape'), $r('sys.symbol.gearshape_fill'), '设置', 3))
+        TabContent() { HomePage() }.tabBar('连接')
+        TabContent() { ProfilePage() }.tabBar('配置')
+        TabContent() { SettingsPage() }.tabBar('设置')
       }
       .width('100%')
       .height('100%')
-      .barHeight(56)
-      .animationDuration(0)
       .scrollable(false)
-      // 鸿蒙7：悬浮玻璃胶囊底栏（THIN 材质 + 系统渐变蒙层），内容滚动透出；旧系统保持贴底实底栏
-      .barOverlap(H7)
-      .barFloatingStyle(tabBarFloating())
       .onChange((index: number) => {
         this.currentTab = index;
         this.currentVisibleTab = index;

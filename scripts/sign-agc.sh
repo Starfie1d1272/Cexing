@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # 用 AGC 调试证书给 HAP 签名(零售真机必须)
-# 材料: .signing/{clashoh-debug.p12, clashoh-debug.cer, clashoh-debug.p7b}（获取步骤见 INSTALL.md 第 4 步）
+# 材料: .signing/{clashoh-debug.p12, clashoh-debug.cer, clashoh-debug.p7b}（获取步骤见 docs/how-to/device.md 签名准备章节）
 # 口令: 从环境变量 CLASHOH_STORE_PW 或 .signing/store_pw 文件读取（勿把口令写进任何入库文件）
 # 用法: bash scripts/sign-agc.sh [输入.hap] [输出.hap]
 set -e
@@ -13,7 +13,7 @@ mkdir -p "$PROJECT_ROOT/dist"
 for f in clashoh-debug.p12 clashoh-debug.cer clashoh-debug.p7b; do
   [ -f "$SIGN_DIR/$f" ] || {
     echo "[sign-agc] 缺少签名材料: $SIGN_DIR/$f" >&2
-    echo "[sign-agc] 请按 INSTALL.md 第 4 步在 AGC 创建调试证书并放入 $SIGN_DIR/" >&2
+    echo "[sign-agc] 请按 docs/how-to/device.md 签名准备章节在 AGC 创建调试证书并放入 $SIGN_DIR/" >&2
     exit 1
   }
 done

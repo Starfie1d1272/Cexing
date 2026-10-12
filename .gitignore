@@ -1,7 +1,7 @@
 # 工具链与外部参考（体积大/第三方）
 command-line-tools/
 clash-openharmony/entry/src/main/resources/rawfile/geodata/
-reference/
+/reference/
 core/third_party/
 
 # 私有配置（含节点凭据，永不入库）

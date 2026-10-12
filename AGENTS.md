@@ -1,55 +1,28 @@
-# AGENTS.md — AI Agent 入口
+# 开发约束
 
-> 你是被用户拉来帮忙安装/构建/二次开发本项目的 AI Agent。本文件是你的行动纲领。
-> **若用户让你"帮忙装上/跑起来"：直接以 [INSTALL.md](INSTALL.md) 为执行手册，从第 0 步开始逐步推进。**
+本仓库是 ArkTS VPN 宿主、C++ NAPI worker 与 Go Mihomo wrapper。先读 [文档索引](docs/README.md)、[架构](docs/architecture.md)，构建遵循 [构建指南](docs/how-to/build.md)。
 
-## 项目一句话
+## 不变量
 
-mihomo（Clash.Meta）内核的鸿蒙原生 VPN 客户端：ArkTS UI（`clash-openharmony/`）+ Go 交叉编译的 libmihomo.so（`core/`，NAPI 桥），纯命令行构建签名安装（`scripts/`），侧载到零售真机运行。
+- 保留 `core/main.go` 四个 C ABI；所有 Go 调用经 C++ worker，不在主线程直调，不 `dlclose` Go runtime。
+- 系统 TUN 由 VPN Extension 创建；服务连接成功不等于内核就绪，更不等于真实转发健康。
+- `AppRuntime` 拥有后台保活、订阅调度与自动恢复。页面仅订阅状态、持有展示资源；页面销毁不得停止 VPN 或后台任务。
+- 保留 URL、文件、剪贴板导入和 `ProfileStore` 数据格式，直到新配置流水线通过 [配置契约](docs/reference/configuration.md) 的回归。不要为清理代码删除用户沙箱数据或现有偏好。
+- `ProxyPage` 是面板接入前的临时入口。Zashboard 通过 REST/WS、离线资源与生命周期验收后，删除该页，不扩建第二套代理管理界面。
+- 构建脚本的检查对应平台约束。定位真实问题，不删除检查来绕过失败。
+- 修改 `core/`、NAPI 或应用资源后，在打包前执行 `hvigorw clean --no-daemon`。
+- 依赖以仓库声明和锁定版本为准；升级需独立验证。环境已有修改先审查并保留，不用清理任务夹带升级。
 
-## 当前 P0 验收范围（2026-10-12）
+## 数据与证据
 
-- 标准 mihomo v1.19.32、包名 `com.starfie1d.mihomo`；构建、AGC 调试签名、真机安装、订阅导入/更新、IPv4 浏览器 TUN 代理转发与正常停止/重连已通过。证据见 `docs/research/compatibility.md`。
-- Smart 仅隔离试编译通过，模型加载和真实预测待验收；Zashboard 尚未集成。IPv6、UDP/DNS 专项、WS、长时间后台保活、网络切换与异常恢复均待验收。
-- 首次连接需要校验过的 GeoIP 快照：构建前执行 `bash scripts/prepare-geodata.sh`。资源变更后按下方规则 clean。
-- 回归命令：在 Bash 中 `source scripts/env.sh`，再执行 `node scripts/test-profile-name.cjs` 和 `node scripts/test-vpn-startup.cjs`。
-- `/version` 当前仍为上游默认值，真实内核身份以 Go 模块元数据和库摘要确认；版本注入问题见 `docs/research/issues.md`。
+- `.signing/`、证书、私钥、订阅 URL/Token、真实节点与用户配置、SDK、原生库和 HAP 永不提交。不要读取或打印密钥内容。
+- 私有策略源只能只读参考；公共项目仅使用合成、脱敏用例。不得复制私有脚本或网络配置。
+- 源码审查、构建、mock 回归与真机转发是不同证据。只报告实际完成的检查，记录系统、源码与产物身份。
+- 日常云端工作构建未签名 HAP。需要 AGC 登录、首次系统授权或设备操作时，依据已有授权和工具能力推进，不假装完成。
+- 不重写 Git 历史、不强推、不自动合并或改变远端 Fork 关系。
 
-## 行为准则（硬性）
+## 文档与检查
 
-1. **人机分工**：🧑 标记的步骤（注册账号、网页下载、AGC 操作、真机授权）**停下并引导用户**，不要假装完成，不要尝试自动化网页登录。🤖 步骤直接执行并跑验证命令。
-2. **永不入库**：`.signing/`（任何层级）、`tomvps.yaml`、`*.hap`、`command-line-tools/`、`entry/libs/`、构建产物。提交前 `git status` 自查；发现用户私密节点配置绝不要 `git add`。
-3. **不要改 `scripts/*.sh` 的检查逻辑来"绕过"报错**——每个检查对应真实平台约束；报错先查 `clash-openharmony/BUILD.md`（完整坑位清单）。
-4. 所有命令默认在**仓库根目录**执行；构建前先 `source scripts/env.sh`（路径自动推导，工具链在别处时提示用户设 `HARMONYOS_CLT_ROOT`）。
-5. 改动 `core/` 或 `clash-openharmony/entry/src/main/resources/` 后，构建 HAP 前必须 clean：`cd clash-openharmony && hvigorw clean --no-daemon`（hvigor 缓存不打旧产物，这是坑位①）。
+持久设计写技术参考，重要选择写 ADR，一次性结果写带日期的证据。不要把聊天记录、机器路径、最新版本排名或重复进度表写进入口文档。规则见 [文档维护约定](docs/README.md#维护约定)。
 
-## 仓库速查
-
-| 位置 | 内容 |
-|------|------|
-| `INSTALL.md` | 安装主线（**事实来源**），含人机分工与验证命令 |
-| `scripts/env.sh / build-core.sh / prepare-geodata.sh / build-hap.sh / sign-agc.sh / install.sh / logs.sh` | 流水线，按序执行 |
-| `core/` | Go module：mihomo → c-shared 动态库；`platform_ohos.go` 是 ohos build tag 平台层 |
-| `clash-openharmony/BUILD.md` | 构建复原指南 + **移植坑位清单（第 4 节）**，遇错先查 |
-| `clash-openharmony/DESIGN.md` | UI/交互设计；`LIVEVIEW_DESIGN.md` 实况窗、`QUICK_ACCESS_DESIGN.md` 快捷入口 |
-| `core/third_party/android_stub/` | 首次 build-core 自动生成，勿手动提交 |
-
-## 常用验证命令
-
-```bash
-source scripts/env.sh
-hdc list targets                      # 设备在线？
-ls entry 2>/dev/null; ls clash-openharmony/entry/libs/arm64-v8a/  # 内核产物
-bash scripts/logs.sh                  # 设备日志（ClashOH 过滤）
-```
-
-## 二次开发提示
-
-- 本 Fork 的产品目标、证据与验收任务从 `docs/research/overview.md` 开始；安装事实来源仍为 `INSTALL.md`。
-- 用户偏好：在稳定条件下优先测试最新版本。保留可用的新工具链；出现可复现的不兼容才做项目级版本调整并记录错误。开发分支须固定 SHA，注明其稳定性证据。
-- 原始基线、Smart 试编译、签名安装、真实转发分别记录；构建通过不能替代真机验收。
-- 保留本项目四个 C ABI、NAPI worker 与 VPN 扩展边界；模型和 Web 资源接入前先检查来源、许可、完整性与失败处理。
-
-- 内核调试日志走 hilog（domain 0x3200，tag 见 core/hilog.go）。
-- 前端四 Tab 接的是内核 REST/WS 控制面（默认 127.0.0.1:9090，见 `lib/CoreApi.ets`）。
-- bundleName 变更要三处同步（AppScope/app.json5、scripts/install.sh、AGC 应用），见 INSTALL.md 4.2。
+改动后运行构建指南中的回归与 HAP 构建，检查本地链接、模块入口与相对导入。提交前核对 `git diff --check` 和 Git 状态。

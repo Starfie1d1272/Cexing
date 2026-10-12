@@ -397,7 +397,7 @@ export namespace LiveViewKeeper {
     }
   }
 
-  /** 按当前状态发布/更新实况窗（§2 状态文案表） */
+  /** 按当前状态发布/更新实况窗 */
   async function publishLiveView(): Promise<void> {
     if (notificationId < 0) {
       return;
@@ -470,7 +470,7 @@ export namespace LiveViewKeeper {
     }
   }
 
-  /** 流量活跃度：avgBps / 1MB/s × 100，钳制 0-100（§3） */
+  /** 流量活跃度：avgBps / 1MB/s × 100，钳制 0-100 */
   function progressValue(): number {
     const avgBps = lastDownBps + lastUpBps;
     const pct = Math.round((avgBps / (1024 * 1024)) * 100);

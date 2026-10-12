@@ -10,7 +10,7 @@
 //	mihomoFree(p *C.char)                 释放上述函数返回的 C 字符串
 //
 // 注意: 所有导出函数必须经由桥接层 worker 线程调用（鸿蒙 musl 主线程 TLS 布局与
-// pthread 线程不同，主线程直进 Go c-shared 会 SIGSEGV，详见 clash-openharmony/BUILD.md）。
+// pthread 线程不同，主线程直进 Go c-shared 会 SIGSEGV，详见 docs/reference/platform.md）。
 package main
 
 /*
