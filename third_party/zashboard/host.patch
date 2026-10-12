@@ -1,0 +1,39 @@
+diff --git a/src/api/clash.ts b/src/api/clash.ts
+index cdcb6af..7152984 100644
+--- a/src/api/clash.ts
++++ b/src/api/clash.ts
+@@ -233 +233 @@ export const restartCoreAPI = () => {
+-  return axios.post('/restart')
++  return Promise.reject(new Error('Core restart is managed by the native host'))
+diff --git a/src/assets/styles/theme/fonts.css b/src/assets/styles/theme/fonts.css
+index 72a8213..e74ab19 100644
+--- a/src/assets/styles/theme/fonts.css
++++ b/src/assets/styles/theme/fonts.css
+@@ -15,6 +14,0 @@
+-@layer utilities {
+-  @font-face {
+-    font-family: 'NotoEmoji';
+-    src: url('/src/assets/fonts/NotoColorEmoji-flagsonly.ttf') format('truetype');
+-  }
+-}
+@@ -22,6 +16 @@
+-@layer utilities {
+-  @font-face {
+-    font-family: 'Twemoji';
+-    src: url('/src/assets/fonts/TwemojiMozilla-flags.woff2') format('woff2');
+-  }
+-}
++/* Host distribution uses system emoji; only licensed Fira Sans is bundled. */
+diff --git a/src/helper/backend-actions.ts b/src/helper/backend-actions.ts
+index 3ada65c..f368054 100644
+--- a/src/helper/backend-actions.ts
++++ b/src/helper/backend-actions.ts
+@@ -107 +107 @@ export const backendActions = computed<BackendAction[]>(() => {
+-  if (can('coreRestart')) {
++  if (false && can('coreRestart')) { // Native host owns core lifecycle.
+diff --git a/vite.config.ts b/vite.config.ts
+index 47d9c94..c9235b8 100644
+--- a/vite.config.ts
++++ b/vite.config.ts
+@@ -41,0 +42 @@ export default defineConfig({
++      injectRegister: null, // ArkWeb owns resource versions; no persistent service worker.

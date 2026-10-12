@@ -2,6 +2,7 @@ import { HomePage } from './HomePage';
 import { ProfilePage } from './ProfilePage';
 import { SettingsPage } from './SettingsPage';
 import { ProxyPage } from './ProxyPage';
+import { ZashboardPage } from './ZashboardPage';
 import { NetworkSettingsPage } from './NetworkSettingsPage';
 import { OverridePage } from './OverridePage';
 import { ProfileEditPage } from './ProfileEditPage';
@@ -26,6 +27,9 @@ struct Index {
   PageMap(name: string) {
     if (name === 'proxies') {
       NavDestination() { ProxyPage() }.title('代理组')
+    } else if (name === 'zashboard') {
+      // No entry button/session until security and configuration integration is accepted.
+      NavDestination() { ZashboardPage() }.title('Zashboard')
     } else if (name === 'network') {
       NavDestination() { NetworkSettingsPage() }.title('网络设置')
     } else if (name === 'override') {

@@ -1,0 +1,11 @@
+{
+  "repository": "https://github.com/Zephyruso/zashboard",
+  "tag": "v3.29.1",
+  "sha": "50717b02dac68425cdc5b80cb754bea768ee4fc9",
+  "packageManager": "pnpm@11.20.0",
+  "lockSha256": "a3b76781a7f2ccf3a21ff979c80036945a673372fd47a3a3317ffab497d0820d",
+  "packageSha256": "c4f53052c0571231ea15867c1cfdc9da7d3216b8f9b5265d9cd592d4423f299b",
+  "font": "firasans",
+  "license": "MIT",
+  "fontLicense": "SIL-OFL-1.1"
+}
