@@ -6,11 +6,21 @@
 import { http, webSocket } from '@kit.NetworkKit';
 import { Logger } from './Logger';
 import { util } from '@kit.ArkTS';
+import { application, common } from '@kit.AbilityKit';
+import { fileIo } from '@kit.CoreFileKit';
 
 const TAG = 'coreApi';
 const BASE = 'http://127.0.0.1:9090';
 const WS_BASE = 'ws://127.0.0.1:9090';
 const TIMEOUT = 8000;
+const SECRET_FILE = 'controller-security/secret';
+
+/** Sensitive in-memory access for the local panel; never persist or navigate with secret. */
+export interface ControllerAccess {
+  httpBase: string;
+  wsBase: string;
+  secret: string;
+}
 
 export interface DelayHistory {
   time: string;
@@ -48,13 +58,39 @@ export interface TrafficMsg {
 }
 
 export namespace CoreApi {
+  let filesDir: string = '';
+
+  export function bindContext(context: common.Context): void {
+    filesDir = context.filesDir;
+  }
+
+  /** Read on each connection, including cold UI-process recovery. Never generate here. */
+  export function getControllerAccess(): ControllerAccess | null {
+    try {
+      if (filesDir.length === 0) {
+        filesDir = application.getApplicationContext().createModuleContext('entry').filesDir;
+      }
+      const secret = fileIo.readTextSync(`${filesDir}/${SECRET_FILE}`);
+      if (!/^[0-9a-f]{64}$/.test(secret)) {
+        return null;
+      }
+      return { httpBase: BASE, wsBase: WS_BASE, secret: secret };
+    } catch (e) {
+      return null; // Missing/corrupt credential must never fall back to anonymous HTTP.
+    }
+  }
+
 
   async function request(method: http.RequestMethod, path: string, body?: string): Promise<string | null> {
+    const access = getControllerAccess();
+    if (access === null) {
+      return null;
+    }
     const req = http.createHttp();
     try {
       const resp = await req.request(BASE + path, {
         method: method,
-        header: { 'Content-Type': 'application/json' },
+        header: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${access.secret}` },
         extraData: body,
         connectTimeout: TIMEOUT,
         readTimeout: TIMEOUT
@@ -62,10 +98,10 @@ export namespace CoreApi {
       if (resp.responseCode >= 200 && resp.responseCode < 300) {
         return typeof resp.result === 'string' ? resp.result : JSON.stringify(resp.result);
       }
-      Logger.warn(TAG, `${method} ${path} -> ${resp.responseCode}`);
+      Logger.warn(TAG, `${method} request rejected (${resp.responseCode})`);
       return null;
     } catch (e) {
-      Logger.warn(TAG, `${method} ${path} error: ${JSON.stringify(e)}`);
+      Logger.warn(TAG, `${method} request failed`);
       return null;
     } finally {
       req.destroy();
@@ -149,8 +185,9 @@ export namespace CoreApi {
   }
 
   /** 热切换配置：PUT /configs?force=true {"path": 绝对路径}（路径须在 mihomo homeDir 下） */
-  export async function reloadConfig(absPath: string): Promise<boolean> {
-    const s = await request(http.RequestMethod.PUT, '/configs?force=true', JSON.stringify({ path: absPath }));
+  export async function reloadConfig(absPath: string, overrides?: string): Promise<boolean> {
+    const s = await request(http.RequestMethod.PUT, '/configs?force=true',
+      JSON.stringify({ path: absPath, overrides: overrides }));
     return s !== null;
   }
 
@@ -161,29 +198,74 @@ export namespace CoreApi {
     private path: string = '';
     private stopped: boolean = true;
     private gotFirst: boolean = false;
-    private reconnectPending: boolean = false;
+    private reconnectTimer: number = -1;
+    private generation: number = 0;
 
     start(path: string, cb: (msg: T) => void): void {
-      if (!this.stopped && this.ws !== null) {
-        return; // 幂等：已在运行不重复开
+      // Do not accept caller-supplied tokens/URLs which could enter logs or history.
+      if (!/^\/(traffic|memory|connections|logs)(\?level=(debug|info|warning|error|silent))?$/.test(path)) {
+        return;
+      }
+      if (!this.stopped && this.path === path) {
+        return;
       }
       this.stop();
       this.stopped = false;
       this.path = path;
       this.cb = cb;
-      this.connect();
+      this.connect(this.generation);
     }
 
-    private connect(): void {
-      if (this.stopped) {
+    private retry(generation: number): void {
+      if (this.stopped || generation !== this.generation || this.reconnectTimer >= 0) {
+        return;
+      }
+      this.reconnectTimer = setTimeout(() => {
+        this.reconnectTimer = -1;
+        if (generation === this.generation) {
+          this.connect(generation);
+        }
+      }, 3000);
+    }
+
+    private releaseSocket(): void {
+      const ws = this.ws;
+      this.ws = null;
+      if (ws === null) {
+        return;
+      }
+      try {
+        ws.off('open');
+        ws.off('message');
+        ws.off('close');
+        ws.off('error');
+        ws.close().catch(() => {});
+      } catch (e) {
+        Logger.warn(TAG, 'ws close failed');
+      }
+    }
+
+    private connect(generation: number): void {
+      if (this.stopped || generation !== this.generation) {
+        return;
+      }
+      this.releaseSocket();
+      const access = getControllerAccess();
+      if (access === null) {
+        this.retry(generation);
         return;
       }
       const ws = webSocket.createWebSocket();
       this.ws = ws;
       ws.on('open', () => {
-        Logger.info(TAG, `ws open ${this.path}`);
+        if (this.ws === ws && generation === this.generation) {
+          Logger.info(TAG, 'ws open');
+        }
       });
       ws.on('message', (_err: Object, value: string | ArrayBuffer) => {
+        if (this.stopped || this.ws !== ws || generation !== this.generation) {
+          return;
+        }
         try {
           let text = '';
           if (typeof value === 'string') {
@@ -194,47 +276,42 @@ export namespace CoreApi {
           if (text.length > 0) {
             if (!this.gotFirst) {
               this.gotFirst = true;
-              Logger.info(TAG, `ws first msg ${this.path}: ${text.substring(0, 80)}`);
+              Logger.info(TAG, 'ws first message');
             }
             this.cb(JSON.parse(text) as T);
           }
         } catch (e) {
-          // 忽略单条坏消息
+          // Ignore a malformed message without logging arbitrary payloads.
         }
       });
       const reconnect = (): void => {
-        if (this.stopped || this.reconnectPending) {
+        if (this.ws !== ws || generation !== this.generation || this.stopped) {
           return;
         }
-        this.reconnectPending = true;
-        setTimeout(() => {
-          this.reconnectPending = false;
-          this.connect();
-        }, 3000);
+        this.releaseSocket();
+        this.retry(generation);
       };
       ws.on('close', reconnect);
-      ws.on('error', (err: Object) => {
-        Logger.warn(TAG, `ws error ${this.path}: ${JSON.stringify(err)}`);
+      ws.on('error', () => {
+        Logger.warn(TAG, 'ws connection failed');
         reconnect();
       });
-      ws.connect(WS_BASE + this.path).catch((e: Object) => {
-        Logger.warn(TAG, `ws connect failed ${this.path}: ${JSON.stringify(e)}`);
+      ws.connect(access.wsBase + this.path, {
+        header: { 'Authorization': `Bearer ${access.secret}` }
+      }).catch(() => {
         reconnect();
       });
     }
 
     stop(): void {
       this.stopped = true;
-      if (this.ws) {
-        try {
-          this.ws.off('close');
-          this.ws.off('error');
-          this.ws.close();
-        } catch (e) {
-          Logger.warn(TAG, `ws close error: ${JSON.stringify(e)}`);
-        }
-        this.ws = null;
+      this.generation++;
+      this.gotFirst = false;
+      if (this.reconnectTimer >= 0) {
+        clearTimeout(this.reconnectTimer);
+        this.reconnectTimer = -1;
       }
+      this.releaseSocket();
     }
   }
 }

@@ -16,6 +16,7 @@ import core from 'libentry.so';
 import { Logger } from '../lib/Logger';
 import { ProfileStore } from '../lib/ProfileStore';
 import { Settings } from '../lib/Settings';
+import { CoreApi } from '../lib/CoreApi';
 
 const TAG = 'vpn';
 // 主进程（首页）读取的最近一次启动失败原因
@@ -109,6 +110,7 @@ export default class ClashVpnAbility extends VpnExtensionAbility {
 
   onCreate(): void {
     Logger.info(TAG, 'ClashVpnAbility.onCreate');
+    CoreApi.bindContext(this.context);
     this.connection = vpnExtension.createVpnConnection(this.context);
   }
 
@@ -140,7 +142,7 @@ export default class ClashVpnAbility extends VpnExtensionAbility {
       await this.seedGeoData(filesDir);
       const initErr: string = await core.initCore(filesDir);
       if (initErr) {
-        Logger.error(TAG, `initCore failed: ${initErr}`);
+        Logger.error(TAG, 'initCore failed');
         throw new Error(`initCore failed: ${initErr}`);
       }
       Logger.info(TAG, `initCore ok, homeDir=${filesDir}`);
@@ -160,7 +162,7 @@ export default class ClashVpnAbility extends VpnExtensionAbility {
         `user overrides: mixedPort=${s.mixedPort} logLevel=${s.logLevel} allowLan=${s.allowLan} mode=${s.mode} logToFile=${s.logToFile}`);
       const startErr: string = await core.startTun(fd, cfg, JSON.stringify(overrides));
       if (startErr) {
-        Logger.error(TAG, `startTun failed: ${startErr}`);
+        Logger.error(TAG, 'startTun failed');
         const hint = startErr.includes('parse configJson')
           ? `${startErr}\n提示：请到「配置」页重新导入订阅（UTF-8），或换一个配置激活后重启 VPN。`
           : startErr;

@@ -161,6 +161,7 @@ export namespace VpnController {
       Logger.warn(TAG, `start ignored, status=${VpnStatus[status]}`);
       return;
     }
+    CoreApi.bindContext(context);
     setStatus(VpnStatus.Connecting);
     startAttempt++;
     const want: Want = { bundleName: context.applicationInfo.name, abilityName: VPN_ABILITY_NAME };
