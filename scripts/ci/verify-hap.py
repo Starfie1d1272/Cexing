@@ -30,6 +30,14 @@ def elf(data, file):
     symbols = subprocess.check_output([str(readelf), '--dyn-syms', str(file)], text=True)
     return {line.split()[-1].split('@')[0] for line in symbols.splitlines()
             if re.match(r'\s*\d+:', line) and ' UND ' not in line and re.search(r'\bGLOBAL\b', line)}
+header = (root / 'clash-openharmony/entry/libs/arm64-v8a/libmihomo.h').read_text()
+for declaration in [
+    'extern char* mihomoInit(char* homeDir);',
+    'extern char* mihomoStartTun(int fd, char* configJson, char* overridesJson);',
+    'extern void mihomoStop(void);',
+    'extern void mihomoFree(char* p);'
+]:
+    require(declaration in header, 'generated C ABI prototype: ' + declaration.split('(')[0])
 source = metadata(root / 'clash-openharmony/entry/libs/arm64-v8a/libmihomo.so')
 # Compare all embedded dependency versions AND sums with the selected module graph.
 stream = subprocess.check_output(['go', 'list', '-m', '-json', 'all'], cwd='core', text=True)
@@ -80,7 +88,7 @@ with zipfile.ZipFile(hap) as archive, tempfile.TemporaryDirectory() as directory
             # Hvigor strips the native library. Compare the complete ELF after the same strip operation.
             stripped = pathlib.Path(directory) / 'fresh.so'
             stripped.write_bytes((root / 'clash-openharmony/entry/libs/arm64-v8a/libmihomo.so').read_bytes())
-            subprocess.check_call([str(sdk / 'native/llvm/bin/llvm-strip'), '--strip-unneeded', str(stripped)])
+            subprocess.check_call([str(sdk / 'native/llvm/bin/llvm-strip'), '--strip-all', str(stripped)])
             require(sha(stripped.read_bytes()) == sha(data), 'packaged core is not the freshly built/stripped ELF')
     # Every rawfile is checked, including future offline panel/model assets.
     raw = root / 'clash-openharmony/entry/src/main/resources/rawfile'
@@ -98,13 +106,16 @@ identity = {
     'commit': subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip(),
     'tree': subprocess.check_output(['git', 'rev-parse', 'HEAD^{tree}'], text=True).strip(),
     'toolchain': pin,
+    'nativeTools': {name: sha((sdk / 'native/llvm/bin' / name).read_bytes()) for name in [
+        'aarch64-unknown-linux-ohos-clang', 'llvm-strip', 'llvm-readelf']},
     'app': {k: app[k] for k in ['bundleName', 'versionCode', 'versionName', 'buildVersion']},
     'hapSha256': sha(hap.read_bytes()),
     'freshCoreSha256': sha((root / 'clash-openharmony/entry/libs/arm64-v8a/libmihomo.so').read_bytes()),
     'core': source,
     'inputs': {file: sha((root / file).read_bytes()) for file in [
         'core/go.mod', 'core/go.sum', 'scripts/build-core.sh', 'scripts/ci/patch-gvisor.py',
-        'scripts/prepare-geodata.sh', 'scripts/ci/package-lock.json', 'scripts/ci/toolchain.json']},
+        'scripts/prepare-geodata.sh', 'scripts/build-hap.sh', 'scripts/env.sh',
+        'clash-openharmony/entry/oh-package-lock.json5', 'scripts/ci/package-lock.json', 'scripts/ci/toolchain.json']},
     'entries': entries,
     'signed': False,
     'deviceValidated': False,

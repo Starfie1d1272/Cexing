@@ -44,7 +44,7 @@ Full 要求干净、已提交的 checkout。Go、npm 和 Hvigor 缓存分别写�
 - `build-identity.json`：commit/tree、固定工具组合、应用版本、输入 SHA-256、Go 实际版本/依赖图、HAP/native 和每个 ZIP entry 的摘要。
 - `module-notices.json`：已下载选定模块的许可证与 NOTICE 摘要，以及模块图中未下载和仅有子目录许可的依赖；发行授权明确标为未批准。
 
-校验 HAP CRC、路径和重复条目、证书形状文件、三个 ARM64 ELF DYN 库、四个 C ABI、包内 Go metadata 与新编译库一致，且包内核心等于新核心经官方 `llvm-strip --strip-unneeded` 的结果。逐项检查全部 rawfile、默认配置、固定 GeoIP 和包内应用/SDK 版本；strip 不改变内核身份的判断不能仅依赖 `/version`。
+校验 HAP CRC、路径和重复条目、证书形状文件、三个 ARM64 ELF DYN 库、四个 C ABI 及生成头文件原型、包内 Go metadata 与新编译库一致，且包内核心等于新核心经官方 `llvm-strip --strip-all` 的结果。逐项检查全部 rawfile、默认配置、固定 GeoIP 和包内应用/SDK 版本；strip 不改变内核身份的判断不能仅依赖 `/version`。
 
 这是可重复执行和可审计身份流程，**没有宣称 HAP 每次逐字节相同**。Hvigor ZIP 时间戳和 SDK 内部依赖等仍需单独研究；摘要记录实际产物，构建成功不证明 VPN 转发、后台稳定性、SDK 低版本兼容性或发行许可。
 

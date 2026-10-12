@@ -8,7 +8,7 @@ const YAML = require('yaml');
 const root = path.resolve(__dirname, '../..');
 process.chdir(root);
 const files = cp.execFileSync('git', ['ls-files', '-z'], { encoding: 'utf8' }).split('\0').filter(Boolean);
-const forbidden = /(?:^|\/)(?:\.signing|command-line-tools|oh_modules|node_modules)(?:\/|$)|\.(?:hap|so|a|p12|pfx|p7b|cer|csr|jks|keystore)$/i;
+const forbidden = /(?:^|\/)(?:\.signing|command-line-tools|oh_modules|node_modules)(?:\/|$)|\.(?:hap|so|a|p12|pfx|p7b|cer|csr|crt|der|pem|key|jks|keystore)$/i;
 const secrets = [
   /-----BEGIN (?:RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----/,
   /\bgh[pousr]_[A-Za-z0-9]{30,}\b/,
@@ -24,6 +24,14 @@ for (const file of files) {
   for (const rule of secrets) assert.ok(!rule.test(text), `Potential sensitive content in ${file} (value withheld)`);
   if (/\.json5?$/.test(file)) JSON5.parse(text);
   if (/\.ya?ml$/.test(file)) YAML.parse(text, { uniqueKeys: true });
+}
+const manifest = JSON.parse(fs.readFileSync('scripts/ci/package.json', 'utf8'));
+const lock = JSON.parse(fs.readFileSync('scripts/ci/package-lock.json', 'utf8'));
+assert.deepEqual(lock.packages[''].dependencies, manifest.dependencies, 'npm lock differs from manifest');
+for (const [name, version] of Object.entries(manifest.dependencies)) {
+  assert.equal(lock.packages[`node_modules/${name}`].version, version);
+  assert.ok(lock.packages[`node_modules/${name}`].integrity && lock.packages[`node_modules/${name}`].license,
+    `npm dependency ${name} requires integrity and license metadata`);
 }
 const project = JSON5.parse(fs.readFileSync('clash-openharmony/build-profile.json5', 'utf8'));
 assert.deepEqual(project.app.signingConfigs, [], 'CI accepts unsigned builds only');

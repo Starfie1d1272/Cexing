@@ -31,7 +31,6 @@ with tempfile.TemporaryDirectory() as directory:
     for case, source, succeeds in [('original', original, True), ('legacy', original.replace(old, new), True),
                                   ('drift', original + '// unexpected change\n', False)]:
         endpoint.write_text(source)
-        out = root / case
         result = subprocess.run(['python3', str(helper), str(module)], env=env, capture_output=True, text=True)
         assert (result.returncode == 0) == succeeds, result.stderr
         assert endpoint.read_text() == (original.replace(old, new) if succeeds else source)
