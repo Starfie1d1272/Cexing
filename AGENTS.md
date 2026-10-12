@@ -37,6 +37,11 @@ bash scripts/logs.sh                  # 设备日志（ClashOH 过滤）
 
 ## 二次开发提示
 
+- 本 Fork 的产品目标、证据与验收任务从 `docs/research/overview.md` 开始；安装事实来源仍为 `INSTALL.md`。
+- 用户偏好：在稳定条件下优先测试最新版本。保留可用的新工具链；出现可复现的不兼容才做项目级版本调整并记录错误。开发分支须固定 SHA，注明其稳定性证据。
+- 原始基线、Smart 试编译、签名安装、真实转发分别记录；构建通过不能替代真机验收。
+- 保留本项目四个 C ABI、NAPI worker 与 VPN 扩展边界；模型和 Web 资源接入前先检查来源、许可、完整性与失败处理。
+
 - 内核调试日志走 hilog（domain 0x3200，tag 见 core/hilog.go）。
 - 前端四 Tab 接的是内核 REST/WS 控制面（默认 127.0.0.1:9090，见 `lib/CoreApi.ets`）。
 - bundleName 变更要三处同步（AppScope/app.json5、scripts/install.sh、AGC 应用），见 INSTALL.md 4.2。

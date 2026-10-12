@@ -12,6 +12,12 @@ mihomo 内核 · 纯 ArkTS 界面 · 系统级 VPN 全隧道 · 后台保活 + �
 
 ---
 
+## 本 Fork 的开发方向
+
+本 Fork 正在评估 **HarmonyOS 原生宿主 + Mihomo Smart + 内置 Zashboard**：ArkTS 管理 VPN、订阅、授权和生命周期，Zashboard 提供代理控制界面。当前应用仍沿用 ClashOH 的实现与包名。
+
+第一轮已验证原始内核与未签名 HAP 的本机构建；签名、VPN 转发与稳定性仍待真机验收。详见 [调研入口](docs/research/overview.md)、[架构](docs/architecture.md)、[开发路线](docs/roadmap.md) 和 [本机验证记录](docs/research/compatibility.md)。依赖优先测试最新稳定版，仅在复现兼容性问题后进行项目级调整。
+
 ## 这是什么
 
 ClashOH 把 [mihomo](https://github.com/MetaCubeX/mihomo)（Clash.Meta）内核完整移植进了纯血鸿蒙（HarmonyOS NEXT）：Go 交叉编译的内核动态库经 NAPI 桥接进原生 ArkTS 应用，通过系统 VpnExtensionAbility 建立 TUN 全隧道。不是套壳网页，不是远程控制——内核就跑在你手机里，和手机上的 ClashMetaForAndroid 一个物种。
