@@ -1,0 +1,22 @@
+{
+  "root": "design/native-ui-fresh",
+  "files": 14,
+  "errors": [],
+  "warnings": [
+    "JavaScript queries HTML hooks that were not found: .ark-numeral, .brand, .hero, .row small,.fact span:last-child,.lead. Update copied starter wiring after renaming classes or IDs.",
+    "Many literal colors were found; consolidate them into family and semantic tokens."
+  ],
+  "passes": [
+    "No official CDN assets are embedded.",
+    "No obvious protected brand-logo reference is present.",
+    "Semantic Ark color tokens are present.",
+    "Reduced-motion behavior is defined.",
+    "Responsive or orientation-specific rules are present.",
+    "Visible keyboard focus styling is present.",
+    "Viewport metadata is present.",
+    "Document language is declared.",
+    "Semantic landmarks are present.",
+    "HTML ID references resolve.",
+    "No common sci-fi imitation clich\u00e9 is named."
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "commit": "9127864ab4fb1ac4cc971238cd8581be40ff4a03",
+  "files": {
+    "index.html": "6b1b299d11f91415745f929ed7cc62b24d06ed0ba29a61454fcdabd5339381ac",
+    "styles.css": "d4c5e6410b77f6f180bbc6fdd11808fad981f87ffdfd1344be7a07808a9ea793",
+    "native-light.css": "55248f3b0a36536c1dfefdf4d324fb0c15f7c4c72ab9123ea8193c91f83980c9",
+    "app.js": "0a6d48289656b4ae7605d373acede65a2de2d00e058cda38788c958298bb131e"
+  }
+}

@@ -4,6 +4,8 @@
 
 ## 体验
 
+本轮新增可选的 [Ark 本家细节试稿](ark-detail/README.md)及[三页同尺寸对照](ark-detail/comparison.html)。`9127864` 轻盈基线与原入口、旧图均完整保留，未替用户选定最终方案。
+
 从仓库根目录启动任意静态 HTTP 服务，例如 `python3 -m http.server 8765`，打开：
 
 - [设计评审入口](review.html)：原生轻盈版与保留的硬边版本，流程状态及十组窗口尺寸；硬边方案保留 minimal / moderate 对照。

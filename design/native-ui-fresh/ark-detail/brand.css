@@ -1,0 +1,170 @@
+/* Identity details only: native surfaces, rounded geometry and task structure are retained. */
+[data-ark-brand="true"] {
+  --ark-signal: #18d1ff;
+  --ark-detail-ink: #005f75;
+  --ark-rule: #d4e7ed;
+}
+[data-ark-brand="true"] .brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+[data-ark-brand="true"] .brand .prototype {
+  margin-left: 0;
+}
+[data-ark-brand="true"] .ark-connection-symbol {
+  width: 22px;
+  height: 22px;
+  stroke: var(--ark-detail-ink);
+  stroke-width: 1.7;
+}
+[data-ark-brand="true"] .brand .ark-connection-symbol .link {
+  stroke: #007b99;
+}
+[data-ark-brand="true"] .hero {
+  border-color: #ddebf0;
+  box-shadow: 0 6px 24px #17374604;
+}
+[data-ark-brand="true"] .hero:before {
+  display: block;
+  left: 11px;
+  top: 28px;
+  width: 3px;
+  height: 32px;
+  border-radius: 2px;
+  background: var(--ark-signal);
+}
+[data-ark-brand="true"] .ark-state-symbol {
+  position: absolute;
+  right: 24px;
+  top: 25px;
+  width: 31px;
+  height: 31px;
+  stroke: #7798a4;
+}
+[data-ark-brand="true"][data-vpn="connected"] .ark-state-symbol .link {
+  stroke: var(--ark-signal);
+  stroke-width: 2.5;
+}
+[data-ark-brand="true"][data-vpn="idle"] .ark-state-symbol .link,
+[data-ark-brand="true"][data-vpn="error"] .ark-state-symbol .link {
+  stroke-dasharray: 2 3;
+  stroke: #8ca5af;
+}
+[data-ark-brand="true"] .hero .state {
+  color: #3e6876;
+}
+[data-ark-brand="true"] .dot {
+  background: #007e9d;
+  border-radius: 2px;
+  width: 7px;
+  height: 7px;
+}
+[data-ark-brand="true"] .dot.idle {
+  background: #97a6ae;
+}
+[data-ark-brand="true"] .traffic .rate,
+[data-ark-brand="true"] .ark-numeral {
+  font-family: ui-monospace, "Noto Sans Mono CJK SC", monospace;
+  font-variant-numeric: tabular-nums slashed-zero;
+  font-feature-settings:
+    "tnum" 1,
+    "zero" 1;
+}
+[data-ark-brand="true"] .traffic .rate {
+  font-size: 28px;
+  font-weight: 550;
+  letter-spacing: -0.7px;
+}
+[data-ark-brand="true"] .traffic .unit {
+  font-size: 11px;
+  letter-spacing: 0;
+}
+[data-ark-brand="true"] .traffic .label svg {
+  stroke: #007b99;
+}
+[data-ark-brand="true"] .traffic > div + div {
+  border-color: var(--ark-rule);
+}
+[data-ark-brand="true"] .sectionlabel > span:first-child:before {
+  content: "";
+  display: inline-block;
+  width: 10px;
+  height: 7px;
+  margin-right: 8px;
+  vertical-align: middle;
+  background: linear-gradient(
+    to bottom,
+    #007d99 0 1px,
+    transparent 1px 5px,
+    #007d99 5px 6px,
+    transparent 6px
+  );
+}
+[data-ark-brand="true"] .rowgroup .row {
+  border-color: #e0eaf0;
+}
+[data-ark-brand="true"] .handoff {
+  background: #e7f2f6;
+  border-color: #d1e5ed;
+}
+[data-ark-brand="true"] .handoff > svg:last-child {
+  color: #006c89;
+  stroke-width: 1.8;
+}
+[data-ark-brand="true"] .primary {
+  background: #006e89;
+  box-shadow: 0 4px 12px #006e8910;
+}
+[data-ark-brand="true"][data-vpn="connected"][data-page="home"]
+  .footer
+  .primary {
+  background: #e0edf2;
+  color: #245e73;
+}
+[data-ark-brand="true"] .tab[aria-current="page"] {
+  background: #e4f3f8;
+  color: var(--ark-detail-ink);
+}
+[data-ark-brand="true"] .tab[aria-current="page"]:before {
+  display: block;
+  position: absolute;
+  top: 4px;
+  width: 16px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--ark-signal);
+}
+[data-ark-brand="true"] .switch.on:before {
+  background: #007b99;
+}
+[data-ark-brand="true"][data-vpn="connecting"] .ark-state-symbol .link {
+  stroke: #007b99;
+  stroke-dasharray: 3 2;
+  animation: ark-joining 0.8s linear infinite;
+}
+@keyframes ark-joining {
+  to {
+    stroke-dashoffset: -5;
+  }
+}
+@media (max-height: 500px) {
+  [data-ark-brand="true"] .ark-state-symbol {
+    right: 20px;
+    top: 14px;
+    width: 24px;
+    height: 24px;
+  }
+  [data-ark-brand="true"] .hero:before {
+    top: 19px;
+    height: 22px;
+  }
+  [data-ark-brand="true"] .traffic .rate {
+    font-size: 20px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-ark-brand="true"] .ark-state-symbol .link {
+    animation: none !important;
+  }
+}

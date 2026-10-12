@@ -1,0 +1,1025 @@
+{
+  "baseline": "9127864ab4fb1ac4cc971238cd8581be40ff4a03",
+  "flows": [
+    "导入、拒绝/允许授权、连接、跨页、更新、端口校验、面板故障保持会话、确认断开",
+    "连接取消过滤迟到回调；细节随实际状态渲染",
+    "窗口重排不改连接状态与页签",
+    "减少动态效果下连接符号静态，状态文本与取消动作仍在"
+  ],
+  "viewports": [
+    {
+      "scenario": "empty",
+      "width": 390,
+      "height": 844,
+      "scroll": 390,
+      "tabs": [
+        {
+          "label": "连接",
+          "top": 775,
+          "bottom": 829
+        },
+        {
+          "label": "订阅",
+          "top": 775,
+          "bottom": 829
+        },
+        {
+          "label": "设置",
+          "top": 775,
+          "bottom": 829
+        }
+      ],
+      "tooSmall": [],
+      "storage": 0
+    },
+    {
+      "scenario": "ready",
+      "width": 390,
+      "height": 844,
+      "scroll": 390,
+      "tabs": [
+        {
+          "label": "连接",
+          "top": 775,
+          "bottom": 829
+        },
+        {
+          "label": "订阅",
+          "top": 775,
+          "bottom": 829
+        },
+        {
+          "label": "设置",
+          "top": 775,
+          "bottom": 829
+        }
+      ],
+      "tooSmall": [],
+      "storage": 0
+    },
+    {
+      "scenario": "permission",
+      "width": 390,
+      "height": 844,
+      "scroll": 390,
+      "tabs": [
+        {
+          "label": "连接",
+          "top": 775,
+          "bottom": 829
+        },
+        {
+          "label": "订阅",
+          "top": 775,
+          "bottom": 829
+        },
+        {
+          "label": "设置",
+          "top": 775,
+          "bottom": 829
+        }
+      ],
+      "tooSmall": [],
+      "storage": 0
+    },
+    {
+      "scenario": "connecting",
+      "width": 390,
+      "height": 844,
+      "scroll": 390,
+      "tabs": [
+        {
+          "label": "连接",
+          "top": 775,
+          "bottom": 829
+        },
+        {
+          "label": "订阅",
+          "top": 775,
+          "bottom": 829
+        },
+        {
+          "label": "设置",
+          "top": 775,
+          "bottom": 829
+        }
+      ],
+      "tooSmall": [],
+      "storage": 0
+    },
+    {
+      "scenario": "connected",
+      "width": 390,
+      "height": 844,
+      "scroll": 390,
+      "tabs": [
+        {
+          "label": "连接",
+          "top": 775,
+          "bottom": 829
+        },
+        {
+          "label": "订阅",
+          "top": 775,
+          "bottom": 829
+        },
+        {
+          "label": "设置",
+          "top": 775,
+          "bottom": 829
+        }
+      ],
+      "tooSmall": [],
+      "storage": 0
+    },
+    {
+      "scenario": "disconnect",
+      "width": 390,
+      "height": 844,
+      "scroll": 390,
+      "tabs": [
+        {
+          "label": "连接",
+          "top": 775,
+          "bottom": 829
+        },
+        {
+          "label": "订阅",
+          "top": 775,
+          "bottom": 829
+        },
+        {
+          "label": "设置",
+          "top": 775,
+          "bottom": 829
+        }
+      ],
+      "tooSmall": [],
+      "storage": 0
+    },
+    {
+      "scenario": "review",
+      "width": 390,
+      "height": 844,
+      "scroll": 390,
+      "tabs": [
+        {
+          "label": "连接",
+          "top": 775,
+          "bottom": 829
+        },
+        {
+          "label": "订阅",
+          "top": 775,
+          "bottom": 829
+        },
+        {
+          "label": "设置",
+          "top": 775,
+          "bottom": 829
+        }
+      ],
+      "tooSmall": [],
+      "storage": 0
+    },
+    {
+      "scenario": "overrides",
+      "width": 390,
+      "height": 844,
+      "scroll": 390,
+      "tabs": [
+        {
+          "label": "连接",
+          "top": 775,
+          "bottom": 829
+        },
+        {
+          "label": "订阅",
+          "top": 775,
+          "bottom": 829
+        },
+        {
+          "label": "设置",
+          "top": 775,
+          "bottom": 829
+        }
+      ],
+      "tooSmall": [],
+      "storage": 0
+    },
+    {
+      "scenario": "import-error",
+      "width": 390,
+      "height": 844,
+      "scroll": 390,
+      "tabs": [
+        {
+          "label": "连接",
+          "top": 775,
+          "bottom": 829
+        },
+        {
+          "label": "订阅",
+          "top": 775,
+          "bottom": 829
+        },
+        {
+          "label": "设置",
+          "top": 775,
+          "bottom": 829
+        }
+      ],
+      "tooSmall": [],
+      "storage": 0
+    },
+    {
+      "scenario": "update-error",
+      "width": 390,
+      "height": 844,
+      "scroll": 390,
+      "tabs": [
+        {
+          "label": "连接",
+          "top": 775,
+          "bottom": 829
+        },
+        {
+          "label": "订阅",
+          "top": 775,
+          "bottom": 829
+        },
+        {
+          "label": "设置",
+          "top": 775,
+          "bottom": 829
+        }
+      ],
+      "tooSmall": [],
+      "storage": 0
+    },
+    {
+      "scenario": "network-error",
+      "width": 390,
+      "height": 844,
+      "scroll": 390,
+      "tabs": [
+        {
+          "label": "连接",
+          "top": 775,
+          "bottom": 829
+        },
+        {
+          "label": "订阅",
+          "top": 775,
+          "bottom": 829
+        },
+        {
+          "label": "设置",
+          "top": 775,
+          "bottom": 829
+        }
+      ],
+      "tooSmall": [],
+      "storage": 0
+    },
+    {
+      "scenario": "diagnostics",
+      "width": 390,
+      "height": 844,
+      "scroll": 390,
+      "tabs": [
+        {
+          "label": "连接",
+          "top": 775,
+          "bottom": 829
+        },
+        {
+          "label": "订阅",
+          "top": 775,
+          "bottom": 829
+        },
+        {
+          "label": "设置",
+          "top": 775,
+          "bottom": 829
+        }
+      ],
+      "tooSmall": [],
+      "storage": 0
+    },
+    {
+      "scenario": "settings",
+      "width": 390,
+      "height": 844,
+      "scroll": 390,
+      "tabs": [
+        {
+          "label": "连接",
+          "top": 775,
+          "bottom": 829
+        },
+        {
+          "label": "订阅",
+          "top": 775,
+          "bottom": 829
+        },
+        {
+          "label": "设置",
+          "top": 775,
+          "bottom": 829
+        }
+      ],
+      "tooSmall": [],
+      "storage": 0
+    },
+    {
+      "scenario": "profiles",
+      "width": 390,
+      "height": 844,
+      "scroll": 390,
+      "tabs": [
+        {
+          "label": "连接",
+          "top": 775,
+          "bottom": 829
+        },
+        {
+          "label": "订阅",
+          "top": 775,
+          "bottom": 829
+        },
+        {
+          "label": "设置",
+          "top": 775,
+          "bottom": 829
+        }
+      ],
+      "tooSmall": [],
+      "storage": 0
+    },
+    {
+      "scenario": "panel",
+      "width": 390,
+      "height": 844,
+      "scroll": 390,
+      "tabs": [
+        {
+          "label": "连接",
+          "top": 775,
+          "bottom": 829
+        },
+        {
+          "label": "订阅",
+          "top": 775,
+          "bottom": 829
+        },
+        {
+          "label": "设置",
+          "top": 775,
+          "bottom": 829
+        }
+      ],
+      "tooSmall": [],
+      "storage": 0
+    },
+    {
+      "scenario": "panel-error",
+      "width": 390,
+      "height": 844,
+      "scroll": 390,
+      "tabs": [
+        {
+          "label": "连接",
+          "top": 775,
+          "bottom": 829
+        },
+        {
+          "label": "订阅",
+          "top": 775,
+          "bottom": 829
+        },
+        {
+          "label": "设置",
+          "top": 775,
+          "bottom": 829
+        }
+      ],
+      "tooSmall": [],
+      "storage": 0
+    },
+    {
+      "scenario": "empty",
+      "width": 960,
+      "height": 720,
+      "scroll": 960,
+      "tabs": [
+        {
+          "label": "连接",
+          "top": 651,
+          "bottom": 705
+        },
+        {
+          "label": "订阅",
+          "top": 651,
+          "bottom": 705
+        },
+        {
+          "label": "设置",
+          "top": 651,
+          "bottom": 705
+        }
+      ],
+      "tooSmall": [],
+      "storage": 0
+    },
+    {
+      "scenario": "ready",
+      "width": 960,
+      "height": 720,
+      "scroll": 960,
+      "tabs": [
+        {
+          "label": "连接",
+          "top": 651,
+          "bottom": 705
+        },
+        {
+          "label": "订阅",
+          "top": 651,
+          "bottom": 705
+        },
+        {
+          "label": "设置",
+          "top": 651,
+          "bottom": 705
+        }
+      ],
+      "tooSmall": [],
+      "storage": 0
+    },
+    {
+      "scenario": "permission",
+      "width": 960,
+      "height": 720,
+      "scroll": 960,
+      "tabs": [
+        {
+          "label": "连接",
+          "top": 651,
+          "bottom": 705
+        },
+        {
+          "label": "订阅",
+          "top": 651,
+          "bottom": 705
+        },
+        {
+          "label": "设置",
+          "top": 651,
+          "bottom": 705
+        }
+      ],
+      "tooSmall": [],
+      "storage": 0
+    },
+    {
+      "scenario": "connecting",
+      "width": 960,
+      "height": 720,
+      "scroll": 960,
+      "tabs": [
+        {
+          "label": "连接",
+          "top": 651,
+          "bottom": 705
+        },
+        {
+          "label": "订阅",
+          "top": 651,
+          "bottom": 705
+        },
+        {
+          "label": "设置",
+          "top": 651,
+          "bottom": 705
+        }
+      ],
+      "tooSmall": [],
+      "storage": 0
+    },
+    {
+      "scenario": "connected",
+      "width": 960,
+      "height": 720,
+      "scroll": 960,
+      "tabs": [
+        {
+          "label": "连接",
+          "top": 651,
+          "bottom": 705
+        },
+        {
+          "label": "订阅",
+          "top": 651,
+          "bottom": 705
+        },
+        {
+          "label": "设置",
+          "top": 651,
+          "bottom": 705
+        }
+      ],
+      "tooSmall": [],
+      "storage": 0
+    },
+    {
+      "scenario": "disconnect",
+      "width": 960,
+      "height": 720,
+      "scroll": 960,
+      "tabs": [
+        {
+          "label": "连接",
+          "top": 651,
+          "bottom": 705
+        },
+        {
+          "label": "订阅",
+          "top": 651,
+          "bottom": 705
+        },
+        {
+          "label": "设置",
+          "top": 651,
+          "bottom": 705
+        }
+      ],
+      "tooSmall": [],
+      "storage": 0
+    },
+    {
+      "scenario": "review",
+      "width": 960,
+      "height": 720,
+      "scroll": 960,
+      "tabs": [
+        {
+          "label": "连接",
+          "top": 651,
+          "bottom": 705
+        },
+        {
+          "label": "订阅",
+          "top": 651,
+          "bottom": 705
+        },
+        {
+          "label": "设置",
+          "top": 651,
+          "bottom": 705
+        }
+      ],
+      "tooSmall": [],
+      "storage": 0
+    },
+    {
+      "scenario": "overrides",
+      "width": 960,
+      "height": 720,
+      "scroll": 960,
+      "tabs": [
+        {
+          "label": "连接",
+          "top": 651,
+          "bottom": 705
+        },
+        {
+          "label": "订阅",
+          "top": 651,
+          "bottom": 705
+        },
+        {
+          "label": "设置",
+          "top": 651,
+          "bottom": 705
+        }
+      ],
+      "tooSmall": [],
+      "storage": 0
+    },
+    {
+      "scenario": "import-error",
+      "width": 960,
+      "height": 720,
+      "scroll": 960,
+      "tabs": [
+        {
+          "label": "连接",
+          "top": 651,
+          "bottom": 705
+        },
+        {
+          "label": "订阅",
+          "top": 651,
+          "bottom": 705
+        },
+        {
+          "label": "设置",
+          "top": 651,
+          "bottom": 705
+        }
+      ],
+      "tooSmall": [],
+      "storage": 0
+    },
+    {
+      "scenario": "update-error",
+      "width": 960,
+      "height": 720,
+      "scroll": 960,
+      "tabs": [
+        {
+          "label": "连接",
+          "top": 651,
+          "bottom": 705
+        },
+        {
+          "label": "订阅",
+          "top": 651,
+          "bottom": 705
+        },
+        {
+          "label": "设置",
+          "top": 651,
+          "bottom": 705
+        }
+      ],
+      "tooSmall": [],
+      "storage": 0
+    },
+    {
+      "scenario": "network-error",
+      "width": 960,
+      "height": 720,
+      "scroll": 960,
+      "tabs": [
+        {
+          "label": "连接",
+          "top": 651,
+          "bottom": 705
+        },
+        {
+          "label": "订阅",
+          "top": 651,
+          "bottom": 705
+        },
+        {
+          "label": "设置",
+          "top": 651,
+          "bottom": 705
+        }
+      ],
+      "tooSmall": [],
+      "storage": 0
+    },
+    {
+      "scenario": "diagnostics",
+      "width": 960,
+      "height": 720,
+      "scroll": 960,
+      "tabs": [
+        {
+          "label": "连接",
+          "top": 651,
+          "bottom": 705
+        },
+        {
+          "label": "订阅",
+          "top": 651,
+          "bottom": 705
+        },
+        {
+          "label": "设置",
+          "top": 651,
+          "bottom": 705
+        }
+      ],
+      "tooSmall": [],
+      "storage": 0
+    },
+    {
+      "scenario": "settings",
+      "width": 960,
+      "height": 720,
+      "scroll": 960,
+      "tabs": [
+        {
+          "label": "连接",
+          "top": 651,
+          "bottom": 705
+        },
+        {
+          "label": "订阅",
+          "top": 651,
+          "bottom": 705
+        },
+        {
+          "label": "设置",
+          "top": 651,
+          "bottom": 705
+        }
+      ],
+      "tooSmall": [],
+      "storage": 0
+    },
+    {
+      "scenario": "profiles",
+      "width": 960,
+      "height": 720,
+      "scroll": 960,
+      "tabs": [
+        {
+          "label": "连接",
+          "top": 651,
+          "bottom": 705
+        },
+        {
+          "label": "订阅",
+          "top": 651,
+          "bottom": 705
+        },
+        {
+          "label": "设置",
+          "top": 651,
+          "bottom": 705
+        }
+      ],
+      "tooSmall": [],
+      "storage": 0
+    },
+    {
+      "scenario": "panel",
+      "width": 960,
+      "height": 720,
+      "scroll": 960,
+      "tabs": [
+        {
+          "label": "连接",
+          "top": 651,
+          "bottom": 705
+        },
+        {
+          "label": "订阅",
+          "top": 651,
+          "bottom": 705
+        },
+        {
+          "label": "设置",
+          "top": 651,
+          "bottom": 705
+        }
+      ],
+      "tooSmall": [],
+      "storage": 0
+    },
+    {
+      "scenario": "panel-error",
+      "width": 960,
+      "height": 720,
+      "scroll": 960,
+      "tabs": [
+        {
+          "label": "连接",
+          "top": 651,
+          "bottom": 705
+        },
+        {
+          "label": "订阅",
+          "top": 651,
+          "bottom": 705
+        },
+        {
+          "label": "设置",
+          "top": 651,
+          "bottom": 705
+        }
+      ],
+      "tooSmall": [],
+      "storage": 0
+    },
+    {
+      "scenario": "connected",
+      "width": 320,
+      "height": 568,
+      "no_overflow": true,
+      "tabs_visible": true
+    },
+    {
+      "scenario": "profiles",
+      "width": 320,
+      "height": 568,
+      "no_overflow": true,
+      "tabs_visible": true
+    },
+    {
+      "scenario": "settings",
+      "width": 320,
+      "height": 568,
+      "no_overflow": true,
+      "tabs_visible": true
+    },
+    {
+      "scenario": "connected",
+      "width": 360,
+      "height": 800,
+      "no_overflow": true,
+      "tabs_visible": true
+    },
+    {
+      "scenario": "profiles",
+      "width": 360,
+      "height": 800,
+      "no_overflow": true,
+      "tabs_visible": true
+    },
+    {
+      "scenario": "settings",
+      "width": 360,
+      "height": 800,
+      "no_overflow": true,
+      "tabs_visible": true
+    },
+    {
+      "scenario": "connected",
+      "width": 412,
+      "height": 915,
+      "no_overflow": true,
+      "tabs_visible": true
+    },
+    {
+      "scenario": "profiles",
+      "width": 412,
+      "height": 915,
+      "no_overflow": true,
+      "tabs_visible": true
+    },
+    {
+      "scenario": "settings",
+      "width": 412,
+      "height": 915,
+      "no_overflow": true,
+      "tabs_visible": true
+    },
+    {
+      "scenario": "connected",
+      "width": 480,
+      "height": 900,
+      "no_overflow": true,
+      "tabs_visible": true
+    },
+    {
+      "scenario": "profiles",
+      "width": 480,
+      "height": 900,
+      "no_overflow": true,
+      "tabs_visible": true
+    },
+    {
+      "scenario": "settings",
+      "width": 480,
+      "height": 900,
+      "no_overflow": true,
+      "tabs_visible": true
+    },
+    {
+      "scenario": "connected",
+      "width": 840,
+      "height": 1120,
+      "no_overflow": true,
+      "tabs_visible": true
+    },
+    {
+      "scenario": "profiles",
+      "width": 840,
+      "height": 1120,
+      "no_overflow": true,
+      "tabs_visible": true
+    },
+    {
+      "scenario": "settings",
+      "width": 840,
+      "height": 1120,
+      "no_overflow": true,
+      "tabs_visible": true
+    },
+    {
+      "scenario": "connected",
+      "width": 1200,
+      "height": 900,
+      "no_overflow": true,
+      "tabs_visible": true
+    },
+    {
+      "scenario": "profiles",
+      "width": 1200,
+      "height": 900,
+      "no_overflow": true,
+      "tabs_visible": true
+    },
+    {
+      "scenario": "settings",
+      "width": 1200,
+      "height": 900,
+      "no_overflow": true,
+      "tabs_visible": true
+    },
+    {
+      "scenario": "connected",
+      "width": 844,
+      "height": 390,
+      "no_overflow": true,
+      "tabs_visible": true
+    },
+    {
+      "scenario": "profiles",
+      "width": 844,
+      "height": 390,
+      "no_overflow": true,
+      "tabs_visible": true
+    },
+    {
+      "scenario": "settings",
+      "width": 844,
+      "height": 390,
+      "no_overflow": true,
+      "tabs_visible": true
+    },
+    {
+      "scenario": "connected",
+      "width": 390,
+      "height": 520,
+      "no_overflow": true,
+      "tabs_visible": true
+    },
+    {
+      "scenario": "profiles",
+      "width": 390,
+      "height": 520,
+      "no_overflow": true,
+      "tabs_visible": true
+    },
+    {
+      "scenario": "settings",
+      "width": 390,
+      "height": 520,
+      "no_overflow": true,
+      "tabs_visible": true
+    }
+  ],
+  "comparisons": [
+    {
+      "page": "connected",
+      "width": 390,
+      "height": 844,
+      "same_state": true,
+      "same_text_ignoring_layout_whitespace": true
+    },
+    {
+      "page": "profiles",
+      "width": 390,
+      "height": 844,
+      "same_state": true,
+      "same_text_ignoring_layout_whitespace": true
+    },
+    {
+      "page": "settings",
+      "width": 390,
+      "height": 844,
+      "same_state": true,
+      "same_text_ignoring_layout_whitespace": true
+    },
+    {
+      "page": "connected",
+      "width": 960,
+      "height": 720,
+      "same_state": true,
+      "same_text_ignoring_layout_whitespace": true
+    },
+    {
+      "page": "profiles",
+      "width": 960,
+      "height": 720,
+      "same_state": true,
+      "same_text_ignoring_layout_whitespace": true
+    },
+    {
+      "page": "settings",
+      "width": 960,
+      "height": 720,
+      "same_state": true,
+      "same_text_ignoring_layout_whitespace": true
+    }
+  ],
+  "runtime_errors": [],
+  "browser": "154.0.8037.57"
+}

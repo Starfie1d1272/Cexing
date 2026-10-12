@@ -150,7 +150,8 @@
           <option value="panel-error">面板加载失败</option></select
         ><label for="variant">外观方案</label
         ><select id="variant">
-          <option value="native-light">鸿蒙轻盈 · 圆角（新版）</option>
+          <option value="native-light">鸿蒙轻盈 · 9127864 基线</option>
+          <option value="ark-brand">Ark 本家细节 · 试稿</option>
           <option value="classic">
             Ark minimal · 硬边（保留对照）
           </option></select
@@ -185,7 +186,10 @@
         ><br /><a href="README.md">设计说明与实施顺序 ↗</a><br /><a
           href="comparison.html"
           >同尺寸前后对照 / 多形态图 ↗</a
-        ><br /><a href="VISUAL-RESEARCH.md">真实视觉来源与版本矩阵 ↗</a>
+        ><br /><a href="VISUAL-RESEARCH.md">真实视觉来源与版本矩阵 ↗</a
+        ><br /><a href="ark-detail/comparison.html"
+          >Ark 细节试稿 · 三页同尺寸对照 ↗</a
+        >
       </section>
       <iframe
         id="phone"
@@ -207,7 +211,13 @@
         document.body.classList.toggle("wide-review", w > 520);
         phone.style.width = `${w}px`;
         phone.style.height = `${h}px`;
-        phone.src = `index.html?state=${state}&depth=${depth}&variant=${variant}`;
+        const entry =
+          variant === "ark-brand"
+            ? "ark.html"
+            : variant === "native-light"
+              ? "baseline-9127864/index.html"
+              : "index.html";
+        phone.src = `${entry}?state=${state}&depth=${depth}&variant=${variant}`;
       }
       for (const id of ["state", "depth", "size", "variant"])
         document.getElementById(id).addEventListener("change", load);
