@@ -19,6 +19,7 @@ function fixture(recovered = status.Disconnected) {
   const controller = {
     status: status.Disconnected,
     onChanged: cb => listeners.push(cb),
+    cancelRecovery: () => {},
     recover: cb => { controller.status = recovered; listeners.forEach(fn => fn(recovered)); cb(); },
     start: () => { calls.start++; }
   };
