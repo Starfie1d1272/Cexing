@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"net"
 	"sync"
@@ -23,12 +24,13 @@ import (
 func newMihomoControllerRouter(bool, string, string, route.Cors) *chi.Mux
 
 var (
-	controllerLifecycleMu sync.Mutex
-	controllerServer      *MHTTP.Server
-	controllerSocket      *controllerTrackedListener
-	controllerServeDone   chan struct{}
-	controllerEpoch       atomic.Uint64
-	controllerRunning     atomic.Bool
+	controllerLifecycleMu      sync.Mutex
+	controllerServer           *MHTTP.Server
+	controllerSocket           *controllerTrackedListener
+	controllerServeDone        chan struct{}
+	controllerSessionResources *controllerResources
+	controllerEpoch            atomic.Uint64
+	controllerRunning          atomic.Bool
 )
 
 type controllerTrackedListener struct {
@@ -95,12 +97,16 @@ func stopControllerLocked() {
 	if controllerServer == nil {
 		return
 	}
+	controllerSessionResources.fence()
 	_ = controllerServer.Close()
 	controllerSocket.closeConnections()
-	<-controllerServeDone // listener's Serve loop exited: no late start/accept
+	controllerSessionResources.cancel()
+	<-controllerServeDone                  // listener's Serve loop exited: no late start/accept
+	controllerSessionResources.logs.Wait() // only cancellable log handlers, not queued API writes
 	controllerServer = nil
 	controllerSocket = nil
 	controllerServeDone = nil
+	controllerSessionResources = nil
 }
 func stopController() {
 	controllerLifecycleMu.Lock()
@@ -118,7 +124,10 @@ func serveController() error {
 	tracked := &controllerTrackedListener{Listener: socket, connections: make(map[*controllerTrackedConn]struct{})}
 	router := newMihomoControllerRouter(false, controllerSecret, "", route.Cors{AllowOrigins: []string{"http://" + defaultController}})
 	epoch := controllerEpoch.Add(1)
-	server := &MHTTP.Server{ReadHeaderTimeout: 8 * time.Second, Handler: MHTTP.HandlerFunc(func(w MHTTP.ResponseWriter, req *MHTTP.Request) {
+	sessionContext, cancel := context.WithCancel(context.Background())
+	resources := &controllerResources{cancel: cancel}
+	sessionContext = context.WithValue(sessionContext, controllerResourcesKey{}, resources)
+	server := &MHTTP.Server{ReadHeaderTimeout: 8 * time.Second, BaseContext: func(net.Listener) context.Context { return sessionContext }, Handler: MHTTP.HandlerFunc(func(w MHTTP.ResponseWriter, req *MHTTP.Request) {
 		if epoch != controllerEpoch.Load() {
 			controllerError(w, 409, "controller session ended")
 			return
@@ -129,6 +138,7 @@ func serveController() error {
 	controllerServer = server
 	controllerSocket = tracked
 	controllerServeDone = done
+	controllerSessionResources = resources
 	controllerRunning.Store(true)
 	go func() {
 		defer close(done)

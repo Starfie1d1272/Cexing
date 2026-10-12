@@ -37,6 +37,7 @@ func init() {
 	// Register runs inside Mihomo's authenticated group. Exact routes replace
 	// embedded PUT/PATCH handlers without modifying dependency source.
 	route.Register(func(r chi.Router) {
+		r.Get("/logs", getControllerLogs)
 		session := controllerSession
 		uiError := controllerUIError
 		r.Get("/ohos/ui-status", func(w MHTTP.ResponseWriter, req *MHTTP.Request) {

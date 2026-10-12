@@ -3,11 +3,13 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -17,6 +19,7 @@ import (
 	"github.com/coder/websocket"
 	"github.com/metacubex/mihomo/hub/executor"
 	"github.com/metacubex/mihomo/listener"
+	"github.com/metacubex/mihomo/log"
 	"github.com/metacubex/mihomo/tunnel"
 )
 
@@ -351,6 +354,134 @@ dns:
 		fresh := wsRead("", bearer, 101)
 		fresh.CloseNow()
 	})
+	t.Run("generic-inbound-stop-and-restart", func(t *testing.T) {
+		reserved, err := net.Listen("tcp4", "127.0.0.1:0")
+		if err != nil {
+			t.Fatal(err)
+		}
+		address := reserved.Addr().String()
+		port := reserved.Addr().(*net.TCPAddr).Port
+		reserved.Close()
+		text := fmt.Sprintf("mixed-port: 0\ndns: {enable: false}\nlisteners:\n- name: synthetic-http\n  type: http\n  listen: 127.0.0.1\n  port: %d\n", port)
+		apply := func() {
+			cfg, err := preparePlatformConfig(text, `{"mixedPort":0}`)
+			if err != nil {
+				t.Fatal(err)
+			}
+			executor.ApplyConfig(cfg, true)
+		}
+		for round := 0; round < 2; round++ {
+			apply()
+			conn, err := net.DialTimeout("tcp4", address, time.Second)
+			if err != nil {
+				t.Fatal("generic HTTP did not open", err)
+			}
+			conn.Close()
+			coreStop()
+			if conn, err := net.DialTimeout("tcp4", address, 200*time.Millisecond); err == nil {
+				conn.Close()
+				t.Fatal("generic HTTP still accepts new TCP after coreStop")
+			}
+			probe, err := net.Listen("tcp4", address)
+			if err != nil {
+				t.Fatal("generic HTTP port not released", err)
+			}
+			probe.Close()
+		}
+		t.Log("generic inbound is separate from Controller: accepts before stop, rejects/rebinds immediately after stop, reopens on fresh ApplyConfig")
+	})
+	t.Run("silent-log-handler-cleanup", func(t *testing.T) {
+		if err := startController(); err != nil {
+			t.Fatal(err)
+		}
+		dial := func(path string) *websocket.Conn {
+			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			defer cancel()
+			conn, _, err := websocket.Dial(ctx, "ws://"+defaultController+path, &websocket.DialOptions{HTTPClient: client, HTTPHeader: http.Header{"Authorization": []string{bearer}}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			return conn
+		}
+		first := dial("/logs?level=silent")
+		waitLogHandlers(t, true)
+		first.CloseRead(context.Background()) // Ping requires a client reader to process pong
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		if err := first.Ping(ctx); err != nil {
+			cancel()
+			t.Fatal("log WS ping/pong failed", err)
+		}
+		cancel()
+		first.CloseNow()
+		waitLogHandlers(t, false) // no emitted logs required to wake silent stream
+		second := dial("/logs?level=silent")
+		waitLogHandlers(t, true)
+		stopController()
+		if controllerLogHandlersPresent() {
+			t.Fatal("stop returned with log handler or reader/relay still alive")
+		}
+		ctx, cancel = context.WithTimeout(context.Background(), time.Second)
+		_, _, err := second.Read(ctx)
+		cancel()
+		second.CloseNow()
+		if err == nil {
+			t.Fatal("silent WS survived stop")
+		}
+		if err := startController(); err != nil {
+			t.Fatal(err)
+		}
+		restarted := dial("/logs?level=silent")
+		waitLogHandlers(t, true)
+		restarted.CloseNow()
+		waitLogHandlers(t, false)
+		// Legacy and structured wire shapes remain compatible and secrets redacted.
+		for _, format := range []string{"", "&format=structured"} {
+			conn := dial("/logs?level=info" + format)
+			waitLogHandlers(t, true)
+			marker := "synthetic-log-plain"
+			if format != "" {
+				marker = "synthetic-log-structured"
+			}
+			log.Infoln("%s %s", marker, secret)
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			_, data, err := conn.Read(ctx)
+			cancel()
+			conn.CloseNow()
+			waitLogHandlers(t, false)
+			if err != nil || !json.Valid(data) || !strings.Contains(string(data), marker) || strings.Contains(string(data), secret) || !strings.Contains(string(data), "[REDACTED]") {
+				t.Fatal("log wire format or redaction failed")
+			}
+		}
+		t.Log("silent peer-close and stop release handler, reader/relay and subscription without log events; fresh log WS and both formats succeed")
+	})
+}
+
+func controllerLogStack() string {
+	buffer := make([]byte, 512*1024)
+	size := runtime.Stack(buffer, true)
+	return string(buffer[:size])
+}
+func controllerLogHandlersPresent() bool {
+	stack := controllerLogStack()
+	return strings.Contains(stack, "hub/route.getLogs(") || strings.Contains(stack, "core.getControllerLogs")
+}
+func waitLogHandlers(t *testing.T, present bool) {
+	t.Helper()
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		stack := controllerLogStack()
+		if present {
+			// A direct event-channel wait proves Subscribe has completed, rather
+			// than merely observing the HTTP upgrade still in progress.
+			if strings.Contains(stack, " [select]:\ncore.getControllerLogs(") || strings.Contains(stack, " [chan receive]:\ngithub.com/metacubex/mihomo/hub/route.getLogs(") {
+				return
+			}
+		} else if !controllerLogHandlersPresent() {
+			return
+		}
+		time.Sleep(time.Millisecond)
+	}
+	t.Fatalf("log handler/reader/relay presence did not become %v", present)
 }
 
 func seedSyntheticPanel(t *testing.T, home string) string {

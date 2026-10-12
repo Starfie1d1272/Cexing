@@ -309,7 +309,11 @@ func coreStop() {
 		_ = tunListener.Close()
 		tunListener = nil
 	}
-	// 端口置 0 关闭各 listener（mihomo 无全局 StopListener，这是官方关闭语义）
+	// 声明式 generic inbound 与固定顶层端口是不同的 listener 集合。
+	listener.PatchInboundListeners(nil, tunnel.Tunnel, true)
+	listener.PatchTunnel(nil, tunnel.Tunnel)
+	listener.ReCreateTuic(LC.TuicServer{}, tunnel.Tunnel)
+	// 端口置 0 关闭固定顶层监听；Cleanup 本身只处理自动 TUN。
 	listener.ReCreateMixed(0, tunnel.Tunnel)
 	listener.ReCreateHTTP(0, tunnel.Tunnel)
 	listener.ReCreateSocks(0, tunnel.Tunnel)

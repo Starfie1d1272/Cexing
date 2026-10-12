@@ -68,3 +68,13 @@ Controller 使用宿主同步 `net.Listen(tcp4,127.0.0.1:9090)` 和自有 Server
 为了保留锁定内核原有 REST/WS 路由、认证和扩展路由，宿主只用 go:linkname 绑定 Mihomo v1.19.32 的私有 router(bool,string,string,route.Cors) 工厂；监听器仍只有宿主这一份。没有复制上游 API 实现、修改模块缓存或增加第二台 HTTP 服务，go.mod/go.sum 与四个 C ABI 不变。这是明确的私有 Go 耦合，不能外推为稳定公开接口；内核升级/候选 Smart 必须核对工厂源码签名、完整链接构建及真实启停回归。本分支未关闭 Go 链接检查。
 
 另外，上游 executor 在 ExternalUI 非空时会尝试 AutoDownloadUI，即便 URL 为空。因此运行态 config.Controller.ExternalUI 明确置空以禁用该 updater，静态根由宿主显式 SetUIPath 管理；这不是 SetUIPath(空字符串)。持久化投影仍标记受控 external-ui=ui，重载从不把它交给 hub.ApplyConfig 重建路由。
+
+## Generic inbound 与日志资源清理
+
+Controller HTTP/WS 的停止不代表代理侧 generic inbound 已停止。coreStop 分别通过 PatchInboundListeners(nil, tunnel, true)、PatchTunnel(nil, tunnel) 和空 TuicServer 移除声明式 inbound/静态转发/顶层 TUIC，再关闭原有固定端口与 DNS；没有把 listener.Cleanup 当成全局清理（锁定实现只关闭自动 TUN）。generic HTTP 的验收是新 TCP 接受/拒绝与端口重新绑定，不是完整代理转发或所有已建立 generic 转发连接都退出的证明。
+
+`/logs` 由宿主可取消 handler 接管，其余 API 继续使用锁定 router。保持 level、普通/structured JSON、REST 流与 WS 认证语义，复用上游导出的日志记录类型和已锁定 coder/websocket。WS 读循环处理 ping/pong 并检测 peer 关闭；会话停止和 peer 关闭均唤醒 silent 级别的等待。handler 的退出先退订并等待持续排空的 relay 结束，再取消/关闭并等待 WS 读循环，最后交付日志资源完成回执；不会等待下一条足够级别的日志才能退订。
+
+停止先对日志 handler 注册加关闭栅栏，再关闭 socket/取消会话，等待这些受控日志 handler 清理完成。**仅等待 Serve 退出不是 handler 清理证明；也不无限等待所有 API handler**，后者可能正在等待 coreStop 持有的运行锁。已排队配置写入仍靠会话代次拒绝。
+
+新增完整 race 检查暴露锁定 Mihomo generic HTTP 的上游同步风险：入站 IP/跳过认证全局切片和默认 authenticator 的读写没有统一同步。停止后的重新监听功能已验证，但这不等于并发安全重启已通过。此风险未在本线通过依赖更换、缓存补丁或测试抑制修复；具体证据见资源清理报告，需要父任务协调依赖层整改。
