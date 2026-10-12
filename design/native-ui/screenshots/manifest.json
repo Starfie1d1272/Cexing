@@ -1,0 +1,328 @@
+[
+  {
+    "file": "first-light-390x844.png",
+    "scene": "first",
+    "theme": "light",
+    "width": 390,
+    "height": 844
+  },
+  {
+    "file": "import-light-390x844.png",
+    "scene": "import",
+    "theme": "light",
+    "width": 390,
+    "height": 844
+  },
+  {
+    "file": "override-light-390x844.png",
+    "scene": "override",
+    "theme": "light",
+    "width": 390,
+    "height": 844
+  },
+  {
+    "file": "preview-light-390x844.png",
+    "scene": "preview",
+    "theme": "light",
+    "width": 390,
+    "height": 844
+  },
+  {
+    "file": "invalid-light-390x844.png",
+    "scene": "invalid",
+    "theme": "light",
+    "width": 390,
+    "height": 844
+  },
+  {
+    "file": "idle-light-390x844.png",
+    "scene": "idle",
+    "theme": "light",
+    "width": 390,
+    "height": 844
+  },
+  {
+    "file": "auth-light-390x844.png",
+    "scene": "auth",
+    "theme": "light",
+    "width": 390,
+    "height": 844
+  },
+  {
+    "file": "denied-light-390x844.png",
+    "scene": "denied",
+    "theme": "light",
+    "width": 390,
+    "height": 844
+  },
+  {
+    "file": "connecting-light-390x844.png",
+    "scene": "connecting",
+    "theme": "light",
+    "width": 390,
+    "height": 844
+  },
+  {
+    "file": "connected-light-390x844.png",
+    "scene": "connected",
+    "theme": "light",
+    "width": 390,
+    "height": 844
+  },
+  {
+    "file": "disconnecting-light-390x844.png",
+    "scene": "disconnecting",
+    "theme": "light",
+    "width": 390,
+    "height": 844
+  },
+  {
+    "file": "failed-light-390x844.png",
+    "scene": "failed",
+    "theme": "light",
+    "width": 390,
+    "height": 844
+  },
+  {
+    "file": "profiles-light-390x844.png",
+    "scene": "profiles",
+    "theme": "light",
+    "width": 390,
+    "height": 844
+  },
+  {
+    "file": "update-light-390x844.png",
+    "scene": "update",
+    "theme": "light",
+    "width": 390,
+    "height": 844
+  },
+  {
+    "file": "updateFailed-light-390x844.png",
+    "scene": "updateFailed",
+    "theme": "light",
+    "width": 390,
+    "height": 844
+  },
+  {
+    "file": "settings-light-390x844.png",
+    "scene": "settings",
+    "theme": "light",
+    "width": 390,
+    "height": 844
+  },
+  {
+    "file": "restore-light-390x844.png",
+    "scene": "restore",
+    "theme": "light",
+    "width": 390,
+    "height": 844
+  },
+  {
+    "file": "diagnostics-light-390x844.png",
+    "scene": "diagnostics",
+    "theme": "light",
+    "width": 390,
+    "height": 844
+  },
+  {
+    "file": "report-light-390x844.png",
+    "scene": "report",
+    "theme": "light",
+    "width": 390,
+    "height": 844
+  },
+  {
+    "file": "panel-light-390x844.png",
+    "scene": "panel",
+    "theme": "light",
+    "width": 390,
+    "height": 844
+  },
+  {
+    "file": "panelFailed-light-390x844.png",
+    "scene": "panelFailed",
+    "theme": "light",
+    "width": 390,
+    "height": 844
+  },
+  {
+    "file": "first-dark-390x844.png",
+    "scene": "first",
+    "theme": "dark",
+    "width": 390,
+    "height": 844
+  },
+  {
+    "file": "import-dark-390x844.png",
+    "scene": "import",
+    "theme": "dark",
+    "width": 390,
+    "height": 844
+  },
+  {
+    "file": "override-dark-390x844.png",
+    "scene": "override",
+    "theme": "dark",
+    "width": 390,
+    "height": 844
+  },
+  {
+    "file": "preview-dark-390x844.png",
+    "scene": "preview",
+    "theme": "dark",
+    "width": 390,
+    "height": 844
+  },
+  {
+    "file": "invalid-dark-390x844.png",
+    "scene": "invalid",
+    "theme": "dark",
+    "width": 390,
+    "height": 844
+  },
+  {
+    "file": "idle-dark-390x844.png",
+    "scene": "idle",
+    "theme": "dark",
+    "width": 390,
+    "height": 844
+  },
+  {
+    "file": "auth-dark-390x844.png",
+    "scene": "auth",
+    "theme": "dark",
+    "width": 390,
+    "height": 844
+  },
+  {
+    "file": "denied-dark-390x844.png",
+    "scene": "denied",
+    "theme": "dark",
+    "width": 390,
+    "height": 844
+  },
+  {
+    "file": "connecting-dark-390x844.png",
+    "scene": "connecting",
+    "theme": "dark",
+    "width": 390,
+    "height": 844
+  },
+  {
+    "file": "connected-dark-390x844.png",
+    "scene": "connected",
+    "theme": "dark",
+    "width": 390,
+    "height": 844
+  },
+  {
+    "file": "disconnecting-dark-390x844.png",
+    "scene": "disconnecting",
+    "theme": "dark",
+    "width": 390,
+    "height": 844
+  },
+  {
+    "file": "failed-dark-390x844.png",
+    "scene": "failed",
+    "theme": "dark",
+    "width": 390,
+    "height": 844
+  },
+  {
+    "file": "profiles-dark-390x844.png",
+    "scene": "profiles",
+    "theme": "dark",
+    "width": 390,
+    "height": 844
+  },
+  {
+    "file": "update-dark-390x844.png",
+    "scene": "update",
+    "theme": "dark",
+    "width": 390,
+    "height": 844
+  },
+  {
+    "file": "updateFailed-dark-390x844.png",
+    "scene": "updateFailed",
+    "theme": "dark",
+    "width": 390,
+    "height": 844
+  },
+  {
+    "file": "settings-dark-390x844.png",
+    "scene": "settings",
+    "theme": "dark",
+    "width": 390,
+    "height": 844
+  },
+  {
+    "file": "restore-dark-390x844.png",
+    "scene": "restore",
+    "theme": "dark",
+    "width": 390,
+    "height": 844
+  },
+  {
+    "file": "diagnostics-dark-390x844.png",
+    "scene": "diagnostics",
+    "theme": "dark",
+    "width": 390,
+    "height": 844
+  },
+  {
+    "file": "report-dark-390x844.png",
+    "scene": "report",
+    "theme": "dark",
+    "width": 390,
+    "height": 844
+  },
+  {
+    "file": "panel-dark-390x844.png",
+    "scene": "panel",
+    "theme": "dark",
+    "width": 390,
+    "height": 844
+  },
+  {
+    "file": "panelFailed-dark-390x844.png",
+    "scene": "panelFailed",
+    "theme": "dark",
+    "width": 390,
+    "height": 844
+  },
+  {
+    "file": "connected-light-minimal-360x800.png",
+    "scene": "connected",
+    "theme": "light",
+    "depth": "minimal",
+    "width": 360,
+    "height": 800
+  },
+  {
+    "file": "connected-dark-minimal-412x915.png",
+    "scene": "connected",
+    "theme": "dark",
+    "depth": "minimal",
+    "width": 412,
+    "height": 915
+  },
+  {
+    "file": "connected-light-moderate-390x844.png",
+    "scene": "connected",
+    "theme": "light",
+    "depth": "moderate",
+    "width": 390,
+    "height": 844
+  },
+  {
+    "file": "connected-dark-moderate-390x844.png",
+    "scene": "connected",
+    "theme": "dark",
+    "depth": "moderate",
+    "width": 390,
+    "height": 844
+  }
+]
