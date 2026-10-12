@@ -4,7 +4,7 @@
 
 ## 体验
 
-本轮新增可选的 [Ark 本家细节试稿](ark-detail/README.md)及[三页同尺寸对照](ark-detail/comparison.html)。`9127864` 轻盈基线与原入口、旧图均完整保留，未替用户选定最终方案。
+当前新增独立的 [连接首页主卡构图试稿](connection-focus/README.md)及[手机 / 展开态前后对照](connection-focus/comparison.html)，仅改连接首页。`9127864` 轻盈基线、原入口与旧图完整保留；`ce5789e` 的 [装饰旧稿](ark-detail/README.md)留作历史，不采用。用户看对照后决定。
 
 从仓库根目录启动任意静态 HTTP 服务，例如 `python3 -m http.server 8765`，打开：
 

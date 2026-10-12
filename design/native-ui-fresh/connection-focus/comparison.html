@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>连接首页构图 · 同尺寸对照</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        padding: 28px;
+        background: #eaf0f3;
+        color: #23323a;
+        font-family: system-ui, "Noto Sans CJK SC", sans-serif;
+      }
+      header,
+      footer {
+        max-width: 804px;
+        margin: 0 auto 24px;
+      }
+      h1 {
+        font-size: 24px;
+        margin: 0 0 10px;
+      }
+      p {
+        font-size: 13px;
+        color: #5b6e79;
+        line-height: 1.8;
+        margin: 0;
+      }
+      select {
+        font: inherit;
+        background: white;
+        border: 1px solid #c9d9e2;
+        border-radius: 12px;
+        padding: 10px;
+        min-height: 44px;
+        margin-top: 16px;
+      }
+      .pair {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 24px;
+        margin: auto;
+        max-width: 804px;
+      }
+      .pair h2 {
+        font-size: 15px;
+        font-weight: 550;
+        margin: 0 0 12px;
+      }
+      .pair img {
+        width: 100%;
+        height: auto;
+        display: block;
+        box-shadow: 0 8px 24px #23374708;
+      }
+      a {
+        color: #006e89;
+      }
+      footer {
+        margin-top: 20px;
+        font-size: 13px;
+        line-height: 1.9;
+      }
+      select:focus-visible,
+      a:focus-visible {
+        outline: 3px solid #007b99;
+        outline-offset: 3px;
+      }
+      @media (max-width: 700px) {
+        body {
+          padding: 20px 12px;
+        }
+        .pair {
+          gap: 12px;
+        }
+        h1 {
+          font-size: 21px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1 id="title">连接首页 · 同尺寸对照</h1>
+      <p>
+        左：9127864
+        轻盈基线。右：连接主卡重新构图。相同示例数据与窗口，订阅和设置未改变。
+      </p>
+      <div id="controls">
+        <label for="size">窗口</label>
+        <select id="size">
+          <option>390x844</option>
+          <option>960x720</option>
+        </select>
+      </div>
+    </header>
+    <main class="pair">
+      <section>
+        <h2>前 · 9127864 轻盈基线</h2>
+        <a id="before-link"><img id="before" alt="基线连接首页" /></a>
+      </section>
+      <section>
+        <h2>后 · 连接主卡构图试稿</h2>
+        <a id="after-link"><img id="after" alt="重构后的连接首页" /></a>
+      </section>
+    </main>
+    <footer>
+      <a href="../baseline-9127864/index.html?state=connected">运行基线</a> ·
+      <a href="index.html?state=connected">运行新稿</a> ·
+      <a href="README.md">构图取舍与验证</a>
+    </footer>
+    <script>
+      const params = new URLSearchParams(location.search);
+      document.getElementById("size").value = params.get("size") || "390x844";
+      function update() {
+        const size = document.getElementById("size").value;
+        document.getElementById("title").textContent =
+          `连接首页 · ${size.replace("x", " × ")} 同尺寸对照`;
+        for (const side of ["before", "after"]) {
+          const path = `screenshots/${side}/connected-${size}.png`;
+          document.getElementById(side).src = path;
+          document.getElementById(side + "-link").href = path;
+        }
+        document.querySelector(".pair").style.maxWidth =
+          size === "960x720" ? "1944px" : "804px";
+      }
+      document.getElementById("size").addEventListener("change", update);
+      if (params.has("capture"))
+        document.getElementById("controls").hidden = true;
+      update();
+    </script>
+  </body>
+</html>
