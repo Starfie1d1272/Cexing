@@ -206,6 +206,90 @@ dns:
 			t.Fatalf("unsafe reload accepted: %s", payload)
 		}
 	}
+	t.Run("rejected-reload-keeps-log-policy", func(t *testing.T) {
+		previousOverrides := activeOverrides
+		defer func() { activeOverrides = previousOverrides }()
+		defer setLogToFile(true)
+		for _, enabled := range []bool{true, false} {
+			setLogToFile(enabled)
+			body, _ := json.Marshal(map[string]string{
+				"payload":   "mode: impossible",
+				"overrides": fmt.Sprintf(`{"logToFile":%t}`, !enabled),
+			})
+			if code, _ := request("PUT", "/configs", bearer, string(body)); code != 400 {
+				t.Fatalf("invalid configuration status %d", code)
+			}
+			logFileMu.Lock()
+			actual := logToFileEnabled
+			logFileMu.Unlock()
+			if actual != enabled {
+				t.Fatal("HTTP 400 changed the active log-file policy")
+			}
+		}
+		body, _ := json.Marshal(map[string]string{"payload": "mixed-port: 0\nmode: direct\ndns: {enable: false}", "overrides": `{"logToFile":false}`})
+		if code, _ := request("PUT", "/configs", bearer, string(body)); code != 204 {
+			t.Fatal("valid log policy reload rejected")
+		}
+		logFileMu.Lock()
+		actual := logToFileEnabled
+		logFileMu.Unlock()
+		if actual {
+			t.Fatal("accepted reload did not commit the log-file policy")
+		}
+	})
+	t.Run("provider-credential-paths", func(t *testing.T) {
+		secretPath := filepath.Join(home, controllerSecretFile)
+		before, err := os.ReadFile(secretPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		aliasDir := filepath.Join(home, "provider-alias")
+		if err := os.Symlink(filepath.Dir(secretPath), aliasDir); err != nil {
+			t.Fatal(err)
+		}
+		aliasFile := filepath.Join(home, "provider-hardlink")
+		if err := os.Link(secretPath, aliasFile); err != nil {
+			t.Fatal(err)
+		}
+		for _, section := range []string{"proxy-providers", "rule-providers"} {
+			for _, kind := range []string{"http", "file"} {
+				for _, path := range []string{"controller-security", controllerSecretFile, "cache/../" + controllerSecretFile, secretPath, filepath.Dir(secretPath), "provider-alias/secret", aliasFile, "../outside.yaml"} {
+					provider := map[string]any{"type": kind, "path": path, "url": "http://127.0.0.1:1/synthetic", "behavior": "domain", "format": "yaml"}
+					text, _ := yaml.Marshal(map[string]any{"mixed-port": 0, "dns": map[string]any{"enable": false}, section: map[string]any{"synthetic": provider}})
+					body, _ := json.Marshal(map[string]string{"payload": string(text)})
+					if code, _ := request("PUT", "/configs", bearer, string(body)); code != 400 {
+						t.Fatalf("%s %s unsafe path %q status %d", section, kind, path, code)
+					}
+				}
+			}
+			for _, path := range []string{"", "providers/synthetic.yaml", filepath.Join(home, "providers", "synthetic.yaml")} {
+				provider := map[string]any{"type": "http", "path": path, "url": "http://127.0.0.1:1/synthetic", "behavior": "domain", "format": "yaml"}
+				text, _ := yaml.Marshal(map[string]any{"mixed-port": 0, "dns": map[string]any{"enable": false}, section: map[string]any{"synthetic": provider}})
+				if _, err := preparePlatformConfig(string(text), ""); err != nil {
+					t.Fatalf("normal %s path %q rejected: %v", section, path, err)
+				}
+			}
+			prefix := "proxies"
+			if section == "rule-providers" {
+				prefix = "rules"
+			}
+			if err := os.Symlink(filepath.Dir(secretPath), filepath.Join(home, prefix)); err != nil {
+				t.Fatal(err)
+			}
+			text, _ := yaml.Marshal(map[string]any{section: map[string]any{"synthetic": map[string]any{"type": "http", "url": "http://127.0.0.1:1/synthetic"}}})
+			if _, err := preparePlatformConfig(string(text), ""); err == nil {
+				t.Fatal("default provider cache followed directory alias")
+			}
+			if err := os.Remove(filepath.Join(home, prefix)); err != nil {
+				t.Fatal(err)
+			}
+		}
+		after, err := os.ReadFile(secretPath)
+		if err != nil || string(after) != string(before) {
+			t.Fatal("rejected provider changed credentials")
+		}
+		t.Log("32 authenticated unsafe provider reloads rejected; credential bytes unchanged; six normal HTTP cache paths accepted")
+	})
 	if tunnel.Mode() != tunnel.Direct {
 		t.Fatal("invalid reload changed running configuration")
 	}

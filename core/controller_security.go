@@ -14,6 +14,7 @@ import (
 	"github.com/metacubex/chi"
 	MHTTP "github.com/metacubex/http"
 	"github.com/metacubex/mihomo/config"
+	"github.com/metacubex/mihomo/constant"
 	"github.com/metacubex/mihomo/hub/executor"
 	"github.com/metacubex/mihomo/hub/route"
 	"github.com/metacubex/mihomo/log"
@@ -166,6 +167,63 @@ func enforcePlatformSecurity(overlay map[string]any) {
 	overlay["secret"] = controllerSecret
 }
 
+// CMFA skips upstream safe-path checks. Validate both provider vehicles before
+// parsing: HTTP vehicles write their cache paths, and file vehicles read them.
+// App-owned credentials must never be used as either kind of provider resource.
+func validateProviderPaths(overlay map[string]any) error {
+	for section, prefix := range map[string]string{"proxy-providers": "proxies", "rule-providers": "rules"} {
+		providers, _ := overlay[section].(map[string]any)
+		for _, value := range providers {
+			provider, _ := value.(map[string]any)
+			kind, _ := provider["type"].(string)
+			if kind != "http" && kind != "file" {
+				continue // malformed and inline vehicles remain upstream's responsibility
+			}
+			path, ok := provider["path"].(string)
+			if !ok && provider["path"] != nil {
+				return errors.New("provider path must be a string")
+			}
+			if path == "" && kind == "http" {
+				url, _ := provider["url"].(string)
+				path = constant.Path.GetPathByHash(prefix, url)
+			}
+			if err := validateProviderPath(path); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func validateProviderPath(path string) error {
+	unsafe := errors.New("provider path is outside allowed app resource files")
+	resolved := filepath.Clean(constant.Path.Resolve(path))
+	rel, err := filepath.Rel(homeDir, resolved)
+	if err != nil || !filepath.IsLocal(rel) || rel == "." {
+		return unsafe
+	}
+	parts := strings.Split(rel, string(filepath.Separator))
+	if parts[0] == "controller-security" {
+		return unsafe
+	}
+	secret, err := os.Lstat(filepath.Join(homeDir, controllerSecretFile))
+	if err != nil {
+		return unsafe
+	}
+	current := homeDir
+	for _, part := range parts {
+		current = filepath.Join(current, part)
+		info, err := os.Lstat(current)
+		if os.IsNotExist(err) {
+			continue // normal HTTP cache directories need not exist yet
+		}
+		if err != nil || info.Mode()&os.ModeSymlink != 0 || os.SameFile(info, secret) {
+			return unsafe
+		}
+	}
+	return nil
+}
+
 func preparePlatformConfig(text, overrides string) (*config.Config, error) {
 	if controllerSecret == "" {
 		return nil, errors.New("controller: credential unavailable")
@@ -189,6 +247,9 @@ func preparePlatformConfig(text, overrides string) (*config.Config, error) {
 		}
 	}
 	applyOverrides(overlay, overrides)
+	if err := validateProviderPaths(overlay); err != nil {
+		return nil, err
+	}
 	enforcePlatformSecurity(overlay)
 	buf, err := yaml.Marshal(overlay)
 	if err != nil {
@@ -317,6 +378,7 @@ func reloadPlatformConfig(w MHTTP.ResponseWriter, req *MHTTP.Request) {
 	}
 	// executor does not recreate Controller; system-fd TUN stays host-owned.
 	executor.ApplyConfig(cfg, true)
+	applyLogOverride(overrides)
 	activeOverrides = overrides
 	w.WriteHeader(MHTTP.StatusNoContent)
 }

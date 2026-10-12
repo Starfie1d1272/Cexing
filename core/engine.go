@@ -223,6 +223,7 @@ func coreStartTun(fd int, configJson string, overridesJson string) error {
 		return err
 	}
 	executor.ApplyConfig(cfg, true)
+	applyLogOverride(overridesJson)
 	activeOverrides = overridesJson
 
 	// 6. 用系统 tun fd 起 gVisor 入站
@@ -273,12 +274,6 @@ func applyOverrides(overlay map[string]any, overridesJson string) {
 		log.Warnln("[OHOS] overrides: invalid input, skipped")
 		return
 	}
-	// wrapper 专用键：不进 overlay，直接生效（日志落盘开关，默认开）
-	if v, ok := ov["logToFile"]; ok {
-		if b, isBool := v.(bool); isBool {
-			setLogToFile(b)
-		}
-	}
 	keyMap := map[string]string{
 		"mixedPort": "mixed-port",
 		"logLevel":  "log-level",
@@ -299,6 +294,17 @@ func applyOverrides(overlay map[string]any, overridesJson string) {
 		overlay[dst] = v
 	}
 	log.Infoln("[OHOS] supported user overrides applied")
+}
+
+// Commit wrapper-only settings after configuration validation and application.
+// Preparing a rejected candidate must not change the active logging policy.
+func applyLogOverride(overridesJson string) {
+	ov := map[string]any{}
+	if yaml.Unmarshal([]byte(overridesJson), &ov) == nil {
+		if enabled, ok := ov["logToFile"].(bool); ok {
+			setLogToFile(enabled)
+		}
+	}
 }
 
 func coreStop() {
