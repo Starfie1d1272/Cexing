@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Inventory module notices; existence does not establish distribution compliance."""
+"""Inventory available module notices; existence does not establish distribution compliance."""
 import hashlib
 import json
 import pathlib

@@ -121,7 +121,7 @@ identity = {
     'deviceValidated': False,
     'distributionApproved': False
 }
-# Overlay contains a temporary host path; keep the public report path-independent.
+# Keep optional host overlay paths out of public build evidence.
 identity['core']['Settings'] = [s for s in source['Settings'] if s['Key'] != '-overlay']
 (report / 'build-identity.json').write_text(json.dumps(identity, indent=2) + '\n')
 print('PASS: unsigned HAP CRC, fresh native identity, ARM64/C ABI, app versions and all raw resource hashes')
