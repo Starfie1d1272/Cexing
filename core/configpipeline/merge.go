@@ -1,88 +1,48 @@
 package configpipeline
 
-import (
-	"errors"
-	"gopkg.in/yaml.v3"
-)
+import "gopkg.in/yaml.v3"
 
-// Maps merge recursively; null deletes. Ordinary arrays replace. Top-level
-// proxies/groups/listeners merge by name, retaining positions and appending new
-// names. {$delete: true, name: ...} deletes a named entry. Rules replace with
-// exact duplicates removed, preserving first-match order (no sorting).
-func merge(dst, patch *yaml.Node, path string) error {
+// merge follows Clash Verge v2.5.8 use_merge (4337bd85758d54d7b9044b2da3c9ac1176eae1f3).
+// Top-level overlay keys are ASCII-lowercased. Maps recurse, all other values
+// replace (including arrays and null). DNS direct children and hosts replace.
+// Name-based group updates belong to Strategy, never generic Merge.
+func merge(dst, patch *yaml.Node) {
+	normalized := &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
 	for i := 0; i < len(patch.Content); i += 2 {
-		key, v := patch.Content[i].Value, patch.Content[i+1]
+		set(normalized, asciiLower(patch.Content[i].Value), patch.Content[i+1])
+	}
+	for i := 0; i < len(normalized.Content); i += 2 {
+		key, v := normalized.Content[i].Value, normalized.Content[i+1]
 		old := field(dst, key)
-		if v.Tag == "!!null" {
-			set(dst, key, nil)
-			continue
-		}
-		if path == "" && (key == "proxies" || key == "proxy-groups" || key == "listeners") {
-			merged, err := mergeNamed(old, v)
-			if err != nil {
-				return err
-			}
-			set(dst, key, merged)
-			continue
-		}
-		if v.Kind == yaml.MappingNode {
-			if old == nil || old.Kind != yaml.MappingNode {
-				old = &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
-			}
-			if err := merge(old, v, path+"/"+key); err != nil {
-				return err
+		switch {
+		case key == "dns" && old != nil && old.Kind == yaml.MappingNode && v.Kind == yaml.MappingNode:
+			for j := 0; j < len(v.Content); j += 2 {
+				set(old, v.Content[j].Value, v.Content[j+1])
 			}
 			set(dst, key, old)
-		} else {
+		case key == "hosts":
 			set(dst, key, v)
+		default:
+			set(dst, key, deepMerge(old, v))
 		}
 	}
-	return nil
 }
-func mergeNamed(dst, patch *yaml.Node) (*yaml.Node, error) {
-	if patch.Kind != yaml.SequenceNode {
-		return nil, errors.New("named sections must be arrays")
+func deepMerge(dst, patch *yaml.Node) *yaml.Node {
+	if dst == nil || dst.Kind != yaml.MappingNode || patch.Kind != yaml.MappingNode {
+		return patch
 	}
-	if dst == nil {
-		dst = &yaml.Node{Kind: yaml.SequenceNode, Tag: "!!seq"}
+	for i := 0; i < len(patch.Content); i += 2 {
+		key := patch.Content[i].Value
+		set(dst, key, deepMerge(field(dst, key), patch.Content[i+1]))
 	}
-	if dst.Kind != yaml.SequenceNode {
-		return nil, errors.New("named sections must be arrays")
-	}
-	for _, list := range []*yaml.Node{dst, patch} {
-		seen := map[string]bool{}
-		for _, entry := range list.Content {
-			name := field(entry, "name")
-			if name == nil || name.Tag != "!!str" || name.Value == "" || seen[name.Value] {
-				return nil, errors.New("invalid or duplicate named entry")
-			}
-			seen[name.Value] = true
+	return dst
+}
+func asciiLower(key string) string {
+	b := []byte(key)
+	for i, c := range b {
+		if c >= 'A' && c <= 'Z' {
+			b[i] = c + 'a' - 'A'
 		}
 	}
-	for _, entry := range patch.Content {
-		name := field(entry, "name").Value
-		index := -1
-		for i, old := range dst.Content {
-			if field(old, "name").Value == name {
-				index = i
-				break
-			}
-		}
-		deletion := field(entry, "$delete")
-		if deletion != nil {
-			if deletion.Tag != "!!bool" || deletion.Value != "true" || len(entry.Content) != 4 {
-				return nil, errors.New("invalid named deletion")
-			}
-			if index >= 0 {
-				dst.Content = append(dst.Content[:index], dst.Content[index+1:]...)
-			}
-			continue
-		}
-		if index < 0 {
-			dst.Content = append(dst.Content, entry)
-		} else if err := merge(dst.Content[index], entry, "/named"); err != nil {
-			return nil, err
-		}
-	}
-	return dst, nil
+	return string(b)
 }

@@ -61,9 +61,7 @@ func (c Compiler) Compile(ctx context.Context, r Request) (Result, error) {
 		if err != nil {
 			return Result{}, errors.New("invalid overlay YAML")
 		}
-		if err := merge(root, patch, ""); err != nil {
-			return Result{}, err
-		}
+		merge(root, patch)
 	}
 	for _, step := range []struct {
 		name string

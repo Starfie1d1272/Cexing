@@ -158,8 +158,6 @@ func validateReferences(root *yaml.Node) error {
 		if list.Kind != yaml.SequenceNode {
 			return errors.New("rules must be arrays")
 		}
-		seen := map[string]bool{}
-		dedup := []*yaml.Node{}
 		for _, rule := range list.Content {
 			if rule.Tag != "!!str" {
 				return errors.New("invalid rule")
@@ -171,12 +169,7 @@ func validateReferences(root *yaml.Node) error {
 			if tp == "RULE-SET" && field(ruleProviders, payload) == nil {
 				return errors.New("missing rule provider")
 			}
-			if !seen[rule.Value] {
-				dedup = append(dedup, rule)
-				seen[rule.Value] = true
-			}
 		}
-		list.Content = dedup
 	}
 	return nil
 }

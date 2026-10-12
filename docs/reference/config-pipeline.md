@@ -25,14 +25,14 @@ Mihomo v1.19.32 `config.ParseRawConfig` 会临时更新全局 General/IPv6 状�
 
 `Compile` 顺序为原始 YAML → 按顺序 Merge overlays → 可选 Strategy → 必填 Platform → 结构/引用检查 → 完整 Validate → 返回最终 YAML。全部输入复制，Result 保留准确的 Original 与各层 Overlays；生成配置独立于原文。多文档、重复键、非字符串键、循环别名明确拒绝；正常 YAML alias/merge key 会展开，保留显式有序映射的顺序。支持 UTF-8 YAML/JSON，旧导入编码修复仍由现有宿主负责。
 
-- 本包方言命名为 `pipeline-merge-v1`：Mapping 递归合并；overlay 中 null 删除该键。
-- 顶层 proxies、proxy-groups、listeners 数组按 name 深度合并。已有项保持位置、新项按 overlay 顺序追加；`{name: synthetic, $delete: true}` 删除项。原文或单层覆写重复名称拒绝，重复执行同层覆写幂等。
-- 其他数组整体替换，空数组明确清空。规则数组整体替换后只去除完全一致的重复规则，保留第一次出现的位置。不同目标的同条件规则不会重排或自动裁决，仍按第一匹配优先；需要插入/追加的策略必须明确构造完整规则数组。这是本包定义的 Merge 语义，不声称兼容任意第三方 Merge 方言。
+- Merge 固定采用 Clash Verge v2.5.8 的 [merge.rs](https://github.com/clash-verge-rev/clash-verge-rev/blob/4337bd85758d54d7b9044b2da3c9ac1176eae1f3/src-tauri/src/enhance/merge.rs)（提交 `4337bd85758d54d7b9044b2da3c9ac1176eae1f3`），以及其 [顶层键名处理](https://github.com/clash-verge-rev/clash-verge-rev/blob/4337bd85758d54d7b9044b2da3c9ac1176eae1f3/src-tauri/src/enhance/field.rs)：overlay 顶层键仅 ASCII 小写化，mapping 递归合并；scalar、null、所有数组整体替换。null 是值，保留键，不表达删除。
+- proxies、proxy-groups、listeners 与 rules 等所有数组都整体替换，不按名称推测局部更新，不隐式去重/重排规则。空数组明确清空。需要 Canonical 管理组/规则按名称生成、更新、去重或顺序插入时，只能由显式版本化 Strategy 负责，并验证自身幂等及保留非管理项；通用 Merge 没有 `$delete`、removePaths 或第二套公开方言。
+- 顶层 dns 的新旧值都为 mapping 时，只在直接子字段层做替换：nameserver-policy、fallback-filter 等子 mapping 不递归混入旧字段；未指定的 DNS 直接子字段保留。顶层 hosts 整体替换，包括空 mapping。其他 mapping（例如 tun）继续递归合并。该行为对应上游 2026-09-22 [DNS/hosts 修正](https://github.com/clash-verge-rev/clash-verge-rev/commit/6a85d0344e5df34c750ca3158e53b8b37a5ddf82)之后的来源版本，旧版 DNS/hosts 深度合并不是等价迁移；宿主导入时必须明确来源版本并预览新结果，不能静默声称旧语义兼容。本包匹配所引用的 use_merge，而不是承诺实现上游其余增强阶段或任意脚本执行。
 - 组目标、`use` provider、规则目标、SUB-RULE、顶层 RULE-SET、dialer-proxy 和组依赖环先检查；嵌套逻辑规则/provider、协议字段、DNS、资源、规则语法及具体组类型由必填完整 Validate 检查。
 - 支持 proxies 及 provider-only；至少有一项。provider 定义要求类型与对应来源，HTTP URL 的明显占位形式拒绝；这不能替代资源存在、下载结果或可用节点检查，后者属于完整 Validate。file 路径边界由宿主/平台约束处理。
 - 差异摘要仅返回固定 section 名与数量，不返回节点名、规则、URL 或字段值；`Previous` 仅供比较，不参与合并。摘要没有列出的其他字段仍完整保留在 YAML 中。
 
-订阅更新必须使用最新原文与已保存的覆写/策略重新 Compile，不能把上一份 generated YAML 当作订阅原文，否则删除和策略生成可能累积。编译结果是私有数据，不得把 Result/YAML/Original/source.json 作为日志或公开配置导出。
+订阅更新必须使用最新原文与已保存的覆写/策略重新 Compile，不能把上一份 generated YAML 当作订阅原文，否则旧订阅字段和策略生成可能累积。编译结果是私有数据，不得把 Result/YAML/Original/source.json 作为日志或公开配置导出。
 
 ## 保存与激活
 

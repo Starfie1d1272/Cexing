@@ -34,12 +34,12 @@ func compiler() Compiler {
 	}
 }
 func TestMergeUpdateAndIdempotence(t *testing.T) {
-	overlay := []byte(`proxies:
-  - {name: node, port: 8443}
-proxy-groups:
+	overlay := []byte(`proxy-groups:
+  - {name: pick, type: select, proxies: [node]}
   - {name: generated, type: select, proxies: [pick]}
 rules: ["DOMAIN,example.test,generated", "DOMAIN,example.test,pick", "MATCH,DIRECT", "MATCH,DIRECT"]
 dns: {enable: true}
+tun: {mtu: 1400}
 external-controller: 0.0.0.0:9999
 `)
 	c := compiler()
@@ -59,13 +59,13 @@ external-controller: 0.0.0.0:9999
 		t.Fatal("original not preserved")
 	}
 	n, _ := parse(a.YAML)
-	if field(rootFirst(n, "proxies"), "server").Value != "192.0.2.1" || field(rootFirst(n, "proxies"), "port").Value != "8443" {
-		t.Fatal("named deep merge lost node")
+	if field(rootFirst(n, "proxies"), "server").Value != "192.0.2.1" || field(rootFirst(n, "proxies"), "port").Value != "443" {
+		t.Fatal("overlay changed untouched nodes")
 	}
 	if field(n, "rules").Content[0].Value != "DOMAIN,example.test,generated" || field(n, "rules").Content[1].Value != "DOMAIN,example.test,pick" {
 		t.Fatal("first-match rule order changed")
 	}
-	if size(field(n, "rules")) != 3 || !strings.Contains(string(a.YAML), "127.0.0.1:9090") {
+	if size(field(n, "rules")) != 4 || !strings.Contains(string(a.YAML), "127.0.0.1:9090") {
 		t.Fatal("rules or platform")
 	}
 	if strings.Index(string(a.YAML), "+.z.test") > strings.Index(string(a.YAML), "+.a.test") {
@@ -76,7 +76,7 @@ external-controller: 0.0.0.0:9999
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(next.YAML), "192.0.2.2") || !strings.Contains(string(next.YAML), "8443") {
+	if !strings.Contains(string(next.YAML), "192.0.2.2") || !strings.Contains(string(next.YAML), "1400") {
 		t.Fatal("update lost source or overlay")
 	}
 	for _, change := range next.Changes {
@@ -86,23 +86,102 @@ external-controller: 0.0.0.0:9999
 	}
 }
 func rootFirst(n *yaml.Node, key string) *yaml.Node { return field(n, key).Content[0] }
-func TestYAMLAndDeletion(t *testing.T) {
+func TestYAMLAndNull(t *testing.T) {
 	c := compiler()
 	aliases := []byte(`defaults: &defaults {enabled: true, value: 1}
 settings: {<<: *defaults, value: 2}
 `)
-	out, err := c.Compile(context.Background(), Request{Original: []byte(original), Overlays: [][]byte{aliases, []byte("proxy-groups:\n  - {name: pick, $delete: true}\nrules: [MATCH,DIRECT]\ndns: null\n")}})
-	// Use quoted rule because YAML flow sequence splits commas.
-	if err == nil {
-		t.Fatal("malformed rules accepted")
-	}
-	out, err = c.Compile(context.Background(), Request{Original: []byte(original), Overlays: [][]byte{aliases, []byte("proxy-groups:\n  - {name: pick, $delete: true}\nrules: ['MATCH,DIRECT']\ndns: null\n")}})
+	out, err := c.Compile(context.Background(), Request{Original: []byte(original), Overlays: [][]byte{aliases, []byte("proxy-groups: []\nrules: ['MATCH,DIRECT']\ndns: null\n")}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	n, _ := parse(out.YAML)
-	if size(field(n, "proxy-groups")) != 0 || field(n, "dns") != nil || field(field(n, "settings"), "value").Value != "2" {
-		t.Fatal("alias or delete semantics")
+	if size(field(n, "proxy-groups")) != 0 || field(n, "dns") == nil || field(n, "dns").Tag != "!!null" || field(field(n, "settings"), "value").Value != "2" {
+		t.Fatal("alias or null semantics")
+	}
+}
+
+func TestClashVergeMergeSemantics(t *testing.T) {
+	base, err := parse([]byte(`proxies: [{name: old, port: 443}]
+proxy-groups: [{name: old, type: select}]
+listeners: [{name: old}]
+rules: ['MATCH,DIRECT']
+other: {nested: {keep: true, replace: false}, list: [old]}
+tun: {mtu: 1500}
+dns:
+  nameserver: [9.9.9.9]
+  nameserver-policy: {old.example: 8.8.8.8}
+  fallback-filter: {geoip: true, domain: [old.example]}
+hosts: {old.example: 192.0.2.1}
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	patch, err := parse([]byte(`PROXIES: [{name: replacement}]
+proxy-groups: []
+listeners: [{name: replacement}]
+rules: ['MATCH,REJECT', 'MATCH,REJECT']
+other: {nested: {replace: null}, list: [new]}
+tun: {enable: true}
+DNS:
+  nameserver-policy: {new.example: 1.1.1.1}
+  fallback-filter: {geoip: false}
+HOSTS: {new.example: 192.0.2.2}
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	merge(base, patch)
+	if size(field(base, "proxies")) != 1 || field(rootFirst(base, "proxies"), "name").Value != "replacement" || field(rootFirst(base, "proxies"), "port") != nil || size(field(base, "proxy-groups")) != 0 || field(rootFirst(base, "listeners"), "name").Value != "replacement" {
+		t.Fatal("named arrays did not replace")
+	}
+	nested := field(field(base, "other"), "nested")
+	if field(nested, "keep") == nil || field(nested, "replace") == nil || field(nested, "replace").Tag != "!!null" || field(field(base, "tun"), "mtu").Value != "1500" {
+		t.Fatal("recursive mapping/null semantics")
+	}
+	dns := field(base, "dns")
+	if field(field(dns, "nameserver-policy"), "old.example") != nil || field(field(dns, "fallback-filter"), "domain") != nil || field(dns, "nameserver").Content[0].Value != "9.9.9.9" || field(field(base, "hosts"), "old.example") != nil {
+		t.Fatal("DNS/hosts replacement semantics")
+	}
+	if size(field(base, "rules")) != 2 {
+		t.Fatal("Merge altered array contents")
+	}
+	clear, _ := parse([]byte("dns: {nameserver-policy: {}, fallback-filter: {}, nameserver: []}\nhosts: {}\n"))
+	merge(base, clear)
+	if size(field(field(base, "dns"), "nameserver-policy")) != 0 || size(field(field(base, "dns"), "fallback-filter")) != 0 || size(field(field(base, "dns"), "nameserver")) != 0 || size(field(base, "hosts")) != 0 {
+		t.Fatal("explicit empty DNS/hosts did not replace")
+	}
+}
+
+func TestStrategyOwnsNamedGroupUpdates(t *testing.T) {
+	strategy := func(_ context.Context, n *yaml.Node) error {
+		generated, _ := parse([]byte("proxy-groups: [{name: generated, type: select, proxies: [pick]}]\n"))
+		entry := rootFirst(generated, "proxy-groups")
+		groups := field(n, "proxy-groups")
+		for i, old := range groups.Content {
+			if field(old, "name").Value == "generated" {
+				groups.Content[i] = entry
+				return nil
+			}
+		}
+		groups.Content = append(groups.Content, entry)
+		return nil
+	}
+	c := compiler()
+	a, err := c.Compile(context.Background(), Request{Original: []byte(original), Strategy: strategy})
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := c.Compile(context.Background(), Request{Original: a.YAML, Strategy: strategy})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(a.YAML, b.YAML) {
+		t.Fatal("strategy named update not idempotent")
+	}
+	n, _ := parse(b.YAML)
+	if size(field(n, "proxy-groups")) != 2 || size(field(n, "proxies")) != 1 {
+		t.Fatal("strategy lost unowned data")
 	}
 }
 func TestInvalidInputsAndReferences(t *testing.T) {
