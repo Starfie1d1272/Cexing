@@ -23,7 +23,7 @@ lgbm-auto-update: false
 
 ## 最小宿主/UI 接口
 
-仅复用既有 Controller 回环地址和 Bearer 认证，不增加服务、C ABI 或进程隔离；没有非空 Controller secret 时两个新增路由均不挂载（404）。UI 会话应使用集成负责人统一的 Controller 客户端，不能建立另一份 secret/端口或记录认证值。本线没有修改 UI 页面、CoreApi 或布局。
+仅复用既有 Controller 回环地址和 Bearer 认证，不增加服务、C ABI 或进程隔离；没有非空 Controller secret 时两个新增路由均不挂载（404）。UI 会话应使用集成负责人统一的 Controller 客户端，不能建立另一份 secret/端口或记录认证值。原生入口为「设置 → Smart」，状态与二进制文件导入复用 CoreApi 的同一 Bearer 来源；模型官方链接与手机流程见 [设备指南](../how-to/device.md)。
 
 | 请求 | 语义 |
 |---|---|
@@ -41,4 +41,4 @@ lgbm-auto-update: false
 
 Linux 检查通过实际回环 HTTP 节点、mixed listener、规则和 Smart 统计回调证明模型参与；`scripts/test-smart-loader.sh` 用真实 bridge.cpp 与宿主链接拦截验证缺符号/完整 ABI 路径，其日志桩不证明 OHOS TLS。
 
-未签名 OHOS HAP 的模块身份、平台参数、四个动态 ABI、独立 strip 字节、非空资源和禁止模型打包由 `scripts/ci/verify-hap.py` 检查，普通与优化 Python 不能绕过。构建记录还绑定本地生产 Go 源码摘要及文件集合，源码修改/新增不能复用旧核心；构建记录在模块完整性复验通过后才生效，失败不遗留成功记录；记录保护受信工作目录内的构建身份，不是签名供应链证明。生成产物不提交、不签名、不安装、不发布。手机仍须验收真实 TUN、TLS/REALITY、UDP/DNS、IPv6、后台与网络切换；Hokit 签名安装和用户设备操作由本地会话完成。UI 入口与 Controller 统一认证的合流尚须集成负责人接入，不把接口实现声称为已完成 UI 联调。
+未签名 OHOS HAP 的模块身份、平台参数、四个动态 ABI、独立 strip 字节、非空资源和禁止模型打包由 `scripts/ci/verify-hap.py` 检查，普通与优化 Python 不能绕过。构建记录还绑定本地生产 Go 源码摘要及文件集合，源码修改/新增不能复用旧核心；构建记录在模块完整性复验通过后才生效，失败不遗留成功记录；记录保护受信工作目录内的构建身份，不是签名供应链证明。生成产物不提交、不签名、不安装、不发布。手机仍须验收真实 TUN、TLS/REALITY、UDP/DNS、IPv6、后台与网络切换；Hokit 签名安装和用户设备操作由本地会话完成。原生文件选择/上传和应用级重启已接入；手机仍需确认重启后 VPN Extension 进程换代。
