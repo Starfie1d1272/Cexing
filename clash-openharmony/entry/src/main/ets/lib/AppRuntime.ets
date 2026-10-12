@@ -11,23 +11,36 @@ export namespace AppRuntime {
   let registered: boolean = false;
   let restoreTimer: number = -1;
   let servicesStarted: boolean = false;
+  let restoreGeneration: number = 0;
+  let lastStatus: VpnStatus = VpnController.status;
 
   export function initialize(ctx: common.UIAbilityContext): void {
+    cancelRestore();
+    const generation = restoreGeneration;
     context = ctx;
+    LiveViewKeeper.rebindContext(ctx);
+    AutoUpdater.rebindContext(ctx);
     if (!registered) {
       registered = true;
       VpnController.onChanged(sync);
     }
     VpnController.recover(() => {
+      if (generation !== restoreGeneration) {
+        return;
+      }
       sync(VpnController.status);
       const settings = Settings.load(ctx);
       if (settings.autoRestore && settings.vpnWasConnected &&
         VpnController.status === VpnStatus.Disconnected) {
-        cancelRestore();
         restoreTimer = setTimeout(() => {
+          if (generation !== restoreGeneration || context === null) {
+            return;
+          }
           restoreTimer = -1;
-          if (VpnController.status === VpnStatus.Disconnected) {
-            VpnController.start(ctx);
+          const current = Settings.load(context);
+          if (current.autoRestore && current.vpnWasConnected &&
+            VpnController.status === VpnStatus.Disconnected) {
+            VpnController.start(context);
           }
         }, 1200);
       }
@@ -35,6 +48,10 @@ export namespace AppRuntime {
   }
 
   function sync(status: VpnStatus): void {
+    if (status !== lastStatus) {
+      cancelRestore();
+      lastStatus = status;
+    }
     const ctx = context;
     if (ctx === null) {
       return;
@@ -58,6 +75,7 @@ export namespace AppRuntime {
   }
 
   export function cancelRestore(): void {
+    restoreGeneration++;
     if (restoreTimer >= 0) {
       clearTimeout(restoreTimer);
       restoreTimer = -1;

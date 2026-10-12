@@ -41,6 +41,7 @@ source scripts/env.sh
 node scripts/test-profile-name.cjs
 node scripts/test-vpn-startup.cjs
 node scripts/test-app-runtime.cjs
+node scripts/test-background-lifecycle.cjs
 git diff --check
 ```
 

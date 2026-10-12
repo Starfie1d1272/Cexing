@@ -25,11 +25,13 @@ function fixture(recovered = status.Disconnected) {
   const modules = {
     './VpnController': { VpnController: controller, VpnStatus: status },
     './LiveViewKeeper': { LiveViewKeeper: {
+      rebindContext: ctx => { calls.backgroundContext = ctx; },
       start: async () => { calls.backgroundStart++; return true; },
       stop: async () => { calls.backgroundStop++; },
       ensure: () => { calls.ensure++; }
     } },
     './AutoUpdater': { AutoUpdater: {
+      rebindContext: ctx => { calls.updatesContext = ctx; },
       start: () => { calls.updatesStart++; }, stop: () => { calls.updatesStop++; },
       checkAndRun: async () => { calls.check++; }
     } },
@@ -49,7 +51,10 @@ async function testOwnership() {
   await flush();
   assert.equal(f.calls.backgroundStart, 1, 'Recovery event and completion must not double-start services');
   assert.equal(f.calls.updatesStart, 1);
-  f.runtime.initialize({ name: 'recreated ability' });
+  const newContext = { name: 'recreated ability' };
+  f.runtime.initialize(newContext);
+  assert.equal(f.calls.backgroundContext, newContext);
+  assert.equal(f.calls.updatesContext, newContext);
   f.runtime.foreground();
   f.runtime.cancelRestore(); // EntryAbility destruction does not stop a running VPN.
   await flush();
@@ -84,6 +89,44 @@ function testRestore() {
   f.controller.status = status.Connecting;
   [...f.timers.values()][0]();
   assert.equal(f.calls.start, 0, 'Pending restore must not interfere with manual startup');
+  // A timeout already queued by the event loop must stay invalid after manual start/cancel.
+  const manual = fixture();
+  manual.settings.autoRestore = true;
+  manual.settings.vpnWasConnected = true;
+  manual.runtime.initialize({});
+  const queued = [...manual.timers.values()][0];
+  manual.emit(status.Connecting);
+  manual.settings.vpnWasConnected = false;
+  manual.emit(status.Disconnected);
+  queued();
+  assert.equal(manual.calls.start, 0, 'Manual start then cancel must invalidate old auto-restore');
+  assert.equal(manual.timers.size, 0, 'Status transition must remove the scheduled restore');
+  const delayed = fixture();
+  let finishRecovery;
+  delayed.controller.recover = cb => { finishRecovery = cb; };
+  delayed.settings.autoRestore = true;
+  delayed.settings.vpnWasConnected = true;
+  delayed.runtime.initialize({});
+  delayed.emit(status.Connecting);
+  delayed.emit(status.Disconnected);
+  finishRecovery();
+  assert.equal(delayed.timers.size, 0, 'Late recovery completion must not schedule a stale restore');
+  const disabled = fixture();
+  disabled.settings.autoRestore = true;
+  disabled.settings.vpnWasConnected = true;
+  disabled.runtime.initialize({});
+  const pending = [...disabled.timers.values()][0];
+  disabled.settings.autoRestore = false;
+  pending();
+  assert.equal(disabled.calls.start, 0, 'Timeout must recheck the current auto-restore preference');
+  const destroyed = fixture();
+  destroyed.settings.autoRestore = true;
+  destroyed.settings.vpnWasConnected = true;
+  destroyed.runtime.initialize({});
+  const stale = [...destroyed.timers.values()][0];
+  destroyed.runtime.cancelRestore();
+  stale();
+  assert.equal(destroyed.calls.start, 0, 'Already queued timeout must honor cancellation');
   const g = fixture();
   g.settings.autoRestore = true;
   g.settings.vpnWasConnected = true;

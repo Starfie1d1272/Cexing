@@ -4,6 +4,7 @@ import { VpnController, VpnStatus } from '../lib/VpnController';
 import { CoreApi, TrafficMsg, formatRate } from '../lib/CoreApi';
 import { ProfileStore } from '../lib/ProfileStore';
 import { Settings } from '../lib/Settings';
+import { AppRuntime } from '../lib/AppRuntime';
 
 const MODE_LABELS: string[] = ['规则', '全局', '直连'];
 const MODE_VALUES: string[] = ['rule', 'global', 'direct'];
@@ -80,6 +81,7 @@ export struct HomePage {
   }
 
   private toggle(): void {
+    AppRuntime.cancelRestore();
     const ctx = getContext(this) as common.UIAbilityContext;
     if (this.status === VpnStatus.Disconnected) {
       if (ProfileStore.getActiveFile(ctx).length === 0) {

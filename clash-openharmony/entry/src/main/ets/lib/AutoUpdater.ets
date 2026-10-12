@@ -19,12 +19,22 @@ const CHECK_INTERVAL_MS = 60 * 60 * 1000;
 
 export namespace AutoUpdater {
   let timerId: number = -1;
+  let currentContext: common.Context | null = null;
+
+  export function rebindContext(context: common.Context): void {
+    currentContext = context;
+  }
 
   /** 启动周期检查（幂等：重复调用先 stop） */
   export function start(context: common.Context): void {
     stop();
+    rebindContext(context);
     timerId = setInterval(() => {
-      checkAndRun(context).catch(() => {
+      const ctx = currentContext;
+      if (ctx === null) {
+        return;
+      }
+      checkAndRun(ctx).catch(() => {
         // fire-and-forget：单轮失败忽略，等下一轮
       });
     }, CHECK_INTERVAL_MS);
