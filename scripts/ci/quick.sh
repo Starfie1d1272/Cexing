@@ -15,7 +15,8 @@ export GOFLAGS=-mod=readonly GOTOOLCHAIN=local
 CI_GO_ROOT="$(mktemp -d)"
 trap 'chmod -R u+w "$CI_GO_ROOT"; rm -rf "$CI_GO_ROOT"' EXIT
 export GOMODCACHE="$CI_GO_ROOT/mod" GOCACHE="$CI_GO_ROOT/build"
-(cd core && go mod download && go mod verify && go test ./...)
+(cd core && go mod download && go mod verify)
+bash scripts/test-smart.sh
 python3 scripts/ci/license-inventory.py > "$CI_GO_ROOT/licenses.json"
 python3 - "$CI_GO_ROOT/licenses.json" <<'PYCODE'
 import json, sys

@@ -1,0 +1,429 @@
+--- a/component/smart/lightgbm/lightgbm.go
++++ b/component/smart/lightgbm/lightgbm.go
+@@ -1,21 +1,21 @@
+ package lightgbm
+ 
+ import (
+-	"context"
++	"crypto/sha256"
++	"encoding/hex"
+ 	"fmt"
+ 	"io"
+ 	"math"
+-	"net/http"
+ 	"net/netip"
+ 	"os"
++	"path/filepath"
+ 	"regexp"
+ 	"strconv"
+ 	"strings"
+ 	"sync"
++	"sync/atomic"
+ 	"time"
+ 
+-	"github.com/metacubex/mihomo/common/singleflight"
+-	mihomoHttp "github.com/metacubex/mihomo/component/http"
+ 	"github.com/metacubex/mihomo/component/smart"
+ 	C "github.com/metacubex/mihomo/constant"
+ 	"github.com/metacubex/mihomo/log"
+@@ -43,10 +43,9 @@
+ }
+ 
+ var (
+-	smartModel  *WeightModel
+-	reloadModel = singleflight.Group[bool]{StoreResult: false}
+-	modelOnce   sync.Once
+-	lgbmUrl     string
++	smartModel *WeightModel
++	modelOnce  sync.Once
++	lgbmUrl    string
+ 
+ 	domainRegex = regexp.MustCompile(`([a-zA-Z0-9-]+)(\.[a-zA-Z0-9-]+)+$`)
+ 
+@@ -536,51 +535,120 @@
+ 	}
+ }
+ 
++// Status reads never load a model. Predictions count only valid PredictSingle results.
++var modelState atomic.Value
++var modelPredictions atomic.Uint64
++
++const ModelSHA256 = "23633022a815fb34e510befe1c176ba50af3ced48f08b172454f4cd6b8327788"
++
++type Status struct {
++	State           string `json:"state"`
++	SHA256          string `json:"sha256"`
++	Predictions     uint64 `json:"predictions"`
++	NetworkDownload bool   `json:"networkDownload"`
++	RestartRequired bool   `json:"restartRequired"`
++}
++
++func ModelStatus() Status {
++	state, _ := modelState.Load().(string)
++	if state == "" {
++		state = "not-requested"
++	}
++	return Status{State: state, SHA256: ModelSHA256, Predictions: modelPredictions.Load(), RestartRequired: state == "missing" || state == "invalid"}
++}
++
++// InstallModel validates the exact pinned upstream asset before atomic replacement.
++// No download, hot reload or runtime reset. Missing-model users restart the process.
++func InstallModel(reader io.Reader) error {
++	data, err := io.ReadAll(io.LimitReader(reader, 9345218+1))
++	if err != nil || len(data) != 9345218 {
++		return fmt.Errorf("模型读取失败或大小不匹配")
++	}
++	digest := sha256.Sum256(data)
++	if hex.EncodeToString(digest[:]) != ModelSHA256 {
++		return fmt.Errorf("模型 SHA-256 与支持的上游版本不匹配")
++	}
++	installMutex.Lock()
++	defer installMutex.Unlock()
++	path := C.Path.SmartModel()
++	f, err := os.CreateTemp(filepath.Dir(path), ".smart-model-*")
++	if err != nil {
++		return fmt.Errorf("无法写入应用模型目录")
++	}
++	defer os.Remove(f.Name())
++	if _, err = f.Write(data); err != nil {
++		f.Close()
++		return fmt.Errorf("模型写入失败")
++	}
++	if err = f.Sync(); err != nil {
++		f.Close()
++		return fmt.Errorf("模型同步失败")
++	}
++	if err = f.Close(); err != nil {
++		return fmt.Errorf("模型关闭失败")
++	}
++	if _, err = leaves.LGEnsembleFromFile(f.Name(), false); err != nil {
++		return fmt.Errorf("模型解析失败")
++	}
++	if st, err := os.Stat(path); err == nil && st.Size() > 9345218 {
++		return fmt.Errorf("旧模型过大，请先保存诊断副本")
++	}
++	old, err := os.ReadFile(path)
++	if err != nil && !os.IsNotExist(err) {
++		return fmt.Errorf("旧模型读取失败，安装未替换原文件；请检查文件权限")
++	}
++	if err == nil {
++		// Keep a diagnostic copy of a replaced invalid resource; never overwrite it.
++		hash := sha256.Sum256(old)
++		if hex.EncodeToString(hash[:]) != ModelSHA256 {
++			backup, err := os.OpenFile(path+".previous", os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
++			if err != nil {
++				return fmt.Errorf("旧模型备份已存在或不可写，请先保存诊断副本")
++			}
++			_, err = backup.Write(old)
++			closeErr := backup.Close()
++			if err != nil || closeErr != nil {
++				return fmt.Errorf("旧模型备份失败")
++			}
++		}
++	}
++	if err = os.Rename(f.Name(), path); err != nil {
++		return fmt.Errorf("模型原子安装失败")
++	}
++	return nil
++}
++
++var installMutex sync.Mutex
++
++// OHOS beta: local models only; never remove or download user resources.
+ func GetModel() *WeightModel {
+ 	modelOnce.Do(func() {
++		modelState.Store("loading")
++		path := C.Path.SmartModel()
++		f, err := os.Open(path)
++		if err != nil {
++			modelState.Store("missing")
++			log.Warnln("[Smart/OHOS beta] Local model unavailable; using statistical weights: %v", err)
++			return
++		}
++		hash := sha256.New()
++		n, err := io.Copy(hash, io.LimitReader(f, 9345218+1))
++		f.Close()
++		if err != nil || n != 9345218 || hex.EncodeToString(hash.Sum(nil)) != ModelSHA256 {
++			modelState.Store("invalid")
++			log.Warnln("[Smart/OHOS beta] Local model digest mismatch; using statistical weights")
++			return
++		}
+ 		m := &WeightModel{}
+-		modelPath := C.Path.SmartModel()
+-
+-		if _, err := os.Stat(modelPath); err == nil {
+-			if err := m.loadModel(modelPath); err != nil {
+-				log.Warnln("[Smart] Model.bin invalid, remove and download: %v", err)
+-				if rmErr := os.Remove(modelPath); rmErr != nil {
+-					log.Errorln("[Smart] Failed to remove invalid Model.bin: %v", rmErr)
+-					return
+-				}
+-
+-				if downloadErr := downloadModel(modelPath); downloadErr != nil {
+-					log.Errorln("[Smart] Failed to download Model.bin: %v", downloadErr)
+-					return
+-				}
+-
+-				if reloadErr := m.loadModel(modelPath); reloadErr != nil {
+-					log.Errorln("[Smart] Failed to load downloaded Model.bin: %v", reloadErr)
+-					return
+-				}
+-
+-				log.Infoln("[Smart] Model.bin downloaded and loaded successfully")
+-			} else {
+-				log.Infoln("[Smart] Model file loaded successfully")
+-			}
+-		} else {
+-			log.Infoln("[Smart] Can't find Model.bin, start download")
+-			if downloadErr := downloadModel(modelPath); downloadErr != nil {
+-				log.Errorln("[Smart] Can't download Model.bin: %v", downloadErr)
+-				return
+-			}
+-
+-			if loadErr := m.loadModel(modelPath); loadErr != nil {
+-				log.Errorln("[Smart] Failed to load downloaded Model.bin: %v", loadErr)
+-				return
+-			}
+-
+-			log.Infoln("[Smart] Download Model.bin finish")
+-		}
+-
++		if err := m.loadModel(path); err != nil {
++			modelState.Store("invalid")
++			log.Warnln("[Smart/OHOS beta] Local model unavailable; using statistical weights: %v", err)
++			return
++		}
+ 		smartModel = m
++		modelState.Store("loaded")
++		log.Infoln("[Smart/OHOS beta] Local model parsed; prediction participation requires separate evidence")
+ 	})
+-
+ 	return smartModel
+ }
+ 
+@@ -624,25 +692,7 @@
+ }
+ 
+ func ReloadModel() {
+-	if smartModel != nil {
+-		success, err, _ := reloadModel.Do("reload", func() (bool, error) {
+-			modelPath := C.Path.SmartModel()
+-			if _, err := os.Stat(modelPath); err == nil {
+-				if err := smartModel.loadModel(modelPath); err != nil {
+-					return false, err
+-				} else {
+-					return true, nil
+-				}
+-			}
+-			return false, nil
+-		})
+-
+-		if err != nil {
+-			log.Errorln("[Smart] Model reload failed: %v", err)
+-		} else if success {
+-			log.Debugln("[Smart] Model reload completed successfully")
+-		}
+-	}
++	log.Warnln("[Smart/OHOS beta] Model replacement requires a new application process")
+ }
+ 
+ func SetLgbmUrl(newUrl string) {
+@@ -653,29 +703,9 @@
+ 	return lgbmUrl
+ }
+ 
+-func downloadModel(path string) (err error) {
+-	modelUrl := LgbmUrl()
+-	if modelUrl == "" {
+-		modelUrl = GetModelDownloadURL()
+-	}
+-
+-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*90)
+-	defer cancel()
+-
+-	resp, err := mihomoHttp.HttpRequest(ctx, modelUrl, http.MethodGet, nil, nil)
+-	if err != nil {
+-		return
+-	}
+-	defer resp.Body.Close()
+-
+-	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY, 0o644)
+-	if err != nil {
+-		return err
+-	}
+-	defer f.Close()
+-	_, err = io.Copy(f, resp.Body)
+-
+-	return err
++// Network model updates are disabled even if YAML enables lgbm-auto-update.
++func downloadModel(path string) error {
++	return fmt.Errorf("OHOS beta: network model download disabled")
+ }
+ 
+ func GetModelDownloadURL() string {
+@@ -730,10 +760,11 @@
+ 
+ 	prediction = model.PredictSingle(features, 0)
+ 
+-	if math.IsNaN(prediction) || prediction <= 0 {
++	if math.IsNaN(prediction) || math.IsInf(prediction, 0) || prediction <= 0 {
+ 		return smart.CalculateWeight(input, priorityFactor)
+ 	}
+ 
++	modelPredictions.Add(1)
+ 	return prediction * priorityFactor, true
+ }
+ 
+--- a/component/updater/update_lgbm.go
++++ b/component/updater/update_lgbm.go
+@@ -1,7 +1,6 @@
+ package updater
+ 
+ import (
+-	"context"
+ 	"errors"
+ 	"fmt"
+ 	"os"
+@@ -9,13 +8,8 @@
+ 	"time"
+ 
+ 	"github.com/metacubex/mihomo/common/atomic"
+-	"github.com/metacubex/mihomo/common/utils"
+-	"github.com/metacubex/mihomo/component/resource"
+-	"github.com/metacubex/mihomo/component/smart/lightgbm"
+ 	C "github.com/metacubex/mihomo/constant"
+ 	"github.com/metacubex/mihomo/log"
+-
+-	"github.com/vernesong/leaves"
+ )
+ 
+ var (
+@@ -41,56 +35,9 @@
+ 	lgbmUpdateInterval = newUpdateInterval
+ }
+ 
+-func UpdateLgbmModel() (err error) {
+-	modelUrl := lightgbm.LgbmUrl()
+-	if modelUrl == "" {
+-		modelUrl = lightgbm.GetModelDownloadURL()
+-	}
+-
+-	vehicle := resource.NewHTTPVehicle(modelUrl, C.Path.SmartModel(), "", nil, defaultHttpTimeout, 0)
+-	var oldHash utils.HashType
+-	if buf, err := os.ReadFile(vehicle.Path()); err == nil {
+-		oldHash = utils.MakeHash(buf)
+-	}
+-	data, hash, err := vehicle.Read(context.Background(), oldHash)
+-	if err != nil {
+-		return fmt.Errorf("can't download LightGBM model file: %w", err)
+-	}
+-	if oldHash.Equal(hash) {
+-		log.Infoln("[Smart] LightGBM model is up to date")
+-		return nil
+-	}
+-	if len(data) == 0 {
+-		return fmt.Errorf("can't download LightGBM model file: no data")
+-	}
+-
+-	tmpFile, err := os.CreateTemp("", "lgbm_model_*.bin")
+-	if err != nil {
+-		return fmt.Errorf("failed to create temp file for validation: %w", err)
+-	}
+-	tmpPath := tmpFile.Name()
+-	tmpFile.Close()
+-	defer os.Remove(tmpPath)
+-
+-	if err := os.WriteFile(tmpPath, data, 0644); err != nil {
+-		return fmt.Errorf("failed to write temp file: %w", err)
+-	}
+-
+-	_, err = leaves.LGEnsembleFromFile(tmpPath, false)
+-	if err != nil {
+-		return fmt.Errorf("invalid LightGBM model file: %s", err)
+-	}
+-
+-	if err = vehicle.Write(data); err != nil {
+-		return fmt.Errorf("can't save LightGBM model file: %w", err)
+-	}
+-
+-	defer func() {
+-		log.Infoln("[Smart] LightGBM model update completed")
+-		lightgbm.ReloadModel()
+-	}()
+-
+-	return nil
++// OHOS beta: both the REST endpoint and periodic updater fail offline.
++func UpdateLgbmModel() error {
++	return fmt.Errorf("OHOS beta: network model update disabled")
+ }
+ 
+ func updateLgbmModel() error {
+--- /dev/null
++++ b/hub/route/ohos_smart.go
+@@ -0,0 +1,56 @@
++package route
++
++import (
++	"encoding/json"
++	"github.com/metacubex/chi"
++	"github.com/metacubex/http"
++	"github.com/metacubex/mihomo/adapter/outboundgroup"
++	"github.com/metacubex/mihomo/component/smart/lightgbm"
++	"github.com/metacubex/mihomo/tunnel"
++)
++
++// The external router is mounted behind the existing Controller authentication.
++// Status includes no credentials/paths and makes no inference from weight rankings.
++func addOHOSSmartRoutes(r chi.Router, secret string) {
++	if secret == "" {
++		return
++	}
++	r.Post("/smart/model", func(w http.ResponseWriter, r *http.Request) {
++		if err := lightgbm.InstallModel(http.MaxBytesReader(w, r.Body, 9345218+1)); err != nil {
++			w.Header().Set("Content-Type", "application/json")
++			w.WriteHeader(http.StatusBadRequest)
++			json.NewEncoder(w).Encode(map[string]any{"error": err.Error()})
++			return
++		}
++		w.Header().Set("Content-Type", "application/json")
++		json.NewEncoder(w).Encode(map[string]any{"installed": true, "sha256": lightgbm.ModelSHA256,
++			"restartRequired": lightgbm.ModelStatus().State != "not-requested", "message": "模型已校验安装；已尝试加载模型的进程需结束并重启，VPN 停止/启动不能重置模型状态"})
++	})
++	r.Get("/smart/status", func(w http.ResponseWriter, r *http.Request) {
++		groups := make(map[string]json.RawMessage)
++		for name, proxy := range tunnel.Proxies() {
++			if group, ok := proxy.Adapter().(*outboundgroup.Smart); ok {
++				if data, err := group.MarshalJSON(); err == nil {
++					groups[name] = data
++				}
++			}
++		}
++		status := lightgbm.ModelStatus()
++		message := "Smart 使用统计策略；LightGBM 尚未请求加载"
++		switch status.State {
++		case "loading":
++			message = "正在校验并加载离线模型"
++		case "missing":
++			message = "离线模型缺失，Smart 使用统计策略；安装模型后需重新启动应用进程"
++		case "invalid":
++			message = "离线模型校验或解析失败，Smart 使用统计策略；原文件保留，替换后需重新启动应用进程"
++		case "loaded":
++			message = "离线模型已加载；成功预测次数为零时尚无 LightGBM 参与证据"
++		}
++		w.Header().Set("Content-Type", "application/json")
++		json.NewEncoder(w).Encode(map[string]any{
++			"schemaVersion": 1, "core": "daf3ad03021cca6031f4a7303ca6d861a14d5a16",
++			"groups": groups, "model": status, "message": message,
++		})
++	})
++}
+--- a/hub/route/server.go
++++ b/hub/route/server.go
+@@ -140,6 +140,7 @@
+ 		}
+ 		r.Mount("/upgrade", upgradeRouter())
+ 		addExternalRouters(r)
++		addOHOSSmartRoutes(r, secret)
+ 
+ 	})
+ 

@@ -1,0 +1,49 @@
+package lightgbm
+
+import (
+ "math"
+ "bytes"
+ "os"
+ "sync"
+ "testing"
+ "github.com/metacubex/mihomo/component/smart"
+ C "github.com/metacubex/mihomo/constant"
+)
+
+func TestOHOSBetaModel(t *testing.T) {
+ old := C.Path.HomeDir(); defer C.SetHomeDir(old)
+ for _, state := range []string{"missing", "invalid"} {
+  C.SetHomeDir(t.TempDir()); modelOnce = sync.Once{}; smartModel = nil
+  if state == "invalid" { if err := os.WriteFile(C.Path.SmartModel(), []byte("invalid test input"),0600); err != nil { t.Fatal(err) } }
+  if GetModel() != nil || ModelStatus().State != state || !ModelStatus().RestartRequired { t.Fatal(ModelStatus()) }
+  if err := downloadModel(C.Path.SmartModel()); err == nil { t.Fatal("network download allowed") }
+  if state == "invalid" { b,err := os.ReadFile(C.Path.SmartModel()); if err != nil || string(b) != "invalid test input" { t.Fatal("bad resource changed") } }
+  input := &smart.ModelInput{Success:10,Latency:50,ConnectTime:40,IsTCP:true}
+  var m *WeightModel
+  got,ok := m.PredictWeight(input,1); want,wok := smart.CalculateWeight(input,1)
+  if got != want || ok != wok { t.Fatal("statistical fallback changed") }
+ }
+ path := os.Getenv("SMART_REAL_MODEL")
+ if path == "" { t.Log("real upstream model not supplied; load/prediction evidence skipped"); return }
+ C.SetHomeDir(t.TempDir()); modelOnce = sync.Once{}; smartModel=nil
+ b,err := os.ReadFile(path); if err != nil {t.Fatal(err)}
+ if err = InstallModel(bytes.NewReader([]byte("invalid upload"))); err == nil {t.Fatal("bad upload accepted")}
+ if err = os.WriteFile(C.Path.SmartModel(),[]byte("old invalid diagnostic"),0600);err!=nil {t.Fatal(err)}
+ corrupt := append([]byte(nil), b...); corrupt[0] ^= 1
+ if err = InstallModel(bytes.NewReader(corrupt)); err == nil {t.Fatal("same-sized corrupt upstream model accepted")}
+ retained,err:=os.ReadFile(C.Path.SmartModel());if err!=nil || string(retained)!="old invalid diagnostic" {t.Fatal("bad upload replaced active resource")}
+ if err=os.Chmod(C.Path.SmartModel(),0000);err!=nil {t.Fatal(err)}
+ if err=InstallModel(bytes.NewReader(b));err==nil {t.Fatal("unreadable old model overwritten")}
+ if err=os.Chmod(C.Path.SmartModel(),0600);err!=nil {t.Fatal(err)}
+ retained,err=os.ReadFile(C.Path.SmartModel());if err!=nil || string(retained)!="old invalid diagnostic" {t.Fatal("unreadable original not preserved")}
+ if err = InstallModel(bytes.NewReader(b)); err != nil {t.Fatal(err)}
+ previous,err := os.ReadFile(C.Path.SmartModel()+".previous");if err != nil || string(previous)!="old invalid diagnostic" {t.Fatal("previous invalid model not preserved")}
+ m := GetModel(); if m == nil || ModelStatus().State != "loaded" {t.Fatal(ModelStatus())}
+ before := ModelStatus().Predictions
+ low := &smart.ModelInput{Success:1,IsTCP:true}
+ if _,ok := m.PredictWeight(low,1); ok || ModelStatus().Predictions != before {t.Fatal("insufficient samples counted")}
+ input := &smart.ModelInput{Success:10,Latency:50,ConnectTime:40,IsTCP:true,Host:"example.com",DestPort:443}
+ got,ok := m.PredictWeight(input,1)
+ if !ok || math.IsNaN(got) || math.IsInf(got,0) || got <= 0 || ModelStatus().Predictions != before+1 {t.Fatalf("real prediction failed: %v %v %+v",got,ok,ModelStatus())}
+ t.Logf("real upstream model: features=%d PredictSingle weight=%.12f predictions=%d",m.model.NFeatures(),got,ModelStatus().Predictions)
+}

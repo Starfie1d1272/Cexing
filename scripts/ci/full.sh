@@ -24,6 +24,7 @@ if [ -n "${CI_HVIGOR_WRAPPER_TOOLS:-}" ]; then
   cp -R "$CI_HVIGOR_WRAPPER_TOOLS" "$HVIGOR_USER_HOME/wrapper/tools"
 fi
 (cd core && go mod download && go mod verify)
+bash scripts/test-smart.sh
 python3 scripts/ci/license-inventory.py > "$CI_BUILD_ROOT/licenses.json"
 for test in scripts/test-*.cjs; do node "$test"; done
 (cd clash-openharmony && "$CLT_ROOT/ohpm/bin/ohpm" install)
@@ -36,6 +37,8 @@ python3 scripts/ci/check-toolchain.py --after-build
 HAP=clash-openharmony/entry/build/default/outputs/default/entry-default-unsigned.hap
 REPORT=clash-openharmony/dist/ci
 python3 scripts/ci/verify-hap.py "$HAP" "$REPORT"
+python3 tests/smart/hap_gate.py
+python3 tests/smart/source_gate.py
 cp "$CI_BUILD_ROOT/licenses.json" "$REPORT/module-notices.json"
 if [ -n "$(git status --porcelain --untracked-files=normal)" ]; then
   echo 'Full changed tracked inputs or generated untracked files; review before accepting identity' >&2
