@@ -1,0 +1,67 @@
+{
+  "prior": "3f5e3002054275bf2fd39fed3f8a3029d52bf5f6",
+  "prior_animation": [
+    {
+      "motion": "no-preference",
+      "animations": [
+        {
+          "name": "spin",
+          "target": "spinner",
+          "duration": 1000,
+          "iterations": "Infinity"
+        }
+      ]
+    },
+    {
+      "motion": "reduce",
+      "animations": []
+    }
+  ],
+  "new_animation": [
+    {
+      "motion": "no-preference",
+      "animations": [
+        {
+          "name": "spin",
+          "target": "spinner",
+          "duration": 1000,
+          "iterations": "Infinity"
+        }
+      ]
+    },
+    {
+      "motion": "reduce",
+      "animations": []
+    }
+  ],
+  "recording_events": [
+    {
+      "time_s": 0.596,
+      "action": "点击连接 VPN，进入连接中"
+    },
+    {
+      "time_s": 2.818,
+      "action": "点击断开连接，显示确认"
+    },
+    {
+      "time_s": 3.402,
+      "action": "确认断开，进入正在断开"
+    }
+  ],
+  "recording": {
+    "format": "GIF",
+    "viewport": [
+      390,
+      844
+    ],
+    "frames": 51,
+    "captured_seconds": 4.955,
+    "actual_browser_clicks": true,
+    "main_card_animation": false,
+    "loading_spinner": "1s linear infinite only during connecting/disconnecting",
+    "synthetic_operation_duration_ms": {
+      "connect": 1500,
+      "disconnect": 700
+    }
+  }
+}
