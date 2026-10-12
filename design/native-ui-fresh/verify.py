@@ -10,7 +10,7 @@ BASE = 'http://127.0.0.1:8765/design/native-ui-fresh/'
 SCENARIOS = ['empty', 'ready', 'permission', 'connecting', 'connected', 'disconnect',
              'review', 'overrides', 'import-error', 'update-error', 'network-error',
              'diagnostics', 'settings', 'profiles', 'panel', 'panel-error']
-SIZES = [(390, 844), (360, 800), (412, 915), (320, 568)]
+SIZES = [(390, 844), (360, 800), (412, 915), (320, 568), (480, 900), (960, 720), (840, 1120), (1200, 900), (844, 390), (390, 520)]
 report = {'date_utc': '2026-10-12', 'base_main': '7f731d5c9c8d4eba7a1680bcb3981d7877232bcc', 'browser': '', 'viewports': [], 'flows': [], 'runtime_errors': [], 'screenshots': []}
 
 with sync_playwright() as p:
@@ -20,8 +20,8 @@ with sync_playwright() as p:
                             is_mobile=True, has_touch=True)
     page.on('pageerror', lambda error: report['runtime_errors'].append(str(error)))
 
-    def load(scenario=None, depth='minimal'):
-        page.goto(BASE + 'index.html' + (f'?state={scenario}&depth={depth}' if scenario else ''))
+    def load(scenario=None, depth='minimal', variant='native-light'):
+        page.goto(BASE + 'index.html' + (f'?state={scenario}&depth={depth}&variant={variant}' if scenario else ''))
         page.evaluate('document.fonts.ready')
 
     def act(name):
@@ -216,36 +216,68 @@ with sync_playwright() as p:
             assert [t['label'] for t in metrics['tabs']] == ['连接', '订阅', '设置']
             assert sum(t['current']=='page' for t in metrics['tabs']) == 1
             assert all(t['top'] >= 0 and t['bottom'] <= h for t in metrics['tabs']), metrics
-            page.evaluate('window.scrollTo(0,document.documentElement.scrollHeight)')
+            page.evaluate('window.scrollTo(0,document.documentElement.scrollHeight);document.querySelector("main").scrollTop=document.querySelector("main").scrollHeight')
             assert page.locator('.tabbar').evaluate('el=>{const r=el.getBoundingClientRect();return r.top>=0&&r.bottom<=innerHeight}')
-            page.evaluate('window.scrollTo(0,0)')
-            if scenario == 'connected' and w >= 360:
+            page.evaluate('window.scrollTo(0,0);document.querySelector("main").scrollTop=0')
+            if scenario == 'connected' and w >= 360 and h >= 700:
                 geometry = page.evaluate('''()=>({content:document.querySelector('.handoff').getBoundingClientRect().bottom, footer:document.querySelector('footer').getBoundingClientRect().top})''')
                 assert geometry['content'] <= geometry['footer'], geometry
             report['viewports'].append({'scenario': scenario, **metrics})
-            if w == 390 or scenario in ['empty', 'connected']:
+            if (w == 390 and h == 844) or scenario in ['empty', 'connected']:
                 filename=f'{scenario}-{w}x{h}.png'
                 page.screenshot(path=str(ROOT/'screenshots'/filename))
                 report['screenshots'].append(filename)
-                if w == 390 and scenario in ['settings', 'update-error']:
+                if w == 390 and h == 844 and scenario in ['settings', 'update-error']:
                     full=f'{scenario}-390-full.png'
                     page.screenshot(path=str(ROOT/'screenshots'/full),full_page=True)
                     report['screenshots'].append(full)
                     if scenario == 'settings':
                         # Reload after full-page capture to settle Chromium viewport restoration.
                         load('settings')
-                        page.evaluate('window.scrollTo(0,document.documentElement.scrollHeight)')
+                        page.evaluate('window.scrollTo(0,document.documentElement.scrollHeight);document.querySelector("main").scrollTop=document.querySelector("main").scrollHeight')
                         page.evaluate('new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))')
                         assert page.locator('.tabbar').evaluate('el=>{const r=el.getBoundingClientRect();return r.top>=0&&r.bottom<=innerHeight}')
                         scrolled='settings-scrolled-390x844.png'
                         page.screenshot(path=str(ROOT/'screenshots'/scrolled))
                         report['screenshots'].append(scrolled)
-                        page.evaluate('window.scrollTo(0,0)')
+                        page.evaluate('window.scrollTo(0,0);document.querySelector("main").scrollTop=0')
+    # CSS/window adaptation preserves an in-flight session, navigation and live form DOM.
+    load('connected')
+    for width,height in [(960,720),(840,1120),(1200,900),(844,390),(390,844)]:
+        page.set_viewport_size({'width':width,'height':height})
+        assert page.evaluate('prototypeQA.state().vpn') == 'connected'
+        assert page.evaluate('prototypeQA.state().page') == 'home'
+    act('profiles')
+    act('importMenu')
+    act('url')
+    page.locator('#name').fill('连续性测试')
+    page.locator('#url').fill('https://example.com/keep-input.yaml')
+    page.locator('#url').focus()
+    for width,height in [(960,720),(840,1120),(1200,900),(390,520),(390,844)]:
+        page.set_viewport_size({'width':width,'height':height})
+        page.evaluate('new Promise(resolve=>requestAnimationFrame(resolve))')
+        assert page.locator('#name').input_value() == '连续性测试'
+        assert page.locator('#url').input_value() == 'https://example.com/keep-input.yaml'
+        assert page.locator('#url').evaluate('el=>el===document.activeElement')
+        if height == 520:
+            visible=page.evaluate('''()=>({top:document.querySelector('#url').getBoundingClientRect().top,bottom:document.querySelector('#url').getBoundingClientRect().bottom,dock:document.querySelector('footer').getBoundingClientRect().top})''')
+            assert visible['top']>=0 and visible['bottom']<=visible['dock'],visible
+        assert page.evaluate('prototypeQA.state().vpn') == 'connected'
+        assert page.locator('[data-tab="profiles"]').get_attribute('aria-current') == 'page'
+    flow('直屏 / 阔屏 / 双折 / 三折 / 高度受限窗口重排：导航、焦点、输入和 VPN 会话连续')
     page.set_viewport_size({'width':390,'height':844})
-    load('connected', 'moderate')
+    load('connected', 'moderate', 'classic')
     page.evaluate('document.activeElement.blur()')
     page.screenshot(path=str(ROOT/'screenshots'/'connected-moderate-390x844.png'))
     report['screenshots'].append('connected-moderate-390x844.png')
+    for w,h in SIZES:
+        page.set_viewport_size({'width':w,'height':h})
+        for scenario in ['connected','empty']:
+            load(scenario,variant='classic')
+            page.evaluate('document.activeElement.blur()')
+            file=f'{scenario}-{w}x{h}.png'
+            page.screenshot(path=str(ROOT/'screenshots'/'classic'/file))
+    page.set_viewport_size({'width':390,'height':844})
     page.emulate_media(reduced_motion='reduce')
     load('connecting')
     assert page.locator('.spinner').evaluate('el=>getComputedStyle(el).animationName') == 'none'

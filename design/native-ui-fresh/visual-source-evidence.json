@@ -1,0 +1,113 @@
+{
+  "date": "2026-10-12",
+  "repositories": [
+    {
+      "repo": "awaLiny2333/LinysBrowser_NEXT",
+      "sha": "f8f07a66482c8713ba21427889fc969c1ca56ab2",
+      "pushed_at": "2026-09-04T17:11:57Z",
+      "stars": 289,
+      "license": {
+        "key": "mit",
+        "name": "MIT License",
+        "spdx_id": "MIT",
+        "url": "https://api.github.com/licenses/mit",
+        "node_id": "MDc6TGljZW5zZTEz"
+      },
+      "latest_commit_date": "2026-09-04T17:11:50Z"
+    },
+    {
+      "repo": "OHPG/FinVideo",
+      "sha": "669916b3581c7d92514f7639232565cd5ac3f775",
+      "pushed_at": "2026-07-28T15:37:33Z",
+      "stars": 61,
+      "license": {
+        "key": "gpl-3.0",
+        "name": "GNU General Public License v3.0",
+        "spdx_id": "GPL-3.0",
+        "url": "https://api.github.com/licenses/gpl-3.0",
+        "node_id": "MDc6TGljZW5zZTk="
+      },
+      "latest_commit_date": "2026-07-28T15:37:16Z"
+    },
+    {
+      "repo": "hefengbao/jingmo-for-HarmonyOS",
+      "sha": "a208f3fdc95c0914749072e811301b9dfd6678d6",
+      "pushed_at": "2026-01-30T13:57:50Z",
+      "stars": 57,
+      "license": {
+        "key": "mit",
+        "name": "MIT License",
+        "spdx_id": "MIT",
+        "url": "https://api.github.com/licenses/mit",
+        "node_id": "MDc6TGljZW5zZTEz"
+      },
+      "latest_commit_date": "2026-01-14T10:16:09Z"
+    },
+    {
+      "repo": "OHPG/FinMusic",
+      "sha": "ca869fdf9b66f5d2a2bead0068959b905982db04",
+      "latest_commit_date": "2026-06-01T17:37:37Z",
+      "license": "GPL-3.0"
+    }
+  ],
+  "privately_viewed_reference_images": [
+    {
+      "research_file": "official-button.png",
+      "sha256": "752064a00d88aa75d823d863abadb435a3d14e443b37bf86edb088501a8edafe",
+      "retained_in_deliverable": false
+    },
+    {
+      "research_file": "official-hds.png",
+      "sha256": "b1ef44828664081951401d82d35f4e1667a52e53c333db042fcaeb81eaac02e1",
+      "retained_in_deliverable": false
+    },
+    {
+      "research_file": "official-material.png",
+      "sha256": "9e727343960acb3531cf2cee728a010a2e8544e047fb50b4b86ec7d43a255db1",
+      "retained_in_deliverable": false
+    },
+    {
+      "research_file": "official-design.png",
+      "sha256": "8724aef93a6df1e2a40c5c4ad4741528d95dcc5622d41cb7e6744fc892b92d34",
+      "retained_in_deliverable": false
+    },
+    {
+      "research_file": "FinMusic3.jpg",
+      "sha256": "e2053c380623ad6efed95153bd93d77a8ef7139c7de26a52191e68caecd416d2",
+      "retained_in_deliverable": false
+    },
+    {
+      "research_file": "FinVideo4.jpg",
+      "sha256": "71d36504557a27dcc62900327e8f17ccbdfa10b0e5f03bf4a96884fcdf448913",
+      "retained_in_deliverable": false
+    },
+    {
+      "research_file": "FinVideo2.jpg",
+      "sha256": "a6084fee1bebf6cf0a49d4a36c3f65406bcd4ce2ce30c459c8d4ef497ce7095b",
+      "retained_in_deliverable": false
+    },
+    {
+      "research_file": "FinVideo1.jpg",
+      "sha256": "d924302eb9d99f12de54186381b57d4f8a48c2e106be330a2023d022e8c0a76c",
+      "retained_in_deliverable": false
+    },
+    {
+      "research_file": "jingmo-for-HarmonyOS-0.png",
+      "sha256": "a751f0c9f192338c6df50482b3b72c7d2e071e15ea8ab46ac86bf90f5c2a6c9e",
+      "retained_in_deliverable": false
+    },
+    {
+      "research_file": "LinysBrowser_NEXT-Settings-effects.jpg",
+      "sha256": "39d638f2b1cec143b02d98698bfd7968309990d0317788465dab0571b2f8f0b9",
+      "retained_in_deliverable": false
+    },
+    {
+      "research_file": "LinysBrowser_NEXT-Settings-normal.jpg",
+      "sha256": "58c86af48a4b80fab613b6563f05294c6c6d6c213df5919ab1421007080f511b",
+      "retained_in_deliverable": false
+    }
+  ],
+  "sdk_target": "26.0.0",
+  "minimum_api": 21,
+  "runtime_os": "HarmonyOS"
+}

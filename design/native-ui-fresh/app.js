@@ -1,6 +1,8 @@
 "use strict";
 // All content is synthetic. This prototype has no network, VPN or production storage access.
 const params = new URLSearchParams(location.search);
+document.documentElement.dataset.uiVariant =
+  params.get("variant") === "classic" ? "classic" : "native-light";
 document.documentElement.dataset.arkDepth =
   params.get("depth") === "moderate" ? "moderate" : "minimal";
 const icons = {
@@ -269,6 +271,46 @@ function sheet() {
   };
   return `<div class="overlay" data-overlay><section class="sheet" role="dialog" aria-modal="true" aria-labelledby="dialog-title"><div class="handle" aria-hidden="true"></div><div class="sheetheader"><h2 id="dialog-title">${titles[s]}</h2><button class="icon" data-action="close" aria-label="关闭">${svg("close")}</button></div>${content}</section></div>`;
 }
+// Presentation only: classic markup and every runtime action remain shared.
+function nativePresentation(markup) {
+  if (document.documentElement.dataset.uiVariant === "classic") return markup;
+  const template = document.createElement("template");
+  template.innerHTML = markup;
+  const main = template.content.querySelector("main");
+  if (!main) return markup;
+  if (state.page === "home" && state.profile) {
+    main.classList.add("workspace");
+    const overview = document.createElement("section");
+    overview.className = "connection-overview";
+    overview.setAttribute("aria-label", "连接状态与速率");
+    const tools = document.createElement("section");
+    tools.className = "connection-tools";
+    tools.setAttribute("aria-label", "订阅与面板");
+    let inTools = false;
+    for (const child of [...main.children]) {
+      if (child.classList.contains("sectionlabel")) inTools = true;
+      (inTools ? tools : overview).append(child);
+    }
+    main.append(overview, tools);
+  }
+  if (state.page === "settings") {
+    main.classList.add("settings-layout");
+    let section;
+    for (const child of [...main.children]) {
+      if (child.classList.contains("sectionlabel")) {
+        section = document.createElement("section");
+        section.className = "settings-section";
+        const group = document.createElement("div");
+        group.className = "rowgroup";
+        main.insertBefore(section, child);
+        section.append(child, group);
+      } else if (section && child.classList.contains("row")) {
+        section.lastElementChild.append(child);
+      }
+    }
+  }
+  return template.innerHTML;
+}
 function render(moveFocus = false) {
   const oldModal = app.querySelector('[role="dialog"]');
   const pages = {
@@ -285,7 +327,10 @@ function render(moveFocus = false) {
     diagnostics,
     panel,
   };
-  app.innerHTML = nav() + pages[state.page]() + tabbar() + sheet();
+  document.documentElement.dataset.vpn = state.vpn;
+  document.documentElement.dataset.page = state.page;
+  app.innerHTML =
+    nav() + nativePresentation(pages[state.page]()) + tabbar() + sheet();
   if (!app.querySelector("footer"))
     app.querySelector("main")?.classList.add("without-action");
   if (state.sheet) {
@@ -779,3 +824,16 @@ setInterval(() => {
   if (up) up.textContent = sample[0];
   if (down) down.textContent = sample[1];
 }, 1600);
+
+// Window/fold/keyboard resizing changes layout only, never runtime state or VPN ownership.
+window.addEventListener("resize", () => {
+  requestAnimationFrame(() => {
+    const field = document.activeElement;
+    if (
+      field instanceof HTMLInputElement ||
+      field instanceof HTMLTextAreaElement
+    ) {
+      field.scrollIntoView({ block: "center", behavior: "instant" });
+    }
+  });
+});

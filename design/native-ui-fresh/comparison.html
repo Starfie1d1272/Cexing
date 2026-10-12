@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>原生轻盈 · 同尺寸对照</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: #e9eef1;
+        font-family: system-ui, "Noto Sans CJK SC", sans-serif;
+        color: #22323b;
+        padding: 28px;
+      }
+      main {
+        max-width: 1280px;
+        margin: auto;
+      }
+      header {
+        max-width: 804px;
+        margin: 0 auto 24px;
+      }
+      h1 {
+        font-size: 25px;
+        margin: 0 0 10px;
+      }
+      p {
+        font-size: 13px;
+        line-height: 1.8;
+        color: #5c707b;
+        margin: 0;
+      }
+      a {
+        color: #08758a;
+      }
+      label {
+        font-size: 13px;
+        display: inline-block;
+        margin: 16px 8px 0 0;
+      }
+      select {
+        font: inherit;
+        background: #fff;
+        border: 1px solid #cad6dd;
+        border-radius: 10px;
+        padding: 10px 12px;
+        min-height: 44px;
+      }
+      .pair {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 24px;
+        max-width: 804px;
+        margin: auto;
+      }
+      .pair h2 {
+        font-size: 15px;
+        font-weight: 550;
+        margin: 0 0 12px;
+      }
+      .pair img {
+        width: 100%;
+        height: auto;
+        display: block;
+        background: #fff;
+        border-radius: 0;
+        box-shadow: 0 8px 24px #17384b0a;
+      }
+      #forms {
+        margin: 44px auto 0;
+        max-width: 1280px;
+      }
+      #forms h2 {
+        font-size: 22px;
+      }
+      .gallery {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 20px;
+      }
+      .gallery figure {
+        margin: 0;
+        background: #f7f9fa;
+        border-radius: 18px;
+        padding: 16px;
+        display: flex;
+        flex-direction: column;
+      }
+      .gallery img {
+        width: 100%;
+        height: 270px;
+        object-fit: contain;
+        object-position: top;
+        background: #e9eef1;
+      }
+      .gallery figcaption {
+        font-size: 14px;
+        margin-top: 14px;
+        line-height: 1.7;
+      }
+      .gallery small {
+        color: #687a84;
+        font-size: 12px;
+        display: block;
+      }
+      .caption {
+        font-size: 12px;
+        margin: 16px auto;
+        max-width: 804px;
+      }
+      select:focus-visible,
+      a:focus-visible {
+        outline: 3px solid #00869b;
+        outline-offset: 3px;
+      }
+      @media (max-width: 700px) {
+        body {
+          padding: 20px 12px;
+        }
+        .pair {
+          gap: 12px;
+        }
+        .gallery {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+        .gallery img {
+          height: 200px;
+        }
+        h1 {
+          font-size: 22px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1>相同窗口，相同任务。</h1>
+        <p>
+          左：保留的硬边版本。右：原生轻盈版。两侧均为实际浏览器渲染，状态与示例值相同。
+        </p>
+        <div id="controls">
+          <label for="state">状态</label
+          ><select id="state">
+            <option value="connected">已连接</option>
+            <option value="empty">首次导入</option></select
+          ><label for="size">窗口</label
+          ><select id="size">
+            <option>390x844</option>
+            <option>360x800</option>
+            <option>412x915</option>
+            <option>320x568</option>
+            <option>480x900</option>
+            <option>960x720</option>
+            <option>840x1120</option>
+            <option>1200x900</option>
+            <option>844x390</option>
+            <option>390x520</option>
+          </select>
+        </div>
+      </header>
+      <section class="pair">
+        <div>
+          <h2>原版 · Ark minimal</h2>
+          <a id="old-link"><img id="old" alt="原版相同尺寸截图" /></a>
+        </div>
+        <div>
+          <h2>新版 · 原生轻盈</h2>
+          <a id="new-link"><img id="new" alt="新版相同尺寸截图" /></a>
+        </div>
+      </section>
+      <p class="caption" id="caption"></p>
+      <section id="forms">
+        <h2>按窗口重排，连接保持连续。</h2>
+        <p>
+          下列尺寸是原型逻辑窗口，用来覆盖比例与断点，不代表指定硬件的屏幕分辨率。窄窗口单列，宽窗口并列，高度受限时保持固定导航与操作、正文滚动。
+        </p>
+        <div class="gallery">
+          <figure>
+            <img src="screenshots/connected-390x844.png" alt="直屏单列布局" />
+            <figcaption>
+              直屏 · 390×844<small>状态、速率、订阅和面板依次排列</small>
+            </figcaption>
+          </figure>
+          <figure>
+            <img src="screenshots/connected-480x900.png" alt="阔直屏单列布局" />
+            <figcaption>
+              阔直屏 · 480×900<small>扩大留白，信息层次保持一致</small>
+            </figcaption>
+          </figure>
+          <figure>
+            <img
+              src="screenshots/connected-960x720.png"
+              alt="阔折叠宽窗口分栏"
+            />
+            <figcaption>
+              阔折叠 · 960×720<small>左侧状态与速率，右侧订阅与面板</small>
+            </figcaption>
+          </figure>
+          <figure>
+            <img
+              src="screenshots/connected-840x1120.png"
+              alt="双折叠展开窗口"
+            />
+            <figcaption>
+              双折展开 · 840×1120<small>两栏共享会话，底部主操作保持可达</small>
+            </figcaption>
+          </figure>
+          <figure>
+            <img
+              src="screenshots/connected-1200x900.png"
+              alt="三折叠展开窗口"
+            />
+            <figcaption>
+              三折展开 · 1200×900<small
+                >限制内容最大宽度，避免单卡横向拉伸</small
+              >
+            </figcaption>
+          </figure>
+          <figure>
+            <img
+              src="screenshots/connected-844x390.png"
+              alt="高度受限横向窗口"
+            />
+            <figcaption>
+              高度受限 · 844×390<small>收紧间距，不缩小触区；正文可滚动</small>
+            </figcaption>
+          </figure>
+        </div>
+        <p style="margin-top: 24px">
+          <a href="review.html">打开可交互评审</a> ·
+          <a href="VISUAL-RESEARCH.md">视觉来源、原生版本矩阵与实施建议</a>
+        </p>
+      </section>
+    </main>
+    <script>
+      function update() {
+        const state = document.getElementById("state").value,
+          size = document.getElementById("size").value;
+        for (const [id, prefix] of [
+          ["old", "screenshots/classic/"],
+          ["new", "screenshots/"],
+        ]) {
+          const path = `${prefix}${state}-${size}.png`;
+          document.getElementById(id).src = path;
+          document.getElementById(id + "-link").href = path;
+        }
+        document.getElementById("caption").textContent =
+          `两侧捕获窗口均为 ${size.replace("x", " × ")} CSS px，点击截图可查看原始像素文件。`;
+      }
+      document.getElementById("state").addEventListener("change", update);
+      document.getElementById("size").addEventListener("change", update);
+      if (new URLSearchParams(location.search).has("capture")) {
+        document.getElementById("forms").hidden = true;
+        document.getElementById("controls").hidden = true;
+      }
+      update();
+    </script>
+  </body>
+</html>

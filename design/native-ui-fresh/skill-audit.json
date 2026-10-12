@@ -1,6 +1,6 @@
 {
   "root": "design/native-ui-fresh",
-  "files": 4,
+  "files": 6,
   "errors": [],
   "warnings": [],
   "passes": [
@@ -15,7 +15,7 @@
     "Semantic landmarks are present.",
     "Literal JavaScript selectors have matching HTML hooks.",
     "HTML ID references resolve.",
-    "No common sci-fi imitation cliché is named.",
+    "No common sci-fi imitation clich\u00e9 is named.",
     "Literal color count is restrained."
   ]
 }
