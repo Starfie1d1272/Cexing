@@ -17,14 +17,11 @@ func enforceStack(stack constant.TUNStack) constant.TUNStack {
 }
 
 // applyPlatformDefaults - ohos 默认值:
-//   - external-controller 默认 127.0.0.1:9090（控制面验证入口）
+//   - Controller / TUN 强约束由 preparePlatformConfig 最后统一施加
 //   - dns.listen 用非特权端口 1053（沙箱内 53 可能被系统保留）
 //   - find-process-mode 默认 off（/proc 进程解析在鸿蒙沙箱不可靠且拖慢首包）
 //   - sniffer 平台默认（见 applySnifferDefaults）
 func applyPlatformDefaults(overlay map[string]any) {
-	if _, ok := overlay["external-controller"]; !ok {
-		overlay["external-controller"] = defaultController
-	}
 	if _, ok := overlay["find-process-mode"]; !ok {
 		overlay["find-process-mode"] = "off"
 	}
@@ -60,10 +57,10 @@ var snifferSkipDstAddress = []any{
 //   - 订阅显式 sniffer.enable=false：尊重订阅，不动；
 //   - 嗅探开启时：
 //     1) sniff 映射内为 TLS/HTTP/QUIC 补 override-destination: true（嗅探到
-//        SNI/Host 后按域名重新拨号，由节点侧解析干净 IP；缺端口时补默认端口）；
+//     SNI/Host 后按域名重新拨号，由节点侧解析干净 IP；缺端口时补默认端口）；
 //     2) sniff 映射缺失（旧式全局 sniffing 列表）时补全局 override-destination；
 //     3) 补 skip-dst-address 私网段（私网目标不参与嗅探重写）。
-//   订阅显式书写的字段一律以订阅为准（只填空缺）。
+//     订阅显式书写的字段一律以订阅为准（只填空缺）。
 func applySnifferDefaults(overlay map[string]any) {
 	sn, ok := overlay["sniffer"].(map[string]any)
 	if !ok || sn == nil {

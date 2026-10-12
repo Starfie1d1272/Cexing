@@ -1,0 +1,52 @@
+# REVIEW ONLY: PARTIAL inbound patch; NOT a complete concurrent reload fix.
+# Fixed v1.19.32 only; zero-context diff needs --unidiff-zero for review checks.
+# No dependency/cache is modified; see upstream-reload-review evidence.
+--- a/adapter/inbound/ipfilter.go
++++ b/adapter/inbound/ipfilter.go
+@@ -5,0 +6,2 @@
++	"slices"
++	"sync"
+@@ -8,0 +11,3 @@
++
++// Guards all three inbound prefix policies; independent setters stay independent.
++var inboundPolicyMu sync.RWMutex
+@@ -13,0 +19,3 @@
++	inboundPolicyMu.Lock()
++	defer inboundPolicyMu.Unlock()
++	prefixes = slices.Clone(prefixes)
+@@ -17,0 +26,3 @@
++	inboundPolicyMu.Lock()
++	defer inboundPolicyMu.Unlock()
++	prefixes = slices.Clone(prefixes)
+@@ -22 +33,3 @@
+-	return lanAllowedIPs
++	inboundPolicyMu.RLock()
++	defer inboundPolicyMu.RUnlock()
++	return slices.Clone(lanAllowedIPs)
+@@ -26 +39,3 @@
+-	return lanDisAllowedIPs
++	inboundPolicyMu.RLock()
++	defer inboundPolicyMu.RUnlock()
++	return slices.Clone(lanDisAllowedIPs)
+@@ -41,0 +57,2 @@
++	inboundPolicyMu.RLock()
++	defer inboundPolicyMu.RUnlock()
+@@ -45,0 +63,2 @@
++	inboundPolicyMu.RLock()
++	defer inboundPolicyMu.RUnlock()
+--- a/adapter/inbound/auth.go
++++ b/adapter/inbound/auth.go
+@@ -5,0 +6 @@
++	"slices"
+@@ -12,0 +14,3 @@
++	inboundPolicyMu.Lock()
++	defer inboundPolicyMu.Unlock()
++	prefixes = slices.Clone(prefixes)
+@@ -17 +21,3 @@
+-	return skipAuthPrefixes
++	inboundPolicyMu.RLock()
++	defer inboundPolicyMu.RUnlock()
++	return slices.Clone(skipAuthPrefixes)
+@@ -36,0 +43,2 @@
++	inboundPolicyMu.RLock()
++	defer inboundPolicyMu.RUnlock()

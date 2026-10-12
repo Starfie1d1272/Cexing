@@ -3,7 +3,7 @@
 // 启动流程:
 //  1. coreInit: 设置 homeDir（country.mmdb / config 缓存等落盘目录）
 //  2. coreStartTun: 把 ArkTS 侧传入的 configJson（JSON，YAML 兼容）覆盖到 mihomo
-//     默认配置上 -> config.ParseRawConfig -> hub.ApplyConfig（起 mixed-port /
+//     默认配置上 -> config.ParseRawConfig -> 宿主 Controller + executor（起 mixed-port /
 //     dns / external-controller）-> 用系统下发的 tun fd 单独起 gVisor TUN 入站
 //  3. coreStop: 关 TUN -> listener.StopListener（external-controller 随 config
 //     重载关闭；Go runtime 常驻不卸载，dlclose 不安全）
@@ -19,10 +19,9 @@ import (
 	"sync"
 	"unicode/utf8"
 
-	"github.com/metacubex/mihomo/config"
 	"github.com/metacubex/mihomo/constant"
 	MDNS "github.com/metacubex/mihomo/dns"
-	"github.com/metacubex/mihomo/hub"
+	"github.com/metacubex/mihomo/hub/executor"
 	"github.com/metacubex/mihomo/hub/route"
 	"github.com/metacubex/mihomo/listener"
 	LC "github.com/metacubex/mihomo/listener/config"
@@ -107,6 +106,10 @@ func defaultTunExt() tunExt {
 func coreInit(home string) error {
 	runLock.Lock()
 	defer runLock.Unlock()
+	if tunListener != nil {
+		return errors.New("mihomoInit: cannot reinitialize a running TUN")
+	}
+	initialized = false
 
 	if home == "" {
 		return errors.New("mihomoInit: empty home dir")
@@ -118,14 +121,11 @@ func coreInit(home string) error {
 	constant.SetHomeDir(home)
 	log.SetLevel(log.INFO)
 
-	// 覆盖 android build tag 的 embed 默认值：mihomo hub/route/patch_android.go
-	// （//go:build android && cmfa）在 init() 里调 SetEmbedMode(true)，会把
-	// PUT/PATCH /configs、PATCH /rules、/restart、POST /configs/geo 全部置 405。
-	// embedMode 是包级变量、在 router() 构造（ReCreateServer -> start）时读取，
-	// 本函数先于 coreStartTun 执行，因此在这里显式关闭即可解除限制。
-	// 我们以 GOOS=android 交叉编译 libmihomo.so，但内核由本进程完整托管
-	// （TUN fd 由鸿蒙 VpnService 下发、无自升级），并非 mihomo 的 embed 场景。
-	route.SetEmbedMode(false)
+	// 宿主只暴露受认证的安全重载和有限 PATCH，保留上游 embed 限制。
+	route.SetEmbedMode(true)
+	if err := initControllerSecurity(home); err != nil {
+		return err
+	}
 
 	if logSub == nil { // 重复连接时幂等：只订阅一次，避免 relay goroutine 泄漏
 		logSub = log.Subscribe() // 在 worker 线程首进 Go 后订阅，规避主线程 TLS 问题
@@ -144,7 +144,7 @@ func coreInit(home string) error {
 func startLogRelay() {
 	go func() {
 		for e := range logSub {
-			line := fmt.Sprintf("[%s] %s", e.LogLevel.String(), e.Payload)
+			line := fmt.Sprintf("[%s] %s", e.LogLevel.String(), redactControllerSecret(e.Payload))
 			hilogPrint(int(e.LogLevel), "mihomo", line)
 			writeLogLine(line)
 		}
@@ -213,66 +213,17 @@ func coreStartTun(fd int, configJson string, overridesJson string) error {
 		return fmt.Errorf("mihomoStartTun: invalid tun fd %d", fd)
 	}
 
-	// 1. 解析 configJson（JSON 或 YAML；JSON 是 YAML 子集，统一走 yaml 解析，
-	//    ArkTS 侧既可能传硬编码 JSON 也可能传 rawfile 的 YAML 订阅配置）
-	configJson = sanitizeConfigJson(configJson)
-	overlay := map[string]any{}
-	if configJson != "" {
-		if err := yaml.Unmarshal([]byte(configJson), &overlay); err != nil {
-			return fmt.Errorf("mihomoStartTun: parse configJson: %w (配置文件编码异常，请在配置页重新导入为 UTF-8)", err)
-		}
-	}
-
-	// 2. 提取 tun 扩展字段（stack/address/mtu/dns-hijack），其余交给 mihomo
-	ext := defaultTunExt()
-	if rawTun, ok := overlay["tun"].(map[string]any); ok {
-		if v, ok := rawTun["stack"].(string); ok && v != "" {
-			ext.stack = v
-		}
-		if v, ok := rawTun["address"].(string); ok && v != "" {
-			ext.address = v
-		}
-		if v, ok := rawTun["mtu"].(int64); ok && v > 0 {
-			ext.mtu = uint32(v)
-		}
-		if v, ok := rawTun["dns-hijack"].([]any); ok {
-			var list []string
-			for _, item := range v {
-				if s, ok := item.(string); ok && s != "" {
-					list = append(list, s)
-				}
-			}
-			if len(list) > 0 {
-				ext.dnsHijack = list
-			}
-		}
-		delete(overlay, "tun")
-	}
-
-	// 3. 用户覆写（ArkTS 设置页，JSON）：位于 profile overlay 之上、平台必需项之下，
-	//    语义 = 用户覆写 > 订阅配置同名键；空串/解析失败时跳过该层
-	applyOverrides(overlay, overridesJson)
-	// 4. 平台默认值 + ohos 强制约束
-	applyPlatformDefaults(overlay)
-	// TUN 由 wrapper 用系统 fd 单独管理，绝不让 mihomo 自己创建 tun 设备
-	overlay["tun"] = map[string]any{"enable": false}
-
-	// 5. 覆盖到默认配置并解析
-	buf, err := yaml.Marshal(overlay)
+	// 启动与 REST 热重载使用同一个最终约束与解析入口。
+	cfg, err := preparePlatformConfig(configJson, overridesJson)
 	if err != nil {
-		return fmt.Errorf("mihomoStartTun: marshal overlay: %w", err)
+		return err
 	}
-	rawCfg := config.DefaultRawConfig()
-	if err := yaml.Unmarshal(buf, rawCfg); err != nil {
-		return fmt.Errorf("mihomoStartTun: unmarshal config: %w", err)
+	ext := defaultTunExt() // 系统地址、MTU、DNS 劫持不能由订阅覆盖
+	if err := startController(); err != nil {
+		return err
 	}
-	rawCfg.Tun.Enable = false // 双保险
-
-	cfg, err := config.ParseRawConfig(rawCfg)
-	if err != nil {
-		return fmt.Errorf("mihomoStartTun: parse config: %w", err)
-	}
-	hub.ApplyConfig(cfg) // 起 mixed-port / dns / external-controller
+	executor.ApplyConfig(cfg, true)
+	activeOverrides = overridesJson
 
 	// 6. 用系统 tun fd 起 gVisor 入站
 	stack, ok := constant.StackTypeMapping[strings.ToLower(ext.stack)]
@@ -319,7 +270,7 @@ func applyOverrides(overlay map[string]any, overridesJson string) {
 	}
 	ov := map[string]any{}
 	if err := yaml.Unmarshal([]byte(overridesJson), &ov); err != nil {
-		log.Warnln("[OHOS] overrides: parse failed, skipped: %v", err)
+		log.Warnln("[OHOS] overrides: invalid input, skipped")
 		return
 	}
 	// wrapper 专用键：不进 overlay，直接生效（日志落盘开关，默认开）
@@ -347,7 +298,7 @@ func applyOverrides(overlay map[string]any, overridesJson string) {
 		}
 		overlay[dst] = v
 	}
-	log.Infoln("[OHOS] overrides applied: %s", overridesJson)
+	log.Infoln("[OHOS] supported user overrides applied")
 }
 
 func coreStop() {
@@ -358,7 +309,11 @@ func coreStop() {
 		_ = tunListener.Close()
 		tunListener = nil
 	}
-	// 端口置 0 关闭各 listener（mihomo 无全局 StopListener，这是官方关闭语义）
+	// 声明式 generic inbound 与固定顶层端口是不同的 listener 集合。
+	listener.PatchInboundListeners(nil, tunnel.Tunnel, true)
+	listener.PatchTunnel(nil, tunnel.Tunnel)
+	listener.ReCreateTuic(LC.TuicServer{}, tunnel.Tunnel)
+	// 端口置 0 关闭固定顶层监听；Cleanup 本身只处理自动 TUN。
 	listener.ReCreateMixed(0, tunnel.Tunnel)
 	listener.ReCreateHTTP(0, tunnel.Tunnel)
 	listener.ReCreateSocks(0, tunnel.Tunnel)
@@ -367,7 +322,8 @@ func coreStop() {
 	listener.ReCreateShadowSocks("", tunnel.Tunnel)
 	listener.ReCreateVmess("", tunnel.Tunnel)
 	MDNS.ReCreateServer("", nil, nil)
-	route.ReCreateServer(&route.Config{})
+	stopController()
+	activeOverrides = ""
 	log.Infoln("[OHOS] mihomo core stopped")
 }
 

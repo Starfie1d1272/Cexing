@@ -30,7 +30,7 @@ async function testClient(mode) {
   const modules = {
     '@kit.NetworkKit': { vpnExtension: { startVpnExtensionAbility: async () => {}, stopVpnExtensionAbility() {} } },
     '@kit.CoreFileKit': { fileIo: {} }, './Logger': logger,
-    './CoreApi': { CoreApi: {} }, './Settings': { Settings: { load: () => settings, save() {} } },
+    './CoreApi': { CoreApi: { bindContext() {} } }, './Settings': { Settings: { load: () => settings, save() {} } },
     '@kit.IPCKit': { rpc: { MessageSequence: { create: () => ({ reclaim() {} }) }, MessageOption: class {} } }
   };
   const { VpnController: controller, VpnStatus } = load('lib/VpnController.ets', modules, timers);
@@ -86,6 +86,7 @@ async function testExtension() {
       writeSync() {}, closeSync() {}, renameSync() {}, OpenMode: {} } },
     'libentry.so': { default: { initCore: async () => '', startTun: () => pending,
       stopCore: async () => { stopCount++; } } },
+    '../lib/CoreApi': { CoreApi: { bindContext() {} } },
     '../lib/Logger': logger,
     '../lib/ProfileStore': { ProfileStore: { getActiveContent: () => 'proxies: []' } },
     '../lib/Settings': { Settings: { load: () => ({}) } }, '@kit.ArkTS': { util: {} }
