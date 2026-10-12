@@ -173,6 +173,7 @@ export namespace VpnController {
       return;
     }
     cancelRecovery();
+    CoreApi.bindContext(context);
     setStatus(VpnStatus.Connecting);
     startAttempt++;
     const want: Want = { bundleName: context.applicationInfo.name, abilityName: VPN_ABILITY_NAME };

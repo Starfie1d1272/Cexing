@@ -12,6 +12,7 @@ import tempfile
 import zipfile
 
 hap, report = map(pathlib.Path, sys.argv[1:3])
+(report / 'build-identity.json').unlink(missing_ok=True)
 root = pathlib.Path.cwd()
 sdk = pathlib.Path(os.environ['OHOS_SDK_HOME'])
 readelf = sdk / 'native/llvm/bin/llvm-readelf'
@@ -22,9 +23,18 @@ def sha(data):
     return hashlib.sha256(data).hexdigest()
 def metadata(file):
     return json.loads(subprocess.check_output(['go', 'version', '-m', '-json', str(file)], text=True))
+def selected(dep):
+    replacement = dep.get('Replace')
+    if replacement:
+        require(dep['Path'] == 'github.com/metacubex/mihomo' and
+                (replacement['Path'], replacement['Version'], replacement.get('Sum')) ==
+                ('github.com/vernesong/mihomo', 'v1.19.10-0.20261012020909-daf3ad03021c',
+                 'h1:23XrQ5vZacJbpvuIadl9FNjak2VXIQbzwXx+xU/OtME='),
+                'unexpected Go replacement')
+        return (replacement['Path'], replacement['Version'], replacement.get('Sum'))
+    return (dep['Path'], dep['Version'], dep.get('Sum'))
 def modules(info):
-    require(all(not dep.get('Replace') for dep in info['Deps']), 'unexpected Go replacement')
-    return {d['Path']: (d['Version'], d.get('Sum')) for d in info['Deps']}
+    return {d['Path']: selected(d) for d in info['Deps']}
 def elf(data, file):
     require(data[:6] == b'\x7fELF\x02\x01' and struct.unpack_from('<HH', data, 16) == (3, 183), str(file) + ' is not ARM64 little-endian ELF DYN')
     symbols = subprocess.check_output([str(readelf), '--dyn-syms', str(file)], text=True)
@@ -45,9 +55,8 @@ expected, decoder = {}, json.JSONDecoder()
 while stream.strip():
     item, end = decoder.raw_decode(stream.lstrip())
     stream = stream.lstrip()[end:]
-    require(not item.get('Replace'), 'module replacements need review')
     if not item.get('Main'):
-        expected[item['Path']] = (item['Version'], item.get('Sum'))
+        expected[item['Path']] = selected(item)
 for name, identity in modules(source).items():
     require(expected.get(name) == identity, 'source module mismatch: ' + name)
 pin = json.loads((root / 'scripts/ci/toolchain.json').read_text())
@@ -56,6 +65,13 @@ settings = {s['Key']: s['Value'] for s in source['Settings']}
 for key, value in {'GOOS': 'android', 'GOARCH': 'arm64', 'CGO_ENABLED': '1', '-buildmode': 'c-shared', '-trimpath': 'true'}.items():
     require(settings.get(key) == value, 'Go build setting ' + key)
 require(set(settings.get('-tags', '').split(',')) == {'netgo', 'ohos', 'cmfa', 'with_gvisor'}, 'platform tags')
+smart_record = json.loads((root / 'clash-openharmony/entry/libs/arm64-v8a/smart-build.json').read_text())
+require(smart_record['patchSha256'] == sha((root / 'core/patches/smart-offline.patch').read_bytes()), 'reviewed Smart patch identity')
+require(smart_record['librarySha256'] == sha((root / 'clash-openharmony/entry/libs/arm64-v8a/libmihomo.so').read_bytes()), 'Smart build record fresh library identity')
+require(smart_record['headerSha256'] == sha((root / 'clash-openharmony/entry/libs/arm64-v8a/libmihomo.h').read_bytes()), 'Smart build record ABI header identity')
+go_inputs = {file.relative_to(root).as_posix() for file in (root / 'core').rglob('*.go') if not file.name.endswith('_test.go') and 'third_party' not in file.relative_to(root / 'core').parts}
+require(go_inputs == {name for name in smart_record['inputs'] if name.startswith('core/') and name.endswith('.go')}, 'Smart production Go source set changed; rebuild core')
+require(all(digest == sha((root / name).read_bytes()) for name, digest in smart_record['inputs'].items()), 'Smart build inputs changed; rebuild core')
 entries = []
 with zipfile.ZipFile(hap) as archive, tempfile.TemporaryDirectory() as directory:
     names = archive.namelist()
@@ -81,6 +97,11 @@ with zipfile.ZipFile(hap) as archive, tempfile.TemporaryDirectory() as directory
         file = pathlib.Path(directory) / name
         file.write_bytes(data)
         symbols = elf(data, file)
+        if name != 'libmihomo.so':
+            native = root / 'clash-openharmony/entry/build/default/intermediates/cmake/default/obj/arm64-v8a' / name
+            stripped_native = pathlib.Path(directory) / ('fresh-' + name)
+            subprocess.check_call([str(sdk / 'native/llvm/bin/llvm-strip'), '--strip-all', '-o', str(stripped_native), str(native)])
+            require(stripped_native.read_bytes() == data, 'packaged native library differs from fresh CMake output: ' + name)
         if name == 'libmihomo.so':
             require({'mihomoInit', 'mihomoStartTun', 'mihomoStop', 'mihomoFree'} <= symbols, 'four C ABI exports')
             packaged = metadata(file)
@@ -99,7 +120,8 @@ with zipfile.ZipFile(hap) as archive, tempfile.TemporaryDirectory() as directory
     resource_script = (root / 'scripts/prepare-geodata.sh').read_text()
     digest = re.search(r'^SHA=([a-f0-9]{64})$', resource_script, re.M).group(1)
     require(sha(archive.read('resources/rawfile/geodata/geoip.metadb')) == digest, 'GeoIP pin')
-    require('resources/rawfile/override.yaml' in names, 'default configuration')
+    require(bool(archive.read('resources/rawfile/override.yaml')), 'nonempty default configuration')
+    require(not any(pathlib.PurePosixPath(n).name.casefold() == 'model.bin' for n in names), 'unlicensed bundled Model.bin')
 report.mkdir(parents=True, exist_ok=True)
 identity = {
     'schemaVersion': 1,
@@ -112,8 +134,9 @@ identity = {
     'hapSha256': sha(hap.read_bytes()),
     'freshCoreSha256': sha((root / 'clash-openharmony/entry/libs/arm64-v8a/libmihomo.so').read_bytes()),
     'core': source,
+    'smartSource': smart_record,
     'inputs': {file: sha((root / file).read_bytes()) for file in [
-        'core/go.mod', 'core/go.sum', 'scripts/build-core.sh', 'scripts/ci/patch-gvisor.py',
+        'core/go.mod', 'core/go.sum', 'core/patches/smart-offline.patch', 'scripts/ci/patch-smart.py', 'scripts/build-core.sh', 'scripts/ci/patch-gvisor.py',
         'scripts/prepare-geodata.sh', 'scripts/build-hap.sh', 'scripts/env.sh',
         'clash-openharmony/entry/oh-package-lock.json5', 'scripts/ci/package-lock.json', 'scripts/ci/toolchain.json']},
     'entries': entries,

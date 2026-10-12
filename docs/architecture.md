@@ -44,4 +44,4 @@ Ability 重建时为后台服务重新绑定上下文，订阅定时器读取最
 
 Zashboard 承担节点、策略组、连接、日志、规则和 Smart 管理；原生宿主只承担系统、订阅、状态与故障恢复。配置生成统一经过平台约束，控制面共享一个端口与认证来源。详细要求见 [配置](reference/configuration.md)、[组件集成](reference/integrations.md)。
 
-以上是开发边界，不代表 Smart、Web 面板、统一配置事务或系统健康恢复已实现。演进依赖见 [开发顺序](development.md)。
+ArkWeb 面板接线已实现，真实 Go Controller/Chromium 联调与官方 SDK 构建有独立证据，手机验收尚未完成。以上边界不代表 Smart、统一配置事务或系统健康恢复全部已实现。演进依赖见 [开发顺序](development.md)。

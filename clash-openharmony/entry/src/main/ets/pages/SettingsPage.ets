@@ -1,3 +1,4 @@
+import { NativeTheme as UI } from './NativeTheme';
 /*
  * 分组卡片列表（运行/连接/自动化/诊断/关于，每组带标题）
  * 二级页导航（Navigation pushPath）+ Toggle（保活/自动恢复/订阅自动更新/内核日志落盘）
@@ -41,28 +42,30 @@ export struct SettingsPage {
     {
       title: '运行',
       rows: [
-        { title: '打开应用自动恢复', sub: '冷启动时自动恢复上次 VPN 会话', hasToggle: true, dest: '', action: '', toggleKey: 'autoRestore' },
-        { title: '后台运行', sub: '关窗后保持内核存活（状态栏实况窗常驻）', hasToggle: true, dest: '', action: '', toggleKey: 'keepAlive' }
+        { title: '打开应用自动恢复', sub: '', hasToggle: true, dest: '', action: '', toggleKey: 'autoRestore' },
+        { title: '后台运行', sub: '关闭页面后保持会话', hasToggle: true, dest: '', action: '', toggleKey: 'keepAlive' }
       ]
     },
     {
-      title: '连接',
+      title: '系统与连接',
       rows: [
         { title: '网络设置', sub: '按应用分流 · IPv6', hasToggle: false, dest: 'network', action: '', toggleKey: '' },
+        { title: 'Smart', sub: '统计策略 · 离线模型', hasToggle: false, dest: 'smart', action: '', toggleKey: '' },
         { title: '内核设置', sub: '端口 · 日志等级 · 局域网', hasToggle: false, dest: 'override', action: '', toggleKey: '' }
       ]
     },
     {
-      title: '自动化',
+      title: '订阅',
       rows: [
-        { title: '自动更新订阅', sub: '内核运行期间按周期拉取激活订阅来源', hasToggle: true, dest: '', action: '', toggleKey: 'autoUpdate' },
-        { title: '更新间隔', sub: '自动更新订阅的检查周期', hasToggle: false, dest: '', action: 'interval', toggleKey: '' }
+        { title: '自动更新订阅', sub: 'VPN 运行期间检查', hasToggle: true, dest: '', action: '', toggleKey: 'autoUpdate' },
+        { title: '更新间隔', sub: '', hasToggle: false, dest: '', action: 'interval', toggleKey: '' }
       ]
     },
     {
       title: '诊断',
       rows: [
-        { title: '记录内核日志到文件', sub: '关闭后内核日志仅写入系统 hilog，不再占用应用存储（下次启动内核生效）', hasToggle: true, dest: '', action: '', toggleKey: 'logToFile' },
+        { title: '诊断', sub: '', hasToggle: false, dest: 'diagnostics', action: '', toggleKey: '' },
+        { title: '记录内核日志', sub: '下次启动生效', hasToggle: true, dest: '', action: '', toggleKey: 'logToFile' },
       ]
     }
   ];
@@ -184,37 +187,41 @@ export struct SettingsPage {
     Row() {
       Column({ space: 4 }) {
         Text(row.title)
-          .fontSize(15)
-          .fontColor($r('sys.color.font_primary'))
+          .fontSize(16)
+          .fontColor(UI.ink)
         if (row.sub.length > 0) {
           Text(row.sub)
-            .fontSize(12)
-            .fontColor($r('sys.color.font_tertiary'))
+            .fontSize(13)
+            .fontColor(UI.muted)
         }
       }
       .alignItems(HorizontalAlign.Start)
       .layoutWeight(1)
       if (row.hasToggle) {
         Toggle({ type: ToggleType.Switch, isOn: this.toggleValue(row) })
+          .selectedColor(UI.accent)
           .onChange((isOn: boolean) => {
             this.onToggleChange(row, isOn);
           })
       } else {
         if (row.action === 'interval') {
           Text(`${this.autoUpdateIntervalHours} 小时`)
-            .fontSize(13)
-            .fontColor($r('sys.color.font_secondary'))
+            .fontSize(14)
+            .fontColor(UI.muted)
+            .height(48)
+            .textAlign(TextAlign.Center)
             .margin({ right: 4 })
         }
         SymbolGlyph($r('sys.symbol.chevron_right'))
           .fontSize(16)
-          .fontColor([$r('sys.color.font_tertiary')])
+          .fontColor([UI.muted])
       }
     }
     .width('100%')
+    .constraintSize({ minHeight: 72 })
     .padding({ top: 13, bottom: 13, left: 14, right: 14 })
     .stateStyles({
-      pressed: { .backgroundColor($r('sys.color.comp_background_secondary')) },
+      pressed: { .backgroundColor(UI.soft) },
       normal: { .backgroundColor(Color.Transparent) }
     })
     .onClick(() => {
@@ -229,18 +236,21 @@ export struct SettingsPage {
     Column() {
       ForEach(group.rows, (row: SettingRow, index: number) => {
         Column() {
-          this.RowItem(row)
-          if (index < group.rows.length - 1) {
+          if (row.action !== 'interval' || this.autoUpdate) {
+            this.RowItem(row)
+          }
+          if (index < group.rows.length - 1 &&
+            (group.rows[index + 1].action !== 'interval' || this.autoUpdate)) {
             Divider()
-              .color($r('sys.color.comp_divider'))
+              .color(UI.line)
               .margin({ left: 14 })
           }
         }
       }, (row: SettingRow) => row.title)
     }
     .width('100%')
-    .backgroundColor($r('sys.color.comp_background_primary'))
-    .borderRadius(16)
+    .backgroundColor(UI.surface)
+    .borderRadius(24)
   }
 
   build() {
@@ -249,10 +259,10 @@ export struct SettingsPage {
         Text('设置')
           .fontSize(26)
           .fontWeight(FontWeight.Bold)
-          .fontColor($r('sys.color.font_primary'))
+          .fontColor(UI.ink)
       }
       .width('100%')
-      .height(40)
+      .height(48)
       .alignItems(VerticalAlign.Center)
       .margin({ top: 8, bottom: 4 })
 
@@ -262,7 +272,7 @@ export struct SettingsPage {
             Column({ space: 7 }) {
               Text(group.title)
                 .fontSize(13)
-                .fontColor($r('sys.color.font_secondary'))
+                .fontColor(UI.muted)
                 .width('100%')
                 .margin({ left: 4 })
               this.GroupCard(group)
@@ -277,7 +287,7 @@ export struct SettingsPage {
     }
     .width('100%')
     .height('100%')
-    .padding({ left: 16, right: 16 })
-    .backgroundColor($r('sys.color.background_secondary'))
+    .padding({ left: 24, right: 24 })
+    .backgroundColor(UI.paper)
   }
 }

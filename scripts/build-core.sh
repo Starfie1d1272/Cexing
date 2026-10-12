@@ -18,6 +18,9 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SMART_OUTPUT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)/clash-openharmony/entry/libs/arm64-v8a"
+# Clear before environment/toolchain preflight, so an early failure cannot retain success.
+rm -f "$SMART_OUTPUT_DIR/smart-build.json" "$SMART_OUTPUT_DIR/smart-build.pending.json"
 source "$SCRIPT_DIR/env.sh"
 
 CORE_DIR="$REPO_ROOT/core"               # <仓库根>/core，Go 内核封装 module
@@ -87,10 +90,11 @@ fi
 # ---- 2. gVisor fdbased 补丁（仅构建专用模块缓存，不改共享模块缓存）----
 # 独立临时模块缓存使补丁不影响开发者缓存，Go 1.27 不允许 overlay 覆盖模块缓存。
 PRIVATE_MODCACHE="$(mktemp -d)"
-trap 'chmod -R u+w "$PRIVATE_MODCACHE"; rm -rf "$PRIVATE_MODCACHE"' EXIT
+trap 'SMART_BUILD_EXIT=$?; if [ "$SMART_BUILD_EXIT" -ne 0 ]; then rm -f "$OUT_DIR/smart-build.json" "$OUT_DIR/smart-build.pending.json"; fi; chmod -R u+w "$PRIVATE_MODCACHE"; rm -rf "$PRIVATE_MODCACHE"' EXIT
 export GOMODCACHE="$PRIVATE_MODCACHE"
 (cd "$CORE_DIR" && go mod download && go mod verify)
 (cd "$CORE_DIR" && python3 "$SCRIPT_DIR/ci/patch-gvisor.py" "$PRIVATE_MODCACHE")
+(cd "$CORE_DIR" && python3 "$SCRIPT_DIR/ci/patch-smart.py" "$PRIVATE_MODCACHE")
 
 # ---- 3. 交叉编译 ----
 echo "[build-core] compiling libmihomo.so (GOOS=android GOARCH=arm64, tags: netgo ohos cmfa with_gvisor)"
@@ -110,7 +114,10 @@ mkdir -p "$OUT_DIR"
   -buildmode=c-shared \
   -o "$OUT_DIR/libmihomo.so" .)
 
+(cd "$CORE_DIR" && python3 "$SCRIPT_DIR/ci/patch-smart.py" "$PRIVATE_MODCACHE" record "$OUT_DIR/libmihomo.so")
+(cd "$CORE_DIR" && python3 "$SCRIPT_DIR/ci/patch-smart.py" "$PRIVATE_MODCACHE" restore)
 (cd "$CORE_DIR" && python3 "$SCRIPT_DIR/ci/patch-gvisor.py" "$PRIVATE_MODCACHE" verify)
+mv "$OUT_DIR/smart-build.pending.json" "$OUT_DIR/smart-build.json"
 
 echo "[build-core] done:"
 ls -lh "$OUT_DIR"/libmihomo.so "$OUT_DIR"/libmihomo.h

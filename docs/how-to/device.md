@@ -1,36 +1,33 @@
-# 签名与设备验收
+# Hokit 签名与手机首测
 
-未签名构建在云端完成；零售设备的 AGC 调试签名及系统授权在有权访问账号和设备的环境完成。先确认设备空闲、当前包名和用户数据，不卸载已有应用来绕过升级问题。
+云端交付未签名 HAP；本地使用用户已有的 Hokit/HoKit 一键签名流程，选择下载的 HAP，核对包名与设备范围后签名并安装。无需在本次首测重新走旧 keytool/AGC 手动流程。云端不读取签名材料、不连接设备、不正式发商店。
 
-## 签名准备
+## 最短操作
 
-账号与下载入口：[华为开发者](https://developer.huawei.com/consumer/cn/)、[AppGallery Connect](https://developer.huawei.com/consumer/cn/service/josp/agc/index.html)。零售真机需要应用、调试证书、注册设备和对应的调试 Provision Profile；SDK demo 证书仅适用于获授权的 OpenHarmony 设备/模拟器。
+1. 下载 GitHub 首测制品中的 `entry-default-unsigned.hap` 和 `SHA256SUMS`，核对摘要。
+2. 手机启用开发者模式和 USB 调试，连接电脑并在手机上允许调试。
+3. 在 Hokit/HoKit 中选择该 HAP，按已有的一键签名/安装流程操作；不要卸载或清空已有数据来绕过升级问题。
+4. 打开应用，在「订阅」导入并启用原有 URL、YAML 文件或粘贴配置；回「连接」点击 VPN，确认系统首次授权。
+5. 点击「Zashboard 面板」选择原有 Selector 组的节点；用手机浏览器访问目标站点，核对实际代理链及双向流量。
 
-复用有效材料，避免重建密钥。脚本要求 `clash-openharmony/.signing/` 中的 `clashoh-debug.p12`、`clashoh-debug.cer`、`clashoh-debug.p7b`、`store_pw`；目录及文件限制权限，全部忽略。首次准备可用本地 keytool 生成 EC P-256 keystore/CSR，在 AGC 申请证书和设备 profile。口令由私有渠道保存，不放进命令日志或文档。
+不同 Hokit 版本的入口名称可能不同；按本地已有流程完成。包名以包内 AppScope 身份为准，应用名称尚未最终确定。
 
-核对证书与密钥匹配、profile 的应用身份与设备绑定、有效期，再签名。包名以 `AppScope/app.json5` 为准，安装脚本、profile 与包内身份必须一致。若选用 HoKit 重签，同样核对应用与设备范围。
+## Smart 与模型
 
-## 安装与启动
+无模型即可使用 `type: smart` 的统计策略。将订阅中的一个现有组改成 Smart，引用至少两个已有可用节点，让规则引用该组；最小片段及参数见 [Smart 契约](../reference/smart-beta.md)。
 
-```bash
-source scripts/env.sh
-hdc list targets
-bash scripts/sign-agc.sh
-bash scripts/install.sh
-bash scripts/logs.sh
-```
+需要 LightGBM 时，在「设置 → Smart → 获取官方 Model.bin」打开 [官方 Release](https://github.com/vernesong/mihomo/releases/tag/LightGBM-Model)，下载 **Model.bin** 到手机（不要选择 middle/large）。然后点「选择模型文件并导入」。固定大小 9,345,218 字节，SHA-256 为 `23633022a815fb34e510befe1c176ba50af3ced48f08b172454f4cd6b8327788`；服务端校验摘要及解析后原子安装。HAP 不打包模型，也不自动下载。
 
-真机需开启开发者模式并允许 HDC 调试；首次 VPN 系统授权由设备用户确认。应用配置入口支持 URL、YAML 文件及剪贴板；先导入并激活，再点击连接。
+导入提示需要重启时，使用「重启应用使模型生效」：会断开 VPN 并重启整个应用，包括持有 Go runtime 的 VPN Extension。重新打开后手动连接。随后在订阅编辑页把目标 Smart 组的 `uselightgbm` 改为 `true` 并重新连接；`collectdata: false`、`prefer-asn: false`、`lgbm-auto-update: false` 适用于首测。只刷新页面或停止/启动 VPN 不能清除模型首次失败的进程缓存。
 
-## 验收方法
+「模型已加载」与「有效预测次数」分别展示；次数为零表示尚无模型参与证据，非零是全部 Smart 组的进程累计观测，不证明某一次请求采用模型。Controller 不可达不显示成 Smart 已启用。
 
-1. 记录源码 SHA、模块/SDK 身份、包摘要、系统版本和脱敏配置条件。
-2. 验证授权、扩展连接和内核就绪；不能仅凭页面 Connected 或 `/version` 判定转发。
-3. 从手机浏览器发起请求，确认 Controller 的 Tun 连接、规则/代理链和双向字节增长。混合代理端口测试不能代替 TUN 验收。
-4. 验证正常停止、重连、启动中取消、错误配置、异常回收与失败回滚。
-5. 单独验证 UDP/DNS、HTTPDNS 排除路由、双栈 IPv6 接管及泄漏、Wi-Fi/蜂窝切换。
-6. 观察低流量、息屏超过 15/30 分钟、关窗、回前台与系统取消后台任务的行为。面板接入后再测关闭 WebView 及资源损坏。
+## 待手机验收
 
-诊断可临时使用 `hdc fport tcp:19090 tcp:9090` 访问控制面；内核/设备重连后需重建转发。测试完移除临时转发并清理私有中间文件。日志用 `hilog -x` 获取有界快照，不把订阅、节点或凭据贴入公共报告。
+- 原有订阅、节点名与选择恢复；URL/文件/粘贴、更新、重命名、编辑和启用后首页同步。
+- 首次授权、启动中取消、正常断开/重连、错误配置；旧断开确认不能影响新会话。
+- 面板 REST/流量 WS 可用，返回、隐藏、失联/重连不停止 VPN，离线资源/CSP/ArkWeb 缓存和导航行为正常。
+- 导入模型后应用重启，确认 VPN Extension 进程换代；重新连接产生「模型已加载」及实际有效预测。失败提示保留且可重试。
+- 手机浏览器真实 TUN 请求、TLS/REALITY、DNS/UDP、IPv6、Wi-Fi/蜂窝切换；低流量、息屏 15/30 分钟、关窗和回前台。
 
-已有基线证据见 [P0 记录](../evidence/2026-10-12-p0.md)，它不证明后续构建具有同样设备行为。
+记录源码 SHA、HAP 摘要、系统版本及脱敏结果。源码审查、Linux 转发、SDK 构建与手机验收是不同证据；Connected 或 `/version` 不能单独证明真实转发。公共反馈不要上传订阅 URL、节点凭据或原始配置。详细 UI 条目见 [原生 UI 检查清单](../evidence/native-ui/DEVICE-CHECKLIST.md)。

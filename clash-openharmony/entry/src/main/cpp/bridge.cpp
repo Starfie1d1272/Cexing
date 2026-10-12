@@ -82,8 +82,9 @@ static void redirectStderrOnce() {
 }
 
 static bool ensureLoaded() {
-    if (gHandle != nullptr && gInit != nullptr) {
-        return true;
+    if (gHandle != nullptr) {
+        // Go runtime cannot be unloaded. Cache an incomplete ABI as unavailable.
+        return gInit != nullptr && gStartTun != nullptr && gStop != nullptr && gFree != nullptr;
     }
     redirectStderrOnce();
     dlerror();
@@ -95,6 +96,7 @@ static bool ensureLoaded() {
         VPN_LOGE("dlopen libmihomo.so failed: %{public}s", gStatus.lastError.c_str());
         return false;
     }
+    gHandle = h; // Retain even on dlsym failure: dlopen may have started Go runtime.
     gInit = reinterpret_cast<MihomoInitFn>(dlsym(h, "mihomoInit"));
     gStartTun = reinterpret_cast<MihomoStartTunFn>(dlsym(h, "mihomoStartTun"));
     gStop = reinterpret_cast<MihomoStopFn>(dlsym(h, "mihomoStop"));
@@ -103,12 +105,10 @@ static bool ensureLoaded() {
         const char *err = dlerror();
         gStatus.lastError = std::string("dlsym failed: ") + (err != nullptr ? err : "symbol not found");
         gStatus.loaded = false;
-        dlclose(h);
-        gHandle = nullptr;
+        // Keep the handle and failed status; later requests must not reload it.
         VPN_LOGE("%{public}s", gStatus.lastError.c_str());
         return false;
     }
-    gHandle = h;
     gStatus.loaded = true;
     gStatus.lastError = "";
     VPN_LOGI("libmihomo.so loaded");

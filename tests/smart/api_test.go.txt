@@ -1,0 +1,81 @@
+package route
+
+import (
+	"encoding/json"
+	"os"
+	"testing"
+
+	"github.com/metacubex/http/httptest"
+	"github.com/metacubex/mihomo/adapter/outboundgroup"
+	"github.com/metacubex/mihomo/config"
+	C "github.com/metacubex/mihomo/constant"
+	"github.com/metacubex/mihomo/tunnel"
+)
+
+// Exercise the real parser/router with synthetic local endpoints; no forwarding.
+func TestOHOSBetaSmartAPI(t *testing.T) {
+	C.SetHomeDir(t.TempDir())
+	data, err := os.ReadFile(os.Getenv("SMART_FIXTURE"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := config.Parse(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	proxy := cfg.Proxies["smart-experiment"]
+	group, ok := proxy.Adapter().(*outboundgroup.Smart)
+	if !ok {
+		t.Fatal("YAML did not create Smart group")
+	}
+	defer group.Close()
+	tunnel.UpdateProxies(cfg.Proxies, cfg.Providers)
+	blank := router(false, "", "", Cors{})
+ for _, path := range []string{"/smart/status", "/smart/model"} {
+  request := httptest.NewRequest("GET",path,nil)
+  request.Header.Set("Authorization","Bearer arbitrary")
+  response := httptest.NewRecorder();blank.ServeHTTP(response,request)
+  if response.Code != 404 { t.Fatalf("Smart route mounted without Controller secret: %d",response.Code) }
+ }
+ r := router(false, "synthetic-test-secret", "", Cors{})
+	for _, test := range []struct {
+		method, path string
+		status       int
+	}{
+		{"GET", "/group/weights", 200},
+		{"GET", "/smart/status", 200},
+		{"POST", "/smart/model", 400},
+		{"POST", "/cache/smart/flush", 204},
+		{"POST", "/upgrade/lgbm", 500},
+	} {
+		request := httptest.NewRequest(test.method, test.path, nil)
+		unauthorized := httptest.NewRecorder()
+		r.ServeHTTP(unauthorized, request)
+		if unauthorized.Code != 401 {
+			t.Fatalf("unauthenticated %s: %d", test.path, unauthorized.Code)
+		}
+		request.Header.Set("Authorization", "Bearer wrong-test-secret")
+        rejected := httptest.NewRecorder(); r.ServeHTTP(rejected, request)
+        if rejected.Code != 401 {t.Fatal("wrong Controller credential accepted")}
+        request.Header.Set("Authorization", "Bearer synthetic-test-secret")
+		response := httptest.NewRecorder()
+		r.ServeHTTP(response, request)
+		if response.Code != test.status {
+			t.Fatalf("%s: %d %s", test.path, response.Code, response.Body.String())
+		}
+		if test.path == "/smart/status" {
+			var body map[string]json.RawMessage
+			if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil { t.Fatal(err) }
+			if body["model"] == nil || body["groups"] == nil || body["message"] == nil { t.Fatal("incomplete Smart status") }
+		}
+		if test.path == "/group/weights" {
+			var body map[string]json.RawMessage
+			if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+				t.Fatal(err)
+			}
+			if _, ok := body["weights"]; !ok {
+				t.Fatal("missing weights field")
+			}
+		}
+	}
+}

@@ -1,0 +1,37 @@
+{
+  "baselineCommit": "21865e1331e8fe8b6e41499b1d174e4292e5f90b",
+  "fixedSourceCommit": "ef6a819c484eb4d2394cb67146a4d023b9381c8e",
+  "baselineReproduction": {
+    "exitCode": 1,
+    "P1": "old confirmation stopped reconnected session: stop count 1, expected 0",
+    "P2": "valid 未导入.yaml retains display name 未导入 but hasProfile undefined, expected true"
+  },
+  "fixedReproduction": {
+    "exitCode": 0,
+    "P1": "passed",
+    "P2": "passed"
+  },
+  "expandedCases": [
+    "state disconnect/connect transition",
+    "tab leave/return",
+    "secondary navigation hide/return",
+    "page destroy/reappear",
+    "cancelled confirmation",
+    "fresh confirmation exactly once",
+    "未导入.yaml",
+    "未导入.yml",
+    "empty selection"
+  ],
+  "sdkRegressionsPassed": 6,
+  "hapBuild": {
+    "tasks": 33,
+    "executed": 17,
+    "upToDate": 16,
+    "arktsWarnings": 128
+  },
+  "packageIdentityVerification": "passed CRC/ARM64/C ABI/fresh core identity/all rawfiles/46 locked panel files",
+  "hapSha256": "b8cb8ea755bdedc211b8cae00ff2f44c484411525c3e89e7f2e4819c0f1cd370",
+  "nativeScreenshots": false,
+  "deviceValidated": false,
+  "independentRereview": "pending original reviewer 01a13208-33c2-72cb-a13a-8cd25f63109e"
+}
