@@ -2,8 +2,8 @@
  * LiveViewKeeper.ets - dataTransfer 长时任务 + 系统实况窗常驻通知（后台保活）
  * VPN 连接成功且设置「后台运行」开启时申请 dataTransfer 长时任务
  * （MODE_DATA_TRANSFER + SUBMODE_LIVE_VIEW_NOTIFICATION），系统代理创建
- * "上传下载"实况窗（typeCode 8）；每 60s publish 更新（10 分钟不更新任务被取消），
- * 每 5min 对出口节点延迟测速（真实心跳流量，防"低速取消"+ 延迟展示）。
+ * "上传下载"实况窗（typeCode 8）；每 60s publish 更新（取消规则以 SDK/系统为准），
+ * 每 5min 对出口节点延迟测速（出口延迟展示，不保证免于系统低速取消）。
  * 数据面全走 REST 单次请求；日志 tag 'liveview'。
  * 取代 lib/BackgroundKeeper.ets（经典 BackgroundMode.DATA_TRANSFER 通知方案）。
  */
@@ -17,7 +17,7 @@ import { Logger } from './Logger';
 
 const TAG = 'liveview';
 
-/** 实况窗刷新周期：60s（系统硬性规则：10 分钟不更新即取消） */
+/** 实况窗刷新周期：60s（不保证系统授予持续运行） */
 const UPDATE_INTERVAL_MS = 60 * 1000;
 /** 心跳（出口延迟测速）周期：5min */
 const HEARTBEAT_INTERVAL_MS = 5 * 60 * 1000;
@@ -43,7 +43,7 @@ export namespace LiveViewKeeper {
   let running: boolean = false;
   /** start() 进行中门闩：防止 onCoreUp 与 ensure() 并发触发重复申请任务 */
   let starting: boolean = false;
-  /** 用户主动取消（划掉实况窗/关闭任务）：不再自动重建，等前台 ensure */
+  /** 用户主动取消（划掉实况窗/关闭任务）：不再自动重建，等用户重新连接 */
   let userStopped: boolean = false;
   let notificationId: number = -1;
   let continuousTaskId: number = -1;
@@ -56,6 +56,21 @@ export namespace LiveViewKeeper {
   // 所有任务启动、停止和取消清理串行化，旧会话停止不能撤销新会话。
   let lifecycleQueue: Promise<void> = Promise.resolve();
   let lifecycleGeneration: number = 0;
+  // 异步流量/测速回调只允许写入发起它们的任务。
+  let workGeneration: number = 0;
+  let reapplyTimer: number = -1;
+  let notificationQueue: Promise<void> = Promise.resolve();
+
+  function isCurrent(generation: number): boolean {
+    return running && generation === workGeneration;
+  }
+
+  function cancelReapply(): void {
+    if (reapplyTimer >= 0) {
+      clearTimeout(reapplyTimer);
+      reapplyTimer = -1;
+    }
+  }
 
   export function rebindContext(context: common.UIAbilityContext): void {
     lastContext = context;
@@ -83,6 +98,7 @@ export namespace LiveViewKeeper {
   export function start(context: common.UIAbilityContext): Promise<boolean> {
     rebindContext(context);
     lifecycleGeneration++;
+    cancelReapply();
     const result = lifecycleQueue.then(() => {
       const ctx = lastContext;
       return ctx === null ? Promise.resolve(false) : startTask(ctx);
@@ -102,6 +118,7 @@ export namespace LiveViewKeeper {
       return false;
     }
     starting = true;
+    const generation = ++workGeneration;
     try {
       const agent = await wantAgent.getWantAgent({
         wants: [{ bundleName: context.applicationInfo.name, abilityName: 'EntryAbility' }],
@@ -109,6 +126,9 @@ export namespace LiveViewKeeper {
         requestCode: 0,
         actionFlags: [wantAgent.WantAgentFlags.UPDATE_PRESENT_FLAG]
       });
+      if (generation !== workGeneration) {
+        return false;
+      }
       const request = new backgroundTaskManager.ContinuousTaskRequest();
       request.backgroundTaskModes = [backgroundTaskManager.BackgroundTaskMode.MODE_DATA_TRANSFER];
       request.backgroundTaskSubmodes = [backgroundTaskManager.BackgroundTaskSubmode.SUBMODE_LIVE_VIEW_NOTIFICATION];
@@ -117,21 +137,27 @@ export namespace LiveViewKeeper {
       const res = await backgroundTaskManager.startBackgroundRunning(ctx, request);
       notificationId = res.notificationId;
       continuousTaskId = res.continuousTaskId !== undefined ? res.continuousTaskId : -1;
+      if (generation !== workGeneration) {
+        return false; // 已取得任务身份，排队的 stop 负责释放。
+      }
       if (connectedAt === 0) {
         connectedAt = Date.now();
       }
       running = true;
       registerEvents();
       Logger.info(TAG, 'task started notificationId=' + notificationId + ' continuousTaskId=' + continuousTaskId);
-      await refreshMeta();
-      await publishLiveView();
+      await refreshMeta(generation);
+      await publishLiveView(generation);
+      if (!isCurrent(generation)) {
+        return false;
+      }
       timerId = setInterval(() => {
-        updateTick().catch((e: Object) => {
+        updateTick(generation).catch((e: Object) => {
           Logger.warn(TAG, 'update tick error: ' + errMsg(e));
         });
       }, UPDATE_INTERVAL_MS);
       hbTimerId = setInterval(() => {
-        doHeartbeat().catch((e: Object) => {
+        doHeartbeat(generation).catch((e: Object) => {
           Logger.warn(TAG, 'heartbeat error: ' + errMsg(e));
         });
       }, HEARTBEAT_INTERVAL_MS);
@@ -169,6 +195,8 @@ export namespace LiveViewKeeper {
   export function stop(context: common.UIAbilityContext): Promise<void> {
     rebindContext(context);
     lifecycleGeneration++;
+    workGeneration++;
+    cancelReapply();
     return enqueue(() => reset(true));
   }
 
@@ -178,6 +206,9 @@ export namespace LiveViewKeeper {
 
   /** 复位全部状态与资源。stopTask=true 时额外执行 stopBackgroundRunning。 */
   async function reset(stopTask: boolean): Promise<void> {
+    running = false;
+    workGeneration++;
+    cancelReapply();
     if (timerId >= 0) {
       clearInterval(timerId);
       timerId = -1;
@@ -188,22 +219,33 @@ export namespace LiveViewKeeper {
     }
     if (notificationId >= 0) {
       try {
-        await notificationManager.cancel(notificationId);
+        const id = notificationId;
+        const cancel = notificationQueue.then(() => notificationManager.cancel(id));
+        notificationQueue = cancel.catch(() => {});
+        await cancel;
       } catch (e) {
         Logger.warn(TAG, 'cancel notification failed: ' + errMsg(e));
       }
     }
     if (eventsRegistered) {
       try {
-        backgroundTaskManager.off('continuousTaskCancel');
-        backgroundTaskManager.off('continuousTaskSuspend');
-        backgroundTaskManager.off('continuousTaskActive');
+        backgroundTaskManager.off('continuousTaskCancel', onCancel);
       } catch (e) {
-        Logger.warn(TAG, 'off events failed: ' + errMsg(e));
+        Logger.warn(TAG, 'off cancel failed: ' + errMsg(e));
+      }
+      try {
+        backgroundTaskManager.off('continuousTaskSuspend', onSuspend);
+      } catch (e) {
+        Logger.warn(TAG, 'off suspend failed: ' + errMsg(e));
+      }
+      try {
+        backgroundTaskManager.off('continuousTaskActive', onActive);
+      } catch (e) {
+        Logger.warn(TAG, 'off active failed: ' + errMsg(e));
       }
       eventsRegistered = false;
     }
-    if (stopTask) {
+    if (stopTask && (notificationId >= 0 || continuousTaskId >= 0)) {
       const ctx = lastContext;
       if (ctx !== null) {
         try {
@@ -219,7 +261,9 @@ export namespace LiveViewKeeper {
       }
     }
     running = false;
-    userStopped = false;
+    if (stopTask) {
+      userStopped = false;
+    }
     notificationId = -1;
     continuousTaskId = -1;
     connectedAt = 0;
@@ -232,26 +276,29 @@ export namespace LiveViewKeeper {
     lastDelay = -1;
   }
 
+  function onCancel(info: backgroundTaskManager.ContinuousTaskCancelInfo): void {
+    enqueue(() => handleCancel(info)).catch((e: Object) => {
+      Logger.warn(TAG, 'cancel handler error: ' + errMsg(e));
+    });
+  }
+
+  function onSuspend(info: backgroundTaskManager.ContinuousTaskSuspendInfo): void {
+    Logger.info(TAG, 'task suspended id=' + info.continuousTaskId);
+  }
+
+  function onActive(info: backgroundTaskManager.ContinuousTaskActiveInfo): void {
+    Logger.info(TAG, 'task active id=' + info.id);
+  }
+
   function registerEvents(): void {
     if (eventsRegistered) {
       return;
     }
-    try {
-      backgroundTaskManager.on('continuousTaskCancel', (info: backgroundTaskManager.ContinuousTaskCancelInfo) => {
-        enqueue(() => handleCancel(info)).catch((e: Object) => {
-          Logger.warn(TAG, 'cancel handler error: ' + errMsg(e));
-        });
-      });
-      backgroundTaskManager.on('continuousTaskSuspend', (info: backgroundTaskManager.ContinuousTaskSuspendInfo) => {
-        Logger.info(TAG, 'task suspended id=' + info.continuousTaskId);
-      });
-      backgroundTaskManager.on('continuousTaskActive', (info: backgroundTaskManager.ContinuousTaskActiveInfo) => {
-        Logger.info(TAG, 'task active id=' + info.id);
-      });
-      eventsRegistered = true;
-    } catch (e) {
-      Logger.warn(TAG, 'register events failed: ' + errMsg(e));
-    }
+    // 部分 on 成功后失败也须由 start 的 catch/reset 解绑。
+    eventsRegistered = true;
+    backgroundTaskManager.on('continuousTaskCancel', onCancel);
+    backgroundTaskManager.on('continuousTaskSuspend', onSuspend);
+    backgroundTaskManager.on('continuousTaskActive', onActive);
   }
 
   /**
@@ -263,6 +310,7 @@ export namespace LiveViewKeeper {
     if (!running || (continuousTaskId >= 0 && info.id !== continuousTaskId)) {
       return;
     }
+    const generation = lifecycleGeneration;
     const reason = info.reason;
     const detailed = info.detailedReason;
     // ContinuousTaskDetailedCancelReason 为 API 26+ 枚举：低版本系统上枚举对象可能不存在，
@@ -273,8 +321,8 @@ export namespace LiveViewKeeper {
       (detailedEnum !== undefined && detailed === detailedEnum.USER_CANCEL_REMOVE_NOTIFICATION);
     if (userCancel) {
       Logger.info(TAG, 'task canceled by user reason=' + reason + ' detailed=' + detailed);
-      await reset(false);
       userStopped = true;
+      await reset(false);
       return;
     }
     Logger.warn(TAG, 'task canceled reason=' + reason + ' detailed=' + detailed);
@@ -286,6 +334,9 @@ export namespace LiveViewKeeper {
       Logger.warn(TAG, 'cancel: core not alive, wait foreground ensure');
       return;
     }
+    if (generation !== lifecycleGeneration) {
+      return;
+    }
     const now = Date.now();
     while (reapplyLog.length > 0 && now - reapplyLog[0] > 60 * 60 * 1000) {
       reapplyLog.shift();
@@ -295,12 +346,12 @@ export namespace LiveViewKeeper {
       return;
     }
     reapplyLog.push(now);
-    const generation = lifecycleGeneration;
-    setTimeout(() => {
+    reapplyTimer = setTimeout(() => {
       const ctx = lastContext;
       if (generation !== lifecycleGeneration || userStopped || ctx === null) {
         return;
       }
+      reapplyTimer = -1;
       if (VpnController.status !== VpnStatus.Connected) {
         Logger.info(TAG, 'reapply skipped: vpn not connected');
         return;
@@ -315,8 +366,14 @@ export namespace LiveViewKeeper {
   }
 
   /** 60s 周期：取累计流量差分求速率，publish 更新实况窗 */
-  async function updateTick(): Promise<void> {
+  async function updateTick(generation: number): Promise<void> {
+    if (!isCurrent(generation)) {
+      return;
+    }
     const t = await CoreApi.getTraffic();
+    if (!isCurrent(generation)) {
+      return;
+    }
     if (t !== null) {
       const now = Date.now();
       if (lastSample !== null && lastSampleAt > 0) {
@@ -329,15 +386,21 @@ export namespace LiveViewKeeper {
       lastSample = t;
       lastSampleAt = now;
     }
-    await publishLiveView();
+    await publishLiveView(generation);
     Logger.info(TAG, 'live view updated rate=' + Math.round(lastDownBps + lastUpBps) + ' progress=' + progressValue());
   }
 
   /** 5min 心跳：刷新出口节点/模式缓存 + 出口延迟测速（真实代理流量） */
-  async function doHeartbeat(): Promise<void> {
+  async function doHeartbeat(generation: number): Promise<void> {
+    if (!isCurrent(generation)) {
+      return;
+    }
     let node: string = '';
     let delayMs: number = -1;
     const proxies = await CoreApi.getProxies();
+    if (!isCurrent(generation)) {
+      return;
+    }
     if (proxies !== null) {
       let group: string = '';
       if (lastContext !== null) {
@@ -367,6 +430,9 @@ export namespace LiveViewKeeper {
         node = sel.now;
         if (node !== 'DIRECT' && node !== 'REJECT') {
           const d = await CoreApi.delayTest(node);
+          if (!isCurrent(generation)) {
+            return;
+          }
           if (d !== null && d >= 0) {
             lastDelay = d;
             delayMs = d;
@@ -375,6 +441,9 @@ export namespace LiveViewKeeper {
       }
     }
     const cfg = await CoreApi.getConfigs();
+    if (!isCurrent(generation)) {
+      return;
+    }
     if (cfg !== null) {
       modeName = cfg.mode;
     }
@@ -389,8 +458,11 @@ export namespace LiveViewKeeper {
   }
 
   /** 刷新出口节点/模式名缓存（启动时调用一次，让首帧文案准确） */
-  async function refreshMeta(): Promise<void> {
+  async function refreshMeta(generation: number): Promise<void> {
     const proxies = await CoreApi.getProxies();
+    if (!isCurrent(generation)) {
+      return;
+    }
     if (proxies !== null) {
       let group: string = '';
       if (lastContext !== null) {
@@ -422,14 +494,17 @@ export namespace LiveViewKeeper {
       }
     }
     const cfg = await CoreApi.getConfigs();
+    if (!isCurrent(generation)) {
+      return;
+    }
     if (cfg !== null) {
       modeName = cfg.mode;
     }
   }
 
   /** 按当前状态发布/更新实况窗 */
-  async function publishLiveView(): Promise<void> {
-    if (notificationId < 0) {
+  async function publishLiveView(generation: number): Promise<void> {
+    if (!isCurrent(generation) || notificationId < 0) {
       return;
     }
     const status = VpnController.status;
@@ -494,7 +569,13 @@ export namespace LiveViewKeeper {
       template: template
     };
     try {
-      await notificationManager.publish(request);
+      const publish = notificationQueue.then(async () => {
+        if (isCurrent(generation)) {
+          await notificationManager.publish(request);
+        }
+      });
+      notificationQueue = publish.catch(() => {});
+      await publish;
     } catch (e) {
       Logger.warn(TAG, 'publish failed: ' + errMsg(e));
     }

@@ -102,6 +102,7 @@ export namespace VpnController {
   let serviceId: number = 0;
   const listeners: StatusListener[] = [];
   let startAttempt = 0;
+  let recoveryAttempt = 0;
 
   export function onChanged(cb: StatusListener): void {
     if (listeners.indexOf(cb) < 0) {
@@ -126,6 +127,7 @@ export namespace VpnController {
    * 冷启动恢复：UI 进程重建后探测内核是否仍在（REST 不证明系统 TUN 健康）。
    * 可选完成回调 onDone(alive)：探活落定后（含非断开态早退场景）回调，供调用方在
    * Controller 探活完成后再决策；系统会话健康需另外核对。
+   * 被取消/取代的探活不提交状态，也不回调过期 onDone。
    */
   export function recover(onDone?: (alive: boolean) => void): void {
     if (status !== VpnStatus.Disconnected) {
@@ -134,7 +136,11 @@ export namespace VpnController {
       }
       return;
     }
+    const attempt = ++recoveryAttempt;
     CoreApi.isAlive().then((alive: boolean) => {
+      if (attempt !== recoveryAttempt) {
+        return;
+      }
       if (alive && status === VpnStatus.Disconnected) {
         Logger.info(TAG, 'recover: core alive, status -> Connected');
         setStatus(VpnStatus.Connected);
@@ -143,6 +149,11 @@ export namespace VpnController {
         onDone(alive);
       }
     });
+  }
+
+  /** 使在途冷恢复失效；运行时取消恢复/当前 Ability 销毁可调用，不停止 VPN。 */
+  export function cancelRecovery(): void {
+    recoveryAttempt++;
   }
 
   function setStatus(s: VpnStatus): void {
@@ -161,6 +172,7 @@ export namespace VpnController {
       Logger.warn(TAG, `start ignored, status=${VpnStatus[status]}`);
       return;
     }
+    cancelRecovery();
     setStatus(VpnStatus.Connecting);
     startAttempt++;
     const want: Want = { bundleName: context.applicationInfo.name, abilityName: VPN_ABILITY_NAME };
@@ -294,6 +306,7 @@ export namespace VpnController {
   }
 
   export function stop(context: common.UIAbilityContext): void {
+    cancelRecovery();
     if (status !== VpnStatus.Connected && status !== VpnStatus.Connecting) {
       Logger.warn(TAG, `stop ignored, status=${VpnStatus[status]}`);
       return;

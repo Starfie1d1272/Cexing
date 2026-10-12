@@ -21,6 +21,6 @@ export default class EntryAbility extends UIAbility {
   }
 
   onDestroy(): void {
-    AppRuntime.cancelRestore();
+    AppRuntime.abilityDestroyed(this.context);
   }
 }

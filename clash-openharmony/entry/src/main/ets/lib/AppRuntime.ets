@@ -74,8 +74,16 @@ export namespace AppRuntime {
     }
   }
 
+  export function abilityDestroyed(ctx: common.UIAbilityContext): void {
+    // 旧 Ability 的迟到销毁不能撤销新 Ability 已安排的恢复。
+    if (context === ctx) {
+      cancelRestore();
+    }
+  }
+
   export function cancelRestore(): void {
     restoreGeneration++;
+    VpnController.cancelRecovery();
     if (restoreTimer >= 0) {
       clearTimeout(restoreTimer);
       restoreTimer = -1;
