@@ -127,6 +127,16 @@ function testRestore() {
   destroyed.runtime.cancelRestore();
   stale();
   assert.equal(destroyed.calls.start, 0, 'Already queued timeout must honor cancellation');
+  const recreated = fixture();
+  recreated.settings.autoRestore = true;
+  recreated.settings.vpnWasConnected = true;
+  const oldContext = {}, newContext = {};
+  recreated.runtime.initialize(oldContext);
+  recreated.runtime.initialize(newContext);
+  recreated.runtime.abilityDestroyed(oldContext);
+  assert.equal(recreated.timers.size, 1, 'Old Ability destruction must preserve new restore');
+  recreated.runtime.abilityDestroyed(newContext);
+  assert.equal(recreated.timers.size, 0, 'Current Ability destruction must cancel its restore');
   const g = fixture();
   g.settings.autoRestore = true;
   g.settings.vpnWasConnected = true;

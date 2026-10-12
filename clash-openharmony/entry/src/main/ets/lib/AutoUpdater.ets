@@ -20,9 +20,14 @@ const CHECK_INTERVAL_MS = 60 * 60 * 1000;
 export namespace AutoUpdater {
   let timerId: number = -1;
   let currentContext: common.Context | null = null;
+  let generation: number = 0;
+  let checking: boolean = false;
 
   export function rebindContext(context: common.Context): void {
-    currentContext = context;
+    if (currentContext !== context) {
+      generation++;
+      currentContext = context;
+    }
   }
 
   /** 启动周期检查（幂等：重复调用先 stop） */
@@ -43,6 +48,7 @@ export namespace AutoUpdater {
 
   /** 停止周期检查 */
   export function stop(): void {
+    generation++;
     if (timerId >= 0) {
       clearInterval(timerId);
       timerId = -1;
@@ -52,11 +58,30 @@ export namespace AutoUpdater {
 
   /** 单轮检查：开关/内核/间隔/来源都满足才真正更新 */
   export async function checkAndRun(context: common.Context): Promise<void> {
-    const s = Settings.load(context);
-    if (!s.autoUpdate) {
+    if (checking) {
+      return;
+    }
+    checking = true;
+    const attempt = generation;
+    try {
+      await runCheck(context, attempt);
+    } finally {
+      checking = false;
+    }
+  }
+
+  async function runCheck(context: common.Context, attempt: number): Promise<void> {
+    if (!Settings.load(context).autoUpdate) {
       return;
     }
     if (!(await CoreApi.isAlive())) {
+      return;
+    }
+    if (attempt !== generation) {
+      return;
+    }
+    const s = Settings.load(context);
+    if (!s.autoUpdate) {
       return;
     }
     const p = preferences.getPreferencesSync(context, { name: STORE });
@@ -79,13 +104,18 @@ export namespace AutoUpdater {
     }
     try {
       await ProfileStore.updateFromOrigin(context, active);
+      if (attempt !== generation || !Settings.load(context).autoUpdate ||
+        ProfileStore.getActiveFile(context) !== active) {
+        return;
+      }
       try {
         p.putSync(KEY_LAST_AUTO_UPDATE, now);
         p.flush();
       } catch (e) {
         Logger.warn(TAG, `write lastAutoUpdateMs failed: ${JSON.stringify(e)}`);
       }
-      if (await CoreApi.isAlive()) {
+      if (await CoreApi.isAlive() && attempt === generation &&
+        Settings.load(context).autoUpdate && ProfileStore.getActiveFile(context) === active) {
         await CoreApi.reloadConfig(ProfileStore.absPath(context, active));
       }
       Logger.info(TAG, `auto update done: ${active}`);
