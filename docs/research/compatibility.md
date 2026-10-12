@@ -2,15 +2,21 @@
 
 日期：2026-10-12（Asia/Shanghai）。基线 SHA：`3b141e3bc6050fc081aaccd5f77bf523dd4620cb`。
 
+## 当前验收与历史记录
+
+当前 P0 已通过 v1.19.32 构建、签名安装、订阅导入/更新、IPv4 浏览器 TUN 代理转发和正常停止/重连。Smart 模型/真实预测、Zashboard 集成、IPv6、UDP/DNS 专项、WS、后台稳定性及网络切换尚未验收。最终包摘要与流量证据见文末“启动修复与真实转发验收”。
+
+下方按验证发生顺序保留记录。早期“缺证书”“未安装”“待授权”和旧产物摘要描述当时状态；签名与授权阻断已在后续阶段解除。
+
 ## 本机与设备
 
 | 项 | 本轮读回 |
 |---|---|
 | Git / 分支 | Git 2.55.0；干净 main 起点，新分支 `starfie1d/initial-research` |
-| remote | origin 为 Starfie1d1272 Fork，upstream 为 tom-cat-mao；两个 main 远端均为基线 SHA |
+| remote | origin 为 Starfie1d1272 Fork，upstream 为 tom-cat-mao；初始调查时两个 main 远端均为基线 SHA |
 | Go | 1.27.2 darwin/arm64，`/opt/homebrew/bin/go` |
 | Node | 24.20.0，现有 fnm 环境 |
-| Java | Temurin OpenJDK 27；构建打包成功，实际证书签名待验证 |
+| Java | Temurin OpenJDK 27；构建打包及 hap-sign-tool 实际签名通过 |
 | DevEco 工具 | hvigor 6.26.1、ohpm 26.0.0.410、HDC 3.2.0c |
 | SDK/NDK | API 26，`26.0.0.23`，metadata 标注 Beta1；clang 与 hap-sign-tool.jar 存在 |
 | 设备 | [真机验证] HDC 在线；param 读回 HBN-AL00、7.0.0.109 SP8、API 26；未记录地址/UDID |
@@ -70,7 +76,7 @@ vernesong Alpha `daf3ad03021cca6031f4a7303ca6d861a14d5a16`，使用原 wrapper �
 
 最新稳定版测试包保留在忽略目录 `clash-openharmony/dist/mihomo-v1.19.32-unsigned.hap`。后续可显式传给 sign-agc.sh；实际签名安装前核对身份与 profile，并将它与原始包分别验收。本轮未把模块升级写入产品源码。
 
-## 签名与真机阻断
+## 首轮签名与真机阻断（历史，后续已解除）
 
 已按 INSTALL.md 4.1 生成独立 EC P-256 keystore、CSR 与随机口令，文件位于 `clash-openharmony/.signing/`，目录/私密文件采用限制权限且全部忽略。只把 CSR 用于证书申请。
 
@@ -90,7 +96,7 @@ vernesong Alpha `daf3ad03021cca6031f4a7303ca6d861a14d5a16`，使用原 wrapper �
 
 使用最新正式 v1.19.32 的新包名测试包签名，产物 `dist/mihomo-v1.19.32-signed.hap`，76,390,164 B，SHA-256 `0c02e1a8dd887e7523312853a47061d43f2f13c4505194fafb697566c30294e2`。`scripts/install.sh` 返回 install bundle successfully、start ability successfully；bm 读回应用包名 `com.starfie1d.mihomo`、versionName `0.1.0`、appProvisionType `debug`。进程存在，hilog 有 EntryAbility.onCreate 和 loadContent succeeded。
 
-首次启动 recover 为 Disconnected，Controller 连接被拒绝，符合尚未启动 VPN 的状态；有 shared_state/cardSync 文件缺失警告，后续检查，暂未扩展修复范围。当前仅确认签名安装与 UI 启动，尚未证明 Go 内核运行与 VPN 转发。下一步由用户导入订阅、激活配置并完成首次 VPN 授权，再核实内核版本、TUN、出口、DNS 与后台行为。
+首次启动 recover 为 Disconnected，Controller 连接被拒绝，符合尚未启动 VPN 的状态；有 shared_state/cardSync 文件缺失警告，后续检查，暂未扩展修复范围。该安装阶段仅确认签名安装与 UI 启动，尚未证明 Go 内核运行与 VPN 转发。下一步由用户导入订阅、激活配置并完成首次 VPN 授权，再核实内核版本、TUN、出口、DNS 与后台行为。
 
 ## 订阅真机回归（2026-10-12）
 

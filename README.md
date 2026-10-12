@@ -6,7 +6,7 @@
 
 *A native Clash (mihomo) client for HarmonyOS NEXT.*
 
-mihomo 内核 · 纯 ArkTS 界面 · 系统级 VPN 全隧道 · 后台保活 + 实况窗
+mihomo 内核 · 原生 ArkTS 界面 · 系统 VPN TUN · 实况窗与保活实现
 
 </div>
 
@@ -16,23 +16,23 @@ mihomo 内核 · 纯 ArkTS 界面 · 系统级 VPN 全隧道 · 后台保活 + �
 
 本 Fork 正在评估 **HarmonyOS 原生宿主 + Mihomo Smart + 内置 Zashboard**：ArkTS 管理 VPN、订阅、授权和生命周期，Zashboard 提供代理控制界面。当前应用沿用 ClashOH 的实现与显示名称，包名为 `com.starfie1d.mihomo`。
 
-第一轮已验证原始内核与未签名 HAP 的本机构建；签名、VPN 转发与稳定性仍待真机验收。详见 [调研入口](docs/research/overview.md)、[架构](docs/architecture.md)、[开发路线](docs/roadmap.md) 和 [本机验证记录](docs/research/compatibility.md)。依赖优先测试最新稳定版，仅在复现兼容性问题后进行项目级调整。
+当前 P0 IPv4 基线使用标准 mihomo v1.19.32：本机构建、AGC 调试签名、真机安装、订阅导入/更新、IPv4 浏览器 TUN 代理转发及正常停止/重连已通过。Smart 仅完成隔离试编译，模型与真实选路尚未验收；Zashboard 尚未集成。IPv6、UDP/DNS 专项、WS、长时间后台保活和网络切换仍待验收。详见 [调研入口](docs/research/overview.md)、[架构](docs/architecture.md)、[开发路线](docs/roadmap.md) 和 [本机验证记录](docs/research/compatibility.md)。依赖优先测试最新稳定版，仅在复现兼容性问题后进行项目级调整。
 
 ## 这是什么
 
-ClashOH 把 [mihomo](https://github.com/MetaCubeX/mihomo)（Clash.Meta）内核完整移植进了纯血鸿蒙（HarmonyOS NEXT）：Go 交叉编译的内核动态库经 NAPI 桥接进原生 ArkTS 应用，通过系统 VpnExtensionAbility 建立 TUN 全隧道。不是套壳网页，不是远程控制——内核就跑在你手机里，和手机上的 ClashMetaForAndroid 一个物种。
+ClashOH 把 [mihomo](https://github.com/MetaCubeX/mihomo)（Clash.Meta）内核完整移植进了纯血鸿蒙（HarmonyOS NEXT）：Go 交叉编译的内核动态库经 NAPI 桥接进原生 ArkTS 应用，通过系统 VpnExtensionAbility 建立 TUN，内核在手机上运行。当前真机证据覆盖 IPv4 浏览器代理转发；路由排除范围和 IPv6 接管需单独验收。
 
 ## ✨ 特性
 
 **代理核心**
-- mihomo v1.19.32 内核，TUN 全隧道（gVisor 栈）+ fake-ip DNS
-- 规则 / 全局 / 直连三种模式，按应用分流，IPv6 可选
+- mihomo v1.19.32 内核，TUN（gVisor 栈）+ fake-ip DNS 配置路径
+- 规则 / 全局 / 直连三种模式，按应用分流；IPv6 设置已存在，双栈转发待验收
 - 订阅 URL / 文件 / 剪贴板导入，自动更新，流量与到期信息展示
 
 **使用体验**
 - 首页大圆环一键启停，WebSocket 实时速率，冷启动状态恢复
 - 分组两级导航、批量测速、点选切换、组内搜索与排序
-- 状态栏实况窗常驻 + 长时任务保活，2×2 桌面服务卡片
+- 实况窗与长时任务保活实现、2×2 桌面服务卡片；长时间后台稳定性待真机验收
 - 深色模式、连接与日志实时查看、覆写自定义内核启动参数
 
 ## 📱 安装
@@ -66,7 +66,7 @@ bash scripts/install.sh     # 安装到真机
 当前以源码开发为主。构建出的 HAP 可以通过 HoKit 重签；公开分发测试 HAP 的来源、版本、资源许可与可复现构建流程在 P5 完善。开发者的调试签名绑定设备，其他设备需使用匹配的签名材料。
 
 **划掉最近任务卡片后 VPN 断了？**
-平台设计行为：划卡 = 用户显式终止进程，任何应用都无法阻止。退后台、锁屏不受影响——长时任务 + 实况窗保护的就是这些场景。
+项目已有长时任务与实况窗实现。当前 P0 尚未验收划卡、进程回收、息屏 15/30 分钟和低流量后台行为；遇到断连需记录系统日志、VPN 状态及实际转发，按 P4 稳定性矩阵定位。
 
 **支持模拟器吗？**
 不支持，仅真机（HarmonyOS NEXT，最低 HarmonyOS 6.0.1 / API 21——按代码实际使用的系统 API 的 @since 上限核定，覆盖华为官方统计约 99% 的存量设备）。

@@ -7,6 +7,14 @@
 
 mihomo（Clash.Meta）内核的鸿蒙原生 VPN 客户端：ArkTS UI（`clash-openharmony/`）+ Go 交叉编译的 libmihomo.so（`core/`，NAPI 桥），纯命令行构建签名安装（`scripts/`），侧载到零售真机运行。
 
+## 当前 P0 验收范围（2026-10-12）
+
+- 标准 mihomo v1.19.32、包名 `com.starfie1d.mihomo`；构建、AGC 调试签名、真机安装、订阅导入/更新、IPv4 浏览器 TUN 代理转发与正常停止/重连已通过。证据见 `docs/research/compatibility.md`。
+- Smart 仅隔离试编译通过，模型加载和真实预测待验收；Zashboard 尚未集成。IPv6、UDP/DNS 专项、WS、长时间后台保活、网络切换与异常恢复均待验收。
+- 首次连接需要校验过的 GeoIP 快照：构建前执行 `bash scripts/prepare-geodata.sh`。资源变更后按下方规则 clean。
+- 回归命令：在 Bash 中 `source scripts/env.sh`，再执行 `node scripts/test-profile-name.cjs` 和 `node scripts/test-vpn-startup.cjs`。
+- `/version` 当前仍为上游默认值，真实内核身份以 Go 模块元数据和库摘要确认；版本注入问题见 `docs/research/issues.md`。
+
 ## 行为准则（硬性）
 
 1. **人机分工**：🧑 标记的步骤（注册账号、网页下载、AGC 操作、真机授权）**停下并引导用户**，不要假装完成，不要尝试自动化网页登录。🤖 步骤直接执行并跑验证命令。
@@ -20,7 +28,7 @@ mihomo（Clash.Meta）内核的鸿蒙原生 VPN 客户端：ArkTS UI（`clash-op
 | 位置 | 内容 |
 |------|------|
 | `INSTALL.md` | 安装主线（**事实来源**），含人机分工与验证命令 |
-| `scripts/env.sh / build-core.sh / build-hap.sh / sign-agc.sh / install.sh / logs.sh` | 流水线，按序执行 |
+| `scripts/env.sh / build-core.sh / prepare-geodata.sh / build-hap.sh / sign-agc.sh / install.sh / logs.sh` | 流水线，按序执行 |
 | `core/` | Go module：mihomo → c-shared 动态库；`platform_ohos.go` 是 ohos build tag 平台层 |
 | `clash-openharmony/BUILD.md` | 构建复原指南 + **移植坑位清单（第 4 节）**，遇错先查 |
 | `clash-openharmony/DESIGN.md` | UI/交互设计；`LIVEVIEW_DESIGN.md` 实况窗、`QUICK_ACCESS_DESIGN.md` 快捷入口 |
