@@ -24,3 +24,7 @@ Linux amd64 云环境，Go 1.27.2、Node 26.11.1、JDK 27、Huawei Command Line 
 文件指针的原子提交和进程内回滚已测；掉电/进程退出期间运行内核与文件不能组成跨进程原子事务。需宿主单写者及启动时从 Current 恢复，回滚失败应阻断进一步激活并显示恢复状态。未验收真实系统会话、启动/REST 重载平台一致性、设备转发或 OHOS 文件系统掉电行为。
 
 共享 README、AGENTS、development 没有编辑。父任务可在文档索引增加独立接入契约链接，并在开发顺序引用最终裁定的 Merge 方言与平台联调门槛。
+
+## 运行时写入事务交接补充
+
+只读核对运行时 [PR #4](https://github.com/Starfie1d1272/clash-OpenHarmony/pull/4)，head `4694e45fe6b6ea8fbe55d93ba0798d9a61db22d3`。该线阻止迟到更新的成功时间戳/重载，不负责已进入 ProfileStore 的下载/原文写入。本线在接入契约增加 profileId/sourceRevision/selectionEpoch/expectedActiveRevision ticket、选择与提交同一锁、候选暂存、原文及元数据统一 manifest 发布与取消/过期恢复要求，明确 Current.ID 单独不能保护待选 profile 的切换。新增的是后续集成门槛与验证剧本；未修改/验证生产 ProfileStore 写入路径，不声称现有在途写入风险已解决。

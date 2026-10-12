@@ -42,12 +42,35 @@ FileStore 在应用私有 Root 创建不可变版本目录（0600 文件、0700 
 
 此事务保证进程内失败回退与原子文件指针，不声称文件系统与运行内核组成跨进程/掉电原子事务。文件都 fsync，发布后 directory fsync 尽力执行（发布已成功后不能再返回“未提交”并删除它）。若进程在 Activate 与 Commit 之间崩溃，下次启动应从 state.json 的 Current 重建内核；宿主需实现启动恢复与全局单写者/跨进程协调。不能让多个 coordinator 指向同一 Root。版本保留/垃圾回收由宿主在确认 Current/Previous 后显式进行；禁止清理现有用户数据。
 
+## 在途下载、取消与 ProfileStore 写入边界
+
+接入时下载请求必须捕获以下宿主内部 ticket，绑定到同一事务，不能在异步下载完成后重新读取当前选择来补签：
+
+```typescript
+interface SubscriptionUpdateTicket {
+  profileId: string;              // 发起下载的稳定 profile 身份
+  sourceRevision: string;         // URL/来源及原文编辑版本，不能用 URL 本身当身份
+  selectionEpoch: string;         // 选择、编辑、删除、取消或会话失效时递增
+  expectedActiveRevision: string; // 对应本包 Snapshot.Current.ID
+}
+```
+
+下载结果先保存在内存或新临时文件，只能进入该 ticket 的候选目录。禁止先调用旧 ProfileStore 的原文覆盖写入再检查取消，也禁止根据下载结束时的 active profile 把结果写进另一个 profile。仅阻止迟到 CoreApi reload 或成功时间戳不足以保护原文、来源元数据与激活指针。
+
+宿主必须把选择/编辑/取消与配置提交纳入同一串行 coordinator，ticket 的 profile 身份、sourceRevision、selectionEpoch、expectedActiveRevision 在接收下载结果、Stage 前、Activate 前及最终 Commit 的临界区内校验。任何变化均返回陈旧/取消，不覆盖现有原文、覆写、来源元数据、成功更新时间或激活选择；即使重新选回同一个 profile，epoch 不同也应拒绝旧请求。取消下载本身只是尽力操作，不能代替上述提交检查。
+
+本包的 ExpectedActiveRevision 只保护成功配置版本；它不表示 ArkTS 的待选 profile、来源编辑或 VPN 会话代次。应用选择改变而尚未提交新配置时，Current.ID 可能不变，因此宿主仍必须检查 selectionEpoch/profileId。宿主可把检查封装到 Store/Activator adapter，但最终检查和持久化发布必须处于同一选择锁/事务门控，不能留出“检查通过后切换 profile、随后旧写入发布”的窗口。本轮没有修改 ProfileStore，也没有宣称旧写入路径已修复。
+
+原文、覆写、生成配置和来源元数据先落到新的不可变版本目录；最终用一个原子 manifest/成功指针发布其身份，随后界面和启动从同一权威指针读取。不能分别 overwrite 原文与 active 元数据并把其中一个 rename 当成整体事务。若暂时保留旧 ProfileStore 文件布局，需要另行设计可恢复日志/统一元数据提交 adapter，不得同时维护两个独立激活权威。失败/取消只清理本事务创建的候选，不删旧 profile 或上次成功配置。
+
+激活已开始后才取消/过期时，Restore 必须恢复发起事务前的成功版本（首次无成功版本则停止部分候选）；恢复失败保留材料并阻断后续激活。后续接入回归必须用可控下载/写入屏障覆盖：A 下载中切换到 B、A 来源被编辑/删除、取消后重新选择 A、Stage 中取消、Activate 与 Commit 之间切换，以及两次更新乱序完成。逐项确认 A/B 原文、来源元数据、成功指针和运行内核都未被迟到结果污染，不能只断言 reload 未调用。
+
 ## 具体接入顺序
 
 1. 宿主显式分类完整配置、Merge 与 provider payload，并绑定平台/provider 快照、固定内核能力和验证回执；本包只接收已分类的完整 base，不实现格式猜测或 provider 获取。校验回调/策略闭包捕获这些不可变上下文，生产提交需再核对其网络与能力身份。独立包不宣称已实现 ArkTS PlanRequestV1 协议。
 2. 安全线提供 Platform adapter 与统一认证来源；宿主提供串行完整 Mihomo Validator、私有资源上下文与日志屏蔽。先联测恶意订阅/覆写/策略均不能改变受保护字段。
 3. 在 Go worker 边界包装 Compile/Apply，保持现有四个 C ABI；新增桥接方式另开接入 PR，不在本包直接改 ABI。ArkTS 通过受控桥接传输入和固定差异摘要，不能在主线程直接调用 Go。
-4. ProfileStore 读取现有来源元数据，向新私有目录保存 Original/Overlays/策略标识；更新、切换、编辑和启动均走唯一事务。策略函数自身不能 JSON 序列化，需由宿主将稳定策略 ID/版本映射到已注册函数，禁止任意代码执行。
+4. 按上述 ticket/选择锁保护下载与写入，ProfileStore 读取现有来源元数据，向新私有目录保存 Original/Overlays/策略标识；更新、切换、编辑和启动均走唯一事务。策略函数自身不能 JSON 序列化，需由宿主将稳定策略 ID/版本映射到已注册函数，禁止任意代码执行。
 5. Activator 只应用已生成的不可变 Version.Path；安全线保证所有重载路由仍使用同一约束。应用失败 Restore 旧路径，首次失败停止部分激活候选；系统 TUN 生命周期仍由 VPN Extension 管理。
 6. crash/restart 从 successful pointer 恢复，与运行时线共同验收系统会话状态。完整契约回归通过前，保留当前导入及激活能力，不提前替换生产入口。
 
