@@ -27,10 +27,12 @@ type Compiler struct {
 	Validate Validator
 }
 type Request struct {
-	Original []byte
-	Overlays [][]byte
-	Strategy Transform
-	Previous []byte
+	// Empty means no successful active version; otherwise use Snapshot.Current.ID.
+	ExpectedActiveRevision string
+	Original               []byte
+	Overlays               [][]byte
+	Strategy               Transform
+	Previous               []byte
 }
 
 // Summary contains only fixed section names, never names, URLs or values.
@@ -97,6 +99,9 @@ func (c Compiler) Compile(ctx context.Context, r Request) (Result, error) {
 	}
 	if err := c.Validate(ctx, append([]byte(nil), output...)); err != nil {
 		return Result{}, errors.New("full configuration validation failed")
+	}
+	if err := ctx.Err(); err != nil {
+		return Result{}, err
 	}
 	sum := sha256.Sum256(output)
 	result := Result{Original: append([]byte(nil), r.Original...), YAML: output, Digest: hex.EncodeToString(sum[:])}

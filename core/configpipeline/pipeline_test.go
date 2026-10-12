@@ -62,6 +62,9 @@ external-controller: 0.0.0.0:9999
 	if field(rootFirst(n, "proxies"), "server").Value != "192.0.2.1" || field(rootFirst(n, "proxies"), "port").Value != "8443" {
 		t.Fatal("named deep merge lost node")
 	}
+	if field(n, "rules").Content[0].Value != "DOMAIN,example.test,generated" || field(n, "rules").Content[1].Value != "DOMAIN,example.test,pick" {
+		t.Fatal("first-match rule order changed")
+	}
 	if size(field(n, "rules")) != 3 || !strings.Contains(string(a.YAML), "127.0.0.1:9090") {
 		t.Fatal("rules or platform")
 	}
@@ -107,7 +110,7 @@ func TestInvalidInputsAndReferences(t *testing.T) {
 		"duplicate keys": original + "dns: {}\n", "multi document": original + "---\n{}\n", "non string keys": original + "other: {1: test}\n", "cycle": original + "other: &a {x: *a}\n",
 		"missing node":          strings.Replace(original, "proxies: [node]", "proxies: [absent]", 1),
 		"missing rule group":    strings.Replace(original, "example.test,pick", "example.test,absent", 1),
-		"missing provider":      original + "proxy-groups: [{name: bad, type: select, use: [absent]}]\n",
+		"missing provider":      strings.Replace(original, "proxies: [node]", "use: [absent]", 1),
 		"missing rule provider": strings.Replace(original, "DOMAIN,example.test,pick", "RULE-SET,absent,pick", 1),
 		"group cycle":           strings.Replace(original, "proxies: [node]", "proxies: [pick]", 1),
 		"empty":                 "rules: ['MATCH,DIRECT']\n",
@@ -202,7 +205,7 @@ func TestTransactions(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			request := Request{Original: []byte(strings.Replace(original, "192.0.2.1", "192.0.2.2", 1))}
+			request := Request{ExpectedActiveRevision: before.Current.ID, Original: []byte(strings.Replace(original, "192.0.2.1", "192.0.2.2", 1))}
 			switch scenario {
 			case "compile":
 				request.Original = []byte("invalid")
@@ -247,7 +250,12 @@ func TestSuccessfulVersionsAndPrivateFiles(t *testing.T) {
 	store := FileStore{Root: filepath.Join(t.TempDir(), "private")}
 	tx := Transaction{Compiler: compiler(), Store: store, Activator: &fakeCore{}}
 	for i := 0; i < 2; i++ {
-		if _, err := tx.Apply(context.Background(), Request{Original: []byte(original)}); err != nil {
+		prior, _ := store.Load(context.Background())
+		revision := ""
+		if prior.Current != nil {
+			revision = prior.Current.ID
+		}
+		if _, err := tx.Apply(context.Background(), Request{ExpectedActiveRevision: revision, Original: []byte(original)}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -289,5 +297,46 @@ func TestGenerationAndRealSaveFailures(t *testing.T) {
 	_, err = c.Compile(context.Background(), Request{Original: []byte(original), Overlays: [][]byte{[]byte("proxy-providers: {bad: {type: http, url: 'https://placeholder.invalid/feed'}}")}})
 	if err == nil {
 		t.Fatal("placeholder provider accepted")
+	}
+}
+
+func TestStaleUpdateDoesNotActivate(t *testing.T) {
+	store := FileStore{Root: filepath.Join(t.TempDir(), "private")}
+	core := &fakeCore{}
+	tx := Transaction{Compiler: compiler(), Store: store, Activator: core}
+	if _, err := tx.Apply(context.Background(), Request{Original: []byte(original)}); err != nil {
+		t.Fatal(err)
+	}
+	before, _ := store.Load(context.Background())
+	if _, err := tx.Apply(context.Background(), Request{Original: []byte(original)}); !errors.Is(err, ErrStaleRevision) {
+		t.Fatal("stale update accepted")
+	}
+	after, _ := store.Load(context.Background())
+	if core.calls != 1 || after.Current.ID != before.Current.ID {
+		t.Fatal("stale update changed active state")
+	}
+}
+
+func TestConcurrentUpdatesUseRevision(t *testing.T) {
+	store := FileStore{Root: filepath.Join(t.TempDir(), "private")}
+	core := &fakeCore{}
+	tx := Transaction{Compiler: compiler(), Store: store, Activator: core}
+	results := make(chan error, 2)
+	for i := 0; i < 2; i++ {
+		go func() { _, err := tx.Apply(context.Background(), Request{Original: []byte(original)}); results <- err }()
+	}
+	successes, stale := 0, 0
+	for i := 0; i < 2; i++ {
+		err := <-results
+		if err == nil {
+			successes++
+		} else if errors.Is(err, ErrStaleRevision) {
+			stale++
+		} else {
+			t.Fatal(err)
+		}
+	}
+	if successes != 1 || stale != 1 || core.calls != 1 {
+		t.Fatal("concurrent updates overwrote selection")
 	}
 }

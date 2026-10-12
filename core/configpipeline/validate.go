@@ -63,7 +63,7 @@ func validateReferences(root *yaml.Node) error {
 					return errors.New("HTTP provider URL required")
 				}
 				u, err := url.Parse(address.Value)
-				if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Hostname() == "" || u.Hostname() == "example.com" || strings.HasSuffix(u.Hostname(), ".invalid") || strings.Contains(address.Value, "${") || strings.Contains(address.Value, "<") {
+				if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Hostname() == "" || (u.Hostname() == "example.com" || u.Hostname() == "example.net" || u.Hostname() == "example.org" || strings.HasSuffix(u.Hostname(), ".example")) || strings.HasSuffix(u.Hostname(), ".invalid") || strings.Contains(address.Value, "${") || strings.Contains(address.Value, "<") {
 					return errors.New("invalid or placeholder provider URL")
 				}
 			case "file":

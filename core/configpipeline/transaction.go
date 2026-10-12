@@ -28,6 +28,9 @@ type Activator interface {
 	Activate(context.Context, Version) error
 	Restore(context.Context, *Version) error
 }
+
+var ErrStaleRevision = errors.New("stale active revision")
+
 type Transaction struct {
 	mu        sync.Mutex
 	Compiler  Compiler
@@ -57,6 +60,13 @@ func (t *Transaction) Apply(ctx context.Context, r Request) (Result, error) {
 	prior, err := t.Store.Load(ctx)
 	if err != nil {
 		return Result{}, &Failure{Stage: "load"}
+	}
+	activeRevision := ""
+	if prior.Current != nil {
+		activeRevision = prior.Current.ID
+	}
+	if r.ExpectedActiveRevision != activeRevision {
+		return Result{}, ErrStaleRevision
 	}
 	result, err := t.Compiler.Compile(ctx, r)
 	if err != nil {

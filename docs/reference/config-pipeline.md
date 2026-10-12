@@ -25,7 +25,7 @@ Mihomo v1.19.32 `config.ParseRawConfig` 会临时更新全局 General/IPv6 状�
 
 `Compile` 顺序为原始 YAML → 按顺序 Merge overlays → 可选 Strategy → 必填 Platform → 结构/引用检查 → 完整 Validate → 返回最终 YAML。全部输入复制，Result 保留准确的 Original 与各层 Overlays；生成配置独立于原文。多文档、重复键、非字符串键、循环别名明确拒绝；正常 YAML alias/merge key 会展开，保留显式有序映射的顺序。支持 UTF-8 YAML/JSON，旧导入编码修复仍由现有宿主负责。
 
-- Mapping 递归合并；overlay 中 null 删除该键。
+- 本包方言命名为 `pipeline-merge-v1`：Mapping 递归合并；overlay 中 null 删除该键。
 - 顶层 proxies、proxy-groups、listeners 数组按 name 深度合并。已有项保持位置、新项按 overlay 顺序追加；`{name: synthetic, $delete: true}` 删除项。原文或单层覆写重复名称拒绝，重复执行同层覆写幂等。
 - 其他数组整体替换，空数组明确清空。规则数组整体替换后只去除完全一致的重复规则，保留第一次出现的位置。不同目标的同条件规则不会重排或自动裁决，仍按第一匹配优先；需要插入/追加的策略必须明确构造完整规则数组。这是本包定义的 Merge 语义，不声称兼容任意第三方 Merge 方言。
 - 组目标、`use` provider、规则目标、SUB-RULE、顶层 RULE-SET、dialer-proxy 和组依赖环先检查；嵌套逻辑规则/provider、协议字段、DNS、资源、规则语法及具体组类型由必填完整 Validate 检查。
@@ -36,7 +36,7 @@ Mihomo v1.19.32 `config.ParseRawConfig` 会临时更新全局 General/IPv6 状�
 
 ## 保存与激活
 
-`Transaction.Apply` 在一个 coordinator 的互斥锁内执行 Load → Compile → Stage → Activate → Commit。Store 的任何错误必须保留原 successful snapshot；Activate 即使返回错误也按可能部分生效处理，调用 Restore。Commit 失败也恢复运行内核。Restore 接收上一成功 Version；nil 表示停止候选/恢复未激活状态。激活成功必须表示应用完成，而不是请求已经入队；不能把 Controller 探活等同系统 VPN 健康。
+`Transaction.Apply` 在一个 coordinator 的互斥锁内执行 Load → 比对 Request.ExpectedActiveRevision → Compile → Stage → Activate → Commit。revision 使用 Current.ID；空字符串仅匹配尚无激活版本，过期返回 ErrStaleRevision，不保存/激活候选。下载发起时捕获 revision，不能在下载完成后用最新 revision 冒充原意图。Store 的任何错误必须保留原 successful snapshot；Activate 即使返回错误也按可能部分生效处理，调用 Restore。Commit 失败也恢复运行内核。Restore 接收上一成功 Version；nil 表示停止候选/恢复未激活状态。激活成功必须表示应用完成，而不是请求已经入队；不能把 Controller 探活等同系统 VPN 健康。
 
 FileStore 在应用私有 Root 创建不可变版本目录（0600 文件、0700 目录），分别存放 config.yaml 和保留原文/覆写的 source.json；成功后原子 rename state.json 指针，保留 Current/Previous。候选并未覆盖旧成功文件。文件落盘/激活/commit 失败都不会切换 successful pointer；成功回滚后丢弃失败候选。回滚失败保留候选并以 `Failure.RollbackFailed` 报告，宿主应显示需恢复状态并停止继续事务，不能宣称已恢复。取消请求后仍需以不受该请求取消影响的 context 回滚，宿主必须为恢复操作提供自己的有界执行策略。
 
@@ -44,10 +44,11 @@ FileStore 在应用私有 Root 创建不可变版本目录（0600 文件、0700 
 
 ## 具体接入顺序
 
-1. 安全线提供 Platform adapter 与统一认证来源；宿主提供串行完整 Mihomo Validator、私有资源上下文与日志屏蔽。先联测恶意订阅/覆写/策略均不能改变受保护字段。
-2. 在 Go worker 边界包装 Compile/Apply，保持现有四个 C ABI；新增桥接方式另开接入 PR，不在本包直接改 ABI。ArkTS 通过受控桥接传输入和固定差异摘要，不能在主线程直接调用 Go。
-3. ProfileStore 读取现有来源元数据，向新私有目录保存 Original/Overlays/策略标识；更新、切换、编辑和启动均走唯一事务。策略函数自身不能 JSON 序列化，需由宿主将稳定策略 ID/版本映射到已注册函数，禁止任意代码执行。
-4. Activator 只应用已生成的不可变 Version.Path；安全线保证所有重载路由仍使用同一约束。应用失败 Restore 旧路径，首次失败停止部分激活候选；系统 TUN 生命周期仍由 VPN Extension 管理。
-5. crash/restart 从 successful pointer 恢复，与运行时线共同验收系统会话状态。完整契约回归通过前，保留当前导入及激活能力，不提前替换生产入口。
+1. 宿主显式分类完整配置、Merge 与 provider payload，并绑定平台/provider 快照、固定内核能力和验证回执；本包只接收已分类的完整 base，不实现格式猜测或 provider 获取。校验回调/策略闭包捕获这些不可变上下文，生产提交需再核对其网络与能力身份。独立包不宣称已实现 ArkTS PlanRequestV1 协议。
+2. 安全线提供 Platform adapter 与统一认证来源；宿主提供串行完整 Mihomo Validator、私有资源上下文与日志屏蔽。先联测恶意订阅/覆写/策略均不能改变受保护字段。
+3. 在 Go worker 边界包装 Compile/Apply，保持现有四个 C ABI；新增桥接方式另开接入 PR，不在本包直接改 ABI。ArkTS 通过受控桥接传输入和固定差异摘要，不能在主线程直接调用 Go。
+4. ProfileStore 读取现有来源元数据，向新私有目录保存 Original/Overlays/策略标识；更新、切换、编辑和启动均走唯一事务。策略函数自身不能 JSON 序列化，需由宿主将稳定策略 ID/版本映射到已注册函数，禁止任意代码执行。
+5. Activator 只应用已生成的不可变 Version.Path；安全线保证所有重载路由仍使用同一约束。应用失败 Restore 旧路径，首次失败停止部分激活候选；系统 TUN 生命周期仍由 VPN Extension 管理。
+6. crash/restart 从 successful pointer 恢复，与运行时线共同验收系统会话状态。完整契约回归通过前，保留当前导入及激活能力，不提前替换生产入口。
 
 验收与原有门槛见 [配置契约](configuration.md)、[开发顺序](../development.md)；构建与实际网络/设备验证是不同证据。
