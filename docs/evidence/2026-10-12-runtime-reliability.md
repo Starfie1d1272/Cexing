@@ -15,6 +15,14 @@
 
 **VPN 状态机阻塞**：`VpnController.recover()`（基线 130–146 行）在探活完成后只检查 Disconnected，随后内部设置 Connected；用户在探活期间启动/取消并回到 Disconnected 时，旧探活可改变状态，早于 AppRuntime 的完成回调代次检查。需要 VPN 状态机负责人以会话/意图代次保护 recover 的内部提交。本任务未改 VpnController/CoreApi/ClashVpnAbility/engine；Controller 可达仍不证明系统 TUN 健康。
 
+## 与 Smart 实验线的 native 生命周期风险关联
+
+[PR #7](https://github.com/Starfie1d1272/clash-OpenHarmony/pull/7) 的研究 head `56ec1b315ae3d7b8fd910226ceca95b8b289e36b` 报告基线 worker 的缺符号卸载风险；本轮直接核对固定基线 `entry/src/main/cpp/bridge.cpp` 的 `ensureLoaded()`（98–109 行）：`dlopen` 成功后，只要四个 ABI 中任一个 `dlsym` 为空，便执行 `dlclose(h)`、清空 gHandle 并返回错误。这是已有分支，与 AGENTS 的“不 dlclose Go runtime”不变量冲突，并非 Smart 实验新增；本轮 worker diff 为空，实验未改变 main 内核。
+
+对本任务的影响：若正常返回错误，ClashVpnAbility 的 init 失败路径报告启动错误、回收系统连接，未标记 coreInitialized，因此不会在该 init 失败后再调用 stopCore；AppRuntime 无法从后台任务队列控制 native loader 的卸载。Go c-shared 的装载可能已初始化 runtime，卸载后是否导致线程/回调使用失效代码地址或随后重试异常属于 native 风险推断，**本轮未触发缺符号故障、未验证崩溃**。若 native 进程崩溃或调用不返回，ArkTS 的代次检查和失败重试路径不能提供进程存活保证。
+
+本轮实际使用四个 ABI 完整的固定模块内核，缺符号分支不是上述 mock/clean HAP 成功的覆盖内容；常规启停不会走该分支，既有结果不能外推为“不完整/损坏库的失败与快速重试安全”。父任务应单独统筹 native loader/worker 修复，并以隔离合成缺符号库验证可观察错误和重试边界；不要在真实 Go runtime 上通过实际卸载注入危险。这里仅关联风险，不修改 worker、生产内核或实验分支。
+
 ## API26 官方声明核查
 
 使用已安装的华为 Command Line Tools `26.0.0.851 Release`，SDK 标识 `HarmonyOS 26.0.0 Release / Ohos_sdk_public 26.0.0.105 / API26`。这是 SDK 声明证据，未获得 HarmonyOS 7 真机运行证据。官方网站 BackgroundTaskManager、continuous-task、restricted-permissions 页面本轮抓取超时，没有把网页全文写成已核验；可从[官方文档入口](https://developer.huawei.com/consumer/cn/doc/)和[官方下载](https://developer.huawei.com/consumer/cn/download/)复查。
