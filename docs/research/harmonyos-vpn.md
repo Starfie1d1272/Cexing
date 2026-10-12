@@ -1,10 +1,10 @@
 # HarmonyOS VPN 与可靠性
 
-日期：2026-10-12。以下是源码审查与参考文档结论，VPN 行为仍待本项目真机验收。
+日期：2026-10-12。记录源码审查和本项目首轮真机证据；各项验收范围单独标注。
 
 ## 平台边界 [源码确认]
 
-`ClashVpnAbility.onConnect()` 先建 TUN，再 `protectProcessNet()`，再进入 NAPI。C++ worker 的线程约束与 gVisor fd 补丁是现有平台适配；本轮构建保留它们。`onDisconnect()` 停内核并 destroy；`onDestroy()` 当前只有日志。退出顺序、启动中取消、异常销毁、fd 复用与 listener 部分启动后失败均需验证。
+`ClashVpnAbility.onConnect()` 同步返回启动状态 IPC 对象，后台建 TUN、`protectProcessNet()`、准备 GeoIP 再进入 NAPI。前端收到内核就绪才显示已连接。C++ worker 的线程约束与 gVisor fd 补丁是现有平台适配；本轮构建保留它们。`onDisconnect()` 发起清理，先 destroy 系统 VPN，再等待启动任务并停内核；`onDestroy()` 调用相同清理。启动中取消与重新启动通过 mock 回归，正常停止/重连通过真机；异常销毁、fd 复用与 listener 部分启动后失败仍需专门验证。
 
 `LiveViewKeeper` 在 UIAbility 上下文使用 dataTransfer + 实况窗子模式，并订阅取消/挂起/恢复事件，有重申请预算。module 只声明 KEEP_BACKGROUND_RUNNING，未声明 taskKeeping 的系统 ACL。原生首页持有保活与自动更新调用入口；未来精简 UI 时需保留生命周期 owner。
 
@@ -16,7 +16,7 @@
 
 | 项目 | 当前证据与下一步 |
 |---|---|
-| IPv4/DNS | [源码确认] 默认路由、gVisor DNS hijack、fake-ip 配置路径存在；[待验证] TCP/UDP/DNS 与浏览器 HTTPDNS 实际路径 |
+| IPv4/DNS | [源码确认] 默认路由、gVisor DNS hijack、fake-ip 配置路径存在；[真机验证] IPv4 浏览器请求出现在内核 Tun 连接中，代理链和双向流量存在；[待验证] UDP/DNS 与 HTTPDNS 专项 |
 | 路由排除 | [源码确认] VpnController 排除 HTTPDNS IP 和若干完整网段；[待验证] 直连范围是否符合用户预期，不能称所有流量均被代理 |
 | IPv6 | [源码确认] 设置有 ::/0 与 isIPv6Accepted；系统 TUN 只给 IPv4 linkAddr，Go 仅 Inet4Address；[待验证] 补全地址与双栈接管/泄漏 |
 | 网络切换 | [源码确认] 当前核心文件未发现 connection 网络变化监听与专用恢复流程；[待验证] Wi-Fi/蜂窝切换后重拨、DNS、连接状态收敛 |
@@ -26,6 +26,6 @@
 
 ## 真机测试顺序 [待验证]
 
-先完成签名和应用启动，读取 UI/扩展进程拓扑；由用户导入自有订阅并授权 VPN。随后记录实际出口、TCP/UDP、DNS 和 Controller/WS。观察息屏超过 15 分钟和 30 分钟点、低流量、回前台、Wi-Fi/蜂窝切换、连续启停、错误配置、进程回收与恢复。IPv6 用双栈站点和解析/出口证据单独验收。
+签名、应用启动、UI/独立扩展进程、自有订阅、用户授权、IPv4 浏览器转发及停止/重连已完成。下一轮补充 UDP、DNS 和 Controller/WS。观察息屏超过 15 分钟和 30 分钟点、低流量、回前台、Wi-Fi/蜂窝切换、连续启停、错误配置、进程回收与恢复。IPv6 用双栈站点和解析/出口证据单独验收。
 
 每项记录构建 SHA、系统版本、配置摘要（脱敏）、操作、系统/VPN日志、真实流量结果与清理动作。首次授权和 AGC 操作遵循 INSTALL.md 的人机分工。

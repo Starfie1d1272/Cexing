@@ -11,14 +11,16 @@ EntryAbility / ArkUI
   ├─ CoreApi ─ HTTP / WebSocket → 127.0.0.1:9090
   └─ LiveViewKeeper ─ UIAbility 上下文申请长时任务和实况窗
 
-ClashVpnAbility（vpn 扩展；实际 PID 待真机读回）
-  └─ create TUN → protectProcessNet → initCore → startTun
+ClashVpnAbility（独立 :vpn 扩展进程；本轮真机确认）
+  └─ onConnect 返回 IPC 对象；后台 create TUN → protectProcessNet → initCore → startTun
        └─ NAPI async work → C++ 单 pthread worker → Go c-shared
             ├─ Mihomo 配置 / Controller / DNS / 出站
             └─ sing-tun + gVisor，使用系统 fd
 ```
 
-`entry/src/main/module.json5` 声明 `type: vpn`，未指定可控制进程名的字段。源码注释中的 `:vpn` 是架构称呼，实际进程名与 PID 必须在签名安装后核实。内核由扩展直接加载，UI 不持有 TUN fd。
+`entry/src/main/module.json5` 声明 `type: vpn`，未指定可控制进程名的字段。本轮真机已读回主进程和 `com.starfie1d.mihomo:vpn` 独立进程。内核由扩展直接加载，UI 不持有 TUN fd。
+
+扩展连接回调及时返回，客户端通过 IPC 读取启动状态；系统服务连接成功时仍保持 Connecting，只有 startTun 成功后才标记 Connected。启动错误回传并清理资源，取消时先撤销系统 VPN，再回收迟到的内核启动。首次 GeoIP 快照准备见 [数据说明](research/geodata.md)。
 
 核心 owner：
 

@@ -25,7 +25,7 @@ ClashOH 把 [mihomo](https://github.com/MetaCubeX/mihomo)（Clash.Meta）内核�
 ## ✨ 特性
 
 **代理核心**
-- mihomo v1.19.29 内核，TUN 全隧道（gVisor 栈）+ fake-ip DNS
+- mihomo v1.19.32 内核，TUN 全隧道（gVisor 栈）+ fake-ip DNS
 - 规则 / 全局 / 直连三种模式，按应用分流，IPv6 可选
 - 订阅 URL / 文件 / 剪贴板导入，自动更新，流量与到期信息展示
 
@@ -37,7 +37,7 @@ ClashOH 把 [mihomo](https://github.com/MetaCubeX/mihomo)（Clash.Meta）内核�
 
 ## 📱 安装
 
-**先说实话**：鸿蒙不允许侧载未签名应用，且调试签名绑定设备——所以不存在"下载即装"的安装包，每台设备要走一次构建 + 签名流程（全程约 30 分钟，需要你亲手操作的约 10 分钟）。
+鸿蒙零售机安装调试包需要匹配应用和设备的签名。已有可信 HAP 时，可用 [HoKit](https://github.com/yabi-zzh/HoKit) 从开发者账号获取已有证书/Profile 并重签安装；开发本 Fork 的源码变更时，先构建 HAP，再选择 HoKit 或命令行签装。详细说明见 [INSTALL.md](INSTALL.md)。
 
 **但流程是为 AI 设计的**。把本仓库交给任意编码 Agent（Claude Code / Codex / Cursor / …），对它说一句：
 
@@ -52,6 +52,7 @@ Agent 会自动完成构建、签名、安装，只在需要你出面的节点�
 ```bash
 source scripts/env.sh       # 路径自动推导
 bash scripts/build-core.sh  # mihomo → libmihomo.so
+bash scripts/prepare-geodata.sh # 首次启动所需 GeoIP 数据
 bash scripts/build-hap.sh   # 打包 HAP
 bash scripts/sign-agc.sh    # AGC 调试证书签名
 bash scripts/install.sh     # 安装到真机
@@ -62,7 +63,7 @@ bash scripts/install.sh     # 安装到真机
 ## ❓ 常见问题
 
 **为什么 Release 里没有安装包？**
-鸿蒙调试签名绑定设备 UDID，我签的包你装不上；通用发布证书必须上架 AppGallery，本项目不走这条路。所以只发布源码。
+当前以源码开发为主。构建出的 HAP 可以通过 HoKit 重签；公开分发测试 HAP 的来源、版本、资源许可与可复现构建流程在 P5 完善。开发者的调试签名绑定设备，其他设备需使用匹配的签名材料。
 
 **划掉最近任务卡片后 VPN 断了？**
 平台设计行为：划卡 = 用户显式终止进程，任何应用都无法阻止。退后台、锁屏不受影响——长时任务 + 实况窗保护的就是这些场景。
