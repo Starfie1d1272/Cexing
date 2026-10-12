@@ -4,12 +4,15 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+
+	"gopkg.in/yaml.v3"
 
 	"github.com/coder/websocket"
 	"github.com/metacubex/mihomo/hub/executor"
@@ -35,12 +38,7 @@ func TestControllerSecurity(t *testing.T) {
 	if strings.Contains(redactControllerSecret("Bearer "+secret), secret) {
 		t.Fatal("log redaction failed")
 	}
-	if err := os.Mkdir(filepath.Join(home, "ui"), 0o700); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(home, "ui", "index.html"), []byte("offline-panel"), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	version := seedSyntheticPanel(t, home)
 	cfgText := `mixed-port: 0
 mode: direct
 log-level: debug
@@ -69,7 +67,7 @@ dns:
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.Controller.ExternalController != defaultController || cfg.Controller.Secret != secret || cfg.Controller.ExternalControllerTLS != "" || cfg.Controller.ExternalControllerUnix != "" || cfg.Controller.ExternalControllerPipe != "" || cfg.Controller.ExternalDohServer != "" || cfg.Controller.ExternalUI != "ui" || cfg.Controller.ExternalUIURL != "" || cfg.Controller.ExternalUIName != "" || cfg.General.Tun.Enable || cfg.Controller.Cors.AllowPrivateNetwork || len(cfg.Controller.Cors.AllowOrigins) != 1 || cfg.Controller.Cors.AllowOrigins[0] != "http://"+defaultController {
+	if cfg.Controller.ExternalController != defaultController || cfg.Controller.Secret != secret || cfg.Controller.ExternalControllerTLS != "" || cfg.Controller.ExternalControllerUnix != "" || cfg.Controller.ExternalControllerPipe != "" || cfg.Controller.ExternalDohServer != "" || cfg.Controller.ExternalUI != "" || cfg.Controller.ExternalUIURL != "" || cfg.Controller.ExternalUIName != "" || cfg.General.Tun.Enable || cfg.Controller.Cors.AllowPrivateNetwork || len(cfg.Controller.Cors.AllowOrigins) != 1 || cfg.Controller.Cors.AllowOrigins[0] != "http://"+defaultController {
 		t.Fatal("subscription or overrides escaped platform constraints")
 	}
 	if err := startController(); err != nil {
@@ -112,8 +110,11 @@ dns:
 	if code, _ := request("GET", "/version", bearer, ""); code != 200 {
 		t.Fatalf("authorized status %d", code)
 	}
-	if code, body := request("GET", "/ui/", "", ""); code != 200 || !strings.Contains(body, "offline-panel") {
+	if code, body := request("GET", "/ui/", "", ""); code != 200 || !strings.Contains(body, "ZASHBOARD_SELECTION") {
 		t.Fatal("static UI must be separate from API auth")
+	}
+	if code, body := request("GET", "/ui/versions/"+version+"/", "", ""); code != 200 || !strings.Contains(body, "offline-panel") {
+		t.Fatal("verified selected UI asset must be served")
 	}
 	if code, _ := request("GET", "/debug/pprof/", "", ""); code != 404 {
 		t.Fatalf("debug exposed: %d", code)
@@ -218,6 +219,177 @@ dns:
 	}
 	if validateUIRoot() == nil {
 		t.Fatal("UI symlink accepted")
+	}
+	for _, scenario := range []string{"missing", "corrupt-selector", "corrupt-asset", "old-version-symlink", "root-symlink", "root-file", "missing-selected-version", "unexpected-file"} {
+		t.Run("ui-degradation/"+scenario, func(t *testing.T) {
+			ui := filepath.Join(home, "ui")
+			if err := os.RemoveAll(ui); err != nil {
+				t.Fatal(err)
+			}
+			version := seedSyntheticPanel(t, home)
+			switch scenario {
+			case "missing":
+				if err := os.RemoveAll(ui); err != nil {
+					t.Fatal(err)
+				}
+			case "corrupt-selector":
+				if err := os.WriteFile(filepath.Join(ui, "index.html"), []byte("corrupt selector"), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			case "corrupt-asset":
+				if err := os.WriteFile(filepath.Join(ui, "versions", version, "index.html"), []byte("corrupt bytes"), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			case "old-version-symlink":
+				old := filepath.Join(ui, "versions", strings.Repeat("f", 64))
+				if err := os.Mkdir(old, 0o700); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Symlink(filepath.Join(home, controllerSecretFile), filepath.Join(old, "unused-link")); err != nil {
+					t.Fatal(err)
+				}
+			case "root-symlink":
+				if err := os.RemoveAll(ui); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Symlink(filepath.Join(home, "controller-security"), ui); err != nil {
+					t.Fatal(err)
+				}
+			case "root-file":
+				if err := os.RemoveAll(ui); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(ui, []byte("corrupt root"), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			case "missing-selected-version":
+				if err := os.RemoveAll(filepath.Join(ui, "versions", version)); err != nil {
+					t.Fatal(err)
+				}
+			case "unexpected-file":
+				if err := os.WriteFile(filepath.Join(ui, "versions", version, "unexpected.txt"), []byte("do not serve"), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			// Actual coreStartTun reaches its real TUN constructor, after init,
+			// Controller readiness and ApplyConfig. Deliberately invalid fd stops
+			// here; no device or system VPN is created or changed by this test.
+			err := coreStartTun(2147483647, "mixed-port: 0\nmode: direct\ndns: {enable: false}\n", `{"mixedPort":0}`)
+			if err == nil || !strings.HasPrefix(err.Error(), "mihomoStartTun: start tun:") {
+				t.Fatalf("bad UI blocked VPN initialization before TUN boundary: %v", err)
+			}
+			for _, path := range []string{"/ui/", "/ui/index.html", "/ui/secret", "/ui/%2e%2e/controller-security/secret", "/ui/versions/" + strings.Repeat("f", 64) + "/unused-link"} {
+				if code, _ := request("GET", path, "", ""); code != 404 {
+					t.Fatalf("unsafe static request %s returned %d", path, code)
+				}
+			}
+			if code, _ := request("GET", "/version", "", ""); code != 401 {
+				t.Fatal("bad UI bypassed API authentication")
+			}
+			if code, _ := request("GET", "/version", bearer, ""); code != 200 {
+				t.Fatal("bad UI disabled authenticated API")
+			}
+			if code, body := request("GET", "/ohos/ui-status", bearer, ""); code != 200 || !strings.Contains(body, `"available":false`) {
+				t.Fatal("missing UI recovery status")
+			}
+			if scenario == "old-version-symlink" {
+				conn := wsRead("", bearer, 101)
+				conn.CloseNow()
+				if code, _ := request("PUT", "/configs", bearer, `{"payload":"mixed-port: 0\nexternal-ui: controller-security\ndns: {enable: false}"}`); code != 204 {
+					t.Fatal("bad UI blocked reload")
+				}
+				if code, _ := request("GET", "/ui/secret", "", ""); code != 404 {
+					t.Fatal("reload restored unsafe static root")
+				}
+			}
+		})
+	}
+	if err := os.RemoveAll(filepath.Join(home, "ui")); err != nil {
+		t.Fatal(err)
+	}
+	seedSyntheticPanel(t, home)
+	if err := startController(); err != nil {
+		t.Fatal(err)
+	}
+	if code, body := request("GET", "/ohos/ui-status", bearer, ""); code != 200 || !strings.Contains(body, `"available":true`) {
+		t.Fatal("valid UI did not recover on next Controller initialization")
+	}
+	t.Run("synchronous-controller-lifecycle", func(t *testing.T) {
+		// Go beyond the independent review's failure at cycle 12. Each round
+		// has a real authenticated WS, immediate stop, and immediate port rebind.
+		for cycle := 0; cycle < 16; cycle++ {
+			if err := startController(); err != nil {
+				t.Fatalf("cycle %d start: %v", cycle+1, err)
+			}
+			old := wsRead("", bearer, 101)
+			stopController()
+			probe, err := net.Listen("tcp4", defaultController)
+			if err != nil {
+				t.Fatalf("cycle %d stop did not release port: %v", cycle+1, err)
+			}
+			probe.Close()
+			if socket, err := net.DialTimeout("tcp4", defaultController, 200*time.Millisecond); err == nil {
+				socket.Close()
+				t.Fatalf("cycle %d stopped listener still accepts", cycle+1)
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			_, _, readErr := old.Read(ctx)
+			writeErr := old.Write(ctx, websocket.MessageText, []byte("after-stop"))
+			cancel()
+			old.CloseNow()
+			if readErr == nil || writeErr == nil {
+				t.Fatalf("cycle %d old WS survived stop (read=%v, write=%v)", cycle+1, readErr, writeErr)
+			}
+		}
+		t.Log("16 real Controller/WS cycles: immediate stop released port, rejected TCP and closed old WS reads/writes")
+		if err := startController(); err != nil {
+			t.Fatal(err)
+		}
+		if code, _ := request("GET", "/version", bearer, ""); code != 200 {
+			t.Fatal("final fresh session API failed")
+		}
+		fresh := wsRead("", bearer, 101)
+		fresh.CloseNow()
+	})
+}
+
+func seedSyntheticPanel(t *testing.T, home string) string {
+	t.Helper()
+	content := []byte("offline-panel")
+	files := []uiAssetEntry{{Path: "index.html", Size: int64(len(content)), SHA256: uiSHA256(content)}}
+	identity, err := json.Marshal(files)
+	if err != nil {
+		t.Fatal(err)
+	}
+	version := uiSHA256(identity)
+	directory := filepath.Join(home, "ui", "versions", version)
+	if err := os.MkdirAll(directory, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	manifest, err := json.Marshal(uiAssetManifest{Schema: 1, Version: version, SourceSHA: strings.Repeat("a", 40), Files: files})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for path, data := range map[string][]byte{filepath.Join(directory, "index.html"): content, filepath.Join(directory, "manifest.json"): manifest, filepath.Join(home, "ui", "index.html"): uiSelectionEntry(uiSelection{Current: version})} {
+		if err := os.WriteFile(path, data, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return version
+}
+
+func TestPersistentProjectionExcludesSecret(t *testing.T) {
+	overlay := map[string]any{"secret": "synthetic-source-credential", "external-controller": "0.0.0.0:9393"}
+	projectPlatformConfig(overlay)
+	data, err := yaml.Marshal(overlay)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, exists := overlay["secret"]; exists || strings.Contains(string(data), "synthetic-source-credential") || strings.Contains(string(data), "secret:") {
+		t.Fatal("persistent projection included credential")
+	}
+	if overlay["external-controller"] != defaultController {
+		t.Fatal("persistent projection missed shared platform constraint")
 	}
 }
 

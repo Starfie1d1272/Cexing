@@ -6,12 +6,10 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/metacubex/chi"
 	MHTTP "github.com/metacubex/http"
@@ -32,6 +30,7 @@ var (
 	secretMu          sync.RWMutex
 	controllerSession string // readiness challenge, never a credential
 	activeOverrides   string // accessed under runLock
+	controllerUIError string // copied into immutable route handlers on startup
 )
 
 func init() {
@@ -39,6 +38,14 @@ func init() {
 	// embedded PUT/PATCH handlers without modifying dependency source.
 	route.Register(func(r chi.Router) {
 		session := controllerSession
+		uiError := controllerUIError
+		r.Get("/ohos/ui-status", func(w MHTTP.ResponseWriter, req *MHTTP.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(struct {
+				Available bool   `json:"available"`
+				Error     string `json:"error"`
+			}{uiError == "", uiError})
+		})
 		r.Get("/ohos/session", func(w MHTTP.ResponseWriter, req *MHTTP.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(map[string]string{"session": session})
@@ -132,22 +139,30 @@ func (controllerLogWriter) Write(p []byte) (int, error) {
 	return len(p), err
 }
 
-// Mandatory last layer after subscription and supported user overrides.
-// Do not persist this map: it contains a credential.
-func enforcePlatformSecurity(overlay map[string]any) {
+// One platform projection for persistent candidates and runtime config alike.
+// A persisted candidate must never contain either subscription or app secret.
+func projectPlatformConfig(overlay map[string]any) {
+	applyPlatformDefaults(overlay)
+	delete(overlay, "secret")
 	overlay["external-controller"] = defaultController
 	for _, key := range []string{"external-controller-tls", "external-controller-unix", "external-controller-pipe", "external-doh-server", "external-ui-url", "external-ui-name"} {
 		overlay[key] = ""
 	}
 	overlay["external-controller-routing-mark"] = 0
 	overlay["external-controller-cors"] = map[string]any{"allow-origins": []string{"http://" + defaultController}, "allow-private-network": false}
-	overlay["secret"] = controllerSecret
 	overlay["external-ui"] = "ui"
 	overlay["tun"] = map[string]any{"enable": false}
 	overlay["iptables"] = map[string]any{"enable": false}
 	if ntp, ok := overlay["ntp"].(map[string]any); ok {
 		ntp["write-to-system"] = false
 	}
+}
+
+// Sensitive final injection is exclusively in-memory, after projection.
+// Never hand this map to candidate YAML, successful-version storage or previews.
+func enforcePlatformSecurity(overlay map[string]any) {
+	projectPlatformConfig(overlay)
+	overlay["secret"] = controllerSecret
 }
 
 func preparePlatformConfig(text, overrides string) (*config.Config, error) {
@@ -173,7 +188,6 @@ func preparePlatformConfig(text, overrides string) (*config.Config, error) {
 		}
 	}
 	applyOverrides(overlay, overrides)
-	applyPlatformDefaults(overlay)
 	enforcePlatformSecurity(overlay)
 	buf, err := yaml.Marshal(overlay)
 	if err != nil {
@@ -187,59 +201,51 @@ func preparePlatformConfig(text, overrides string) (*config.Config, error) {
 	if err != nil {
 		return nil, errors.New("configuration validation failed")
 	}
+	// Static UI is owned by our explicit router path. With nonempty ExternalUI,
+	// Mihomo's executor attempts AutoDownloadUI even when its URL is empty.
+	// Disable that updater in the runtime object; never SetUIPath("").
+	cfg.Controller.ExternalUI = ""
 	return cfg, nil // never return arbitrary YAML values / credentials in errors
 }
 
 func validateUIRoot() error {
 	root := filepath.Join(homeDir, "ui")
-	if _, err := os.Lstat(root); os.IsNotExist(err) {
-		return nil
+	st, err := os.Lstat(root)
+	if err != nil || !st.IsDir() || st.Mode()&os.ModeSymlink != 0 {
+		return errors.New("UI root unavailable")
 	}
-	return filepath.WalkDir(root, func(path string, entry os.DirEntry, err error) error {
+	if err := filepath.WalkDir(root, func(path string, entry os.DirEntry, err error) error {
 		if err != nil || entry.Type()&os.ModeSymlink != 0 || (!entry.IsDir() && !entry.Type().IsRegular()) {
-			return errors.New("controller: UI must contain only app-owned files, no symlinks")
+			return errors.New("UI contains unsafe files")
 		}
 		return nil
-	})
+	}); err != nil {
+		return err
+	}
+	return validateSelectedUI(root)
 }
 
 func startController() error {
+	uiRoot := filepath.Join(homeDir, "ui")
+	controllerUIError = ""
 	if err := validateUIRoot(); err != nil {
-		return err
+		// secret is already a validated regular file. A child beneath that file
+		// can never be a filesystem root; locked HTTP Dir maps ENOTDIR to 404.
+		// Never use SetUIPath(""): Mihomo resolves it to private homeDir.
+		uiRoot = filepath.Join(homeDir, controllerSecretFile, "ui-disabled")
+		controllerUIError = "面板资源不可用，请重新准备；VPN 可继续运行"
+		log.Warnln("[OHOS] UI unavailable; authenticated API and VPN startup continue")
 	}
 	challenge := make([]byte, 16)
 	if _, err := rand.Read(challenge); err != nil {
 		return errors.New("controller: secure random unavailable")
 	}
 	controllerSession = hex.EncodeToString(challenge)
-	route.SetUIPath(filepath.Join(homeDir, "ui"))
-	// hub.ApplyConfig derives debug/alternate transports from subscription.
-	// Keep one authenticated server, with unauthenticated /debug disabled.
-	route.ReCreateServer(&route.Config{Addr: defaultController, Secret: controllerSecret, IsDebug: false,
-		Cors: route.Cors{AllowOrigins: []string{"http://" + defaultController}}})
-	client := &http.Client{Timeout: 200 * time.Millisecond, Transport: &http.Transport{Proxy: nil}}
-	defer client.CloseIdleConnections()
-	deadline := time.Now().Add(3 * time.Second)
-	for time.Now().Before(deadline) {
-		req, _ := http.NewRequest(http.MethodGet, "http://"+defaultController+"/ohos/session", nil)
-		req.Header.Set("Authorization", "Bearer "+controllerSecret)
-		resp, err := client.Do(req)
-		if err == nil {
-			var result struct {
-				Session string `json:"session"`
-			}
-			decodeErr := json.NewDecoder(io.LimitReader(resp.Body, 1024)).Decode(&result)
-			resp.Body.Close()
-			if resp.StatusCode == 200 && decodeErr == nil && result.Session == controllerSession {
-				return nil
-			}
-		}
-		time.Sleep(20 * time.Millisecond)
-	}
-	route.ReCreateServer(&route.Config{})
-	return errors.New("controller: authenticated listener unavailable")
+	route.SetUIPath(uiRoot)
+	// The host owns one synchronous listener and closes HTTP plus hijacked WS.
+	return serveController()
 }
-func stopController() { route.ReCreateServer(&route.Config{}) }
+
 func controllerError(w MHTTP.ResponseWriter, code int, message string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
@@ -247,6 +253,7 @@ func controllerError(w MHTTP.ResponseWriter, code int, message string) {
 }
 
 func reloadPlatformConfig(w MHTTP.ResponseWriter, req *MHTTP.Request) {
+	epoch := controllerEpoch.Load()
 	var body struct {
 		Path      string  `json:"path"`
 		Payload   string  `json:"payload"`
@@ -294,8 +301,8 @@ func reloadPlatformConfig(w MHTTP.ResponseWriter, req *MHTTP.Request) {
 	}
 	runLock.Lock()
 	defer runLock.Unlock()
-	if !initialized {
-		controllerError(w, 409, "core is not initialized")
+	if !initialized || !controllerRunning.Load() || epoch != controllerEpoch.Load() {
+		controllerError(w, 409, "core session is not active")
 		return
 	}
 	overrides := activeOverrides
@@ -314,6 +321,7 @@ func reloadPlatformConfig(w MHTTP.ResponseWriter, req *MHTTP.Request) {
 }
 
 func patchPlatformConfig(w MHTTP.ResponseWriter, req *MHTTP.Request) {
+	epoch := controllerEpoch.Load()
 	values := map[string]string{}
 	decoder := json.NewDecoder(io.LimitReader(req.Body, 4096))
 	if decoder.Decode(&values) != nil || decoder.Decode(new(any)) != io.EOF || len(values) == 0 {
@@ -339,6 +347,10 @@ func patchPlatformConfig(w MHTTP.ResponseWriter, req *MHTTP.Request) {
 	}
 	runLock.Lock()
 	defer runLock.Unlock()
+	if !controllerRunning.Load() || epoch != controllerEpoch.Load() {
+		controllerError(w, 409, "core session is not active")
+		return
+	}
 	if value, ok := values["mode"]; ok {
 		tunnel.SetMode(tunnel.ModeMapping[value])
 	}

@@ -22,6 +22,11 @@ export interface ControllerAccess {
   secret: string;
 }
 
+export interface ControllerUiStatus {
+  available: boolean;
+  error: string;
+}
+
 export interface DelayHistory {
   time: string;
   delay: number;
@@ -105,6 +110,19 @@ export namespace CoreApi {
       return null;
     } finally {
       req.destroy();
+    }
+  }
+
+  /** Startup UI degradation report; API readiness is independent of this status. */
+  export async function getControllerUiStatus(): Promise<ControllerUiStatus | null> {
+    const result = await request(http.RequestMethod.GET, '/ohos/ui-status');
+    if (result === null) {
+      return null;
+    }
+    try {
+      return JSON.parse(result) as ControllerUiStatus;
+    } catch (e) {
+      return null;
     }
   }
 

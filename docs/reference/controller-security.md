@@ -26,7 +26,7 @@ REST 与原生 WS 使用 `Authorization: Bearer <secret>`。浏览器 WS 只能�
 
 ## 面板资源边界
 
-`external-ui` 固定为 `<filesDir>/ui`；资源线应将验过摘要的离线文件原子铺盘到这个实际目录，目录及文件不使用符号链接。启动前递归拒绝符号链接；资源缺失返回 404，不联网下载。不要在服务运行时写入来源不明的文件或绕过边界替换目录。
+`external-ui` 固定为 `<filesDir>/ui`；资源线应将验过摘要的离线文件原子铺盘到这个实际目录，目录及文件不使用符号链接。启动前检查 root 必须是目录，递归检查符号链接/特殊文件，并按面板版本布局校验当前选择器、manifest 身份、文件全集与文件摘要；资源缺失、损坏或任何检查失败时静态根降级为 404，不联网下载，也不中止认证 API/VPN 初始化。不要在服务运行时写入来源不明的文件或绕过边界替换目录。
 
 CORS 仅允许 `http://127.0.0.1:9090`，不开放通配来源或 private-network。使用同源 `/ui/`；原生 REST/WS 不受浏览器 CORS 限制。外部导航、JS bridge、PWA 和面板凭据注入由面板线验收。Controller 探活与系统 VPN 健康继续分开。
 
@@ -43,3 +43,28 @@ providerSnapshot、固定 coreIdentity/capabilitiesDigest、validationReceipt、
 `VpnController.recover(onDone?)` 的探活提交由独立恢复代次保护。新一次 recover、有效 start、所有显式 stop（含仍为 Disconnected 的取消）和 `cancelRecovery()` 都使旧探活失效；过期结果既不提交 Connected，也不触发旧 onDone。新鲜探活与非断开态的现有完成语义保留。恢复代次与启动 IPC 的 startAttempt 分离，取消探活不会破坏正在进行的启动就绪检查。
 
 运行时线 PR #4 可在 `AppRuntime.cancelRestore()` 调用 `VpnController.cancelRecovery()`，覆盖只取消恢复/当前 Ability 销毁而没有 start/stop 的情况；这只是失效在途探活，不停止 VPN 或后台任务。本分支未修改 AppRuntime/EntryAbility。显式 start→stop→Disconnected 的竞态在本分支已封闭，纯运行时取消需该调用合流。Controller 探活仍不能证明系统 VPN 健康。
+
+
+## UI 故障降级与私有资源边界
+
+UI 故障与凭据故障分离：凭据异常仍拒绝启动；UI 缺失、普通文件根、symlink、当前入口损坏、选中版本缺失、manifest/文件摘要不符或额外文件，只将静态访问降级为 404。降级的根是已校验为普通文件的私有 credential 文件下面的不可遍历子路径；该根不可能成为目录。锁定 HTTP Dir 将 ENOTDIR 映射为 404，任何请求都不会读取 credential 文件本身。绝不调用 SetUIPath(空字符串)，因为锁定 Mihomo 会把它解析为私有 homeDir。
+
+受认证 `GET /ohos/ui-status` / `CoreApi.getControllerUiStatus()` 返回初始化时的 `{ available, error }` 快照；error 仅是可恢复提示，不包含路径、原始解析错误或 Secret。404 不意味着 API/VPN 不可用；热重载仍不重建 Controller，不能用配置恢复危险 static root。修复资源后，下一次 Controller 初始化重新校验；本线没有增加无验证的实时 UI 开关或面板文件写入口。
+
+磁盘一致性校验使用 #10 的 ZASHBOARD_SELECTION 入口、versions/<files摘要>/manifest.json 以及 path/size/sha256 文件清单。它不替代面板线安装时的固定来源与入包 manifest 摘要批准，也不证明完整 WebView/凭据/CSP 联调。服务运行时，面板资源只能通过既有受校验原子部署路径更新；不允许绕过它写入任意文件。
+
+## 配置线的持久化投影和敏感运行态
+
+唯一平台函数拆分为两个用途，共享同一字段约束实现：`projectPlatformConfig(map[string]any)` 施加平台默认与最终字段约束，并**删除顶层 Controller secret**；这是配置线 Platform Transform 可持久化投影的接口。Transform(ctx,*yaml.Node) 的适配只 Decode 为 map、调用这一个函数、Encode 回 node；不得调用运行态注入函数来生成候选 YAML。不要复制第二套字段常量或约束表。
+
+`enforcePlatformSecurity(map[string]any)` 仅调用上述投影，再把应用 Secret 注入内存 map；只允许 preparePlatformConfig 的瞬时解析/内核运行用途，严禁交给 candidate/成功版本、digest/差异预览、错误/日志或验证回执存储。原始订阅的顶层 Controller secret 也不继承到生成配置。候选的完整 Mihomo 校验可以使用不含 Secret 的投影；运行时应用前再由唯一宿主入口瞬时注入，而不是把 Secret 写进“临时”配置文件后再删除。
+
+本分支没有接入或修改 #5 的 configpipeline 文件；配置作者须对 candidate、成功版本与预览添加“应用 Secret 从未落盘”的验收，并在生产适配时选择可持久化投影。Go preparePlatformConfig 内部的 yaml.Marshal 缓冲仅驻留内存，不作为文件/回执输出。
+
+## Controller 关闭完成边界
+
+Controller 使用宿主同步 `net.Listen(tcp4,127.0.0.1:9090)` 和自有 Server 生命周期，停止时使会话代次失效、关闭 HTTP/全部已接受的连接（包含上游 Hijack 的 WS）、等待 Serve 退出，再返回。已升级 WS 使用强制 TCP 终止，避免半关闭后仍能缓冲写入；下一次 start 在同一生命周期锁内先完成前次关闭。排队的 PUT/PATCH 在取得运行锁后再次检查会话代次，旧会话不能在停止后重新应用配置。没有依赖延迟重试或异步 ReCreateServer 来宣称停止完成。
+
+为了保留锁定内核原有 REST/WS 路由、认证和扩展路由，宿主只用 go:linkname 绑定 Mihomo v1.19.32 的私有 router(bool,string,string,route.Cors) 工厂；监听器仍只有宿主这一份。没有复制上游 API 实现、修改模块缓存或增加第二台 HTTP 服务，go.mod/go.sum 与四个 C ABI 不变。这是明确的私有 Go 耦合，不能外推为稳定公开接口；内核升级/候选 Smart 必须核对工厂源码签名、完整链接构建及真实启停回归。本分支未关闭 Go 链接检查。
+
+另外，上游 executor 在 ExternalUI 非空时会尝试 AutoDownloadUI，即便 URL 为空。因此运行态 config.Controller.ExternalUI 明确置空以禁用该 updater，静态根由宿主显式 SetUIPath 管理；这不是 SetUIPath(空字符串)。持久化投影仍标记受控 external-ui=ui，重载从不把它交给 hub.ApplyConfig 重建路由。
