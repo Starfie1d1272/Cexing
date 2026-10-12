@@ -1,0 +1,70 @@
+{
+  "proxies": [
+    {
+      "name": "HK SYN A",
+      "type": "socks5",
+      "server": "192.0.2.10",
+      "port": 1080
+    },
+    {
+      "name": "新加坡 SYN A",
+      "type": "socks5",
+      "server": "192.0.2.10",
+      "port": 1080
+    },
+    {
+      "name": "日本 SYN A",
+      "type": "socks5",
+      "server": "192.0.2.10",
+      "port": 1080
+    },
+    {
+      "name": "美国 SYN B",
+      "type": "socks5",
+      "server": "192.0.2.10",
+      "port": 1080
+    },
+    {
+      "name": "美国 SYN A",
+      "type": "socks5",
+      "server": "192.0.2.10",
+      "port": 1080
+    },
+    {
+      "name": "德国 SYN A",
+      "type": "socks5",
+      "server": "192.0.2.10",
+      "port": 1080
+    },
+    {
+      "name": "美国 剩余 SYN",
+      "type": "socks5",
+      "server": "192.0.2.10",
+      "port": 1080
+    }
+  ],
+  "proxy-groups": [
+    {
+      "name": "Synthetic selector",
+      "type": "select",
+      "proxies": [
+        "美国 SYN A",
+        "日本 SYN A"
+      ]
+    }
+  ],
+  "rules": [
+    "DOMAIN,keep.example,Synthetic selector",
+    "MATCH,Synthetic selector"
+  ],
+  "dns": {
+    "enable": true,
+    "ipv6": false,
+    "enhanced-mode": "fake-ip",
+    "fake-ip-range": "198.18.0.1/16",
+    "nameserver": [
+      "192.0.2.53"
+    ]
+  },
+  "ipv6": false
+}

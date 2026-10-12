@@ -1,0 +1,10 @@
+{
+  "proxies": [
+    {
+      "name": "美国 SYN provider",
+      "type": "socks5",
+      "server": "198.51.100.20",
+      "port": 1080
+    }
+  ]
+}

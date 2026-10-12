@@ -1,0 +1,206 @@
+{
+  "version": 1,
+  "syntheticOnly": true,
+  "networkAllowed": false,
+  "examplesRunnable": false,
+  "cases": [
+    {
+      "id": "complete",
+      "file": "base.yaml",
+      "kind": "complete-yaml",
+      "route": "direct",
+      "expectedFile": "expected-mobile.yaml",
+      "assertions": [
+        "preserve-node-fields",
+        "no-duplicate-groups",
+        "no-dangling-targets",
+        "preserve-base-match",
+        "global-includes-germany",
+        "exclude-us-metadata",
+        "us-fallback-direct-leaves",
+        "second-plan-same-digest"
+      ]
+    },
+    {
+      "id": "missing-us",
+      "file": "base.yaml",
+      "mutation": {
+        "removeNodeNames": [
+          "美国 SYN A",
+          "美国 SYN B",
+          "美国 剩余 SYN"
+        ]
+      },
+      "code": "REQUIRED_REGION_EMPTY"
+    },
+    {
+      "id": "metadata-only-us",
+      "file": "base.yaml",
+      "mutation": {
+        "removeNodeNames": [
+          "美国 SYN A",
+          "美国 SYN B"
+        ]
+      },
+      "code": "REQUIRED_REGION_EMPTY"
+    },
+    {
+      "id": "empty-google-region",
+      "file": "base.yaml",
+      "mutation": {
+        "removeNodeNames": [
+          "日本 SYN A"
+        ]
+      },
+      "code": "REQUIRED_REGION_EMPTY"
+    },
+    {
+      "id": "complete-provider-unresolved",
+      "file": "provider-config.yaml",
+      "kind": "complete-yaml",
+      "route": "direct",
+      "providerSnapshot": null,
+      "code": "PROVIDER_UNRESOLVED"
+    },
+    {
+      "id": "complete-provider-resolved",
+      "file": "provider-config.yaml",
+      "kind": "complete-yaml",
+      "route": "direct",
+      "providerSnapshotFile": "provider-payload.yaml",
+      "policy": null,
+      "assertions": [
+        "retain-provider-identity",
+        "validate-local-resource"
+      ]
+    },
+    {
+      "id": "provider-payload-alone",
+      "file": "provider-payload.yaml",
+      "kind": "provider-payload",
+      "route": "convert",
+      "base": null,
+      "code": "BASE_REQUIRED"
+    },
+    {
+      "id": "merge-alone",
+      "file": "merge.yaml",
+      "kind": "merge-v1",
+      "route": "convert",
+      "base": null,
+      "code": "BASE_REQUIRED"
+    },
+    {
+      "id": "merge-array-replace",
+      "file": "merge.yaml",
+      "kind": "merge-v1",
+      "baseFile": "base.yaml",
+      "assertions": [
+        "array-replaces-entire-value",
+        "mapping-recursive",
+        "null-is-value",
+        "repeat-same-digest"
+      ]
+    },
+    {
+      "id": "protected-field",
+      "file": "merge-protected.yaml",
+      "kind": "merge-v1",
+      "baseFile": "base.yaml",
+      "code": "PROTECTED_FIELD"
+    },
+    {
+      "id": "script",
+      "kind": "verge-script",
+      "inputText": "function main(config) { return config; }",
+      "code": "FORMAT_UNSUPPORTED"
+    },
+    {
+      "id": "shell",
+      "kind": "openclash-shell",
+      "inputText": "#!/bin/sh\\nexit 0\\n",
+      "code": "FORMAT_UNSUPPORTED"
+    },
+    {
+      "id": "gateway-on-baseline",
+      "file": "base.yaml",
+      "family": "gateway-smart",
+      "lightgbm": "disabled",
+      "code": "CAPABILITY_UNAVAILABLE"
+    },
+    {
+      "id": "dangling-target",
+      "file": "base.yaml",
+      "mutation": {
+        "rules": [
+          "MATCH,Missing synthetic group"
+        ]
+      },
+      "code": "REFERENCE_MISSING"
+    },
+    {
+      "id": "duplicate-group",
+      "file": "base.yaml",
+      "mutation": {
+        "duplicateGroup": "Synthetic selector"
+      },
+      "code": "DUPLICATE_IDENTITY"
+    },
+    {
+      "id": "ipv6-without-evidence",
+      "file": "base.yaml",
+      "platform": {
+        "ipv6": true,
+        "dualStackReceipt": null
+      },
+      "code": "IPV6_UNVERIFIED"
+    },
+    {
+      "id": "subscription-update",
+      "file": "base.yaml",
+      "reason": "subscription-update",
+      "assertions": [
+        "reapply-merge-policy-platform",
+        "reject-missing-us-new-snapshot",
+        "retain-previous-active-on-failure"
+      ]
+    },
+    {
+      "id": "stale-plan",
+      "file": "base.yaml",
+      "scenario": [
+        "plan-at-revision-A",
+        "activate-revision-B",
+        "commit-plan-A"
+      ],
+      "code": "STALE_REVISION"
+    },
+    {
+      "id": "rollback",
+      "file": "base.yaml",
+      "scenario": [
+        "plan-ready",
+        "save-candidate",
+        "core-apply-fails"
+      ],
+      "assertions": [
+        "restore-old-file-and-core",
+        "active-revision-unchanged",
+        "rollback-failure-separate-fault"
+      ]
+    },
+    {
+      "id": "google-cn-dedupe",
+      "file": "base.yaml",
+      "mutation": {
+        "rules": [
+          "DOMAIN,google-cn.example,DIRECT",
+          "MATCH,Synthetic selector"
+        ]
+      },
+      "assertions": [
+        "one-managed-google-cn-rule-after-two-plans"
+      ]
+    }
+  ]
+}

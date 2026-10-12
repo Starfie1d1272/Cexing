@@ -1,0 +1,201 @@
+{
+  "proxies": [
+    {
+      "name": "HK SYN A",
+      "type": "socks5",
+      "server": "192.0.2.10",
+      "port": 1080
+    },
+    {
+      "name": "新加坡 SYN A",
+      "type": "socks5",
+      "server": "192.0.2.10",
+      "port": 1080
+    },
+    {
+      "name": "日本 SYN A",
+      "type": "socks5",
+      "server": "192.0.2.10",
+      "port": 1080
+    },
+    {
+      "name": "美国 SYN B",
+      "type": "socks5",
+      "server": "192.0.2.10",
+      "port": 1080
+    },
+    {
+      "name": "美国 SYN A",
+      "type": "socks5",
+      "server": "192.0.2.10",
+      "port": 1080
+    },
+    {
+      "name": "德国 SYN A",
+      "type": "socks5",
+      "server": "192.0.2.10",
+      "port": 1080
+    },
+    {
+      "name": "美国 剩余 SYN",
+      "type": "socks5",
+      "server": "192.0.2.10",
+      "port": 1080
+    }
+  ],
+  "proxy-groups": [
+    {
+      "name": "ChatGPT自动",
+      "type": "fallback",
+      "include-all": true,
+      "filter": "美国|美西|美东|洛杉矶|圣何塞|西雅图|🇺🇸|🇺🇲",
+      "exclude-filter": "免费|下载|到期|剩余",
+      "url": "https://probe.example/openai",
+      "interval": 60,
+      "timeout": 8000,
+      "max-failed-times": 2,
+      "expected-status": "200",
+      "lazy": false
+    },
+    {
+      "name": "全网优选",
+      "type": "url-test",
+      "include-all": true,
+      "exclude-filter": "免费|下载|到期|剩余|流量|套餐|维护|x0\\.8",
+      "url": "https://probe.example/l1",
+      "interval": 300,
+      "timeout": 5000,
+      "max-failed-times": 3,
+      "expected-status": "204",
+      "lazy": true,
+      "tolerance": 50
+    },
+    {
+      "name": "Synthetic selector",
+      "type": "select",
+      "proxies": [
+        "美国 SYN A",
+        "日本 SYN A"
+      ]
+    },
+    {
+      "name": "香港优选",
+      "type": "url-test",
+      "include-all": true,
+      "filter": "香港|HK|🇭🇰",
+      "exclude-filter": "免费|下载|到期|剩余",
+      "url": "https://probe.example/l1",
+      "interval": 300,
+      "timeout": 5000,
+      "max-failed-times": 3,
+      "expected-status": "204",
+      "lazy": true,
+      "tolerance": 50
+    },
+    {
+      "name": "新加坡优选",
+      "type": "url-test",
+      "include-all": true,
+      "filter": "新加坡|狮城|🇸🇬",
+      "exclude-filter": "免费|下载|到期|剩余",
+      "url": "https://probe.example/l1",
+      "interval": 300,
+      "timeout": 5000,
+      "max-failed-times": 3,
+      "expected-status": "204",
+      "lazy": true,
+      "tolerance": 50
+    },
+    {
+      "name": "日本优选",
+      "type": "url-test",
+      "include-all": true,
+      "filter": "日本|东京|大阪|🇯🇵",
+      "exclude-filter": "免费|下载|到期|剩余",
+      "url": "https://probe.example/l1",
+      "interval": 300,
+      "timeout": 5000,
+      "max-failed-times": 3,
+      "expected-status": "204",
+      "lazy": true,
+      "tolerance": 50
+    },
+    {
+      "name": "美国优选",
+      "type": "url-test",
+      "include-all": true,
+      "filter": "美国|美西|美东|洛杉矶|圣何塞|西雅图|🇺🇸|🇺🇲",
+      "exclude-filter": "免费|下载|到期|剩余",
+      "url": "https://probe.example/l1",
+      "interval": 300,
+      "timeout": 5000,
+      "max-failed-times": 3,
+      "expected-status": "204",
+      "lazy": true,
+      "tolerance": 50
+    },
+    {
+      "name": "Google自动",
+      "type": "fallback",
+      "proxies": [
+        "日本优选",
+        "新加坡优选",
+        "美国优选"
+      ],
+      "url": "https://probe.example/google",
+      "interval": 300,
+      "timeout": 5000,
+      "max-failed-times": 2,
+      "expected-status": "200-399",
+      "lazy": false
+    },
+    {
+      "name": "ChatGPT/Codex",
+      "type": "select",
+      "proxies": [
+        "ChatGPT自动",
+        "日本优选",
+        "新加坡优选",
+        "美国优选"
+      ]
+    },
+    {
+      "name": "Google",
+      "type": "select",
+      "proxies": [
+        "Google自动",
+        "日本优选",
+        "新加坡优选",
+        "美国优选"
+      ]
+    },
+    {
+      "name": "AI普通服务",
+      "type": "select",
+      "proxies": [
+        "日本优选",
+        "新加坡优选",
+        "美国优选",
+        "全网优选"
+      ]
+    }
+  ],
+  "rules": [
+    "DOMAIN,openai.example,ChatGPT/Codex",
+    "DOMAIN,google-cn.example,DIRECT",
+    "DOMAIN,google.example,Google",
+    "DOMAIN,ai.example,AI普通服务",
+    "DOMAIN,keep.example,Synthetic selector",
+    "MATCH,Synthetic selector"
+  ],
+  "dns": {
+    "enable": true,
+    "ipv6": false,
+    "enhanced-mode": "fake-ip",
+    "fake-ip-range": "198.18.0.1/16",
+    "nameserver": [
+      "192.0.2.53"
+    ]
+  },
+  "ipv6": false
+}

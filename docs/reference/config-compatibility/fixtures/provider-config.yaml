@@ -1,0 +1,25 @@
+{
+  "proxy-providers": {
+    "synthetic": {
+      "type": "file",
+      "path": "./provider-payload.yaml",
+      "health-check": {
+        "enable": true,
+        "url": "https://probe.example/provider",
+        "interval": 300
+      }
+    }
+  },
+  "proxy-groups": [
+    {
+      "name": "Synthetic provider selector",
+      "type": "select",
+      "use": [
+        "synthetic"
+      ]
+    }
+  ],
+  "rules": [
+    "MATCH,Synthetic provider selector"
+  ]
+}

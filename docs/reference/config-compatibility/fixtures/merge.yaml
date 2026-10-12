@@ -1,0 +1,11 @@
+{
+  "profile": {
+    "store-selected": true
+  },
+  "dns": {
+    "fake-ip-filter": [
+      "synthetic.example"
+    ],
+    "fallback": null
+  }
+}
