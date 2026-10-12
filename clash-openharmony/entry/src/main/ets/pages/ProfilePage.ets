@@ -1,5 +1,4 @@
 /*
- * ProfilePage.ets - 配置页（DESIGN.md §5 左）
  * Profile 列表（激活/更新/编辑/重命名/导出/删除）+ 订阅导入（URL/文件/剪贴板，入口在右上 ＋ 半屏菜单）
  * 激活=写入 active 标记；若内核运行中则 PUT /configs 热切换，无需重启 VPN
  */
@@ -12,7 +11,6 @@ import { ProfileStore, ProfileMeta, ProfileMetaExt } from '../lib/ProfileStore';
 import { CoreApi } from '../lib/CoreApi';
 import { Logger } from '../lib/Logger';
 import { ProfileEditBus } from './ProfileEditPage';
-import { H7, sheetOptions, tabBarSafePad } from '../lib/H7';
 
 const TAG = 'profile';
 
@@ -497,9 +495,8 @@ export struct ProfilePage {
         .height(16)
     }
     .width('100%')
-    // 鸿蒙7：sheet 内容根容器透明，露出底层 ULTRA_THICK 系统材质
-    .backgroundColor(H7 ? Color.Transparent : $r('sys.color.comp_background_primary'))
-    .borderRadius(H7 ? 0 : 16)
+    .backgroundColor($r('sys.color.comp_background_primary'))
+    .borderRadius(16)
   }
 
   @Builder
@@ -532,8 +529,8 @@ export struct ProfilePage {
       .width('100%')
     }
     .padding(20)
-    .backgroundColor(H7 ? Color.Transparent : $r('sys.color.comp_background_primary'))
-    .borderRadius(H7 ? 0 : 16)
+    .backgroundColor($r('sys.color.comp_background_primary'))
+    .borderRadius(16)
   }
 
   @Builder
@@ -568,8 +565,8 @@ export struct ProfilePage {
       .width('100%')
     }
     .padding(20)
-    .backgroundColor(H7 ? Color.Transparent : $r('sys.color.comp_background_primary'))
-    .borderRadius(H7 ? 0 : 16)
+    .backgroundColor($r('sys.color.comp_background_primary'))
+    .borderRadius(16)
   }
 
   @Builder
@@ -649,8 +646,8 @@ export struct ProfilePage {
     }
     .width('100%')
     .height('100%')
-    .padding({ left: 16, right: 16, bottom: tabBarSafePad() })
+    .padding({ left: 16, right: 16, bottom: 16 })
     .backgroundColor($r('sys.color.background_secondary'))
-    .bindSheet($$this.showSheet, this.MainSheet(), sheetOptions())
+    .bindSheet($$this.showSheet, this.MainSheet(), { height: SheetSize.MEDIUM })
   }
 }

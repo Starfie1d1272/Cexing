@@ -1,52 +1,47 @@
 # 架构与职责
 
-日期：2026-10-12；基线 SHA 见 [调研入口](research/overview.md)。
+## 现有运行边界
 
-## 当前实现 [源码确认]
-
-```text
-EntryAbility / ArkUI
-  ├─ VpnController ─ 系统授权 / 连接扩展 / 下发 VpnConfig
-  ├─ ProfileStore / Settings ─ 应用私有文件与 preferences
-  ├─ CoreApi ─ HTTP / WebSocket → 127.0.0.1:9090
-  └─ LiveViewKeeper ─ UIAbility 上下文申请长时任务和实况窗
-
-ClashVpnAbility（独立 :vpn 扩展进程；本轮真机确认）
-  └─ onConnect 返回 IPC 对象；后台 create TUN → protectProcessNet → initCore → startTun
-       └─ NAPI async work → C++ 单 pthread worker → Go c-shared
-            ├─ Mihomo 配置 / Controller / DNS / 出站
-            └─ sing-tun + gVisor，使用系统 fd
+```mermaid
+flowchart TD
+  UI[ArkUI 页面] --> VC[VpnController]
+  UI --> Profiles[ProfileStore / Settings]
+  Entry[EntryAbility] --> Runtime[AppRuntime]
+  Runtime --> VC
+  Runtime --> Background[LiveViewKeeper / AutoUpdater]
+  VC -->|系统授权与启动状态 IPC| VPN[ClashVpnAbility]
+  VPN -->|系统 TUN fd| NAPI[NAPI async work]
+  NAPI --> Worker[C++ 单 pthread worker]
+  Worker --> Go[Go wrapper / Mihomo / gVisor]
+  UI -->|REST / WebSocket| Go
 ```
 
-`entry/src/main/module.json5` 声明 `type: vpn`，未指定可控制进程名的字段。本轮真机已读回主进程和 `com.starfie1d.mihomo:vpn` 独立进程。内核由扩展直接加载，UI 不持有 TUN fd。
+VPN Extension 持有系统 VPN 连接；NAPI worker 将 Go 调用移到专用线程。系统与 Go 侧分别管理原 fd 和复制 fd。ArkUI 不拥有 TUN 或 Go runtime。
 
-扩展连接回调及时返回，客户端通过 IPC 读取启动状态；系统服务连接成功时仍保持 Connecting，只有 startTun 成功后才标记 Connected。启动错误回传并清理资源，取消时先撤销系统 VPN，再回收迟到的内核启动。首次 GeoIP 快照准备见 [数据说明](research/geodata.md)。
-
-核心 owner：
-
-| 边界 | 文件与行为 |
+| 模块 | 单一职责 |
 |---|---|
-| 系统 VPN | `clash-openharmony/entry/src/main/ets/lib/VpnController.ets` 构造默认路由、应用白黑名单和 DNS，连接/断开扩展 |
-| 扩展生命周期 | `vpnability/ClashVpnAbility.ets` 获取 TUN、保护扩展进程网络、初始化内核、写最近启动错误；disconnect 停内核再销毁连接 |
-| ABI/线程 | `core/main.go` 导出四个函数；`cpp/bridge.cpp` 单 worker 串行调用，复制 TUN fd 交 Go，失败回收复制 fd |
-| 核心配置 | `core/engine.go` 合并订阅/用户覆写/平台默认，禁用内核自动创建 TUN；`platform_ohos.go` 强制 gVisor |
-| 数据与控制面 | `lib/ProfileStore.ets` 存 profiles/active/meta；`lib/CoreApi.ets` 访问固定 HTTP/WS 地址 |
-| 后台 | `lib/LiveViewKeeper.ets` dataTransfer + 实况窗、任务取消事件与有界重申请；`AutoUpdater.ets` UI 定时订阅更新 |
+| `EntryAbility` | 应用启动、加载窗口、通知运行时前台事件 |
+| `AppRuntime` | 进程级状态监听、后台任务、订阅调度与自动恢复 |
+| `VpnController` | 系统授权、路由与应用名单、扩展连接、启动状态 |
+| `ClashVpnAbility` | TUN 创建、进程网络保护、资源铺盘、内核启动与清理 |
+| `ProfileStore` / `Settings` | 应用私有配置文件、来源元数据、激活选择及偏好 |
+| `CoreApi` | 原生 HTTP/WS 控制面客户端 |
+| `LiveViewKeeper` | 长时任务、实况窗更新、任务事件及有界重申请 |
+| `AutoUpdater` | 按设置检查激活订阅来源并更新 |
+| `core/` / `cpp/` | 内核配置、平台适配、C ABI 和调用线程 |
 
-Go 层由 `constant.SetHomeDir` 指向扩展 `filesDir`。C++ 与系统各持有一份 fd，成功时 Go 关闭复制 fd，系统 destroy 关闭原 fd。错误发生在 listener 已开启之后时是否完整回滚仍需专门测试。
+原生入口为连接、配置、设置。配置保留 URL/文件/剪贴板导入及编辑；网络与内核设置保留实际平台能力。代理组页只从运行内核读取信息，供 Zashboard 接入前选择手动组节点，不解析另一套离线 YAML 数据模型。
 
-## 目标增量 [待验证]
+## 生命周期约束
 
-1. 保留系统 VPN、NAPI worker、Go wrapper 和配置存储边界，在 Go 模块图中固定 Smart 候选。
-2. 启动前校验模型并原子铺到内核 home；Web 资源铺到私有版本目录。
-3. Mihomo `external-ui` 托管资源，ArkWeb 打开 `/ui/`；关闭 WebView 只释放页面。
-4. 统一 Controller 认证和配置应用流程，再精简原生页面。
+页面的流量 WS 与状态监听随页面释放；后台保活和订阅调度随 VPN 状态运行。关闭页面不能隐式调用 VPN stop。Connecting/Disconnecting 期间保留后台运行资源，Disconnected 才释放。后台任务启动、停止和取消清理串行执行，迟到的旧任务事件按任务身份过滤，避免旧停止清理新会话。
 
-Web 资源缺失显示可恢复错误；模型未就绪明确阻止启用 LightGBM或告知降级状态。日志需要区分构建身份、模型身份、VPN 状态与控制面可达性，并脱敏用户配置。
+扩展 `onConnect` 及时返回 IPC 对象，异步初始化完成后报告就绪。取消启动要先撤销系统 VPN，再回收迟到的内核启动。普通启动的 Connected 表示扩展报告就绪，实际网络健康仍须流量验证；冷启动 `recover` 的 Controller 探活尚不能证明系统隧道存在。
 
-## 当前需要收敛的 contract
+Ability 重建时为后台服务重新绑定上下文，订阅定时器读取最新上下文，不重复创建定时器。显式用户启停和 VPN 状态变化使待执行的自动恢复失效；超时前再次检查最新恢复偏好。
 
-- 平台 Controller 只是缺省回环绑定：订阅可以覆盖监听地址；CoreApi 又固定为 9090，且未发送认证。目标必须强制回环、统一端口与随机 secret。
-- `AutoUpdater`/`CoreApi.reloadConfig` 使用 `PUT /configs?force=true` 原始路径；与启动时 wrapper 合并路径不同。Smart、external-ui、安全字段和系统 TUN 必须经过一致的应用 contract。
-- `recover()` 通过 `/version` 推断 Connected。需结合系统连接、扩展心跳或会话身份验证，避免把服务可达当作实际转发健康。
-- IPv6 默认路由开关存在，Go TUN options 当前仅设置 `Inet4Address`。需要完整地址、DNS、双栈与泄漏验证。
+## 目标边界
+
+Zashboard 承担节点、策略组、连接、日志、规则和 Smart 管理；原生宿主只承担系统、订阅、状态与故障恢复。配置生成统一经过平台约束，控制面共享一个端口与认证来源。详细要求见 [配置](reference/configuration.md)、[组件集成](reference/integrations.md)。
+
+以上是开发边界，不代表 Smart、Web 面板、统一配置事务或系统健康恢复已实现。演进依赖见 [开发顺序](development.md)。

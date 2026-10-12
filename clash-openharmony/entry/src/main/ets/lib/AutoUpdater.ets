@@ -1,7 +1,7 @@
 /*
  * AutoUpdater.ets - 订阅自动更新（按设置周期拉取激活配置的来源 URL）
  * 仅对激活配置生效；本地导入（无来源 URL）自动跳过。
- * 周期检查由 HomePage onCoreUp() 启动、onCoreDown() 停止；
+ * 周期检查由 AppRuntime 按 VPN 状态启动和停止；
  * 上次成功时间戳与 Settings 同 store（clashoh_settings）不同 key，互不影响。
  */
 import { preferences } from '@kit.ArkData';
@@ -19,12 +19,22 @@ const CHECK_INTERVAL_MS = 60 * 60 * 1000;
 
 export namespace AutoUpdater {
   let timerId: number = -1;
+  let currentContext: common.Context | null = null;
+
+  export function rebindContext(context: common.Context): void {
+    currentContext = context;
+  }
 
   /** 启动周期检查（幂等：重复调用先 stop） */
   export function start(context: common.Context): void {
     stop();
+    rebindContext(context);
     timerId = setInterval(() => {
-      checkAndRun(context).catch(() => {
+      const ctx = currentContext;
+      if (ctx === null) {
+        return;
+      }
+      checkAndRun(ctx).catch(() => {
         // fire-and-forget：单轮失败忽略，等下一轮
       });
     }, CHECK_INTERVAL_MS);

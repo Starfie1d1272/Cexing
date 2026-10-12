@@ -53,6 +53,19 @@ export namespace LiveViewKeeper {
   let hbTimerId: number = -1;
   let lastContext: common.UIAbilityContext | null = null;
   let eventsRegistered: boolean = false;
+  // 所有任务启动、停止和取消清理串行化，旧会话停止不能撤销新会话。
+  let lifecycleQueue: Promise<void> = Promise.resolve();
+  let lifecycleGeneration: number = 0;
+
+  export function rebindContext(context: common.UIAbilityContext): void {
+    lastContext = context;
+  }
+
+  function enqueue(action: () => Promise<void>): Promise<void> {
+    const result = lifecycleQueue.then(action);
+    lifecycleQueue = result.catch(() => {});
+    return result;
+  }
   /** 上次累计流量采样（差分求速率） */
   let lastSample: TrafficMsg | null = null;
   let lastSampleAt: number = 0;
@@ -67,7 +80,18 @@ export namespace LiveViewKeeper {
   const reapplyLog: number[] = [];
 
   /** 申请 dataTransfer 长时任务 + 发布实况窗 + 启动 60s/5min 定时器 + 注册事件监听。幂等。 */
-  export async function start(context: common.UIAbilityContext): Promise<boolean> {
+  export function start(context: common.UIAbilityContext): Promise<boolean> {
+    rebindContext(context);
+    lifecycleGeneration++;
+    const result = lifecycleQueue.then(() => {
+      const ctx = lastContext;
+      return ctx === null ? Promise.resolve(false) : startTask(ctx);
+    });
+    lifecycleQueue = result.then(() => {}, () => {});
+    return result;
+  }
+
+  async function startTask(context: common.UIAbilityContext): Promise<boolean> {
     if (running) {
       return true;
     }
@@ -89,13 +113,13 @@ export namespace LiveViewKeeper {
       request.backgroundTaskModes = [backgroundTaskManager.BackgroundTaskMode.MODE_DATA_TRANSFER];
       request.backgroundTaskSubmodes = [backgroundTaskManager.BackgroundTaskSubmode.SUBMODE_LIVE_VIEW_NOTIFICATION];
       request.wantAgent = agent;
-      const res = await backgroundTaskManager.startBackgroundRunning(context, request);
+      const ctx = lastContext !== null ? lastContext : context;
+      const res = await backgroundTaskManager.startBackgroundRunning(ctx, request);
       notificationId = res.notificationId;
       continuousTaskId = res.continuousTaskId !== undefined ? res.continuousTaskId : -1;
       if (connectedAt === 0) {
         connectedAt = Date.now();
       }
-      lastContext = context;
       running = true;
       registerEvents();
       Logger.info(TAG, 'task started notificationId=' + notificationId + ' continuousTaskId=' + continuousTaskId);
@@ -114,7 +138,7 @@ export namespace LiveViewKeeper {
       return true;
     } catch (e) {
       Logger.error(TAG, 'start failed: ' + errMsg(e));
-      await reset(true, context);
+      await reset(true);
       return false;
     } finally {
       starting = false;
@@ -142,8 +166,10 @@ export namespace LiveViewKeeper {
   }
 
   /** 停止定时器/监听，取消实况窗通知，stopBackgroundRunning（优先带 continuousTaskId）。幂等。 */
-  export async function stop(context: common.UIAbilityContext): Promise<void> {
-    await reset(true, context);
+  export function stop(context: common.UIAbilityContext): Promise<void> {
+    rebindContext(context);
+    lifecycleGeneration++;
+    return enqueue(() => reset(true));
   }
 
   export function isRunning(): boolean {
@@ -151,7 +177,7 @@ export namespace LiveViewKeeper {
   }
 
   /** 复位全部状态与资源。stopTask=true 时额外执行 stopBackgroundRunning。 */
-  async function reset(stopTask: boolean, context?: common.UIAbilityContext): Promise<void> {
+  async function reset(stopTask: boolean): Promise<void> {
     if (timerId >= 0) {
       clearInterval(timerId);
       timerId = -1;
@@ -178,7 +204,7 @@ export namespace LiveViewKeeper {
       eventsRegistered = false;
     }
     if (stopTask) {
-      const ctx = context !== undefined ? context : lastContext;
+      const ctx = lastContext;
       if (ctx !== null) {
         try {
           if (continuousTaskId >= 0) {
@@ -212,7 +238,7 @@ export namespace LiveViewKeeper {
     }
     try {
       backgroundTaskManager.on('continuousTaskCancel', (info: backgroundTaskManager.ContinuousTaskCancelInfo) => {
-        handleCancel(info).catch((e: Object) => {
+        enqueue(() => handleCancel(info)).catch((e: Object) => {
           Logger.warn(TAG, 'cancel handler error: ' + errMsg(e));
         });
       });
@@ -234,6 +260,9 @@ export namespace LiveViewKeeper {
    * - 其他系统原因且内核仍活（GET /version 通）：30s 后重申请，每小时最多 3 次，超出等前台 ensure。
    */
   async function handleCancel(info: backgroundTaskManager.ContinuousTaskCancelInfo): Promise<void> {
+    if (!running || (continuousTaskId >= 0 && info.id !== continuousTaskId)) {
+      return;
+    }
     const reason = info.reason;
     const detailed = info.detailedReason;
     // ContinuousTaskDetailedCancelReason 为 API 26+ 枚举：低版本系统上枚举对象可能不存在，
@@ -243,9 +272,9 @@ export namespace LiveViewKeeper {
       reason === backgroundTaskManager.ContinuousTaskCancelReason.USER_CANCEL_REMOVE_NOTIFICATION ||
       (detailedEnum !== undefined && detailed === detailedEnum.USER_CANCEL_REMOVE_NOTIFICATION);
     if (userCancel) {
-      userStopped = true;
       Logger.info(TAG, 'task canceled by user reason=' + reason + ' detailed=' + detailed);
       await reset(false);
+      userStopped = true;
       return;
     }
     Logger.warn(TAG, 'task canceled reason=' + reason + ' detailed=' + detailed);
@@ -266,9 +295,10 @@ export namespace LiveViewKeeper {
       return;
     }
     reapplyLog.push(now);
-    const ctx = lastContext;
+    const generation = lifecycleGeneration;
     setTimeout(() => {
-      if (userStopped || ctx === null) {
+      const ctx = lastContext;
+      if (generation !== lifecycleGeneration || userStopped || ctx === null) {
         return;
       }
       if (VpnController.status !== VpnStatus.Connected) {
@@ -397,7 +427,7 @@ export namespace LiveViewKeeper {
     }
   }
 
-  /** 按当前状态发布/更新实况窗（§2 状态文案表） */
+  /** 按当前状态发布/更新实况窗 */
   async function publishLiveView(): Promise<void> {
     if (notificationId < 0) {
       return;
@@ -470,7 +500,7 @@ export namespace LiveViewKeeper {
     }
   }
 
-  /** 流量活跃度：avgBps / 1MB/s × 100，钳制 0-100（§3） */
+  /** 流量活跃度：avgBps / 1MB/s × 100，钳制 0-100 */
   function progressValue(): number {
     const avgBps = lastDownBps + lastUpBps;
     const pct = Math.round((avgBps / (1024 * 1024)) * 100);

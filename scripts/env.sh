@@ -5,7 +5,7 @@
 #   REPO_ROOT     由本脚本所在位置推导
 #   CLT_ROOT      默认 $REPO_ROOT/command-line-tools；如工具链装在别处，
 #                 先 export HARMONYOS_CLT_ROOT=/你的路径/command-line-tools 再 source
-# 完整环境准备步骤见 INSTALL.md。
+# 完整环境准备步骤见 docs/how-to/build.md。
 
 _CLASHOH_ENV_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export REPO_ROOT="$(cd "$_CLASHOH_ENV_DIR/.." && pwd)"
@@ -22,6 +22,6 @@ export npm_config_registry=https://registry.npmjs.org
 # 前置检查：工具链缺失时给出可操作的提示而不是莫名其妙的后续报错
 if [ ! -x "$CLT_ROOT/bin/hvigorw" ]; then
   echo "[env.sh] 未找到 HarmonyOS Command Line Tools: $CLT_ROOT" >&2
-  echo "[env.sh] 请按 INSTALL.md 第 2 步下载并解压到该目录（或设置 HARMONYOS_CLT_ROOT）" >&2
+  echo "[env.sh] 请按 docs/how-to/build.md 工具链章节下载并解压到该目录（或设置 HARMONYOS_CLT_ROOT）" >&2
   return 1 2>/dev/null || exit 1
 fi
