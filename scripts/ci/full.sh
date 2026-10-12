@@ -37,6 +37,7 @@ python3 scripts/ci/check-toolchain.py --after-build
 HAP=clash-openharmony/entry/build/default/outputs/default/entry-default-unsigned.hap
 REPORT=clash-openharmony/dist/ci
 python3 scripts/ci/verify-hap.py "$HAP" "$REPORT"
+python3 tests/smart/hap_gate.py
 cp "$CI_BUILD_ROOT/licenses.json" "$REPORT/module-notices.json"
 if [ -n "$(git status --porcelain --untracked-files=normal)" ]; then
   echo 'Full changed tracked inputs or generated untracked files; review before accepting identity' >&2

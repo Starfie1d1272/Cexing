@@ -54,7 +54,10 @@ func TestOHOSBetaSmartAPI(t *testing.T) {
 		if unauthorized.Code != 401 {
 			t.Fatalf("unauthenticated %s: %d", test.path, unauthorized.Code)
 		}
-		request.Header.Set("Authorization", "Bearer synthetic-test-secret")
+		request.Header.Set("Authorization", "Bearer wrong-test-secret")
+        rejected := httptest.NewRecorder(); r.ServeHTTP(rejected, request)
+        if rejected.Code != 401 {t.Fatal("wrong Controller credential accepted")}
+        request.Header.Set("Authorization", "Bearer synthetic-test-secret")
 		response := httptest.NewRecorder()
 		r.ServeHTTP(response, request)
 		if response.Code != test.status {

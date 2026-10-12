@@ -1,3 +1,5 @@
+//go:build smartbeta
+
 package main
 
 import (
