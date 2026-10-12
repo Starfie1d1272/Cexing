@@ -8,6 +8,7 @@ import { http } from '@kit.NetworkKit';
 import { common } from '@kit.AbilityKit';
 import { util } from '@kit.ArkTS';
 import { Logger } from './Logger';
+import { suggestProfileName } from './ProfileName';
 
 const TAG = 'profileStore';
 const ACTIVE_FILE = 'active.txt';
@@ -431,6 +432,7 @@ export namespace ProfileStore {
     try {
       const resp = await req.request(url, {
         method: http.RequestMethod.GET,
+        expectDataType: http.HttpDataType.STRING,
         connectTimeout: 15000,
         readTimeout: 30000
       });
@@ -440,7 +442,7 @@ export namespace ProfileStore {
       const raw = typeof resp.result === 'string' ? resp.result : '';
       const content = sanitizeConfigContent(raw);
       validateConfig(content);
-      const name = suggestName(url);
+      const name = suggestProfileName(resp.header as Record<string, Object>, `sub_${Date.now()}`);
       const saved = save(context, name, content);
       setOrigin(context, saved, url);
       setMetaEntry(context, saved, metaEntryFromResp(resp, url));
@@ -474,6 +476,7 @@ export namespace ProfileStore {
     try {
       const resp = await req.request(url, {
         method: http.RequestMethod.GET,
+        expectDataType: http.HttpDataType.STRING,
         connectTimeout: 15000,
         readTimeout: 30000
       });
@@ -500,19 +503,6 @@ export namespace ProfileStore {
     if (!content.includes('proxies:') && !content.includes('proxy-providers:') && !content.includes('proxy-groups:')) {
       throw new Error('不是合法的 mihomo 配置（缺少 proxies/proxy-groups）');
     }
-  }
-
-  function suggestName(url: string): string {
-    try {
-      const seg = url.split('?')[0].split('/').pop() ?? '';
-      const clean = seg.replace(/\.(yaml|yml)$/i, '');
-      if (clean.length > 0 && clean.length <= 40) {
-        return clean;
-      }
-    } catch (e) {
-      // fallthrough
-    }
-    return `sub_${Date.now()}`;
   }
 
   function save(context: common.Context, name: string, content: string): string {
