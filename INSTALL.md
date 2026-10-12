@@ -9,6 +9,10 @@
 
 ## 流程总览
 
+已有可信来源的 HAP 时，可以使用 [HoKit](https://github.com/yabi-zzh/HoKit) 的应用重签名/一键签装功能。其官方重签说明支持获取开发者账号下已有的证书和 Profile，并列出有效证书/Profile、设备已注册和开发者登录作为前置条件；首次登录和授权由用户完成。后续相同包名、证书和设备的包更新可复用已有签名材料。
+
+本指南下方记录可维护的命令行构建与手动 AGC 准备流程。开发本 Fork 的源码变更需要先构建 HAP；生成的 HAP 也可交给 HoKit 重签安装。以往的“必须逐项手动申请”不是唯一安装途径。
+
 | # | 步骤 | 执行者 | 产出 |
 |---|------|--------|------|
 | 0 | 构建机依赖检查 | 🤖 | node/go/java 可用 |
@@ -130,6 +134,7 @@ ls clash-openharmony/.signing/   # 预期: clashoh-debug.p12 clashoh-debug.cer c
 ```bash
 source scripts/env.sh
 bash scripts/build-core.sh    # ① 内核 → entry/libs/arm64-v8a/libmihomo.so（约 2-5 分钟，64M）
+bash scripts/prepare-geodata.sh # 准备已校验的 GeoIP 快照，供首次启动离线初始化
 bash scripts/build-hap.sh     # ② 打包 → entry/build/.../entry-default-unsigned.hap
 bash scripts/sign-agc.sh      # ③ 签名 → dist/clashoh-signed.hap（自动读 .signing/store_pw）
 bash scripts/install.sh       # ④ 安装并拉起；预期 hdc install 成功、桌面出现 ClashOH

@@ -9,6 +9,7 @@ import { common, Want } from '@kit.AbilityKit';
 import { fileIo } from '@kit.CoreFileKit';
 import { Logger } from './Logger';
 import { CoreApi } from './CoreApi';
+import { rpc } from '@kit.IPCKit';
 import { Settings } from './Settings';
 
 const TAG = 'vpnCtrl';
@@ -100,6 +101,7 @@ export namespace VpnController {
   export let lastStartError: string = '';
   let serviceId: number = 0;
   const listeners: StatusListener[] = [];
+  let startAttempt = 0;
 
   export function onChanged(cb: StatusListener): void {
     listeners.push(cb);
@@ -151,6 +153,7 @@ export namespace VpnController {
       return;
     }
     setStatus(VpnStatus.Connecting);
+    startAttempt++;
     const want: Want = { bundleName: context.applicationInfo.name, abilityName: VPN_ABILITY_NAME };
     Logger.info(TAG, 'startVpnExtensionAbility...');
     vpnExtension.startVpnExtensionAbility(want).then(() => {
@@ -208,23 +211,27 @@ export namespace VpnController {
       abilityName: want.abilityName,
       parameters: params
     };
+    const attempt = startAttempt;
     try {
       serviceId = context.connectServiceExtensionAbility(connectWant, {
-        onConnect: () => {
+        onConnect: (element, remote: rpc.IRemoteObject) => {
           Logger.info(TAG, 'service connected');
-          lastStartError = '';
-          setStatus(VpnStatus.Connected);
-          // 会话曾连接标记：供冷启动自动恢复判定（仅用户主动断开时清 false）
-          const s = Settings.load(context);
-          s.vpnWasConnected = true;
-          Settings.save(context, s);
+          waitForCore(context, remote, attempt).catch((e: Object) => {
+            Logger.error(TAG, `core readiness failed: ${JSON.stringify(e)}`);
+          });
         },
         onDisconnect: () => {
+          if (attempt !== startAttempt) {
+            return;
+          }
           Logger.warn(TAG, 'service disconnected unexpectedly');
           lastStartError = readLastStartError(context);
           setStatus(VpnStatus.Disconnected);
         },
         onFailed: (code: number) => {
+          if (attempt !== startAttempt) {
+            return;
+          }
           Logger.error(TAG, `service connect failed: ${code}`);
           lastStartError = readLastStartError(context);
           setStatus(VpnStatus.Disconnected);
@@ -236,11 +243,53 @@ export namespace VpnController {
     }
   }
 
+  async function waitForCore(context: common.UIAbilityContext, remote: rpc.IRemoteObject,
+    attempt: number): Promise<void> {
+    const deadline = Date.now() + 120000;
+    while (status === VpnStatus.Connecting && attempt === startAttempt) {
+      const data = rpc.MessageSequence.create();
+      const reply = rpc.MessageSequence.create();
+      let ready = false;
+      let error = '';
+      try {
+        const result = await remote.sendMessageRequest(1, data, reply, new rpc.MessageOption());
+        if (result.errCode !== 0) {
+          throw new Error(`启动状态读取失败 (${result.errCode})`);
+        }
+        ready = result.reply.readBoolean();
+        error = result.reply.readString();
+      } catch (e) {
+        error = (e as Error).message ?? '启动状态读取失败';
+      } finally {
+        data.reclaim();
+        reply.reclaim();
+      }
+      if (status !== VpnStatus.Connecting || attempt !== startAttempt) {
+        return;
+      }
+      if (ready) {
+        lastStartError = '';
+        setStatus(VpnStatus.Connected);
+        const settings = Settings.load(context);
+        settings.vpnWasConnected = true;
+        Settings.save(context, settings);
+        return;
+      }
+      if (error.length > 0 || Date.now() >= deadline) {
+        stop(context);
+        lastStartError = error.length > 0 ? error : '内核启动超时，请检查数据库和配置下载';
+        return;
+      }
+      await new Promise<void>((resolve) => { setTimeout(resolve, 500); });
+    }
+  }
+
   export function stop(context: common.UIAbilityContext): void {
     if (status !== VpnStatus.Connected && status !== VpnStatus.Connecting) {
       Logger.warn(TAG, `stop ignored, status=${VpnStatus[status]}`);
       return;
     }
+    startAttempt++;
     // 用户主动停止：清除「会话曾连接」标记（冷启动不再自动恢复）
     const s = Settings.load(context);
     s.vpnWasConnected = false;

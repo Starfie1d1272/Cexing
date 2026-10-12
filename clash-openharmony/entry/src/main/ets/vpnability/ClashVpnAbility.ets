@@ -62,9 +62,34 @@ interface UserOverrides {
   logToFile: boolean;
 }
 
+class CoreStatusRemote extends rpc.RemoteObject {
+  private isReady: () => boolean;
+  private getError: () => string;
+
+  constructor(isReady: () => boolean, getError: () => string) {
+    super('CLASHOH_VPN_ABILITY');
+    this.isReady = isReady;
+    this.getError = getError;
+  }
+
+  onRemoteMessageRequest(code: number, data: rpc.MessageSequence, reply: rpc.MessageSequence,
+    options: rpc.MessageOption): boolean {
+    if (code !== 1) {
+      return false;
+    }
+    reply.writeBoolean(this.isReady());
+    reply.writeString(this.getError());
+    return true;
+  }
+}
+
 export default class ClashVpnAbility extends VpnExtensionAbility {
   private connection = new Object() as vpnExtension.VpnConnection;
   private coreStarted = false;
+  private coreInitialized = false;
+  private startupError = '';
+  private starting: Promise<void> | null = null;
+  private stopping = false;
 
   /** 记录启动失败原因到 filesDir，主进程（首页）断开回调时读取并提示用户 */
   private writeLastError(msg: string): void {
@@ -87,9 +112,22 @@ export default class ClashVpnAbility extends VpnExtensionAbility {
     this.connection = vpnExtension.createVpnConnection(this.context);
   }
 
-  async onConnect(want: Want): Promise<rpc.RemoteObject> {
+  onConnect(want: Want): rpc.RemoteObject {
     Logger.info(TAG, 'ClashVpnAbility.onConnect');
+    if (this.stopping && this.starting !== null) {
+      return new CoreStatusRemote(() => false, () => 'VPN 正在停止，请稍后重试');
+    }
+    if (this.starting !== null) {
+      return new CoreStatusRemote(() => this.coreStarted && !this.stopping, () => this.startupError);
+    }
     this.clearLastError();
+    this.startupError = '';
+    this.stopping = false;
+    this.starting = this.startCore(want);
+    return new CoreStatusRemote(() => this.coreStarted, () => this.startupError);
+  }
+
+  private async startCore(want: Want): Promise<void> {
     let fd = -1;
     try {
       const config = want.parameters?.['VPN_CONFIG'] as vpnExtension.VpnConfig;
@@ -99,12 +137,14 @@ export default class ClashVpnAbility extends VpnExtensionAbility {
       Logger.info(TAG, 'protectProcessNet done, starting mihomo core...');
 
       const filesDir = this.context.filesDir;
+      await this.seedGeoData(filesDir);
       const initErr: string = await core.initCore(filesDir);
       if (initErr) {
         Logger.error(TAG, `initCore failed: ${initErr}`);
         throw new Error(`initCore failed: ${initErr}`);
       }
       Logger.info(TAG, `initCore ok, homeDir=${filesDir}`);
+      this.coreInitialized = true;
 
       const cfg: string = await this.buildCoreConfig();
       // 用户覆写合并进内核配置：覆写项 > 订阅配置同名键（ipv6 只用于 VpnConfig，不传）
@@ -128,18 +168,19 @@ export default class ClashVpnAbility extends VpnExtensionAbility {
       }
       this.coreStarted = true;
       Logger.info(TAG, 'mihomo core started, TUN handed over');
-      return new rpc.RemoteObject('CLASHOH_VPN_ABILITY');
     } catch (e) {
       const msg = (e as Error).message ?? JSON.stringify(e);
+      this.startupError = msg;
       Logger.error(TAG, `onConnect failed: ${msg}`);
       this.writeLastError(msg);
-      if (this.coreStarted) {
+      if (this.coreInitialized) {
         try {
           await core.stopCore();
         } catch (e2) {
           Logger.error(TAG, `stopCore failed: ${JSON.stringify(e2)}`);
         }
         this.coreStarted = false;
+        this.coreInitialized = false;
       }
       if (fd > 0) {
         try {
@@ -148,13 +189,47 @@ export default class ClashVpnAbility extends VpnExtensionAbility {
           Logger.error(TAG, `cleanup destroy failed: ${JSON.stringify(e2)}`);
         }
       }
-      throw e as Error;
     }
   }
 
-  async onDisconnect(): Promise<void> {
+  private async seedGeoData(filesDir: string): Promise<void> {
+    const path = `${filesDir}/geoip.metadb`;
+    if (fileIo.accessSync(path) && fileIo.statSync(path).size > 0) {
+      return;
+    }
+    const bytes = await this.context.resourceManager.getRawFileContent('geodata/geoip.metadb');
+    const temp = `${path}.tmp`;
+    const file = fileIo.openSync(temp, fileIo.OpenMode.WRITE_ONLY | fileIo.OpenMode.CREATE | fileIo.OpenMode.TRUNC);
+    try {
+      fileIo.writeSync(file.fd, bytes.buffer);
+    } finally {
+      fileIo.closeSync(file);
+    }
+    fileIo.renameSync(temp, path);
+    Logger.info(TAG, `seeded GeoIP database (${bytes.length} bytes)`);
+  }
+
+  onDisconnect(): void {
     Logger.info(TAG, 'ClashVpnAbility.onDisconnect');
-    if (this.coreStarted) {
+    if (this.stopping) {
+      return;
+    }
+    this.stopping = true;
+    this.cleanup().catch((e: Object) => {
+      Logger.error(TAG, `cleanup failed: ${JSON.stringify(e)}`);
+    });
+  }
+
+  private async cleanup(): Promise<void> {
+    try {
+      await this.connection.destroy();
+    } catch (e) {
+      Logger.error(TAG, `destroy failed: ${JSON.stringify(e)}`);
+    }
+    if (this.starting !== null) {
+      await this.starting;
+    }
+    if (this.coreInitialized) {
       try {
         await core.stopCore();
         Logger.info(TAG, 'mihomo core stopped');
@@ -162,16 +237,16 @@ export default class ClashVpnAbility extends VpnExtensionAbility {
         Logger.error(TAG, `stopCore failed: ${JSON.stringify(e)}`);
       }
       this.coreStarted = false;
+      this.coreInitialized = false;
     }
-    try {
-      await this.connection.destroy();
-    } catch (e) {
-      Logger.error(TAG, `destroy failed: ${JSON.stringify(e)}`);
-    }
+    this.starting = null;
   }
 
   onDestroy(): void {
     Logger.info(TAG, 'ClashVpnAbility.onDestroy');
+    if (!this.stopping) {
+      this.onDisconnect();
+    }
   }
 
   /**

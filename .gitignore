@@ -1,5 +1,6 @@
 # 工具链与外部参考（体积大/第三方）
 command-line-tools/
+clash-openharmony/entry/src/main/resources/rawfile/geodata/
 reference/
 core/third_party/
 

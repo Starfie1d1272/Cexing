@@ -91,6 +91,7 @@ source scripts/env.sh
 
 # 1. 交叉编译内核（约 2-5 分钟，产出 entry/libs/arm64-v8a/libmihomo.so 64M）
 bash scripts/build-core.sh
+bash scripts/prepare-geodata.sh  # 校验并准备首次启动 GeoIP 快照
 
 # 2. 打包 HAP（自动编译 NAPI 桥 libentry.so）
 #    注意：改动 core/ 或 entry/src/main/resources 后必须 clean 再打（见坑位①）
