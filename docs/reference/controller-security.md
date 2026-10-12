@@ -36,3 +36,10 @@ CORS 仅允许 `http://127.0.0.1:9090`，不开放通配来源或 private-networ
 兼容线 PR #2 的 platformSnapshot 可以记录固定回环端口、TUN 地址/MTU 和 UI 私有根句柄；Secret 只传不透明句柄或“已初始化”的状态，不能把 `getControllerAccess()` 的敏感对象放入候选、摘要、diff 或验证回执。配置引擎处理受保护字段时可给出 PROTECTED_FIELD，运行宿主仍重新施加最终强约束。
 
 providerSnapshot、固定 coreIdentity/capabilitiesDigest、validationReceipt、expectedActiveRevision 的生成、过期检测和激活比较交换由配置事务线负责。当前 REST 重载只提供受约束的运行应用边界，没有实现这些事务字段或 provider 完整健康确认。基线不支持 Smart；此安全改动不增加 Smart 或模型能力。
+
+
+## 冷恢复的意图代次
+
+`VpnController.recover(onDone?)` 的探活提交由独立恢复代次保护。新一次 recover、有效 start、所有显式 stop（含仍为 Disconnected 的取消）和 `cancelRecovery()` 都使旧探活失效；过期结果既不提交 Connected，也不触发旧 onDone。新鲜探活与非断开态的现有完成语义保留。恢复代次与启动 IPC 的 startAttempt 分离，取消探活不会破坏正在进行的启动就绪检查。
+
+运行时线 PR #4 可在 `AppRuntime.cancelRestore()` 调用 `VpnController.cancelRecovery()`，覆盖只取消恢复/当前 Ability 销毁而没有 start/stop 的情况；这只是失效在途探活，不停止 VPN 或后台任务。本分支未修改 AppRuntime/EntryAbility。显式 start→stop→Disconnected 的竞态在本分支已封闭，纯运行时取消需该调用合流。Controller 探活仍不能证明系统 VPN 健康。
