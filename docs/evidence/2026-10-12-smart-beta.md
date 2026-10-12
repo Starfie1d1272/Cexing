@@ -54,4 +54,4 @@ Linux 真实连接不证明手机 TUN、OHOS pthread TLS、TLS/REALITY、UDP/DNS
 | 未 strip 核心 | 83,544,048 | `b4aa72ffc1dc119fcaa7a30bae225a564c62479b19f407e122287a78895914b8` |
 | 包内 strip 核心 | 74,961,680 | `0c36d0a49215d3fa2d22dae518ea71c0bd5a346ae5d022a49ba54bbe02725524` |
 
-worker、libc++ 与 GeoIP/override 摘要沿用前述本次构建值。最终独立 reviewer 复核结果由 PR 交接补充，本文不代替 reviewer 判断；手机与 UI/Controller 合流边界继续适用。
+worker、libc++ 与 GeoIP/override 摘要沿用前述本次构建值。独立 reviewer 已复核 `e658f6b`：两项 P2、一项 P3 均关闭，未发现新增阻断问题；独立核对 11 项源码摘要与最终 HAP 摘要一致。复核未重跑重型构建，未作 GitHub 批准/合并操作；完整 Full CI、手机与 UI/Controller 合流边界继续适用。
