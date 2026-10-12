@@ -9,6 +9,7 @@ export GOMODCACHE="$WORK/modcache"
 export GOCACHE="$WORK/buildcache"
 export GOFLAGS=-mod=readonly
 mkdir -p "$WORK/stage/core" "$WORK/stage/scripts"
+rm -f "$WORK/core-verification.json" "$WORK/hap-verification.json"
 # Fixed host/worker baseline: unrelated concurrent work cannot enter this experiment.
 git -C "$ROOT" archive "$BASE" core scripts clash-openharmony | tar -x -C "$WORK/stage"
 cp "$HERE/go.mod" "$HERE/go.sum" "$WORK/stage/core/"

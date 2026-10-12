@@ -12,9 +12,11 @@ with zipfile.ZipFile(module["Zip"]) as archive:
     original = archive.read(f'{module["Path"]}@{module["Version"]}/{relative}')
 old = b'\t\treturn false, fmt.Errorf("unix.Fstat(%v,...) failed: %v", fd, err)\n'
 new = b'\t\treturn false, nil // OHOS: VPN tun fd is not Fstat-able (musl/SELinux); treat as non-socket\n'
-assert original.count(old) == 1, "gVisor baseline drift"
+if original.count(old) != 1:
+    raise SystemExit("gVisor baseline drift")
 current = endpoint.read_bytes()
-assert current in (original, original.replace(old, new, 1)), "unexpected gVisor cache modification"
+if current not in (original, original.replace(old, new, 1)):
+    raise SystemExit("unexpected gVisor cache modification")
 if current != original:
     endpoint.chmod(endpoint.stat().st_mode | 0o200)
     endpoint.write_bytes(original)

@@ -22,12 +22,17 @@
 source scripts/env.sh
 bash experiments/smart-core/build.sh hap
 bash experiments/smart-core/test.sh
+python3 experiments/smart-core/test-verify.py
 git diff --check
 ```
 
 工具链在其他位置时设置 `HARMONYOS_CLT_ROOT`，详见 [构建指南](../../docs/how-to/build.md)。脚本使用 Git archive 固定宿主，下载校验后的候选复制到私有源码目录应用 `offline-model.patch`，然后复用基线的 OHOS clang、日志 stub、gVisor 补丁与 c-shared 构建。源码补丁是本实验新增，未改生产 `core/` 或共享脚本。
 
-编译参数保持 `GOOS=android GOARCH=arm64 CGO_ENABLED=1`、`netgo ohos cmfa with_gvisor`。Go 的 android 目标不表示产物是 Android APK；C 链接实际使用 OHOS musl SDK。产物验证读取 ELF64/LE/AArch64/DYN、动态导出符号、四个生成头文件声明，HAP CRC、必需库和资源、模型不入包。`build-info.txt` 记录编译模块图，`upstream-module.json` 记录补丁前来源与校验和；本地 replace 在二进制元数据中须和这两份身份一起解释。
+编译参数保持 `GOOS=android GOARCH=arm64 CGO_ENABLED=1`、`netgo ohos cmfa with_gvisor`。Go 的 android 目标不表示产物是 Android APK；C 链接实际使用 OHOS musl SDK。核心门禁核对 Go 编译参数、本地 Smart replacement、固定上游模块身份和输入锁/补丁摘要，读取 ELF64/LE/AArch64/DYN、程序头、实际动态导出表及四个生成声明，保存本次未 strip 和独立 `llvm-strip --strip-all` 后的摘要。HAP 门禁必须消费该构建记录，重新 strip 后与包内核心逐字节一致，并检查包内四个已定义的 FUNC/GLOBAL 动态导出；新核心或锁/补丁改变必须重新执行核心门禁。
+
+包内 worker/C++ 库和独立 strip 的本次 CMake 产物一致；override.yaml 与固定宿主源码一致，GeoIP 与锁定摘要一致；五个必需项非空且记录尺寸/摘要，检查 CRC、重复条目和模型禁止。所有失败判断显式退出，`PYTHONOPTIMIZE=1` 不能移除门禁。构建开始清除旧成功记录，失败不遗留本轮成功报告。`build-info.txt` 记录编译模块图，`upstream-module.json` 记录补丁前来源与校验和；本地 replace 在二进制元数据中须和这些身份一起解释。记录是受信本地构建目录的完整性证据，不是签名供应链证明。
+
+`test-verify.py` 用真实构建产物生成临时篡改 HAP，在正常与优化 Python 下分别验证：有效包接受，112 字节伪核心、未 strip 的核心、空原生库/资源、缺动态导出和 Model.bin 拒绝。环境保留标准 HAP 时追加旧核心替换拒绝测试。测试不改生产包或原实验 HAP；修复复现与结果见 [门禁证据](evidence-2026-10-12-gate-hardening.md)。
 
 `test.sh` 将本目录的两个测试 fixture 复制到实验上游目录，使用真实 parser/router 和模型降级路径。没有真实节点、凭据或 TUN。模型测试覆盖缺失、损坏/摘要不符、禁止下载、不删除坏文件及统计 fallback。API 测试覆盖 synthetic YAML 生成 Smart 类型、`GET /group/weights`、`POST /cache/smart/flush` 的认证和返回契约，以及 `POST /upgrade/lgbm` 离线拒绝。
 
