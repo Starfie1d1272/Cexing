@@ -30,7 +30,7 @@ bash scripts/build-hap.sh
 
 内核生成到 `clash-openharmony/entry/libs/arm64-v8a/`；未签名包位于 `clash-openharmony/entry/build/default/outputs/default/entry-default-unsigned.hap`。这些文件不入 Git。只改 ArkTS 时可复用同一模块图的内核；依赖变化须重建内核并核对模块元数据。资源或原生库变化必须 clean，避免 Hvigor 打包旧缓存。
 
-`build-core.sh` 使用 OHOS clang，以 `GOOS=android GOARCH=arm64` 和 `netgo ohos cmfa with_gvisor` 构建 c-shared。脚本创建 Android 日志 stub，并对 gVisor 模块缓存应用 Fstat 补丁；应使用项目隔离缓存，避免影响其他项目。原理与升级检查见 [平台参考](../reference/platform.md)。
+`build-core.sh` 使用 OHOS clang，以 `GOOS=android GOARCH=arm64` 和 `netgo ohos cmfa with_gvisor` 构建 c-shared。脚本每次重建 Android 日志 stub，并自动使用构建专用临时模块缓存应用固定 gVisor 的 Fstat 补丁；不修改开发者共享缓存。原理与升级检查见 [平台参考](../reference/platform.md)。
 
 GeoIP 准备脚本锁定来源与摘要，不匹配会失败。上游 latest 是可变地址，失败时审查可信快照及许可证后更新锁定值，不移除校验。构建检查不能替代实际 HAP 资源检查。
 
@@ -47,4 +47,4 @@ git diff --check
 
 用 ZIP 工具检查 HAP CRC，确认包含 `libmihomo.so`、`libentry.so`、`libc++_shared.so`、`override.yaml` 和 `geodata/geoip.metadb`；读取包内库的 ELF 架构及摘要。跨编译与 mock 测试只证明各自覆盖的构建/状态机行为，网络与后台运行用 [设备指南](device.md) 验收。
 
-运行 `go mod verify` 前注意构建脚本会修改 gVisor 缓存。核对补丁是否恰为仓库脚本生成的差异；验证原始模块时在隔离缓存下载原版本，不忽略其他依赖完整性失败。
+内核脚本在临时缓存中验证原始模块、应用所选 gVisor 补丁，构建后临时还原该文件再次执行完整性检查。旧手动补丁曾改写开发者缓存的环境仍须核对历史差异，或用新隔离缓存验证；不忽略其他依赖完整性失败。固定工具组合、Quick/Full 入口与包内版本/ABI/资源检查见 [CI 指南](ci.md)。
