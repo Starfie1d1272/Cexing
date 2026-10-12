@@ -5,7 +5,7 @@
 ## 输入（宿主内部对象，不写日志）
 
 ```typescript
-type ArtifactKind = 'complete-yaml' | 'merge-v1' | 'provider-payload'
+type ArtifactKind = 'complete-yaml' | 'clash-verge-merge-2.5.8' | 'provider-payload'
   | 'verge-script' | 'openclash-shell' | 'unknown';
 interface PlanRequestV1 {
   version: 1;
@@ -14,7 +14,11 @@ interface PlanRequestV1 {
   expectedActiveRevision: string; // compare-and-swap，阻止旧下载覆盖新选择
   source: { kind: ArtifactKind; contentHandle: string; digest: string };
   base?: { contentHandle: string; digest: string };
-  merge?: { contentHandle: string; digest: string; removePaths: string[] };
+  merge?: {
+    contentHandle: string; digest: string;
+    dialect: 'clash-verge-merge-2.5.8';
+    sourceVersion?: string; // 原平台已知版本；缺省为未知，不假定等价迁移
+  };
   policy?: {
     id: string; version: string; digest: string;
     family: 'mobile-client' | 'gateway-smart';
@@ -28,7 +32,7 @@ interface PlanRequestV1 {
 }
 ```
 
-contentHandle 是宿主私有不可遍历句柄，不是公开 URL 或任意路径。获取 provider、订阅凭据保管与错误脱敏在宿主边界；计划阶段禁止额外网络请求/执行 JS/sh。providerSnapshot 必须给出每个 provider 的固定摘要、可用叶节点、已解析健康检查和获取结果；未解析不视为零节点，也不视为成功。转换到候选时保持 provider 身份，更新使快照失效并重新验收必要节点。
+contentHandle 是宿主私有不可遍历句柄，不是公开 URL 或任意路径。Merge 方言固定为 Verge v2.5.8，具体语义见 [规范](spec.md)；Canonical 管理项更新只属于 Strategy，不使用按名称合并的通用 Merge。获取 provider、订阅凭据保管与错误脱敏在宿主边界；计划阶段禁止额外网络请求/执行 JS/sh。providerSnapshot 必须给出每个 provider 的固定摘要、可用叶节点、已解析健康检查和获取结果；未解析不视为零节点，也不视为成功。转换到候选时保持 provider 身份，更新使快照失效并重新验收必要节点。
 
 platformSnapshot 包括系统 TUN 地址族/路由/DNS/MTU、白名单或排除名单、宿主排除身份，以及 Controller 回环端口、secret/UI 私有句柄。不要把密钥放进 diff。capabilitiesDigest 必须对应具体内核解析器与模型证据，不能用版本字符串猜 smart/LightGBM 可用。
 

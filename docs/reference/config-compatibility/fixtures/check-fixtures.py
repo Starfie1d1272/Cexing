@@ -44,9 +44,25 @@ for name in ["香港优选", "新加坡优选", "日本优选", "美国优选", 
 provider = load("provider-config.yaml")
 assert "proxy-providers" in provider and "rules" in provider
 assert set(load("provider-payload.yaml")) == {"proxies"}
+assert catalog["mergeDialect"] == "clash-verge-merge-2.5.8"
+merge_base = load("merge-base.yaml")
+overlay = load("merge.yaml")
+merge_expected = load("merge-expected.yaml")
+# Check declared artifacts, not a reimplementation of the Merge algorithm.
+for key in ("proxies", "proxy-groups", "listeners"):
+    assert merge_expected[key] == overlay[key], "named array must replace"
+    assert len(merge_expected[key]) < len(merge_base[key])
+assert "udp" not in merge_expected["proxies"][0], "old named fields leaked"
+assert "fallback" in merge_expected["dns"]
+assert merge_expected["dns"]["fallback"] is None, "null key must remain"
+for key in ("nameserver-policy", "fallback-filter"):
+    assert merge_expected["dns"][key] == overlay["dns"][key]
+assert merge_expected["hosts"] == overlay["hosts"]
+assert merge_expected["dns"]["nameserver"] == merge_base["dns"]["nameserver"]
+assert merge_expected["tun"] == {"mtu": 1500, "stack": "mixed"}
 for doc in [root / "usage.md", root.parent / "spec.md", root.parent / "engine-interface.md",
             root.parents[2] / "evidence/config-compatibility/2026-10-12.md"]:
     for link in re.findall(r"\]\(([^)]+)\)", doc.read_text(encoding="utf-8")):
         if "://" not in link:
             assert (doc.parent / link.split("#")[0]).exists(), f"broken link: {link}"
-print(f"PASS: {len(catalog['cases'])} scenario declarations; synthetic pools, references, preservation and links")
+print(f"PASS: {len(catalog['cases'])} scenario declarations; synthetic pools, references, preservation, Verge Merge expectations and links")

@@ -85,27 +85,31 @@
     {
       "id": "merge-alone",
       "file": "merge.yaml",
-      "kind": "merge-v1",
+      "kind": "clash-verge-merge-2.5.8",
       "route": "convert",
       "base": null,
       "code": "BASE_REQUIRED"
     },
     {
-      "id": "merge-array-replace",
+      "id": "verge-merge-semantics",
       "file": "merge.yaml",
-      "kind": "merge-v1",
-      "baseFile": "base.yaml",
+      "kind": "clash-verge-merge-2.5.8",
+      "baseFile": "merge-base.yaml",
       "assertions": [
-        "array-replaces-entire-value",
-        "mapping-recursive",
-        "null-is-value",
+        "named-arrays-replace-entire-value",
+        "mapping-recursive-except-dns-hosts",
+        "null-key-remains",
+        "dns-specified-child-replaces",
+        "hosts-replaces",
+        "unspecified-dns-child-preserved",
         "repeat-same-digest"
-      ]
+      ],
+      "expectedFile": "merge-expected.yaml"
     },
     {
       "id": "protected-field",
       "file": "merge-protected.yaml",
-      "kind": "merge-v1",
+      "kind": "clash-verge-merge-2.5.8",
       "baseFile": "base.yaml",
       "code": "PROTECTED_FIELD"
     },
@@ -202,5 +206,6 @@
         "one-managed-google-cn-rule-after-two-plans"
       ]
     }
-  ]
+  ],
+  "mergeDialect": "clash-verge-merge-2.5.8"
 }

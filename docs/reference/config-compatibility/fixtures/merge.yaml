@@ -1,4 +1,32 @@
 {
+  "proxies": [
+    {
+      "name": "美国 SYN merge",
+      "type": "socks5",
+      "server": "192.0.2.10",
+      "port": 1088
+    }
+  ],
+  "proxy-groups": [
+    {
+      "name": "Synthetic merge selector",
+      "type": "select",
+      "proxies": [
+        "美国 SYN merge"
+      ]
+    }
+  ],
+  "listeners": [
+    {
+      "name": "Synthetic listener",
+      "type": "socks",
+      "port": 1089,
+      "listen": "127.0.0.1"
+    }
+  ],
+  "tun": {
+    "stack": "mixed"
+  },
   "profile": {
     "store-selected": true
   },
@@ -6,6 +34,15 @@
     "fake-ip-filter": [
       "synthetic.example"
     ],
-    "fallback": null
+    "fallback": null,
+    "nameserver-policy": {
+      "new.example": "198.51.100.53"
+    },
+    "fallback-filter": {
+      "geoip": false
+    }
+  },
+  "hosts": {
+    "new.example": "198.51.100.2"
   }
 }

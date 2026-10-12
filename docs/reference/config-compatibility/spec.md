@@ -9,7 +9,7 @@
 | 输入 | 手机目标路径 | 基线实际能力及边界 |
 |---|---|---|
 | 完整 Mihomo YAML（含 proxies 或 proxy-providers、组和规则） | 直接 | 现有 URL/文件/剪贴板导入；完整引用、资源和可运行性校验待统一引擎 |
-| Merge YAML | 转换 | 尚未实现；必须有完整 base 和明确 Merge 版本，不能单独激活 |
+| Clash Verge Merge YAML | 转换 | 必须有完整 base；入口固定使用 v2.5.8 语义并记录方言身份，不能单独激活 |
 | Clash Verge JS | 不直接支持执行；原平台导出最终 YAML 走直接路径 | 不运行任意 JS；已知策略只以显式版本化预设转换语义，不用正则抽取脚本 |
 | OpenClash sh/Ruby | 不直接支持执行；原平台导出最终 YAML 或显式策略转换 | 不带入 shell、Ruby、LAN ACL、文件写入和 NAS 部署操作 |
 | provider-only payload（顶层仅 proxies） | 转换为 provider 资源 + 完整 base | 与完整配置中只有 proxy-providers 的情况不同；不能单独启用 |
@@ -17,7 +17,11 @@
 
 完整 provider 配置仍需受限获取/解析 provider、缓存身份及节点快照。只看到 include-all/use 声明不能证明美国节点存在。私有 Canonical 现有 JS/sh 验证顶层 proxies，provider-only 会失败；不得借此宣称 Mihomo 不支持 provider。
 
-建议手机 Merge v1：mapping 递归合并，scalar 替换，array 整体替换，null 为合法值而非删除。删除用独立、类型明确的 removePaths（JSON Pointer）；删除不存在路径报错。拒绝重复 mapping key、自定义 YAML tag、循环别名和超限展开；字符串不插值。数组不按 name 猜测合并；策略生成器以受管理身份替换自身组/规则，精确去重并保留非管理规则顺序。此为新方言，不能宣称逐字兼容 Verge Merge。平台保留字段的写入/删除在预览中报告，不静默接受。
+Merge 入口固定采用 `clash-verge-merge-2.5.8`，依据 [上游固定 merge.rs](https://github.com/clash-verge-rev/clash-verge-rev/blob/4337bd85758d54d7b9044b2da3c9ac1176eae1f3/src-tauri/src/enhance/merge.rs)：顶层字符串键转 ASCII 小写；一般 mapping 递归合并，scalar/array 整体替换，null 保留为值而非删除。顶层 proxies/proxy-groups/listeners 也整体替换，不按 name 合并。特例：base 与 overlay 的 dns 都为 mapping 时，仅保留未指定的直接子字段，指定的直接子字段整体替换；顶层 hosts 整体替换。空数组清空数组；一般空 mapping 不清空已有 mapping，dns 指定的子 mapping 与 hosts 的空 mapping 则可清空对应值。null 保留不保证最终内核字段有效，仍需完整校验。
+
+不提供 `$delete`、removePaths 或第二套公开自定义 Merge 方言。Canonical 按名称清理/更新自身管理组、规则属于 Strategy 转换，必须与 Merge 阶段分离。Verge 独立列表编辑的 prepend/append/delete 不是本入口的 Merge 功能。拒绝重复 mapping key、自定义 YAML tag、循环别名和超限展开；字符串不插值。平台保留字段的写入在预览中报告，不静默接受。
+
+来源版本必须保存：Verge v2.4.0 对 DNS/hosts 使用一般递归合并；v2.5.8 的特例来自 [2026-09-22 上游修改](https://github.com/clash-verge-rev/clash-verge-rev/commit/6a85d0344e5df34c750ca3158e53b8b37a5ddf82)。旧版来源或未注明版本的 DNS/hosts 覆写不能静默宣称等价迁移，应展示固定目标版本及字段变化后重新校验；不根据内容猜安装版，不修改既有用户覆写数据。完整 Mihomo YAML 不进入 Merge 算法。
 
 ## Canonical v3 可移植语义
 
@@ -53,6 +57,6 @@ Gateway 区域组是 smart，Client 是 url-test；两份 OpenClash 源码均显
 
 ## 必须满足的转换不变量
 
-同一 base + Merge + policy + providerSnapshot + platformSnapshot 重复生成语义与摘要一致；所有节点字段保留，重复组、重名节点、循环依赖、悬空引用、规则资源缺失均明确失败。管理规则去重不重排非管理规则；不得通过末尾追加规则让它落在 MATCH 后。冲突/删除/预览不泄漏 URL、节点地址或凭据。订阅更新重新执行同一流水线；任何生成、校验、存储或内核应用失败均保留/恢复上一份有效版本，文件原子替换不等于运行时回滚完成。
+同一 base + Merge + policy + providerSnapshot + platformSnapshot 重复生成语义与摘要一致；Strategy 保留订阅节点字段，显式 Merge 对节点数组的整体替换按上述方言执行并预览差异，不能按名称偷偷保留旧项。重复组、重名节点、循环依赖、悬空引用、规则资源缺失均明确失败。管理规则去重不重排非管理规则；不得通过末尾追加规则让它落在 MATCH 后。冲突/替换/预览不泄漏 URL、节点地址或凭据。订阅更新重新执行同一流水线；任何生成、校验、存储或内核应用失败均保留/恢复上一份有效版本，文件原子替换不等于运行时回滚完成。
 
 首次启动、编辑、切换、订阅更新和热重载采用相同平台投影，回环 Controller/随机密钥/UI/系统 TUN 不由外部配置决定。以 [接口](engine-interface.md) 和 [合成验收向量](fixtures/cases.json) 交接配置引擎。fixtures 的结果是目标期待，不表示基线已实现。

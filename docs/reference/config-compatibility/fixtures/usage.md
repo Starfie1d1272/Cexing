@@ -6,7 +6,9 @@
 
 [cases.json](cases.json) 给未来引擎提供输入分类、fixture 变异、错误码及事务剧本；期待值不是测试执行记录。未声明的前置条件采用已验证平台/内核快照及有效手机 DNS。所列错误码是该场景关注的诊断，出现其他阻断也不能返回 ready。
 
-`merge.yaml` 用于验证 mapping 递归、数组替换和 null 值：测试前在 base 的 dns.fake-ip-filter 放入另一合成项，预期只有 synthetic.example；dns.fallback 应为 null，原 nameserver 保留。`merge-protected.yaml` 的 secret 是显式合成非秘密占位值，预期拒绝跨越平台字段边界。
+`merge-base.yaml` + `merge.yaml` → `merge-expected.yaml` 固定为 Clash Verge v2.5.8 合并阶段样本，不运行内核或平台投影。三项关键期待：proxies/proxy-groups/listeners 命名数组整体替换，旧项/旧字段不会按 name 保留；dns.fallback 键仍存在且为 null；指定的 dns.nameserver-policy/fallback-filter 以及整个 hosts mapping 替换，旧条目移除，未指定的 dns.nameserver 保留。一般 mapping 如 tun 仍递归合并。null 是否可用于最终内核字段由后续完整校验决定。
+
+本入口不支持自定义删除操作。旧版来源的 DNS/hosts 不能静默按新语义迁移；来源版本未知需明确展示目标方言。`merge-protected.yaml` 的 secret 是显式合成非秘密占位值，预期拒绝跨越平台字段边界。
 
 独立材料检查：
 
