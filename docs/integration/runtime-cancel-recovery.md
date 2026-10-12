@@ -23,7 +23,7 @@ PR #4 独立分支的 AppRuntime 仍未调用该方法，基线没有该 API；�
 git apply --check docs/integration/runtime-cancel-recovery.patch
 git apply docs/integration/runtime-cancel-recovery.patch
 source scripts/env.sh
-node scripts/test-runtime-recovery-integration.cjs
+node scripts/verify-runtime-recovery-integration.cjs
 node scripts/test-vpn-recovery.cjs
 node scripts/test-app-runtime.cjs
 node scripts/test-background-lifecycle.cjs
@@ -32,7 +32,7 @@ node scripts/test-vpn-startup.cjs
 git diff --check
 ```
 
-`test-runtime-recovery-integration.cjs` 只在合流后运行，加载实际 AppRuntime 与 VpnController 的 SDK 转译源码，使用同一个 Controller 实例及 deferred CoreApi 探活。它不是产品动态能力判断；独立基线运行会暴露缺少合流接点。可传第一个参数为导出的组合源码根目录，以免修改独立 checkout。
+`verify-runtime-recovery-integration.cjs` 只在合流后运行，加载实际 AppRuntime 与 VpnController 的 SDK 转译源码，使用同一个 Controller 实例及 deferred CoreApi 探活。它不是产品动态能力判断；独立基线运行会暴露缺少合流接点。可传第一个参数为导出的组合源码根目录，以免修改独立 checkout。
 
 验证覆盖：仅 cancelRestore、当前 Ability 销毁后的旧 alive=true 不提交状态/启动后台/安排 restore；旧 Ability 销毁不失效新 Context 的探活；新鲜 alive=true 仍正常启动服务；已连接的 Ability 销毁不停止 VPN/后台；新鲜 alive=false 仍安排一个恢复计时器，旧 alive=true 不取消它。
 
