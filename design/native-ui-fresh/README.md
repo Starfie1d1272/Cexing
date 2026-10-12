@@ -4,6 +4,8 @@
 
 ## 体验
 
+当前设计基准为用户已选的 `0974f9d` 首页。[当前原型](page-consistency/index.html?state=connected)保留该首页，仅修整工具页两处一致性；[逐页对照](page-consistency/comparison.html)、[页面结论](page-consistency/README.md)及[实际功能差距／技术线状态](page-consistency/IMPLEMENTATION-GAP.md)随独立提交提供。
+
 当前另有 [斜切块面候选](connection-planes/README.md)及[同尺寸对照](connection-planes/comparison.html)：移除大连接图标，以连续块面形成主卡，固定对照为 `3f5e300`。附实际连接/断开 GIF；此前入口和截图均保留。
 
 当前新增独立的 [连接首页精修候选](connection-refine/README.md)及其[同尺寸前后对照](connection-refine/comparison.html)，以前稿 `7c58539` 为固定对照，仅改变首页主卡。前稿入口与截图保持不变。

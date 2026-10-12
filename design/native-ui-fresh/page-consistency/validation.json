@@ -1,0 +1,635 @@
+{
+  "baseline": "0974f9dd021130fe2b17554af773db554d05ddb5",
+  "comparisons": [
+    {
+      "page": "connected",
+      "viewport": [
+        390,
+        844
+      ],
+      "same_state": true,
+      "same_text": true,
+      "pixel_identical": true,
+      "max_channel_delta": 0,
+      "expected_change": false
+    },
+    {
+      "page": "ready",
+      "viewport": [
+        390,
+        844
+      ],
+      "same_state": true,
+      "same_text": true,
+      "pixel_identical": true,
+      "max_channel_delta": 0,
+      "expected_change": false
+    },
+    {
+      "page": "permission",
+      "viewport": [
+        390,
+        844
+      ],
+      "same_state": true,
+      "same_text": true,
+      "pixel_identical": true,
+      "max_channel_delta": 0,
+      "expected_change": false
+    },
+    {
+      "page": "disconnect",
+      "viewport": [
+        390,
+        844
+      ],
+      "same_state": true,
+      "same_text": true,
+      "pixel_identical": true,
+      "max_channel_delta": 0,
+      "expected_change": false
+    },
+    {
+      "page": "profiles",
+      "viewport": [
+        390,
+        844
+      ],
+      "same_state": true,
+      "same_text": true,
+      "pixel_identical": true,
+      "max_channel_delta": 0,
+      "expected_change": false
+    },
+    {
+      "page": "settings",
+      "viewport": [
+        390,
+        844
+      ],
+      "same_state": true,
+      "same_text": true,
+      "pixel_identical": true,
+      "max_channel_delta": 0,
+      "expected_change": false
+    },
+    {
+      "page": "settings-interval",
+      "viewport": [
+        390,
+        844
+      ],
+      "same_state": true,
+      "same_text": true,
+      "pixel_identical": false,
+      "max_channel_delta": 223,
+      "expected_change": true
+    },
+    {
+      "page": "profile",
+      "viewport": [
+        390,
+        844
+      ],
+      "same_state": true,
+      "same_text": true,
+      "pixel_identical": true,
+      "max_channel_delta": 0,
+      "expected_change": true
+    },
+    {
+      "page": "profile-delete",
+      "viewport": [
+        390,
+        844
+      ],
+      "same_state": true,
+      "same_text": true,
+      "pixel_identical": false,
+      "max_channel_delta": 114,
+      "expected_change": true
+    },
+    {
+      "page": "delete-dialog",
+      "viewport": [
+        390,
+        844
+      ],
+      "same_state": true,
+      "same_text": true,
+      "pixel_identical": false,
+      "max_channel_delta": 146,
+      "expected_change": true
+    },
+    {
+      "page": "import",
+      "viewport": [
+        390,
+        844
+      ],
+      "same_state": true,
+      "same_text": true,
+      "pixel_identical": true,
+      "max_channel_delta": 0,
+      "expected_change": false
+    },
+    {
+      "page": "import-error",
+      "viewport": [
+        390,
+        844
+      ],
+      "same_state": true,
+      "same_text": true,
+      "pixel_identical": true,
+      "max_channel_delta": 0,
+      "expected_change": false
+    },
+    {
+      "page": "review",
+      "viewport": [
+        390,
+        844
+      ],
+      "same_state": true,
+      "same_text": true,
+      "pixel_identical": true,
+      "max_channel_delta": 0,
+      "expected_change": false
+    },
+    {
+      "page": "overrides",
+      "viewport": [
+        390,
+        844
+      ],
+      "same_state": true,
+      "same_text": true,
+      "pixel_identical": true,
+      "max_channel_delta": 0,
+      "expected_change": false
+    },
+    {
+      "page": "merge",
+      "viewport": [
+        390,
+        844
+      ],
+      "same_state": true,
+      "same_text": true,
+      "pixel_identical": true,
+      "max_channel_delta": 0,
+      "expected_change": false
+    },
+    {
+      "page": "network",
+      "viewport": [
+        390,
+        844
+      ],
+      "same_state": true,
+      "same_text": true,
+      "pixel_identical": true,
+      "max_channel_delta": 0,
+      "expected_change": false
+    },
+    {
+      "page": "kernel",
+      "viewport": [
+        390,
+        844
+      ],
+      "same_state": true,
+      "same_text": true,
+      "pixel_identical": true,
+      "max_channel_delta": 0,
+      "expected_change": false
+    },
+    {
+      "page": "diagnostics",
+      "viewport": [
+        390,
+        844
+      ],
+      "same_state": true,
+      "same_text": true,
+      "pixel_identical": true,
+      "max_channel_delta": 0,
+      "expected_change": false
+    },
+    {
+      "page": "panel",
+      "viewport": [
+        390,
+        844
+      ],
+      "same_state": true,
+      "same_text": true,
+      "pixel_identical": true,
+      "max_channel_delta": 0,
+      "expected_change": false
+    },
+    {
+      "page": "panel-error",
+      "viewport": [
+        390,
+        844
+      ],
+      "same_state": true,
+      "same_text": true,
+      "pixel_identical": true,
+      "max_channel_delta": 0,
+      "expected_change": false
+    },
+    {
+      "page": "update-error",
+      "viewport": [
+        390,
+        844
+      ],
+      "same_state": true,
+      "same_text": true,
+      "pixel_identical": true,
+      "max_channel_delta": 0,
+      "expected_change": true
+    },
+    {
+      "page": "access",
+      "viewport": [
+        390,
+        844
+      ],
+      "same_state": true,
+      "same_text": true,
+      "pixel_identical": true,
+      "max_channel_delta": 0,
+      "expected_change": false
+    },
+    {
+      "page": "diff",
+      "viewport": [
+        390,
+        844
+      ],
+      "same_state": true,
+      "same_text": true,
+      "pixel_identical": true,
+      "max_channel_delta": 0,
+      "expected_change": false
+    },
+    {
+      "page": "rename",
+      "viewport": [
+        390,
+        844
+      ],
+      "same_state": true,
+      "same_text": true,
+      "pixel_identical": true,
+      "max_channel_delta": 0,
+      "expected_change": false
+    },
+    {
+      "page": "file",
+      "viewport": [
+        390,
+        844
+      ],
+      "same_state": true,
+      "same_text": true,
+      "pixel_identical": true,
+      "max_channel_delta": 0,
+      "expected_change": false
+    },
+    {
+      "page": "clipboard",
+      "viewport": [
+        390,
+        844
+      ],
+      "same_state": true,
+      "same_text": true,
+      "pixel_identical": true,
+      "max_channel_delta": 0,
+      "expected_change": false
+    },
+    {
+      "page": "connected",
+      "viewport": [
+        960,
+        720
+      ],
+      "same_state": true,
+      "same_text": true,
+      "pixel_identical": true,
+      "max_channel_delta": 0,
+      "expected_change": false
+    },
+    {
+      "page": "ready",
+      "viewport": [
+        960,
+        720
+      ],
+      "same_state": true,
+      "same_text": true,
+      "pixel_identical": true,
+      "max_channel_delta": 0,
+      "expected_change": false
+    },
+    {
+      "page": "permission",
+      "viewport": [
+        960,
+        720
+      ],
+      "same_state": true,
+      "same_text": true,
+      "pixel_identical": true,
+      "max_channel_delta": 0,
+      "expected_change": false
+    },
+    {
+      "page": "disconnect",
+      "viewport": [
+        960,
+        720
+      ],
+      "same_state": true,
+      "same_text": true,
+      "pixel_identical": true,
+      "max_channel_delta": 0,
+      "expected_change": false
+    },
+    {
+      "page": "profiles",
+      "viewport": [
+        960,
+        720
+      ],
+      "same_state": true,
+      "same_text": true,
+      "pixel_identical": true,
+      "max_channel_delta": 0,
+      "expected_change": false
+    },
+    {
+      "page": "settings",
+      "viewport": [
+        960,
+        720
+      ],
+      "same_state": true,
+      "same_text": true,
+      "pixel_identical": true,
+      "max_channel_delta": 0,
+      "expected_change": false
+    },
+    {
+      "page": "settings-interval",
+      "viewport": [
+        960,
+        720
+      ],
+      "same_state": true,
+      "same_text": true,
+      "pixel_identical": false,
+      "max_channel_delta": 223,
+      "expected_change": true
+    },
+    {
+      "page": "profile",
+      "viewport": [
+        960,
+        720
+      ],
+      "same_state": true,
+      "same_text": true,
+      "pixel_identical": true,
+      "max_channel_delta": 0,
+      "expected_change": true
+    },
+    {
+      "page": "profile-delete",
+      "viewport": [
+        960,
+        720
+      ],
+      "same_state": true,
+      "same_text": true,
+      "pixel_identical": false,
+      "max_channel_delta": 114,
+      "expected_change": true
+    },
+    {
+      "page": "delete-dialog",
+      "viewport": [
+        960,
+        720
+      ],
+      "same_state": true,
+      "same_text": true,
+      "pixel_identical": false,
+      "max_channel_delta": 146,
+      "expected_change": true
+    },
+    {
+      "page": "import",
+      "viewport": [
+        960,
+        720
+      ],
+      "same_state": true,
+      "same_text": true,
+      "pixel_identical": true,
+      "max_channel_delta": 0,
+      "expected_change": false
+    },
+    {
+      "page": "import-error",
+      "viewport": [
+        960,
+        720
+      ],
+      "same_state": true,
+      "same_text": true,
+      "pixel_identical": true,
+      "max_channel_delta": 0,
+      "expected_change": false
+    },
+    {
+      "page": "review",
+      "viewport": [
+        960,
+        720
+      ],
+      "same_state": true,
+      "same_text": true,
+      "pixel_identical": true,
+      "max_channel_delta": 0,
+      "expected_change": false
+    },
+    {
+      "page": "overrides",
+      "viewport": [
+        960,
+        720
+      ],
+      "same_state": true,
+      "same_text": true,
+      "pixel_identical": true,
+      "max_channel_delta": 0,
+      "expected_change": false
+    },
+    {
+      "page": "merge",
+      "viewport": [
+        960,
+        720
+      ],
+      "same_state": true,
+      "same_text": true,
+      "pixel_identical": true,
+      "max_channel_delta": 0,
+      "expected_change": false
+    },
+    {
+      "page": "network",
+      "viewport": [
+        960,
+        720
+      ],
+      "same_state": true,
+      "same_text": true,
+      "pixel_identical": true,
+      "max_channel_delta": 0,
+      "expected_change": false
+    },
+    {
+      "page": "kernel",
+      "viewport": [
+        960,
+        720
+      ],
+      "same_state": true,
+      "same_text": true,
+      "pixel_identical": true,
+      "max_channel_delta": 0,
+      "expected_change": false
+    },
+    {
+      "page": "diagnostics",
+      "viewport": [
+        960,
+        720
+      ],
+      "same_state": true,
+      "same_text": true,
+      "pixel_identical": true,
+      "max_channel_delta": 0,
+      "expected_change": false
+    },
+    {
+      "page": "panel",
+      "viewport": [
+        960,
+        720
+      ],
+      "same_state": true,
+      "same_text": true,
+      "pixel_identical": true,
+      "max_channel_delta": 0,
+      "expected_change": false
+    },
+    {
+      "page": "panel-error",
+      "viewport": [
+        960,
+        720
+      ],
+      "same_state": true,
+      "same_text": true,
+      "pixel_identical": true,
+      "max_channel_delta": 0,
+      "expected_change": false
+    },
+    {
+      "page": "update-error",
+      "viewport": [
+        960,
+        720
+      ],
+      "same_state": true,
+      "same_text": true,
+      "pixel_identical": true,
+      "max_channel_delta": 0,
+      "expected_change": true
+    },
+    {
+      "page": "access",
+      "viewport": [
+        960,
+        720
+      ],
+      "same_state": true,
+      "same_text": true,
+      "pixel_identical": true,
+      "max_channel_delta": 0,
+      "expected_change": false
+    },
+    {
+      "page": "diff",
+      "viewport": [
+        960,
+        720
+      ],
+      "same_state": true,
+      "same_text": true,
+      "pixel_identical": true,
+      "max_channel_delta": 0,
+      "expected_change": false
+    },
+    {
+      "page": "rename",
+      "viewport": [
+        960,
+        720
+      ],
+      "same_state": true,
+      "same_text": true,
+      "pixel_identical": true,
+      "max_channel_delta": 0,
+      "expected_change": false
+    },
+    {
+      "page": "file",
+      "viewport": [
+        960,
+        720
+      ],
+      "same_state": true,
+      "same_text": true,
+      "pixel_identical": true,
+      "max_channel_delta": 0,
+      "expected_change": false
+    },
+    {
+      "page": "clipboard",
+      "viewport": [
+        960,
+        720
+      ],
+      "same_state": true,
+      "same_text": true,
+      "pixel_identical": true,
+      "max_channel_delta": 0,
+      "expected_change": false
+    }
+  ],
+  "errors": [],
+  "flows": [
+    "48px间隔选择器可修改24→48小时；跨页保持连接",
+    "删除确认背景inert，关闭保留订阅，确认才删除合成内存配置",
+    "已选首页连接/断开沿用同一引擎"
+  ]
+}

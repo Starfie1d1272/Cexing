@@ -1,0 +1,21 @@
+/* Scoped utilities only; the accepted home, navigation and normal controls stay frozen. */
+[data-page-consistency="true"][data-page="settings"] .row #interval {
+  font-size: 14px;
+  font-weight: 400;
+  min-height: 48px;
+  min-width: 100px;
+  margin: 0;
+  padding: 10px 12px;
+  color: var(--ark-ink);
+  background: #fff;
+  border: 1px solid #dce5e9;
+  border-radius: 12px;
+}
+[data-page-consistency="true"][data-page="profile"] [data-action="delete"] strong {
+  color: #923f2e;
+}
+[data-page-consistency="true"][data-page="profile"] .sheet [data-action="deleteConfirm"] {
+  background: #923f2e;
+  color: #fff;
+  box-shadow: none;
+}
