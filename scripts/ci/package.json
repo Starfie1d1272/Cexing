@@ -5,6 +5,7 @@
   "description": "Host mock transpilation and source validation only; not an ArkTS SDK",
   "dependencies": {
     "json5": "2.2.3",
+    "pnpm": "11.20.0",
     "typescript": "5.9.3",
     "yaml": "2.8.1"
   }

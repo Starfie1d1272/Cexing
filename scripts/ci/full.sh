@@ -9,6 +9,9 @@ fi
 source scripts/env.sh
 python3 scripts/ci/check-toolchain.py
 node scripts/ci/source-check.cjs
+if [ -f third_party/zashboard/source.json ]; then
+  bash scripts/ci/prepare-zashboard.sh
+fi
 CI_BUILD_ROOT="$(mktemp -d)"
 trap 'chmod -R u+w "$CI_BUILD_ROOT"; rm -rf "$CI_BUILD_ROOT"' EXIT
 export GOMODCACHE="$CI_BUILD_ROOT/mod" GOCACHE="$CI_BUILD_ROOT/go-build"
