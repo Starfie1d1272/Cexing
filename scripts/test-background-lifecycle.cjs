@@ -74,7 +74,7 @@ async function testRapidReconnect() {
   await second;
   assert.equal(f.keeper.isRunning(), true);
   assert.equal(f.timers.size, 2, 'Only new session update/heartbeat timers remain');
-  f.events.get('continuousTaskCancel')({ continuousTaskId: 100, reason: 1 });
+  f.events.get('continuousTaskCancel')({ id: 100, reason: 1 });
   await flush();
   assert.equal(f.keeper.isRunning(), true, 'Late cancellation from old task must not remove new session');
   assert.equal(f.stops.length, 1);

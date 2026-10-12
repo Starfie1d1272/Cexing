@@ -260,7 +260,7 @@ export namespace LiveViewKeeper {
    * - 其他系统原因且内核仍活（GET /version 通）：30s 后重申请，每小时最多 3 次，超出等前台 ensure。
    */
   async function handleCancel(info: backgroundTaskManager.ContinuousTaskCancelInfo): Promise<void> {
-    if (!running || info.continuousTaskId !== continuousTaskId) {
+    if (!running || (continuousTaskId >= 0 && info.id !== continuousTaskId)) {
       return;
     }
     const reason = info.reason;
