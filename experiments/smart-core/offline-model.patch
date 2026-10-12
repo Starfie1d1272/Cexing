@@ -1,0 +1,169 @@
+diff --git a/component/smart/lightgbm/lightgbm.go b/component/smart/lightgbm/lightgbm.go
+index f45e0de9..8086c9de 100644
+--- a/component/smart/lightgbm/lightgbm.go
++++ b/component/smart/lightgbm/lightgbm.go
+@@ -4 +4,2 @@ import (
+-	"context"
++	"crypto/sha256"
++	"encoding/hex"
+@@ -8 +8,0 @@ import (
+-	"net/http"
+@@ -18 +17,0 @@ import (
+-	mihomoHttp "github.com/metacubex/mihomo/component/http"
+@@ -538,0 +538 @@ func init() {
++// OHOS experiment: local models only; never remove or download user resources.
+@@ -540,0 +541,13 @@ func GetModel() *WeightModel {
++		path := C.Path.SmartModel()
++		f, err := os.Open(path)
++		if err != nil {
++			log.Warnln("[Smart/OHOS experiment] Local model unavailable; using statistical weights: %v", err)
++			return
++		}
++		hash := sha256.New()
++		n, err := io.Copy(hash, io.LimitReader(f, 9345218+1))
++		f.Close()
++		if err != nil || n != 9345218 || hex.EncodeToString(hash.Sum(nil)) != "23633022a815fb34e510befe1c176ba50af3ced48f08b172454f4cd6b8327788" {
++			log.Warnln("[Smart/OHOS experiment] Local model digest mismatch; using statistical weights")
++			return
++		}
+@@ -542,37 +555,3 @@ func GetModel() *WeightModel {
+-		modelPath := C.Path.SmartModel()
+-
+-		if _, err := os.Stat(modelPath); err == nil {
+-			if err := m.loadModel(modelPath); err != nil {
+-				log.Warnln("[Smart] Model.bin invalid, remove and download: %v", err)
+-				if rmErr := os.Remove(modelPath); rmErr != nil {
+-					log.Errorln("[Smart] Failed to remove invalid Model.bin: %v", rmErr)
+-					return
+-				}
+-
+-				if downloadErr := downloadModel(modelPath); downloadErr != nil {
+-					log.Errorln("[Smart] Failed to download Model.bin: %v", downloadErr)
+-					return
+-				}
+-
+-				if reloadErr := m.loadModel(modelPath); reloadErr != nil {
+-					log.Errorln("[Smart] Failed to load downloaded Model.bin: %v", reloadErr)
+-					return
+-				}
+-
+-				log.Infoln("[Smart] Model.bin downloaded and loaded successfully")
+-			} else {
+-				log.Infoln("[Smart] Model file loaded successfully")
+-			}
+-		} else {
+-			log.Infoln("[Smart] Can't find Model.bin, start download")
+-			if downloadErr := downloadModel(modelPath); downloadErr != nil {
+-				log.Errorln("[Smart] Can't download Model.bin: %v", downloadErr)
+-				return
+-			}
+-
+-			if loadErr := m.loadModel(modelPath); loadErr != nil {
+-				log.Errorln("[Smart] Failed to load downloaded Model.bin: %v", loadErr)
+-				return
+-			}
+-
+-			log.Infoln("[Smart] Download Model.bin finish")
++		if err := m.loadModel(path); err != nil {
++			log.Warnln("[Smart/OHOS experiment] Local model unavailable; using statistical weights: %v", err)
++			return
+@@ -580 +558,0 @@ func GetModel() *WeightModel {
+-
+@@ -581,0 +560 @@ func GetModel() *WeightModel {
++		log.Infoln("[Smart/OHOS experiment] Local model parsed; prediction participation requires separate evidence")
+@@ -583 +561,0 @@ func GetModel() *WeightModel {
+-
+@@ -656,23 +634,3 @@ func LgbmUrl() string {
+-func downloadModel(path string) (err error) {
+-	modelUrl := LgbmUrl()
+-	if modelUrl == "" {
+-		modelUrl = GetModelDownloadURL()
+-	}
+-
+-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*90)
+-	defer cancel()
+-
+-	resp, err := mihomoHttp.HttpRequest(ctx, modelUrl, http.MethodGet, nil, nil)
+-	if err != nil {
+-		return
+-	}
+-	defer resp.Body.Close()
+-
+-	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY, 0o644)
+-	if err != nil {
+-		return err
+-	}
+-	defer f.Close()
+-	_, err = io.Copy(f, resp.Body)
+-
+-	return err
++// Network model updates are disabled even if YAML enables lgbm-auto-update.
++func downloadModel(path string) error {
++	return fmt.Errorf("OHOS experiment: network model download disabled")
+diff --git a/component/updater/update_lgbm.go b/component/updater/update_lgbm.go
+index 0bd68a89..d86c1b11 100644
+--- a/component/updater/update_lgbm.go
++++ b/component/updater/update_lgbm.go
+@@ -4 +3,0 @@ import (
+-	"context"
+@@ -12,3 +10,0 @@ import (
+-	"github.com/metacubex/mihomo/common/utils"
+-	"github.com/metacubex/mihomo/component/resource"
+-	"github.com/metacubex/mihomo/component/smart/lightgbm"
+@@ -17,2 +12,0 @@ import (
+-
+-	"github.com/vernesong/leaves"
+@@ -44,50 +38,3 @@ func SetLgbmUpdateInterval(newUpdateInterval int) {
+-func UpdateLgbmModel() (err error) {
+-	modelUrl := lightgbm.LgbmUrl()
+-	if modelUrl == "" {
+-		modelUrl = lightgbm.GetModelDownloadURL()
+-	}
+-
+-	vehicle := resource.NewHTTPVehicle(modelUrl, C.Path.SmartModel(), "", nil, defaultHttpTimeout, 0)
+-	var oldHash utils.HashType
+-	if buf, err := os.ReadFile(vehicle.Path()); err == nil {
+-		oldHash = utils.MakeHash(buf)
+-	}
+-	data, hash, err := vehicle.Read(context.Background(), oldHash)
+-	if err != nil {
+-		return fmt.Errorf("can't download LightGBM model file: %w", err)
+-	}
+-	if oldHash.Equal(hash) {
+-		log.Infoln("[Smart] LightGBM model is up to date")
+-		return nil
+-	}
+-	if len(data) == 0 {
+-		return fmt.Errorf("can't download LightGBM model file: no data")
+-	}
+-
+-	tmpFile, err := os.CreateTemp("", "lgbm_model_*.bin")
+-	if err != nil {
+-		return fmt.Errorf("failed to create temp file for validation: %w", err)
+-	}
+-	tmpPath := tmpFile.Name()
+-	tmpFile.Close()
+-	defer os.Remove(tmpPath)
+-
+-	if err := os.WriteFile(tmpPath, data, 0644); err != nil {
+-		return fmt.Errorf("failed to write temp file: %w", err)
+-	}
+-
+-	_, err = leaves.LGEnsembleFromFile(tmpPath, false)
+-	if err != nil {
+-		return fmt.Errorf("invalid LightGBM model file: %s", err)
+-	}
+-
+-	if err = vehicle.Write(data); err != nil {
+-		return fmt.Errorf("can't save LightGBM model file: %w", err)
+-	}
+-
+-	defer func() {
+-		log.Infoln("[Smart] LightGBM model update completed")
+-		lightgbm.ReloadModel()
+-	}()
+-
+-	return nil
++// OHOS experiment: both the REST endpoint and periodic updater fail offline.
++func UpdateLgbmModel() error {
++	return fmt.Errorf("OHOS experiment: network model update disabled")

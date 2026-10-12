@@ -1,0 +1,48 @@
+package lightgbm
+
+import (
+	"os"
+	"sync"
+	"testing"
+
+	"github.com/metacubex/mihomo/component/smart"
+	C "github.com/metacubex/mihomo/constant"
+)
+
+// Host test only: no sockets, TUN or real model resources.
+func TestOHOSOfflineModel(t *testing.T) {
+	oldHome := C.Path.HomeDir()
+	defer C.SetHomeDir(oldHome)
+	for _, corrupt := range []bool{false, true} {
+		C.SetHomeDir(t.TempDir())
+		modelOnce = sync.Once{}
+		smartModel = nil
+		path := C.Path.SmartModel()
+		bad := []byte("synthetic invalid model")
+		if corrupt {
+			if err := os.WriteFile(path, bad, 0600); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if GetModel() != nil {
+			t.Fatal("invalid/missing model accepted")
+		}
+		if err := downloadModel(path); err == nil {
+			t.Fatal("download permitted")
+		}
+		contents, err := os.ReadFile(path)
+		if corrupt && (err != nil || string(contents) != string(bad)) {
+			t.Fatal("corrupt model must be preserved for diagnosis")
+		}
+		if !corrupt && !os.IsNotExist(err) {
+			t.Fatal("download created a file")
+		}
+		input := &smart.ModelInput{Success: 10, Latency: 50, ConnectTime: 40, IsTCP: true}
+		var model *WeightModel
+		got, gotOK := model.PredictWeight(input, 1)
+		want, wantOK := smart.CalculateWeight(input, 1)
+		if got != want || gotOK != wantOK {
+			t.Fatal("statistical fallback changed")
+		}
+	}
+}
