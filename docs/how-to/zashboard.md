@@ -24,4 +24,13 @@ bash scripts/build-hap.sh
 
 HAP 脚本在构建前验证 rawfile 全集，构建后检查 ZIP CRC、包内全集及逐项摘要。构建不包含运行时联网下载。实际铺盘由宿主调用 [宿主接口](../reference/zashboard-host.md)，不由页面启动 VPN。资源使用固定私有 ui 根和 versions 子目录，原子替换 ui/index.html 切换或回退版本。第一次使用失败时返回无目录的可恢复错误；有已校验版本则回退。文件锁竞争直接返回可重试错误，调用方应保留现有 UI 配置并继续 VPN 流程。
 
-页面和资源模块会编译入 HAP，但没有进入按钮，默认拒绝加载 WebView。安全会话、内存 secret/WS 适配和真机验收完成前不得开放或删除 ProxyPage。上游 PWA 文件保留入包，但不自动注册；历史 service worker 缓存迁移需要真机单独验证。
+连接页已有 Zashboard 入口，会话检查通过后才创建 WebView；断开、无认证或缺少当前固定资源时显示可恢复提示。内存凭据和 WS 适配的行为见宿主接口，ProxyPage 文件保留到 ArkWeb 真机验收完成。上游 PWA 文件保留入包，但不自动注册；历史 service worker 缓存迁移需要真机单独验证。
+
+
+可选真实浏览器联调（需已激活官方 SDK/Go、Python Playwright 与 Chromium，先构建资源）：
+
+```bash
+python3 scripts/test-zashboard-browser.py
+```
+
+用独立临时沙箱启动真实 Go Controller 与构建后的前端，不创建系统 TUN、代理监听或 DNS 服务。使用临时测试凭据、合成 DIRECT/REJECT 策略组；原生 bootstrap 由实际 SDK 转译代码生成。结果只打印脱敏断言，不能保存带 token 的浏览器网络追踪。此测试证明 Chromium 行为，ArkWeb 导航、文档开始注入、控制台拦截、旧缓存及手机系统生命周期另按设备指南验收。

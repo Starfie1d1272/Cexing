@@ -1,3 +1,4 @@
+import { ZashboardAssets } from '../lib/ZashboardAssets';
 /*
  * ClashVpnAbility.ets - VPN 扩展能力(独立进程 :vpn)
  *
@@ -140,6 +141,8 @@ export default class ClashVpnAbility extends VpnExtensionAbility {
 
       const filesDir = this.context.filesDir;
       await this.seedGeoData(filesDir);
+      // Static resource failure is recoverable; Controller credentials still fail closed.
+      await ZashboardAssets.prepare(this.context);
       const initErr: string = await core.initCore(filesDir);
       if (initErr) {
         Logger.error(TAG, 'initCore failed');

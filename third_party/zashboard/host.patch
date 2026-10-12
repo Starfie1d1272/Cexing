@@ -1,10 +1,229 @@
+diff --git a/index.html b/index.html
+index e27dd98..d54974b 100644
+--- a/index.html
++++ b/index.html
+@@ -4,0 +5,2 @@
++    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src http://127.0.0.1:9090 ws://127.0.0.1:9090; worker-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'" />
++    <meta name="referrer" content="no-referrer" />
+@@ -37,14 +38,0 @@
+-    <script>
+-      ;(function () {
+-        const media = window.matchMedia('(prefers-color-scheme: dark)')
+-        const favicon = document.getElementById('favicon')
+-        const setFavicon = (isDark) => {
+-          favicon.href = isDark ? './favicon-dark.svg' : './favicon.svg'
+-        }
+-
+-        media.addEventListener('change', () => {
+-          setFavicon(media.matches)
+-        })
+-        setFavicon(media.matches)
+-      })()
+-    </script>
 diff --git a/src/api/clash.ts b/src/api/clash.ts
-index cdcb6af..7152984 100644
+index cdcb6af..cb3c65a 100644
 --- a/src/api/clash.ts
 +++ b/src/api/clash.ts
-@@ -233 +233 @@ export const restartCoreAPI = () => {
+@@ -17 +16,0 @@ import { debounce } from 'lodash'
+-import ReconnectingWebSocket from 'reconnectingwebsocket'
+@@ -19 +18 @@ import { shallowRef } from 'vue'
+-import './http'
++import { hostAuthorization, createHostSocket } from './http'
+@@ -130,11 +128,0 @@ export const createClashWebSocket = <T>(url: string, searchParams?: Record<strin
+-  const backend = activeBackend.value!
+-  const resurl = new URL(`${getUrlFromBackend(backend).replace('http', 'ws')}/${url}`)
+-
+-  resurl.searchParams.append('token', backend.password || '')
+-
+-  if (searchParams) {
+-    Object.entries(searchParams).forEach(([key, value]) => {
+-      resurl.searchParams.append(key, value)
+-    })
+-  }
+-
+@@ -142,15 +130,4 @@ export const createClashWebSocket = <T>(url: string, searchParams?: Record<strin
+-  const websocket = new ReconnectingWebSocket(resurl.toString())
+-
+-  const close = () => {
+-    websocket.close()
+-  }
+-
+-  const messageHandler = ({ data: message }: { data: string }) => {
+-    data.value = JSON.parse(message)
+-  }
+-
+-  websocket.onmessage = url === 'logs' ? messageHandler : debounce(messageHandler, 100)
+-
+-  return {
+-    data,
+-    close,
++  let closed = false
++  const messageHandler = (message: string) => {
++    if (closed) return
++    try { data.value = JSON.parse(message) } catch { /* Ignore malformed messages without logging. */ }
+@@ -157,0 +135,4 @@ export const createClashWebSocket = <T>(url: string, searchParams?: Record<strin
++  const receive = debounce(messageHandler, url === 'logs' ? 0 : 100)
++  const socket = createHostSocket(url, searchParams, receive)
++  const close = () => { closed = true; receive.cancel(); socket.close() }
++  return { data, close }
+@@ -178 +159 @@ export const probeClashChannel = async (
+-        Authorization: `Bearer ${backend.password}`,
++        Authorization: hostAuthorization(),
+@@ -233 +214 @@ export const restartCoreAPI = () => {
 -  return axios.post('/restart')
 +  return Promise.reject(new Error('Core restart is managed by the native host'))
+diff --git a/src/api/http.ts b/src/api/http.ts
+index f5c9b6d..85e32e7 100644
+--- a/src/api/http.ts
++++ b/src/api/http.ts
+@@ -1,5 +1,3 @@
+-import { showNotification } from '@/helper/notification'
+-import { getUrlFromBackend } from '@/helper/utils'
+-import { activeBackend, activeUuid, backendManagerView, openBackendManager } from '@/store/setup'
+-import axios, { AxiosError } from 'axios'
+-import { nextTick } from 'vue'
++// Native host build: credentials exist only in this module's closure.
++import type { Backend } from '@/types'
++import axios from 'axios'
+@@ -7,3 +5,10 @@ import { nextTick } from 'vue'
+-axios.interceptors.request.use((config) => {
+-  if (activeBackend.value) {
+-    config.baseURL = getUrlFromBackend(activeBackend.value)
++const bootstrap = (window as Window & { __OHOS_PANEL_BOOTSTRAP__?: { secret: string; version: string } }).__OHOS_PANEL_BOOTSTRAP__
++delete (window as Window & { __OHOS_PANEL_BOOTSTRAP__?: unknown }).__OHOS_PANEL_BOOTSTRAP__
++const origin = 'http://127.0.0.1:9090'
++const trusted = window.top === window && location.origin === origin &&
++  /^[a-f0-9]{64}$/.test(bootstrap?.version || '') &&
++  location.pathname === `/ui/versions/${bootstrap?.version}/` && !location.search
++let secret = trusted && /^[a-f0-9]{64}$/.test(bootstrap?.secret || '') ? bootstrap!.secret : ''
++if (bootstrap) bootstrap.secret = ''
++const sockets = new Set<{ close: () => void }>()
++const requests = new AbortController()
+@@ -11,8 +16,24 @@ axios.interceptors.request.use((config) => {
+-    if (activeBackend.value.password) {
+-      config.headers['Authorization'] = 'Bearer ' + activeBackend.value.password
+-    } else {
+-      delete config.headers['Authorization']
+-    }
+-  }
+-  return config
+-})
++export const hostBackend: Backend | undefined = secret ? Object.freeze({
++  type: 'clash', protocol: 'http', host: '127.0.0.1', port: '9090',
++  secondaryPath: '', password: '', uuid: 'ohos-local', label: '本机内核',
++  disableUpgradeCore: true, disableTunMode: true,
++}) : undefined
++
++const requireSession = () => {
++  if (!secret) throw new Error('Panel session unavailable; reopen from native host')
++}
++
++export const hostAuthorization = () => {
++  requireSession()
++  return `Bearer ${secret}`
++}
++
++const safePath = (path: string) => {
++  if (!path.startsWith('/') || path.startsWith('//') || /[\\#]/.test(path)) return false
++  try {
++    const decoded = decodeURIComponent(path.split('?')[0])
++    return !decoded.split('/').some((part) => part === '.' || part === '..') &&
++      !/^\/(restart|upgrade|debug)(\/|$)/.test(decoded) &&
++      !/(?:^|[?&])(token|secret|password)=/i.test(path)
++  } catch { return false }
++}
+@@ -20,17 +41,34 @@ axios.interceptors.request.use((config) => {
+-axios.interceptors.response.use(
+-  null,
+-  (
+-    error: AxiosError<{
+-      message: string
+-    }>,
+-  ) => {
+-    if (error.status === 401 && activeUuid.value) {
+-      const uuid = activeUuid.value
+-      const alreadyEditing =
+-        backendManagerView.value?.mode === 'edit' && backendManagerView.value.uuid === uuid
+-
+-      if (!alreadyEditing) {
+-        openBackendManager({ mode: 'edit', uuid })
+-        nextTick(() => {
+-          showNotification({ content: 'unauthorizedTip' })
+-        })
++export const hostSocketUrl = (path: string, params?: Record<string, string>) => {
++  requireSession()
++  if (!['traffic', 'memory', 'connections', 'logs'].includes(path)) throw new Error('Blocked stream')
++  const url = new URL(`ws://127.0.0.1:9090/${path}`)
++  if (params) Object.entries(params).forEach(([key, value]) => {
++    if (key !== 'token' && key !== 'secret' && key !== 'password') url.searchParams.set(key, value)
++  })
++  url.searchParams.set('token', secret)
++  return url.toString()
++}
++
++export const createHostSocket = (path: string, params: Record<string, string> | undefined,
++  message: (data: string) => void) => {
++  requireSession()
++  let stopped = false
++  let current: WebSocket | null = null
++  let retryTimer: ReturnType<typeof setTimeout> | undefined
++  const resource = { close: () => {
++    stopped = true
++    clearTimeout(retryTimer)
++    if (current) {
++      current.onclose = current.onerror = current.onmessage = null
++      current.close()
++      current = null
++    }
++    sockets.delete(resource)
++  } }
++  const connect = () => {
++    if (stopped) return
++    try {
++      const socket = new WebSocket(hostSocketUrl(path, params))
++      current = socket
++      socket.onmessage = (event) => {
++        if (!stopped && current === socket && typeof event.data === 'string') message(event.data)
+@@ -37,0 +76,10 @@ axios.interceptors.response.use(
++      const retry = () => {
++        if (stopped || current !== socket) return
++        socket.onclose = socket.onerror = socket.onmessage = null
++        current = null
++        socket.close()
++        retryTimer = setTimeout(connect, 3000)
++      }
++      socket.onclose = socket.onerror = retry
++    } catch {
++      resource.close() // Revoked/invalid paths must never retry anonymously.
+@@ -38,0 +87,5 @@ axios.interceptors.response.use(
++  }
++  sockets.add(resource)
++  connect()
++  return resource
++}
+@@ -40,3 +93,19 @@ axios.interceptors.response.use(
+-    return Promise.reject(error)
+-  },
+-)
++const revoke = () => {
++  secret = ''
++  requests.abort()
++  sockets.forEach((socket) => socket.close())
++  sockets.clear()
++}
++Object.defineProperty(window, '__OHOS_PANEL_REVOKE__', { value: revoke, configurable: false })
++window.addEventListener('pagehide', revoke, { once: true })
++
++// No response/error objects with Authorization or WS URLs reach notifications/logs.
++axios.interceptors.request.use((config) => {
++  requireSession()
++  if (!safePath(config.url || '')) throw new Error('Blocked request')
++  config.baseURL = origin
++  config.headers['Authorization'] = hostAuthorization()
++  config.signal = requests.signal
++  return config
++})
++axios.interceptors.response.use(undefined, () => Promise.reject(new Error('Controller request failed; reopen panel if disconnected')))
 diff --git a/src/assets/styles/theme/fonts.css b/src/assets/styles/theme/fonts.css
 index 72a8213..e74ab19 100644
 --- a/src/assets/styles/theme/fonts.css
@@ -31,6 +250,129 @@ index 3ada65c..f368054 100644
 @@ -107 +107 @@ export const backendActions = computed<BackendAction[]>(() => {
 -  if (can('coreRestart')) {
 +  if (false && can('coreRestart')) { // Native host owns core lifecycle.
+diff --git a/src/helper/request-error.ts b/src/helper/request-error.ts
+index ff4cf74..8dcdcf3 100644
+--- a/src/helper/request-error.ts
++++ b/src/helper/request-error.ts
+@@ -1 +0,0 @@
+-import axios from 'axios'
+@@ -4,27 +3,2 @@ import { showNotification } from './notification'
+-type BackendErrorBody = {
+-  message?: string
+-  error?: { code?: string; message?: string }
+-}
+-
+-export const getRequestErrorMessage = (error: unknown): string => {
+-  if (axios.isAxiosError<BackendErrorBody>(error)) {
+-    const data = error.response?.data
+-    const nested = data?.error
+-
+-    if (nested?.message) {
+-      return nested.code ? `${nested.message} (${nested.code})` : nested.message
+-    }
+-
+-    return data?.message || error.message
+-  }
+-
+-  if (error instanceof Error) {
+-    return error.message
+-  }
+-
+-  return String(error)
+-}
+-
+-export const notifyRequestError = (error: unknown, key?: string) => {
+-  const message = getRequestErrorMessage(error)
+-  const url = axios.isAxiosError(error) ? decodeURIComponent(error.config?.url || '') : ''
++export const getRequestErrorMessage = (_error: unknown): string =>
++  'Controller request failed; reopen panel if disconnected'
+@@ -32,5 +6,2 @@ export const notifyRequestError = (error: unknown, key?: string) => {
+-  showNotification({
+-    key: key || message,
+-    content: url ? `${url} \n${message}` : message,
+-    type: 'alert-error',
+-  })
++export const notifyRequestError = (_error: unknown, key?: string) => {
++  showNotification({ key, content: getRequestErrorMessage(_error), type: 'alert-error' })
+diff --git a/src/store/setup.ts b/src/store/setup.ts
+index f5a4ffb..c9a521d 100644
+--- a/src/store/setup.ts
++++ b/src/store/setup.ts
+@@ -1 +1 @@
+-import { useStorage } from '@/composables/use-storage'
++import { hostBackend } from '@/api/http'
+@@ -3,2 +3 @@ import type { Backend } from '@/types'
+-import { isEqual, omit } from 'lodash'
+-import { v4 as uuid } from 'uuid'
++import { omit } from 'lodash'
+@@ -6 +4,0 @@ import { computed, ref } from 'vue'
+-import { sourceIPLabelList } from './settings'
+@@ -18 +16 @@ const migrateBackendList = (list: LegacyBackend[]): Backend[] =>
+-export const backendList = useStorage<Backend[]>('setup/api-list', [])
++export const backendList = ref<Backend[]>(hostBackend ? [hostBackend] : [])
+@@ -24 +22 @@ if ((backendList.value as LegacyBackend[]).some(isLegacyBackend)) {
+-export const activeUuid = useStorage<string>('setup/active-uuid', '')
++export const activeUuid = ref<string>(hostBackend?.uuid || '')
+@@ -34 +32 @@ export const setActiveBackend = (uuid: string) => {
+-  activeUuid.value = uuid
++  activeUuid.value = hostBackend?.uuid || ''
+@@ -43 +41 @@ export const openBackendManager = (view: BackendManagerView = { mode: 'list' })
+-  backendManagerView.value = view
++  // Native host owns the only backend; no credential editor or remote targets.
+@@ -69,18 +67,2 @@ export const switchActiveBackend = (direction: 1 | -1) => {
+-export const addBackend = (backend: Omit<Backend, 'uuid'>) => {
+-  const currentEnd = backendList.value.find((end) => {
+-    return isEqual(omit(end, 'uuid'), backend)
+-  })
+-
+-  if (currentEnd) {
+-    setActiveBackend(currentEnd.uuid)
+-    return currentEnd.uuid
+-  }
+-
+-  const id = uuid()
+-
+-  backendList.value.push({
+-    ...backend,
+-    uuid: id,
+-  })
+-  setActiveBackend(id)
+-  return id
++export const addBackend = (_backend: Omit<Backend, 'uuid'>): string => {
++  throw new Error('Backend is managed by native host')
+@@ -88,9 +70,2 @@ export const addBackend = (backend: Omit<Backend, 'uuid'>) => {
+-
+-export const updateBackend = (uuid: string, backend: Omit<Backend, 'uuid'>) => {
+-  const index = backendList.value.findIndex((end) => end.uuid === uuid)
+-  if (index !== -1) {
+-    backendList.value[index] = {
+-      ...backend,
+-      uuid,
+-    }
+-  }
++export const updateBackend = (_uuid: string, _backend: Omit<Backend, 'uuid'>) => {
++  throw new Error('Backend is managed by native host')
+@@ -98,18 +73,2 @@ export const updateBackend = (uuid: string, backend: Omit<Backend, 'uuid'>) => {
+-
+-export const removeBackend = (uuid: string) => {
+-  const wasActive = activeUuid.value === uuid
+-
+-  backendList.value = backendList.value.filter((end) => end.uuid !== uuid)
+-
+-  if (wasActive) {
+-    setActiveBackend(backendList.value[0]?.uuid ?? '')
+-  }
+-
+-  sourceIPLabelList.value.forEach((label) => {
+-    if (label.scope && label.scope.includes(uuid)) {
+-      label.scope = label.scope.filter((scope) => scope !== uuid)
+-      if (!label.scope.length) {
+-        delete label.scope
+-      }
+-    }
+-  })
++export const removeBackend = (_uuid: string) => {
++  throw new Error('Backend is managed by native host')
 diff --git a/vite.config.ts b/vite.config.ts
 index 47d9c94..c9235b8 100644
 --- a/vite.config.ts

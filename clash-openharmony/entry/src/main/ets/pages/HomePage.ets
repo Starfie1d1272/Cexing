@@ -133,9 +133,9 @@ export struct HomePage {
         }, (label: string) => label)
       }
       Button('管理配置').onClick(() => { this.tabJump = 1; })
-      Button('代理组')
+      Button('Zashboard 面板')
         .enabled(this.status === VpnStatus.Connected)
-        .onClick(() => { this.navStack.pushPath({ name: 'proxies' }); })
+        .onClick(() => { this.navStack.pushPath({ name: 'zashboard' }); })
     }
     .padding(24)
     .width('100%')

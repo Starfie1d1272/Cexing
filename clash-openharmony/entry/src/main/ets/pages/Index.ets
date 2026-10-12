@@ -14,6 +14,7 @@ struct Index {
   @Provide('tab') currentVisibleTab: number = 0;
   @Provide('tabJump') @Watch('onTabJump') tabJump: number = -1;
   @State currentTab: number = 0;
+  @State private zashboardVisible: boolean = false;
 
   private onTabJump(): void {
     if (this.tabJump >= 0) {
@@ -28,8 +29,9 @@ struct Index {
     if (name === 'proxies') {
       NavDestination() { ProxyPage() }.title('代理组')
     } else if (name === 'zashboard') {
-      // No entry button/session until security and configuration integration is accepted.
-      NavDestination() { ZashboardPage() }.title('Zashboard')
+      NavDestination() { ZashboardPage({ visible: this.zashboardVisible }) }.title('Zashboard')
+        .onShown(() => { this.zashboardVisible = true; })
+        .onHidden(() => { this.zashboardVisible = false; })
     } else if (name === 'network') {
       NavDestination() { NetworkSettingsPage() }.title('网络设置')
     } else if (name === 'override') {

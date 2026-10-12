@@ -126,6 +126,16 @@ export namespace CoreApi {
     }
   }
 
+  /** Non-secret Controller generation; distinguishes a new core from old page sessions. */
+  export async function getControllerSession(): Promise<string | null> {
+    const result = await request(http.RequestMethod.GET, '/ohos/session');
+    if (result === null) { return null; }
+    try {
+      const session = (JSON.parse(result) as Record<string, string>)['session'];
+      return typeof session === 'string' && /^[0-9a-f]{32}$/.test(session) ? session : null;
+    } catch (_) { return null; }
+  }
+
   export async function isAlive(): Promise<boolean> {
     return (await request(http.RequestMethod.GET, '/version')) !== null;
   }

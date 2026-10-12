@@ -76,6 +76,7 @@ async function testExtension() {
   let complete;
   let stopCount = 0;
   let destroyCount = 0;
+  let prepared = 0;
   const pending = new Promise(resolve => { complete = resolve; });
   const connection = { create: async () => 32, protectProcessNet: async () => {},
     destroy: async () => { destroyCount++; } };
@@ -84,9 +85,10 @@ async function testExtension() {
     '@kit.IPCKit': { rpc: { RemoteObject: class {} } },
     '@kit.CoreFileKit': { fileIo: { accessSync: () => false, openSync: () => ({ fd: 1 }),
       writeSync() {}, closeSync() {}, renameSync() {}, OpenMode: {} } },
-    'libentry.so': { default: { initCore: async () => '', startTun: () => pending,
+    'libentry.so': { default: { initCore: async () => { assert.ok(prepared > 0, 'Prepare static assets before Controller initialization'); return ''; }, startTun: () => pending,
       stopCore: async () => { stopCount++; } } },
     '../lib/CoreApi': { CoreApi: { bindContext() {} } },
+    '../lib/ZashboardAssets': { ZashboardAssets: { prepare: async () => { prepared++; return { directory: '', error: 'synthetic missing panel' }; } } },
     '../lib/Logger': logger,
     '../lib/ProfileStore': { ProfileStore: { getActiveContent: () => 'proxies: []' } },
     '../lib/Settings': { Settings: { load: () => ({}) } }, '@kit.ArkTS': { util: {} }
@@ -110,7 +112,8 @@ async function testExtension() {
   const restarted = extension.onConnect({ parameters: { VPN_CONFIG: {} } });
   await flush();
   restarted.onRemoteMessageRequest(1, {}, { writeBoolean: value => { reportedReady = value; }, writeString() {} }, {});
-  assert.equal(reportedReady, true, 'The same extension must allow restart after cleanup');
+  assert.equal(reportedReady, true, 'The same extension must allow restart after cleanup despite unavailable panel resources');
+  assert.equal(prepared, 2);
 }
 (async () => {
   await testClient('ready');
