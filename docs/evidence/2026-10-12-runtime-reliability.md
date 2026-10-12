@@ -15,6 +15,8 @@
 
 **VPN 状态机阻塞**：`VpnController.recover()`（基线 130–146 行）在探活完成后只检查 Disconnected，随后内部设置 Connected；用户在探活期间启动/取消并回到 Disconnected 时，旧探活可改变状态，早于 AppRuntime 的完成回调代次检查。需要 VPN 状态机负责人以会话/意图代次保护 recover 的内部提交。本任务未改 VpnController/CoreApi/ClashVpnAbility/engine；Controller 可达仍不证明系统 TUN 健康。
 
+后续协调：安全 PR #9 `9ecb964` 已在其独立分支保护 recover 的内部提交，并提供 cancelRecovery；本运行时独立基线仍没有该 API。已准备[两行待应用合流补丁与实测说明](../integration/runtime-cancel-recovery.md)，在固定两线导出树中复现“直接组合仍失败”，应用补丁后组合恢复测试和既有回归通过。该接点留给父任务集成时应用，不能把独立 PR 状态写成已完成合流。
+
 ## 与 Smart 实验线的 native 生命周期风险关联
 
 [PR #7](https://github.com/Starfie1d1272/clash-OpenHarmony/pull/7) 的研究 head `56ec1b315ae3d7b8fd910226ceca95b8b289e36b` 报告基线 worker 的缺符号卸载风险；本轮直接核对固定基线 `entry/src/main/cpp/bridge.cpp` 的 `ensureLoaded()`（98–109 行）：`dlopen` 成功后，只要四个 ABI 中任一个 `dlsym` 为空，便执行 `dlclose(h)`、清空 gHandle 并返回错误。这是已有分支，与 AGENTS 的“不 dlclose Go runtime”不变量冲突，并非 Smart 实验新增；本轮 worker diff 为空，实验未改变 main 内核。
