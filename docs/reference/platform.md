@@ -12,7 +12,7 @@
 
 - `netgo` 避免 musl/cgo DNS 类型冲突；`ohos` 选择平台实现；`cmfa` 避免 Android PackageManager/binder 路径；`with_gvisor` 包含所需栈。
 - Android 日志头和空 `liblog.a` 由脚本生成，映射到 OHOS hilog。
-- gVisor 对 VPN fd 的 Fstat 在沙箱可能返回 EPERM。`patch-gvisor-tun-fd.sh` 使其回退非 socket 的 readv 路径；补丁匹配失败应停止构建。升级核对上游 endpoint 和补丁，不泛化到其他 fd。
+- gVisor 对 VPN fd 的 Fstat 在沙箱可能返回 EPERM。构建脚本通过 `scripts/ci/patch-gvisor.py` 在专用临时模块缓存中使其回退非 socket 的 readv 路径；补丁匹配失败应停止构建。旧 `patch-gvisor-tun-fd.sh` 仅保留供历史手动环境参考，正常构建和 CI 不再调用它。升级核对上游 endpoint 和补丁，不泛化到其他 fd。
 - Android embed 模式限制配置写 API；wrapper 在初始化时关闭该模式，必须在 Controller 构造前完成。
 
 ## 配置与网络
