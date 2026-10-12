@@ -27,6 +27,33 @@ export interface ControllerUiStatus {
   error: string;
 }
 
+export interface SmartModelStatus {
+  state: string;
+  sha256: string;
+  predictions: number;
+  networkDownload: boolean;
+  restartRequired: boolean;
+}
+
+export interface SmartGroupStatus {
+  useLightGBM: boolean;
+}
+
+export interface SmartStatus {
+  schemaVersion: number;
+  core: string;
+  groups: Record<string, SmartGroupStatus>;
+  model: SmartModelStatus;
+  message: string;
+}
+
+export interface SmartModelImport {
+  installed: boolean;
+  sha256: string;
+  restartRequired: boolean;
+  message: string;
+}
+
 export interface DelayHistory {
   time: string;
   delay: number;
@@ -86,7 +113,7 @@ export namespace CoreApi {
   }
 
 
-  async function request(method: http.RequestMethod, path: string, body?: string): Promise<string | null> {
+  async function request(method: http.RequestMethod, path: string, body?: string | ArrayBuffer, contentType: string = 'application/json'): Promise<string | null> {
     const access = getControllerAccess();
     if (access === null) {
       return null;
@@ -95,7 +122,7 @@ export namespace CoreApi {
     try {
       const resp = await req.request(BASE + path, {
         method: method,
-        header: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${access.secret}` },
+        header: { 'Content-Type': contentType, 'Authorization': `Bearer ${access.secret}` },
         extraData: body,
         connectTimeout: TIMEOUT,
         readTimeout: TIMEOUT
@@ -217,6 +244,25 @@ export namespace CoreApi {
     const s = await request(http.RequestMethod.PUT, '/configs?force=true',
       JSON.stringify({ path: absPath, overrides: overrides }));
     return s !== null;
+  }
+
+  export async function getSmartStatus(): Promise<SmartStatus | null> {
+    const result = await request(http.RequestMethod.GET, '/smart/status');
+    if (result === null) { return null; }
+    try {
+      const status = JSON.parse(result) as SmartStatus;
+      return status.schemaVersion === 1 ? status : null;
+    } catch (_) { return null; }
+  }
+
+  export async function importSmartModel(bytes: ArrayBuffer): Promise<SmartModelImport | null> {
+    if (bytes.byteLength !== 9345218) { return null; }
+    const result = await request(http.RequestMethod.POST, '/smart/model', bytes, 'application/octet-stream');
+    if (result === null) { return null; }
+    try {
+      const imported = JSON.parse(result) as SmartModelImport;
+      return imported.installed === true ? imported : null;
+    } catch (_) { return null; }
   }
 
   /** 通用流订阅（/traffic /logs）：mihomo 流端点支持 WebSocket upgrade */

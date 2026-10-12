@@ -1,4 +1,5 @@
 import { NativeTheme as UI } from './NativeTheme';
+import { SmartPage } from './SmartPage';
 import { DiagnosticsPage } from './DiagnosticsPage';
 import { HomePage } from './HomePage';
 import { ProfilePage, ProfileDetailBus } from './ProfilePage';
@@ -18,6 +19,7 @@ struct Index {
   @Provide('tab') currentVisibleTab: number = 0;
   @Provide('tabJump') @Watch('onTabJump') tabJump: number = -1;
   @State currentTab: number = 0;
+  @State private smartVisible: boolean = false;
   @State private zashboardVisible: boolean = false;
 
   private onTabJump(): void {
@@ -36,6 +38,10 @@ struct Index {
       NavDestination() { ZashboardPage({ visible: this.zashboardVisible }) }.title('Zashboard')
         .onShown(() => { this.zashboardVisible = true; })
         .onHidden(() => { this.zashboardVisible = false; })
+    } else if (name === 'smart') {
+      NavDestination() { SmartPage({ visible: this.smartVisible }) }.title('Smart')
+        .onShown(() => { this.smartVisible = true; })
+        .onHidden(() => { this.smartVisible = false; })
     } else if (name === 'diagnostics') {
       NavDestination() { DiagnosticsPage() }.title('诊断')
     } else if (name === 'network') {
