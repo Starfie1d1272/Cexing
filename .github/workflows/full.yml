@@ -1,0 +1,42 @@
+name: Full (authorized SDK)
+on:
+  workflow_dispatch:
+    inputs:
+      authorized_sdk:
+        description: 'Official SDK license accepted on a trusted disposable runner'
+        type: boolean
+        required: true
+        default: false
+permissions:
+  contents: read
+concurrency:
+  group: full-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  full:
+    if: inputs.authorized_sdk && github.repository == 'Starfie1d1272/clash-OpenHarmony'
+    # Never attach this runner to pull_request / pull_request_target events.
+    runs-on: [self-hosted, linux, x64, harmonyos-ci]
+    environment: harmonyos-ci
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version: '1.27.2'
+          cache: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '26.11.1'
+      # Runner provisions JDK 27, CLT and optional public wrapper/tools seed.
+      # No SDK downloads, signing secrets, private configuration, or device access.
+      - run: npm ci --prefix scripts/ci --ignore-scripts --no-audit --no-fund
+      - run: bash scripts/ci/full.sh
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: unsigned-build-evidence-${{ github.sha }}
+          path: clash-openharmony/dist/ci/*.json
+          if-no-files-found: error
+          retention-days: 7

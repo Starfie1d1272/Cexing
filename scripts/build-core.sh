@@ -10,7 +10,7 @@
 #            变 no-op），绕开 ohos 沙箱里不存在的 android PackageManager binder
 #   - android_stub: GOOS=android 链接隐式依赖 -llog，用空 liblog.a 打桩；
 #                   android/log.h 映射到 hilog（日志进 hilog，hdc hilog 可 grep）
-# 补丁:   patch-gvisor-tun-fd.sh（幂等）绕开 gVisor fdbased 对 tun fd 的 Fstat
+# 补丁:   临时 Go overlay 绕开 gVisor fdbased 对 tun fd 的 Fstat
 #         （鸿蒙沙箱 EPERM），回退到 readv 非 socket 路径
 #
 # 用法: bash scripts/build-core.sh
@@ -77,21 +77,23 @@ static inline void __android_log_write(int prio, const char *tag, const char *ms
 #endif
 EOF
 fi
-if [ ! -f "$STUB_LIB/liblog.a" ]; then
+{
   echo "[build-core] building empty liblog.a stub"
   printf 'void mihomo_android_log_stub(void) {}\n' > "$STUB_LIB/stub.c"
   "$CLANG" --target=$TRIPLE --sysroot="$SYSROOT" -c "$STUB_LIB/stub.c" -o "$STUB_LIB/stub.o"
   "$LLVM_BIN/llvm-ar" rcs "$STUB_LIB/liblog.a" "$STUB_LIB/stub.o"
-fi
+}
 
-# ---- 2. gVisor fdbased 补丁（幂等）----
+# ---- 2. gVisor fdbased 补丁（仅构建 overlay，不改共享模块缓存）----
 # 先确保 gvisor 模块已进 GOMODCACHE，否则 patch 在冷缓存下会静默跳过，
 # go build 会拉取未打补丁的 gvisor，真机 TUN 起不来（Fstat EPERM）
 (cd "$CORE_DIR" && go mod download github.com/metacubex/gvisor) || {
   echo "[build-core] go mod download gvisor failed" >&2
   exit 1
 }
-"$SCRIPT_DIR/patch-gvisor-tun-fd.sh" go
+OVERLAY_DIR="$(mktemp -d)"
+trap 'rm -rf "$OVERLAY_DIR"' EXIT
+(cd "$CORE_DIR" && python3 "$SCRIPT_DIR/ci/gvisor-overlay.py" "$OVERLAY_DIR")
 
 # ---- 3. 交叉编译 ----
 echo "[build-core] compiling libmihomo.so (GOOS=android GOARCH=arm64, tags: netgo ohos cmfa with_gvisor)"
@@ -105,7 +107,7 @@ export CFLAGS="--target=$TRIPLE --sysroot=$SYSROOT -D__MUSL__"
 export CXXFLAGS="$CFLAGS"
 
 mkdir -p "$OUT_DIR"
-(cd "$CORE_DIR" && go build -buildvcs=false \
+(cd "$CORE_DIR" && go build -mod=readonly -trimpath -buildvcs=false -overlay "$OVERLAY_DIR/overlay.json" \
   -tags "netgo ohos cmfa with_gvisor" \
   -ldflags "-w" \
   -buildmode=c-shared \
