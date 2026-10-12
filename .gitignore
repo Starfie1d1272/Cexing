@@ -2,6 +2,8 @@
 command-line-tools/
 clash-openharmony/entry/src/main/resources/rawfile/geodata/
 /reference/
+clash-openharmony/entry/src/main/resources/rawfile/zashboard/
+clash-openharmony/entry/src/main/resources/rawfile/zashboard-staging/
 core/third_party/
 
 # 私有配置（含节点凭据，永不入库）
