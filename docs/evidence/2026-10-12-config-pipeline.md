@@ -34,3 +34,13 @@ Linux amd64 云环境，Go 1.27.2、Node 26.11.1、JDK 27、Huawei Command Line 
 实际读取 Clash Verge v2.5.8 提交 `4337bd85758d54d7b9044b2da3c9ac1176eae1f3` 的 src-tauri/src/enhance/merge.rs（blob `c1c00fc05474e261953784acd6365c54c95a4ee3`）及 field.rs。直接核对 use_merge 的 DNS mapping extend、hosts 整体 insert、其余 deep_merge 和 overlay 顶层 ASCII 小写化；源码内包含 nameserver-policy/fallback-filter/hosts 替换及空值清空的回归。DNS/hosts 版本边界为上游提交 `6a85d0344e5df34c750ca3158e53b8b37a5ddf82`。旧版来源不声明等价迁移。
 
 实现调整后 `go test -race ./configpipeline`、`go vet ./configpipeline` 通过：命名数组整体替换且不残留旧项字段、null 保留键、DNS 子 mapping/hosts 丢弃旧字段、未指定 DNS 项及普通递归 mapping 保留、显式空 mapping/array 清空、规则数组内容不被 Merge 改写，以及 Strategy 独立按名更新幂等。事务/失败回滚/revision 和锁定解析器测试也通过。没有生产入口/模块图变化；原有 ArkTS 与完整 HAP 检查证明原入口/资源可构建，不能当作本包已生产集成的证据。
+
+## 独审阻塞复现与修复
+
+按独审会话 `01a1311c-bf5d-72a5-9f7d-ec1884f030bb` 的转述在 head `39a9d1cc6c39fb56ee913c8f04a67438c4fb635c` 独立添加最小回归，实际复现失败：自定义 scalar/mapping/sequence/root tag 及不支持的标准 collection tag 被接受；Platform 注入合成 Controller Secret 后生成/成功 YAML 与 source provenance 可持久化，直接 FileStore.Stage 也可绕过；旧 Previous 中 secret 进入差异 section。当前没有可调用的该会话读取工具，没有声称已读取审查员完整会话。
+
+只读核对安全 [PR #9](https://github.com/Starfie1d1272/clash-OpenHarmony/pull/9)，身份 `9ecb964f319edff6fccfd36d78850c6b8e4fa609`。其 enforcePlatformSecurity/preparePlatformConfig 明确仅构造内存运行态，Secret 来自安全模块专用私有存储；不能将该运行态函数直接适配成 Compiler 的持久投影。修复将 Platform 类型明确为 PlatformProjection，契约只允许非敏感可持久化字段；Validator/Activate/Restore 必须在宿主私有副本中调用同一安全模块注入敏感运行态。本包不读取/生成/另存 Secret、不复制平台安全字段或数值约束，只在序列化边界拒绝顶层 secret（含别名、大小写、null/空串）。输入/Strategy/Platform 产出及 FileStore.Stage 的 YAML/原文/覆写都检查；错误为固定文本，错误接入在写盘前拒绝，差异清单移除 secret。
+
+Tag 支持明确限定为标准 map/seq、str/bool/int/float/null/timestamp/binary scalar 及实际 merge-key；自定义 tag 与 !!set/!!omap 等不支持的 collection tag 不再静默接受。检查包括别名目标、overlay 和回调输出；合法标准隐式/显式 tag 与已有 alias/merge-key 回归保持通过。
+
+最终 `go test -race ./configpipeline`、`go vet ./configpipeline` 通过。新增回归验证所有上述拒绝路径、拒绝前无文件生成/无激活、上一成功指针和运行版本不变、直接 Stage 的伪造 Result 拒绝，以及合成 Secret 仅在宿主校验副本内使用：不进入生成 YAML/备份/差异，轮换不改变候选 Digest。正常 Merge/引用/事务/取消/回滚/revision 及锁定 Mihomo 子进程测试继续通过。新增测试使用合成标记和 mock runtime injection；没有实现或声称安全 PR #9 的生产 adapter 联调、真实凭据或真机认证。安全线需提供非敏感投影 adapter 后才能生产接入；当前依旧独立模块。

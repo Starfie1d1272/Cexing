@@ -48,6 +48,12 @@ func (s FileStore) Stage(ctx context.Context, r Result) (Version, error) {
 	if err := ctx.Err(); err != nil {
 		return Version{}, err
 	}
+	// Guard the public Stage entry as well as Compiler output, before any I/O.
+	for _, data := range append([][]byte{r.Original, r.YAML}, r.Overlays...) {
+		if err := persistableYAML(data); err != nil {
+			return Version{}, err
+		}
+	}
 	if err := os.MkdirAll(s.Root, 0700); err != nil {
 		return Version{}, err
 	}

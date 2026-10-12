@@ -13,17 +13,25 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// Transform mutates a private YAML mapping. Platform is required and runs last.
+// Transform mutates a private, persistable YAML mapping. Platform is the required
+// non-sensitive projection and runs last. Runtime credentials belong only in
+// the host Validator/Activator, never in this mapping.
 // Implementations must not log inputs; callback errors are deliberately redacted.
 type Transform func(context.Context, *yaml.Node) error
 
+// PlatformProjection writes only non-sensitive serializable platform fields.
+// Do not adapt a runtime enforcement function that injects Controller Secret.
+type PlatformProjection func(context.Context, *yaml.Node) error
+
 // Validator must perform the host's full Mihomo validation, including resources.
-// It must not activate listeners. The host owns serialization and cleanup of any
+// It receives credential-free YAML. The host injects runtime-only state into a
+// private copy using the sole security implementation, then validates that copy.
+// It must not return/persist that copy or activate listeners. The host owns cleanup of any
 // upstream parser side effects; there is no permissive default validator.
 type Validator func(context.Context, []byte) error
 
 type Compiler struct {
-	Platform Transform
+	Platform PlatformProjection
 	Validate Validator
 }
 type Request struct {
@@ -56,17 +64,23 @@ func (c Compiler) Compile(ctx context.Context, r Request) (Result, error) {
 	if err != nil {
 		return Result{}, errors.New("invalid original YAML")
 	}
+	if err := rejectRuntimeCredential(root); err != nil {
+		return Result{}, err
+	}
 	for _, overlay := range r.Overlays {
 		patch, err := parse(overlay)
 		if err != nil {
 			return Result{}, errors.New("invalid overlay YAML")
+		}
+		if err := rejectRuntimeCredential(patch); err != nil {
+			return Result{}, err
 		}
 		merge(root, patch)
 	}
 	for _, step := range []struct {
 		name string
 		fn   Transform
-	}{{"strategy", r.Strategy}, {"platform", c.Platform}} {
+	}{{"strategy", r.Strategy}, {"platform", Transform(c.Platform)}} {
 		if err := ctx.Err(); err != nil {
 			return Result{}, err
 		}
@@ -74,6 +88,13 @@ func (c Compiler) Compile(ctx context.Context, r Request) (Result, error) {
 			if err := step.fn(ctx, root); err != nil {
 				return Result{}, errors.New(step.name + " transformation failed")
 			}
+		}
+		// Reject sensitive or unsupported callback output before encoding it.
+		if err := supportedTags(root, false, map[*yaml.Node]bool{}); err != nil {
+			return Result{}, errors.New("invalid transformed YAML")
+		}
+		if err := rejectRuntimeCredential(root); err != nil {
+			return Result{}, err
 		}
 	}
 	output, err := yaml.Marshal(root)
@@ -84,6 +105,9 @@ func (c Compiler) Compile(ctx context.Context, r Request) (Result, error) {
 	checked, err := parse(output)
 	if err != nil {
 		return Result{}, errors.New("invalid transformed YAML")
+	}
+	if err := rejectRuntimeCredential(checked); err != nil {
+		return Result{}, err
 	}
 	if err := validateReferences(checked); err != nil {
 		return Result{}, err
@@ -107,7 +131,7 @@ func (c Compiler) Compile(ctx context.Context, r Request) (Result, error) {
 		result.Overlays = append(result.Overlays, append([]byte(nil), b...))
 	}
 	prior, _ := parse(r.Previous)
-	for _, key := range []string{"proxies", "proxy-providers", "proxy-groups", "rules", "rule-providers", "dns", "tun", "external-controller", "secret", "external-ui"} {
+	for _, key := range []string{"proxies", "proxy-providers", "proxy-groups", "rules", "rule-providers", "dns", "tun", "external-controller", "external-ui"} {
 		a, b := field(prior, key), field(checked, key)
 		var av, bv any
 		if a != nil {
@@ -135,6 +159,9 @@ func parse(data []byte) (*yaml.Node, error) {
 	}
 	if len(doc.Content) != 1 || doc.Content[0].Kind != yaml.MappingNode {
 		return nil, errors.New("mapping required")
+	}
+	if err := supportedTags(doc.Content[0], false, map[*yaml.Node]bool{}); err != nil {
+		return nil, err
 	}
 	// Decode detects duplicate keys (including nested maps) and invalid aliases.
 	var value map[string]any
@@ -245,4 +272,68 @@ func size(n *yaml.Node) int {
 		return len(n.Content)
 	}
 	return 1
+}
+
+// This is a persistence boundary, not a second platform constraint policy.
+// The host's sole security implementation injects credentials only in memory.
+func rejectRuntimeCredential(root *yaml.Node) error {
+	for i := 0; i < len(root.Content); i += 2 {
+		if asciiLower(root.Content[i].Value) == "secret" {
+			return errors.New("controller runtime credential is not persistable")
+		}
+	}
+	return nil
+}
+func persistableYAML(data []byte) error {
+	root, err := parse(data)
+	if err != nil {
+		return errors.New("invalid persistable YAML")
+	}
+	return rejectRuntimeCredential(root)
+}
+func supportedTags(n *yaml.Node, key bool, seen map[*yaml.Node]bool) error {
+	if n == nil {
+		return errors.New("invalid YAML node")
+	}
+	switch n.Kind {
+	case yaml.AliasNode:
+		if n.Tag != "" {
+			return errors.New("unsupported YAML tag")
+		}
+		if seen[n] {
+			return nil
+		}
+		seen[n] = true
+		return supportedTags(n.Alias, key, seen)
+	case yaml.MappingNode:
+		if n.ShortTag() != "!!map" || len(n.Content)%2 != 0 {
+			return errors.New("unsupported YAML mapping tag")
+		}
+	case yaml.SequenceNode:
+		if n.ShortTag() != "!!seq" {
+			return errors.New("unsupported YAML sequence tag")
+		}
+	case yaml.ScalarNode:
+		switch n.ShortTag() {
+		case "!!str", "!!bool", "!!int", "!!float", "!!null", "!!timestamp", "!!binary":
+		case "!!merge":
+			if !key || n.Value != "<<" {
+				return errors.New("unsupported YAML merge tag")
+			}
+		default:
+			return errors.New("unsupported YAML scalar tag")
+		}
+	default:
+		return errors.New("unsupported YAML node")
+	}
+	if seen[n] {
+		return nil
+	}
+	seen[n] = true
+	for i, child := range n.Content {
+		if err := supportedTags(child, n.Kind == yaml.MappingNode && i%2 == 0, seen); err != nil {
+			return err
+		}
+	}
+	return nil
 }

@@ -23,6 +23,9 @@ type Store interface {
 
 // Activate may fail after partially changing the core. Restore must reapply the
 // previous immutable version, or stop the candidate when previous is nil.
+// Activate and Restore read credential-free version files and invoke the same
+// host security preparation used by Validator, injecting runtime state in memory.
+// Never write that runtime copy back to a version or its provenance.
 // Success must mean configuration application completed, not merely queued.
 type Activator interface {
 	Activate(context.Context, Version) error
