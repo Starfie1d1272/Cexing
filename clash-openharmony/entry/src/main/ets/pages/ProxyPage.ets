@@ -1,3 +1,4 @@
+import { NativeTheme as UI } from './NativeTheme';
 // Zashboard 验收前保留的最小节点选择入口，仅以运行内核为数据源。
 import { promptAction } from '@kit.ArkUI';
 import { CoreApi, ProxyInfo } from '../lib/CoreApi';
@@ -55,29 +56,29 @@ export struct ProxyPage {
 
   build() {
     Column({ space: 12 }) {
-      Button('刷新').enabled(!this.busy).onClick(() => this.refresh())
+      Button('刷新').height(48).backgroundColor(UI.soft).fontColor(UI.accent).enabled(!this.busy).onClick(() => this.refresh())
       if (this.message.length > 0) {
-        Text(this.message)
+        Text(this.message).fontSize(14).fontColor(UI.muted)
       }
       List({ space: 8 }) {
         ForEach(this.groups, (group: ProxyInfo) => {
           ListItem() {
             Column({ space: 6 }) {
-              Text(group.name).fontSize(18)
-              Text(group.now === undefined ? group.type : `${group.type} · ${group.now}`)
+              Text(group.name).fontSize(17).fontWeight(FontWeight.Medium).fontColor(UI.ink)
+              Text(group.now === undefined ? group.type : `${group.type} · ${group.now}`).fontSize(14).fontColor(UI.muted)
               if (group.type === 'Selector') {
-                Button('选择节点').enabled(!this.busy).onClick(() => this.choose(group))
+                Button('选择节点').height(48).backgroundColor(UI.soft).fontColor(UI.accent).enabled(!this.busy).onClick(() => this.choose(group))
               }
             }
             .alignItems(HorizontalAlign.Start)
-            .padding(12)
+            .padding(18).width('100%').backgroundColor(UI.surface).borderRadius(24)
           }
         }, (group: ProxyInfo) => group.name)
       }.layoutWeight(1)
     }
-    .padding(16)
+    .padding(24)
     .width('100%')
     .height('100%')
-    .backgroundColor($r('sys.color.background_secondary'))
+    .backgroundColor(UI.paper)
   }
 }
