@@ -12,6 +12,7 @@ import tempfile
 import zipfile
 
 hap, report = map(pathlib.Path, sys.argv[1:3])
+(report / 'build-identity.json').unlink(missing_ok=True)
 root = pathlib.Path.cwd()
 sdk = pathlib.Path(os.environ['OHOS_SDK_HOME'])
 readelf = sdk / 'native/llvm/bin/llvm-readelf'
@@ -68,6 +69,8 @@ smart_record = json.loads((root / 'clash-openharmony/entry/libs/arm64-v8a/smart-
 require(smart_record['patchSha256'] == sha((root / 'core/patches/smart-offline.patch').read_bytes()), 'reviewed Smart patch identity')
 require(smart_record['librarySha256'] == sha((root / 'clash-openharmony/entry/libs/arm64-v8a/libmihomo.so').read_bytes()), 'Smart build record fresh library identity')
 require(smart_record['headerSha256'] == sha((root / 'clash-openharmony/entry/libs/arm64-v8a/libmihomo.h').read_bytes()), 'Smart build record ABI header identity')
+go_inputs = {file.relative_to(root).as_posix() for file in (root / 'core').rglob('*.go') if not file.name.endswith('_test.go') and 'third_party' not in file.relative_to(root / 'core').parts}
+require(go_inputs == {name for name in smart_record['inputs'] if name.startswith('core/') and name.endswith('.go')}, 'Smart production Go source set changed; rebuild core')
 require(all(digest == sha((root / name).read_bytes()) for name, digest in smart_record['inputs'].items()), 'Smart build inputs changed; rebuild core')
 entries = []
 with zipfile.ZipFile(hap) as archive, tempfile.TemporaryDirectory() as directory:

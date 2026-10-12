@@ -21,8 +21,11 @@ with tempfile.TemporaryDirectory(prefix='smart-hap-negative-') as temporary:
     out.writestr(name,data)
    if case=='model':out.writestr('resources/rawfile/Model.bin',b'invalid forbidden test fixture')
   for optimize in ['0','1']:
+   report=d/'report';report.mkdir(exist_ok=True)
+   (report/'build-identity.json').write_text('old success fixture')
    run=subprocess.run([sys.executable,'scripts/ci/verify-hap.py',str(target),str(d/'report')],env={**os.environ,'PYTHONOPTIMIZE':optimize},capture_output=True,text=True)
    if run.returncode==0:raise SystemExit('unexpected accepted tamper '+case)
    expected={'fake112-empty':'four C ABI exports','model':'unlicensed bundled Model.bin','empty-override':'raw resource mismatch'}[case]
    if expected not in run.stdout+run.stderr:raise SystemExit('unexpected failure '+case+run.stdout+run.stderr)
+   if (report/'build-identity.json').exists():raise SystemExit('stale success report remains after failure')
    print('PASS reject '+case+' optimize='+optimize,flush=True)

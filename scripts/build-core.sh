@@ -18,6 +18,9 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SMART_OUTPUT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)/clash-openharmony/entry/libs/arm64-v8a"
+# Clear before environment/toolchain preflight, so an early failure cannot retain success.
+rm -f "$SMART_OUTPUT_DIR/smart-build.json" "$SMART_OUTPUT_DIR/smart-build.pending.json"
 source "$SCRIPT_DIR/env.sh"
 
 CORE_DIR="$REPO_ROOT/core"               # <仓库根>/core，Go 内核封装 module
@@ -33,8 +36,6 @@ TRIPLE="aarch64-linux-ohos"
 for f in "$CLANG" "$SYSROOT/usr/lib/$TRIPLE/libhilog_ndk.z.so"; do
   [ -f "$f" ] || { echo "[build-core] missing: $f" >&2; exit 1; }
 done
-
-rm -f "$OUT_DIR/smart-build.json" "$OUT_DIR/smart-build.pending.json"
 
 # ---- 1. android_stub: android/log.h -> hilog 映射 + 空 liblog.a ----
 STUB_INCLUDE="$STUB_DIR"

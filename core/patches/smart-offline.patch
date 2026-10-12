@@ -40,7 +40,7 @@
  
  	domainRegex = regexp.MustCompile(`([a-zA-Z0-9-]+)(\.[a-zA-Z0-9-]+)+$`)
  
-@@ -536,51 +535,116 @@
+@@ -536,51 +535,120 @@
  	}
  }
  
@@ -102,7 +102,11 @@
 +	if st, err := os.Stat(path); err == nil && st.Size() > 9345218 {
 +		return fmt.Errorf("旧模型过大，请先保存诊断副本")
 +	}
-+	if old, err := os.ReadFile(path); err == nil {
++	old, err := os.ReadFile(path)
++	if err != nil && !os.IsNotExist(err) {
++		return fmt.Errorf("旧模型读取失败，安装未替换原文件；请检查文件权限")
++	}
++	if err == nil {
 +		// Keep a diagnostic copy of a replaced invalid resource; never overwrite it.
 +		hash := sha256.Sum256(old)
 +		if hex.EncodeToString(hash[:]) != ModelSHA256 {
@@ -197,7 +201,7 @@
  	return smartModel
  }
  
-@@ -624,25 +688,7 @@
+@@ -624,25 +692,7 @@
  }
  
  func ReloadModel() {
@@ -224,7 +228,7 @@
  }
  
  func SetLgbmUrl(newUrl string) {
-@@ -653,29 +699,9 @@
+@@ -653,29 +703,9 @@
  	return lgbmUrl
  }
  
@@ -257,7 +261,7 @@
  }
  
  func GetModelDownloadURL() string {
-@@ -730,10 +756,11 @@
+@@ -730,10 +760,11 @@
  
  	prediction = model.PredictSingle(features, 0)
  

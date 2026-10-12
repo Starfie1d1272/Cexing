@@ -32,6 +32,10 @@ func TestOHOSBetaModel(t *testing.T) {
  corrupt := append([]byte(nil), b...); corrupt[0] ^= 1
  if err = InstallModel(bytes.NewReader(corrupt)); err == nil {t.Fatal("same-sized corrupt upstream model accepted")}
  retained,err:=os.ReadFile(C.Path.SmartModel());if err!=nil || string(retained)!="old invalid diagnostic" {t.Fatal("bad upload replaced active resource")}
+ if err=os.Chmod(C.Path.SmartModel(),0000);err!=nil {t.Fatal(err)}
+ if err=InstallModel(bytes.NewReader(b));err==nil {t.Fatal("unreadable old model overwritten")}
+ if err=os.Chmod(C.Path.SmartModel(),0600);err!=nil {t.Fatal(err)}
+ retained,err=os.ReadFile(C.Path.SmartModel());if err!=nil || string(retained)!="old invalid diagnostic" {t.Fatal("unreadable original not preserved")}
  if err = InstallModel(bytes.NewReader(b)); err != nil {t.Fatal(err)}
  previous,err := os.ReadFile(C.Path.SmartModel()+".previous");if err != nil || string(previous)!="old invalid diagnostic" {t.Fatal("previous invalid model not preserved")}
  m := GetModel(); if m == nil || ModelStatus().State != "loaded" {t.Fatal(ModelStatus())}
