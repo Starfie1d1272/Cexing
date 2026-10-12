@@ -41,9 +41,9 @@ function keeperFixture() {
       OperationType: { START_ABILITY: 1 }, WantAgentFlags: { UPDATE_PRESENT_FLAG: 1 } } },
     '@kit.NotificationKit': { notificationManager: { publish: async () => {}, cancel: async () => {},
       ContentType: { NOTIFICATION_CONTENT_SYSTEM_LIVE_VIEW: 1 }, SlotType: { LIVE_VIEW: 1 } } },
-    './CoreApi': { CoreApi: { getProxies: async () => null, getConfigs: async () => null,
+    './CoreApi': { CoreApi: { getProxies: async () => ({ test: { name: 'test', type: 'Selector', now: 'DIRECT', all: ['DIRECT'] } }), getConfigs: async () => null,
       getTraffic: async () => null, isAlive: async () => true }, formatRate: () => '' },
-    './Settings': { Settings: { load: ctx => { contexts.push(ctx); return settings; } } },
+    './Settings': { Settings: { load: ctx => { contexts.push(ctx); return settings; }, save() {} } },
     './VpnController': { VpnController: { status: 2 }, VpnStatus: { Connected: 2 } },
     './Logger': logger
   };
@@ -87,8 +87,17 @@ async function testKeeperContext() {
   f.starts[0].wait.resolve({ notificationId: 10, continuousTaskId: 100 });
   await start;
   const heartbeat = [...f.timers.values()].find(timer => timer.delay === 300000);
-  // Force metadata to read Settings through the current context.
-  // The first metadata read after native start already performs this when proxies exist.
+  f.contexts.length = 0;
+  heartbeat.fn();
+  await flush();
+  assert.ok(f.contexts.length > 0);
+  assert.ok(f.contexts.every(ctx => ctx === fresh), 'Start completion must not overwrite the rebound context');
+  const recreated = { applicationInfo: { name: 'bundle' } };
+  f.keeper.rebindContext(recreated);
+  f.contexts.length = 0;
+  heartbeat.fn();
+  await flush();
+  assert.ok(f.contexts.every(ctx => ctx === recreated), 'Later heartbeat must use the current Ability context');
   const stop = f.keeper.stop(fresh);
   await flush();
   assert.equal(f.stops[0].ctx, fresh, 'Rebinding while start is pending must not be overwritten by start completion');
