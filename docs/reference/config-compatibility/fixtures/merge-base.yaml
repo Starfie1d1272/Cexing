@@ -1,0 +1,84 @@
+{
+  "proxies": [
+    {
+      "name": "美国 SYN merge",
+      "type": "socks5",
+      "server": "192.0.2.10",
+      "port": 1080,
+      "udp": true
+    },
+    {
+      "name": "日本 SYN removed",
+      "type": "socks5",
+      "server": "192.0.2.10",
+      "port": 1080
+    }
+  ],
+  "proxy-groups": [
+    {
+      "name": "Synthetic merge selector",
+      "type": "select",
+      "proxies": [
+        "美国 SYN merge",
+        "日本 SYN removed"
+      ],
+      "icon": "https://icon.example/old"
+    },
+    {
+      "name": "Synthetic removed group",
+      "type": "select",
+      "proxies": [
+        "DIRECT"
+      ]
+    }
+  ],
+  "listeners": [
+    {
+      "name": "Synthetic listener",
+      "type": "socks",
+      "port": 1081,
+      "listen": "127.0.0.1",
+      "udp": true
+    },
+    {
+      "name": "Synthetic removed listener",
+      "type": "http",
+      "port": 1082,
+      "listen": "127.0.0.1"
+    }
+  ],
+  "rules": [
+    "MATCH,Synthetic merge selector"
+  ],
+  "tun": {
+    "mtu": 1500,
+    "stack": "gvisor"
+  },
+  "profile": {
+    "store-selected": false
+  },
+  "dns": {
+    "enable": true,
+    "nameserver": [
+      "192.0.2.53"
+    ],
+    "fallback": [
+      "198.51.100.53"
+    ],
+    "fake-ip-filter": [
+      "old.example"
+    ],
+    "nameserver-policy": {
+      "old.example": "192.0.2.53"
+    },
+    "fallback-filter": {
+      "geoip": true,
+      "domain": [
+        "old.example"
+      ]
+    }
+  },
+  "hosts": {
+    "old.example": "192.0.2.1"
+  }
+}
