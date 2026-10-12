@@ -4,7 +4,9 @@
 
 ## 体验
 
-当前新增独立的 [连接首页主卡构图试稿](connection-focus/README.md)及[手机 / 展开态前后对照](connection-focus/comparison.html)，仅改连接首页。`9127864` 轻盈基线、原入口与旧图完整保留；`ce5789e` 的 [装饰旧稿](ark-detail/README.md)留作历史，不采用。用户看对照后决定。
+当前新增独立的 [连接首页精修候选](connection-refine/README.md)及其[同尺寸前后对照](connection-refine/comparison.html)，以前稿 `7c58539` 为固定对照，仅改变首页主卡。前稿入口与截图保持不变。
+
+上一轮独立的 [连接首页主卡构图试稿](connection-focus/README.md)及[手机 / 展开态前后对照](connection-focus/comparison.html)，仅改连接首页。`9127864` 轻盈基线、原入口与旧图完整保留；`ce5789e` 的 [装饰旧稿](ark-detail/README.md)留作历史，不采用。用户看对照后决定。
 
 从仓库根目录启动任意静态 HTTP 服务，例如 `python3 -m http.server 8765`，打开：
 

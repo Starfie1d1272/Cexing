@@ -1,0 +1,615 @@
+{
+  "baseline": "7c585393f2b88748ac5f03d6f490547b7600b99b",
+  "viewports": [
+    {
+      "state": "ready",
+      "width": 390,
+      "height": 844,
+      "scroll": 390,
+      "tabs": [
+        {
+          "top": 775,
+          "bottom": 829
+        },
+        {
+          "top": 775,
+          "bottom": 829
+        },
+        {
+          "top": 775,
+          "bottom": 829
+        }
+      ],
+      "handoff": 621.390625,
+      "footer": 678
+    },
+    {
+      "state": "connecting",
+      "width": 390,
+      "height": 844,
+      "scroll": 390,
+      "tabs": [
+        {
+          "top": 775,
+          "bottom": 829
+        },
+        {
+          "top": 775,
+          "bottom": 829
+        },
+        {
+          "top": 775,
+          "bottom": 829
+        }
+      ],
+      "handoff": 621.390625,
+      "footer": 678
+    },
+    {
+      "state": "connected",
+      "width": 390,
+      "height": 844,
+      "scroll": 390,
+      "tabs": [
+        {
+          "top": 775,
+          "bottom": 829
+        },
+        {
+          "top": 775,
+          "bottom": 829
+        },
+        {
+          "top": 775,
+          "bottom": 829
+        }
+      ],
+      "handoff": 658.59375,
+      "footer": 678
+    },
+    {
+      "state": "disconnect",
+      "width": 390,
+      "height": 844,
+      "scroll": 390,
+      "tabs": [
+        {
+          "top": 775,
+          "bottom": 829
+        },
+        {
+          "top": 775,
+          "bottom": 829
+        },
+        {
+          "top": 775,
+          "bottom": 829
+        }
+      ],
+      "handoff": 658.59375,
+      "footer": 678
+    },
+    {
+      "state": "network-error",
+      "width": 390,
+      "height": 844,
+      "scroll": 390,
+      "tabs": [
+        {
+          "top": 775,
+          "bottom": 829
+        },
+        {
+          "top": 775,
+          "bottom": 829
+        },
+        {
+          "top": 775,
+          "bottom": 829
+        }
+      ],
+      "handoff": 770.484375,
+      "footer": 678
+    },
+    {
+      "state": "permission",
+      "width": 390,
+      "height": 844,
+      "scroll": 390,
+      "tabs": [
+        {
+          "top": 775,
+          "bottom": 829
+        },
+        {
+          "top": 775,
+          "bottom": 829
+        },
+        {
+          "top": 775,
+          "bottom": 829
+        }
+      ],
+      "handoff": 621.390625,
+      "footer": 678
+    },
+    {
+      "state": "ready",
+      "width": 960,
+      "height": 720,
+      "scroll": 960,
+      "tabs": [
+        {
+          "top": 651,
+          "bottom": 705
+        },
+        {
+          "top": 651,
+          "bottom": 705
+        },
+        {
+          "top": 651,
+          "bottom": 705
+        }
+      ],
+      "handoff": 365.796875,
+      "footer": 554
+    },
+    {
+      "state": "connecting",
+      "width": 960,
+      "height": 720,
+      "scroll": 960,
+      "tabs": [
+        {
+          "top": 651,
+          "bottom": 705
+        },
+        {
+          "top": 651,
+          "bottom": 705
+        },
+        {
+          "top": 651,
+          "bottom": 705
+        }
+      ],
+      "handoff": 365.796875,
+      "footer": 554
+    },
+    {
+      "state": "connected",
+      "width": 960,
+      "height": 720,
+      "scroll": 960,
+      "tabs": [
+        {
+          "top": 651,
+          "bottom": 705
+        },
+        {
+          "top": 651,
+          "bottom": 705
+        },
+        {
+          "top": 651,
+          "bottom": 705
+        }
+      ],
+      "handoff": 365.796875,
+      "footer": 554
+    },
+    {
+      "state": "disconnect",
+      "width": 960,
+      "height": 720,
+      "scroll": 960,
+      "tabs": [
+        {
+          "top": 651,
+          "bottom": 705
+        },
+        {
+          "top": 651,
+          "bottom": 705
+        },
+        {
+          "top": 651,
+          "bottom": 705
+        }
+      ],
+      "handoff": 365.796875,
+      "footer": 554
+    },
+    {
+      "state": "network-error",
+      "width": 960,
+      "height": 720,
+      "scroll": 960,
+      "tabs": [
+        {
+          "top": 651,
+          "bottom": 705
+        },
+        {
+          "top": 651,
+          "bottom": 705
+        },
+        {
+          "top": 651,
+          "bottom": 705
+        }
+      ],
+      "handoff": 365.796875,
+      "footer": 554
+    },
+    {
+      "state": "permission",
+      "width": 960,
+      "height": 720,
+      "scroll": 960,
+      "tabs": [
+        {
+          "top": 651,
+          "bottom": 705
+        },
+        {
+          "top": 651,
+          "bottom": 705
+        },
+        {
+          "top": 651,
+          "bottom": 705
+        }
+      ],
+      "handoff": 365.796875,
+      "footer": 554
+    },
+    {
+      "state": "ready",
+      "width": 360,
+      "height": 780,
+      "scroll": 360,
+      "tabs": [
+        {
+          "top": 711,
+          "bottom": 765
+        },
+        {
+          "top": 711,
+          "bottom": 765
+        },
+        {
+          "top": 711,
+          "bottom": 765
+        }
+      ],
+      "handoff": 574.265625,
+      "footer": 614
+    },
+    {
+      "state": "connecting",
+      "width": 360,
+      "height": 780,
+      "scroll": 360,
+      "tabs": [
+        {
+          "top": 711,
+          "bottom": 765
+        },
+        {
+          "top": 711,
+          "bottom": 765
+        },
+        {
+          "top": 711,
+          "bottom": 765
+        }
+      ],
+      "handoff": 574.265625,
+      "footer": 614
+    },
+    {
+      "state": "connected",
+      "width": 360,
+      "height": 780,
+      "scroll": 360,
+      "tabs": [
+        {
+          "top": 711,
+          "bottom": 765
+        },
+        {
+          "top": 711,
+          "bottom": 765
+        },
+        {
+          "top": 711,
+          "bottom": 765
+        }
+      ],
+      "handoff": 610.359375,
+      "footer": 614
+    },
+    {
+      "state": "disconnect",
+      "width": 360,
+      "height": 780,
+      "scroll": 360,
+      "tabs": [
+        {
+          "top": 711,
+          "bottom": 765
+        },
+        {
+          "top": 711,
+          "bottom": 765
+        },
+        {
+          "top": 711,
+          "bottom": 765
+        }
+      ],
+      "handoff": 610.359375,
+      "footer": 614
+    },
+    {
+      "state": "network-error",
+      "width": 360,
+      "height": 780,
+      "scroll": 360,
+      "tabs": [
+        {
+          "top": 711,
+          "bottom": 765
+        },
+        {
+          "top": 711,
+          "bottom": 765
+        },
+        {
+          "top": 711,
+          "bottom": 765
+        }
+      ],
+      "handoff": 722.484375,
+      "footer": 614
+    },
+    {
+      "state": "permission",
+      "width": 360,
+      "height": 780,
+      "scroll": 360,
+      "tabs": [
+        {
+          "top": 711,
+          "bottom": 765
+        },
+        {
+          "top": 711,
+          "bottom": 765
+        },
+        {
+          "top": 711,
+          "bottom": 765
+        }
+      ],
+      "handoff": 574.265625,
+      "footer": 614
+    },
+    {
+      "state": "ready",
+      "width": 430,
+      "height": 932,
+      "scroll": 430,
+      "tabs": [
+        {
+          "top": 863,
+          "bottom": 917
+        },
+        {
+          "top": 863,
+          "bottom": 917
+        },
+        {
+          "top": 863,
+          "bottom": 917
+        }
+      ],
+      "handoff": 621.390625,
+      "footer": 766
+    },
+    {
+      "state": "connecting",
+      "width": 430,
+      "height": 932,
+      "scroll": 430,
+      "tabs": [
+        {
+          "top": 863,
+          "bottom": 917
+        },
+        {
+          "top": 863,
+          "bottom": 917
+        },
+        {
+          "top": 863,
+          "bottom": 917
+        }
+      ],
+      "handoff": 621.390625,
+      "footer": 766
+    },
+    {
+      "state": "connected",
+      "width": 430,
+      "height": 932,
+      "scroll": 430,
+      "tabs": [
+        {
+          "top": 863,
+          "bottom": 917
+        },
+        {
+          "top": 863,
+          "bottom": 917
+        },
+        {
+          "top": 863,
+          "bottom": 917
+        }
+      ],
+      "handoff": 658.59375,
+      "footer": 766
+    },
+    {
+      "state": "disconnect",
+      "width": 430,
+      "height": 932,
+      "scroll": 430,
+      "tabs": [
+        {
+          "top": 863,
+          "bottom": 917
+        },
+        {
+          "top": 863,
+          "bottom": 917
+        },
+        {
+          "top": 863,
+          "bottom": 917
+        }
+      ],
+      "handoff": 658.59375,
+      "footer": 766
+    },
+    {
+      "state": "network-error",
+      "width": 430,
+      "height": 932,
+      "scroll": 430,
+      "tabs": [
+        {
+          "top": 863,
+          "bottom": 917
+        },
+        {
+          "top": 863,
+          "bottom": 917
+        },
+        {
+          "top": 863,
+          "bottom": 917
+        }
+      ],
+      "handoff": 770.484375,
+      "footer": 766
+    },
+    {
+      "state": "permission",
+      "width": 430,
+      "height": 932,
+      "scroll": 430,
+      "tabs": [
+        {
+          "top": 863,
+          "bottom": 917
+        },
+        {
+          "top": 863,
+          "bottom": 917
+        },
+        {
+          "top": 863,
+          "bottom": 917
+        }
+      ],
+      "handoff": 621.390625,
+      "footer": 766
+    }
+  ],
+  "comparisons": [
+    {
+      "width": 390,
+      "height": 844,
+      "same_state": true,
+      "same_text": true
+    },
+    {
+      "width": 960,
+      "height": 720,
+      "same_state": true,
+      "same_text": true
+    },
+    {
+      "width": 360,
+      "height": 780,
+      "same_state": true,
+      "same_text": true
+    },
+    {
+      "width": 430,
+      "height": 932,
+      "same_state": true,
+      "same_text": true
+    }
+  ],
+  "unchanged_pages": [
+    {
+      "page": "profiles",
+      "width": 390,
+      "height": 844,
+      "pixel_identical": true
+    },
+    {
+      "page": "settings",
+      "width": 390,
+      "height": 844,
+      "pixel_identical": true
+    },
+    {
+      "page": "profiles",
+      "width": 960,
+      "height": 720,
+      "pixel_identical": true
+    },
+    {
+      "page": "settings",
+      "width": 960,
+      "height": 720,
+      "pixel_identical": true
+    },
+    {
+      "page": "profiles",
+      "width": 360,
+      "height": 780,
+      "pixel_identical": true
+    },
+    {
+      "page": "settings",
+      "width": 360,
+      "height": 780,
+      "pixel_identical": true
+    },
+    {
+      "page": "profiles",
+      "width": 430,
+      "height": 932,
+      "pixel_identical": true
+    },
+    {
+      "page": "settings",
+      "width": 430,
+      "height": 932,
+      "pixel_identical": true
+    }
+  ],
+  "flows": [
+    "取消过滤迟到回调、连接、设置/面板返回保持会话、断开；主卡重排不重复速率或图形",
+    "减少动态效果时静态表达，连接中文字与取消动作保持"
+  ],
+  "errors": [],
+  "browser": "154.0.8037.57"
+}

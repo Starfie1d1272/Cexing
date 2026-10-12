@@ -1,0 +1,22 @@
+{
+  "root": "design/native-ui-fresh/connection-refine",
+  "files": 4,
+  "errors": [],
+  "warnings": [
+    "Use semantic ink, paper, and signal tokens instead of scattering palette literals.",
+    "JavaScript queries HTML hooks that were not found: .hero, .connection-overview, .traffic, .idle-traffic. Update copied starter wiring after renaming classes or IDs."
+  ],
+  "passes": [
+    "No official CDN assets are embedded.",
+    "No obvious protected brand-logo reference is present.",
+    "Reduced-motion behavior is defined.",
+    "Responsive or orientation-specific rules are present.",
+    "Visible keyboard focus styling is present.",
+    "Viewport metadata is present.",
+    "Document language is declared.",
+    "Semantic landmarks are present.",
+    "HTML ID references resolve.",
+    "No common sci-fi imitation cliché is named.",
+    "Literal color count is restrained."
+  ]
+}
