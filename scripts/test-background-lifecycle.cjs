@@ -278,7 +278,7 @@ function updaterFixture() {
       updateFromOrigin: async (ctx, file) => updates.push(file), absPath: (ctx, file) => file } },
     './Logger': logger
   };
-  return { updater: load('AutoUpdater', modules, timers), modules, settings, updates, reloads, writes,
+  return { updater: load('AutoUpdater', modules, timers), timers, modules, settings, updates, reloads, writes,
     setActive: file => { active = file; } };
 }
 async function testUpdaterLateCompletion() {
@@ -296,6 +296,29 @@ async function testUpdaterLateCompletion() {
     await check;
     assert.equal(f.reloads.length, 0, `Late update must not reload after ${invalidate}`);
     assert.equal(f.writes.length, 0, `Late update must not write success timestamp after ${invalidate}`);
+  }
+}
+async function testUpdaterQueuedTickAfterStop() {
+  for (const reconnect of [false, true]) {
+    const f = updaterFixture(), context = {};
+    let probes = 0;
+    f.modules['./CoreApi'].CoreApi.isAlive = async () => { probes++; return true; };
+    f.updater.start(context);
+    const queued = [...f.timers.values()][0].fn;
+    f.updater.stop();
+    if (reconnect) f.updater.start({});
+    queued(); // clearInterval cannot remove a callback already queued by the event loop.
+    await flush();
+    assert.deepEqual({ probes, downloads: f.updates.length, timestamps: f.writes.length, reloads: f.reloads.length },
+      { probes: 0, downloads: 0, timestamps: 0, reloads: 0 },
+      `Queued old timer must have no side effects after stop${reconnect ? '/start' : ''}`);
+    if (reconnect) {
+      [...f.timers.values()][0].fn();
+      await flush();
+      assert.equal(f.updates.length, 1, 'New schedule must still download');
+      assert.equal(f.writes.length, 1, 'New schedule must still write timestamp');
+      assert.equal(f.reloads.length, 1, 'New schedule must still reload');
+    }
   }
 }
 async function testUpdaterOverlapAndRetry() {
@@ -317,7 +340,7 @@ async function testUpdaterOverlapAndRetry() {
 }
 (async () => {
   const cases = [testRapidReconnect, testKeeperContext, testUpdaterContext, testLateTraffic, testLateHeartbeat, testPreTaskFailure, testPendingPublish,
-    testPartialListeners, testCancelProbeRace, testUserCancel, testUpdaterLateCompletion, testUpdaterOverlapAndRetry];
+    testPartialListeners, testCancelProbeRace, testUserCancel, testUpdaterLateCompletion, testUpdaterQueuedTickAfterStop, testUpdaterOverlapAndRetry];
   for (const test of cases) {
     if (!process.env.RUNTIME_CASE || process.env.RUNTIME_CASE === test.name) {
       await test();

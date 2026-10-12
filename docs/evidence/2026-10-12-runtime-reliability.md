@@ -70,3 +70,22 @@ Linux 云端，Node `26.11.1`、Go `1.27.2`、JDK `27`，官方 SDK 编译器；
 | 后台申请失败 / 通知受限 | 用户操作受支持的通知授权；记录系统拒绝码 | 不重复监听、无无 ID 全局 stop；前台 ensure/显式重连可再尝试；未获 ACL 时不使用 taskKeeping。 |
 
 合流建议：在 architecture 的生命周期参考中补充“恢复提交由 VPN 状态机校验意图代次”和“订阅下载与运行时取消的事务边界”；由父任务统筹共享文档。此 PR 可审阅代码修复，但不能据此认定系统会话恢复、长期后台或日用稳定性已通过。
+
+## 后续审查修复：停止后已排队的订阅 tick
+
+审查指向运行时 PR #4 `dc6754ced804b0ed01ea12d75a64ae5e485725e8` 的 AutoUpdater.start 定时闭包。前面的下载迟到检查只保护“stop 前已进入 checkAndRun”的检查，没有覆盖“stop 后才执行的已排队 tick”；原闭包会重新捕获 stop 后的当前 generation，因此通过所有代次校验。`clearInterval` 不能撤回已进入事件队列的回调。
+
+本轮先在该实际 ArkTS 源码上新增 `testUpdaterQueuedTickAfterStop` 并复现失败：start → 保存 tick → stop → 执行已排队 tick，观测到 `probes=2, downloads=1, timestamps=1, reloads=1`，预期均为 0。另将 `dc6754c` 与安全 PR #9 `9ecb964` 完整源码 diff 及恢复取消补丁组成临时导出树，相同新检查仍失败，确认不是仅组合 mock 缺口。
+
+修复仅给 AutoUpdater 增加独立调度代次：start 的 interval 捕获 scheduleGeneration，stop 递增它；回调入口拒绝过期调度/已停止计时器，发生在读取 Context 和进入 checkAndRun 之前。Context rebind 仍只失效在途检查代次，不失效有效调度；后续当前 tick 使用最新 Context。stop→start 即使已创建新 timer，旧闭包也不能借用新 generation 执行。设置页主动请求的一次性 checkAndRun 保留现有语义，不与过期定时器混淆。
+
+新检查涵盖 stop 与 stop→start 两种时序：旧 tick 的探活/下载/时间戳/reload 均为 0；stop→start 后新 tick 各执行一次下载、时间戳和 reload。原有 Context 重绑定、在途下载完成后 stop/rebind/切换激活文件/关闭偏好、并发检查与失败重试回归继续通过。background lifecycle 总计 13 个风险场景。
+
+实际验证：
+
+- 独立 PR #4 的四组回归全部通过，`git diff --check` 通过。
+- 临时完整组合树（PR #4 dc6754c + 此次 AutoUpdater 修复/新回归 + PR #9 9ecb964 + 两行恢复取消接点）中的 background lifecycle、runtime/controller 组合恢复、安全线 test-vpn-recovery、AppRuntime、VPN startup、profile name 全部通过。
+- 独立分支仅修改 ArkTS，复用本报告已按固定模块图重编译且核验过的内核，未改 core/resources/依赖；API26 未签名 HAP 构建通过（33 tasks，17 executed，16 up-to-date）。ZIP CRC、三个 AArch64 库、默认配置和锁定 GeoIP 检查通过；包内内核仍为 `b021bb60317ba469c29b3bb66505807e1ef0e5ca39826f659cc2d62efe2a8b35`。
+- 此次未签名 HAP SHA-256：`15d15e80ffe883a1d5ff3ace4113f43a0900af6011e3dd6adf920afb52264e07`；未做最终合流 HAP 或真机测试。
+
+副作用边界：修复阻止旧排队 tick **发起新的**操作；stop 前已经交给 ProfileStore 的 HTTP/文件写入，以及已经提交的 CoreApi reload 或 preferences flush 仍不可由 AutoUpdater 撤销。原有在途代次检查阻止停止后再提交时间戳/reload，不能提供 ProfileStore 内部事务取消或撤销已提交 IO。此限制继续由配置流水线负责，不声称本轮实现该能力。独立 PR 中恢复取消补丁仍未应用，不合并/发布。

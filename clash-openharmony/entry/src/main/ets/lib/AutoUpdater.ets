@@ -21,6 +21,8 @@ export namespace AutoUpdater {
   let timerId: number = -1;
   let currentContext: common.Context | null = null;
   let generation: number = 0;
+  // 调度代次独立于 Context 重绑定：旧排队 tick 失效，新 tick 仍读取当前 Context。
+  let scheduleGeneration: number = 0;
   let checking: boolean = false;
 
   export function rebindContext(context: common.Context): void {
@@ -34,7 +36,11 @@ export namespace AutoUpdater {
   export function start(context: common.Context): void {
     stop();
     rebindContext(context);
+    const schedule = scheduleGeneration;
     timerId = setInterval(() => {
+      if (schedule !== scheduleGeneration || timerId < 0) {
+        return;
+      }
       const ctx = currentContext;
       if (ctx === null) {
         return;
@@ -49,6 +55,7 @@ export namespace AutoUpdater {
   /** 停止周期检查 */
   export function stop(): void {
     generation++;
+    scheduleGeneration++;
     if (timerId >= 0) {
       clearInterval(timerId);
       timerId = -1;

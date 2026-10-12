@@ -47,3 +47,5 @@ git diff --check
 环境为 Linux 云端、Node 26.11.1、官方 API26 SDK 转译器，平台 IO/后台服务为 mock。本轮没有组合内核重编译、合流 HAP 构建或真机测试；父任务仍需对最终集成 tree 做 clean 构建及设备验收。此前两条独立 PR 的构建证据不能替代最终合流产物证据。
 
 这将封闭运行时报告的 recover 提交竞态，前提是两线源码与接点全部合入；Controller 探活不证明系统 TUN 健康、ProfileStore 在途写入事务边界和 native loader 的 dlclose 风险均仍独立存在。
+
+补充验证：后续审查的 AutoUpdater 排队旧 tick 问题已在运行时线单独修复，详见[复现与修复证据](../evidence/2026-10-12-runtime-reliability.md#后续审查修复停止后已排队的订阅-tick)。两行恢复取消补丁保持原样；完整组合树在纳入调度代次修复后，13 项后台生命周期场景、组合恢复、安全线恢复及其余既有回归均通过。最终集成应包含运行时线最新修复，不仅使用 dc6754c 旧 head。
