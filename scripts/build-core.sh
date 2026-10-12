@@ -34,6 +34,8 @@ for f in "$CLANG" "$SYSROOT/usr/lib/$TRIPLE/libhilog_ndk.z.so"; do
   [ -f "$f" ] || { echo "[build-core] missing: $f" >&2; exit 1; }
 done
 
+rm -f "$OUT_DIR/smart-build.json" "$OUT_DIR/smart-build.pending.json"
+
 # ---- 1. android_stub: android/log.h -> hilog 映射 + 空 liblog.a ----
 STUB_INCLUDE="$STUB_DIR"
 STUB_LIB="$STUB_DIR/lib"
@@ -87,7 +89,7 @@ fi
 # ---- 2. gVisor fdbased 补丁（仅构建专用模块缓存，不改共享模块缓存）----
 # 独立临时模块缓存使补丁不影响开发者缓存，Go 1.27 不允许 overlay 覆盖模块缓存。
 PRIVATE_MODCACHE="$(mktemp -d)"
-trap 'chmod -R u+w "$PRIVATE_MODCACHE"; rm -rf "$PRIVATE_MODCACHE"' EXIT
+trap 'SMART_BUILD_EXIT=$?; if [ "$SMART_BUILD_EXIT" -ne 0 ]; then rm -f "$OUT_DIR/smart-build.json" "$OUT_DIR/smart-build.pending.json"; fi; chmod -R u+w "$PRIVATE_MODCACHE"; rm -rf "$PRIVATE_MODCACHE"' EXIT
 export GOMODCACHE="$PRIVATE_MODCACHE"
 (cd "$CORE_DIR" && go mod download && go mod verify)
 (cd "$CORE_DIR" && python3 "$SCRIPT_DIR/ci/patch-gvisor.py" "$PRIVATE_MODCACHE")
@@ -107,12 +109,14 @@ export CXXFLAGS="$CFLAGS"
 mkdir -p "$OUT_DIR"
 (cd "$CORE_DIR" && go build -mod=readonly -trimpath -buildvcs=false \
   -tags "netgo ohos cmfa with_gvisor" \
-  -ldflags "-w -X main.smartPatchSHA=$(sha256sum "$CORE_DIR/patches/smart-offline.patch" | cut -d' ' -f1)" \
+  -ldflags "-w" \
   -buildmode=c-shared \
   -o "$OUT_DIR/libmihomo.so" .)
 
+(cd "$CORE_DIR" && python3 "$SCRIPT_DIR/ci/patch-smart.py" "$PRIVATE_MODCACHE" record "$OUT_DIR/libmihomo.so")
 (cd "$CORE_DIR" && python3 "$SCRIPT_DIR/ci/patch-smart.py" "$PRIVATE_MODCACHE" restore)
 (cd "$CORE_DIR" && python3 "$SCRIPT_DIR/ci/patch-gvisor.py" "$PRIVATE_MODCACHE" verify)
+mv "$OUT_DIR/smart-build.pending.json" "$OUT_DIR/smart-build.json"
 
 echo "[build-core] done:"
 ls -lh "$OUT_DIR"/libmihomo.so "$OUT_DIR"/libmihomo.h

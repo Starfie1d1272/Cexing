@@ -24,7 +24,25 @@ download = json.loads(subprocess.check_output(['go', 'mod', 'download', '-json',
 with zipfile.ZipFile(download['Zip']) as archive:
     prefix = module['Path'] + '@' + PIN + '/'
     originals = {path: archive.read(prefix + path) if prefix + path in archive.namelist() else None for path in paths}
-if len(sys.argv) > 2 and sys.argv[2] == 'restore':
+source_record = cache / '.smart-source.json'
+def digest(file):
+    return hashlib.sha256(file.read_bytes()).hexdigest()
+operation = sys.argv[2] if len(sys.argv) > 2 else 'apply'
+if operation == 'record':
+    recorded = json.loads(source_record.read_text())
+    if recorded['patchSha256'] != digest(patch) or recorded['files'] != {path: digest(directory / path) for path in paths}:
+        raise SystemExit('Smart source changed after patch verification')
+    library = Path(sys.argv[3])
+    root = patch.parents[2]
+    recorded['librarySha256'] = digest(library)
+    recorded['headerSha256'] = digest(library.with_suffix('.h'))
+    recorded['inputs'] = {name: digest(root / name) for name in [
+        'core/go.mod', 'core/go.sum', 'core/patches/smart-offline.patch',
+        'scripts/build-core.sh', 'scripts/ci/patch-smart.py', 'scripts/ci/patch-gvisor.py']}
+    library.with_name('smart-build.pending.json').write_text(json.dumps(recorded, indent=2) + '\n')
+    print('Bound fresh Smart library to verified patched source')
+    raise SystemExit(0)
+if operation == 'restore':
     for path, data in originals.items():
         file = directory / path
         if data is None:
@@ -42,4 +60,5 @@ else:
             file.chmod(file.stat().st_mode | 0o200)
     (directory / 'hub/route').chmod((directory / 'hub/route').stat().st_mode | 0o200)
     subprocess.check_call(['patch', '--batch', '--fuzz=0', '--forward', '-d', str(directory), '-p1', '-i', str(patch)])
+    source_record.write_text(json.dumps({'patchSha256': digest(patch), 'upstream': {'path': module['Path'], 'version': PIN, 'sum': SUM}, 'files': {path: digest(directory / path) for path in paths}}, indent=2) + '\n')
 print('Smart patch ' + hashlib.sha256(patch.read_bytes()).hexdigest())

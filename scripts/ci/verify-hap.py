@@ -64,8 +64,11 @@ settings = {s['Key']: s['Value'] for s in source['Settings']}
 for key, value in {'GOOS': 'android', 'GOARCH': 'arm64', 'CGO_ENABLED': '1', '-buildmode': 'c-shared', '-trimpath': 'true'}.items():
     require(settings.get(key) == value, 'Go build setting ' + key)
 require(set(settings.get('-tags', '').split(',')) == {'netgo', 'ohos', 'cmfa', 'with_gvisor'}, 'platform tags')
-patch_sha = sha((root / 'core/patches/smart-offline.patch').read_bytes())
-require('smartPatchSHA=' + patch_sha in settings.get('-ldflags', ''), 'reviewed Smart patch identity')
+smart_record = json.loads((root / 'clash-openharmony/entry/libs/arm64-v8a/smart-build.json').read_text())
+require(smart_record['patchSha256'] == sha((root / 'core/patches/smart-offline.patch').read_bytes()), 'reviewed Smart patch identity')
+require(smart_record['librarySha256'] == sha((root / 'clash-openharmony/entry/libs/arm64-v8a/libmihomo.so').read_bytes()), 'Smart build record fresh library identity')
+require(smart_record['headerSha256'] == sha((root / 'clash-openharmony/entry/libs/arm64-v8a/libmihomo.h').read_bytes()), 'Smart build record ABI header identity')
+require(all(digest == sha((root / name).read_bytes()) for name, digest in smart_record['inputs'].items()), 'Smart build inputs changed; rebuild core')
 entries = []
 with zipfile.ZipFile(hap) as archive, tempfile.TemporaryDirectory() as directory:
     names = archive.namelist()
@@ -91,6 +94,11 @@ with zipfile.ZipFile(hap) as archive, tempfile.TemporaryDirectory() as directory
         file = pathlib.Path(directory) / name
         file.write_bytes(data)
         symbols = elf(data, file)
+        if name != 'libmihomo.so':
+            native = root / 'clash-openharmony/entry/build/default/intermediates/cmake/default/obj/arm64-v8a' / name
+            stripped_native = pathlib.Path(directory) / ('fresh-' + name)
+            subprocess.check_call([str(sdk / 'native/llvm/bin/llvm-strip'), '--strip-all', '-o', str(stripped_native), str(native)])
+            require(stripped_native.read_bytes() == data, 'packaged native library differs from fresh CMake output: ' + name)
         if name == 'libmihomo.so':
             require({'mihomoInit', 'mihomoStartTun', 'mihomoStop', 'mihomoFree'} <= symbols, 'four C ABI exports')
             packaged = metadata(file)
@@ -123,6 +131,7 @@ identity = {
     'hapSha256': sha(hap.read_bytes()),
     'freshCoreSha256': sha((root / 'clash-openharmony/entry/libs/arm64-v8a/libmihomo.so').read_bytes()),
     'core': source,
+    'smartSource': smart_record,
     'inputs': {file: sha((root / file).read_bytes()) for file in [
         'core/go.mod', 'core/go.sum', 'core/patches/smart-offline.patch', 'scripts/ci/patch-smart.py', 'scripts/build-core.sh', 'scripts/ci/patch-gvisor.py',
         'scripts/prepare-geodata.sh', 'scripts/build-hap.sh', 'scripts/env.sh',
