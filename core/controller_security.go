@@ -170,21 +170,25 @@ func enforcePlatformSecurity(overlay map[string]any) {
 // CMFA skips upstream safe-path checks. Validate both provider vehicles before
 // parsing: HTTP vehicles write their cache paths, and file vehicles read them.
 // App-owned credentials must never be used as either kind of provider resource.
-func validateProviderPaths(overlay map[string]any) error {
-	for section, prefix := range map[string]string{"proxy-providers": "proxies", "rule-providers": "rules"} {
-		providers, _ := overlay[section].(map[string]any)
-		for _, value := range providers {
-			provider, _ := value.(map[string]any)
-			kind, _ := provider["type"].(string)
+func validateProviderPaths(raw *config.RawConfig) error {
+	for prefix, providers := range map[string]map[string]map[string]any{"proxies": raw.ProxyProvider, "rules": raw.RuleProvider} {
+		for _, provider := range providers {
+			kind, err := providerStringField(provider, "type")
+			if err != nil {
+				return err
+			}
+			path, err := providerStringField(provider, "path")
+			if err != nil {
+				return err
+			}
+			url, err := providerStringField(provider, "url")
+			if err != nil {
+				return err
+			}
 			if kind != "http" && kind != "file" {
 				continue // malformed and inline vehicles remain upstream's responsibility
 			}
-			path, ok := provider["path"].(string)
-			if !ok && provider["path"] != nil {
-				return errors.New("provider path must be a string")
-			}
 			if path == "" && kind == "http" {
-				url, _ := provider["url"].(string)
 				path = constant.Path.GetPathByHash(prefix, url)
 			}
 			if err := validateProviderPath(path); err != nil {
@@ -195,6 +199,28 @@ func validateProviderPaths(overlay map[string]any) error {
 	return nil
 }
 
+// The upstream structure decoder matches keys case-insensitively. Match that
+// lookup while rejecting ambiguous aliases instead of trusting map iteration.
+func providerStringField(provider map[string]any, field string) (string, error) {
+	value := ""
+	found := false
+	for key, candidate := range provider {
+		if !strings.EqualFold(key, field) {
+			continue
+		}
+		if found {
+			return "", errors.New("provider contains ambiguous field aliases")
+		}
+		var ok bool
+		value, ok = candidate.(string)
+		if !ok {
+			return "", errors.New("provider type, path and URL must be strings")
+		}
+		found = true
+	}
+	return value, nil
+}
+
 func validateProviderPath(path string) error {
 	unsafe := errors.New("provider path is outside allowed app resource files")
 	resolved := filepath.Clean(constant.Path.Resolve(path))
@@ -203,12 +229,38 @@ func validateProviderPath(path string) error {
 		return unsafe
 	}
 	parts := strings.Split(rel, string(filepath.Separator))
-	if parts[0] == "controller-security" {
+	if parts[0] == "controller-security" || parts[0] == "ui" ||
+		strings.HasPrefix(parts[0], "zashboard-staging-") || strings.HasPrefix(parts[0], "zashboard-quarantine-") {
 		return unsafe
+	}
+	// Model discovery is case-insensitive upstream; geodata and diagnostic files
+	// are also owned by the host rather than by provider caches.
+	reservedFiles := []string{"Model.bin", "geoip.metadb", "GeoIP.dat", "GeoSite.dat", "ASN.mmdb", "Country.mmdb", "geoip.db", "mihomo.log", "mihomo.log.old", "last_start_error.txt"}
+	for _, name := range reservedFiles {
+		if strings.EqualFold(parts[0], name) {
+			return unsafe
+		}
 	}
 	secret, err := os.Lstat(filepath.Join(homeDir, controllerSecretFile))
 	if err != nil {
 		return unsafe
+	}
+	protected := []os.FileInfo{secret}
+	entries, err := os.ReadDir(homeDir)
+	if err != nil {
+		return unsafe
+	}
+	for _, entry := range entries {
+		for _, name := range reservedFiles {
+			if strings.EqualFold(entry.Name(), name) {
+				info, err := os.Lstat(filepath.Join(homeDir, entry.Name()))
+				if err != nil {
+					return unsafe
+				}
+				protected = append(protected, info)
+				break
+			}
+		}
 	}
 	current := homeDir
 	for _, part := range parts {
@@ -219,6 +271,11 @@ func validateProviderPath(path string) error {
 		}
 		if err != nil || info.Mode()&os.ModeSymlink != 0 || os.SameFile(info, secret) {
 			return unsafe
+		}
+		for _, reserved := range protected {
+			if os.SameFile(info, reserved) {
+				return unsafe
+			}
 		}
 	}
 	return nil
@@ -247,9 +304,6 @@ func preparePlatformConfig(text, overrides string) (*config.Config, error) {
 		}
 	}
 	applyOverrides(overlay, overrides)
-	if err := validateProviderPaths(overlay); err != nil {
-		return nil, err
-	}
 	enforcePlatformSecurity(overlay)
 	buf, err := yaml.Marshal(overlay)
 	if err != nil {
@@ -258,6 +312,9 @@ func preparePlatformConfig(text, overrides string) (*config.Config, error) {
 	raw := config.DefaultRawConfig()
 	if err := yaml.Unmarshal(buf, raw); err != nil {
 		return nil, errors.New("configuration has invalid field types")
+	}
+	if err := validateProviderPaths(raw); err != nil {
+		return nil, err
 	}
 	cfg, err := config.ParseRawConfig(raw)
 	if err != nil {
