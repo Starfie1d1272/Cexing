@@ -1,0 +1,616 @@
+{
+  "date_utc": "2026-10-12",
+  "base_main": "7f731d5c9c8d4eba7a1680bcb3981d7877232bcc",
+  "browser": "Chromium 154.0.8037.57",
+  "viewports": [
+    {
+      "scenario": "empty",
+      "width": 390,
+      "height": 844,
+      "scrollWidth": 390,
+      "scrollHeight": 844,
+      "noPersistence": true,
+      "tooSmall": []
+    },
+    {
+      "scenario": "ready",
+      "width": 390,
+      "height": 844,
+      "scrollWidth": 390,
+      "scrollHeight": 864,
+      "noPersistence": true,
+      "tooSmall": []
+    },
+    {
+      "scenario": "permission",
+      "width": 390,
+      "height": 844,
+      "scrollWidth": 390,
+      "scrollHeight": 864,
+      "noPersistence": true,
+      "tooSmall": []
+    },
+    {
+      "scenario": "connecting",
+      "width": 390,
+      "height": 844,
+      "scrollWidth": 390,
+      "scrollHeight": 864,
+      "noPersistence": true,
+      "tooSmall": []
+    },
+    {
+      "scenario": "connected",
+      "width": 390,
+      "height": 844,
+      "scrollWidth": 390,
+      "scrollHeight": 874,
+      "noPersistence": true,
+      "tooSmall": []
+    },
+    {
+      "scenario": "disconnect",
+      "width": 390,
+      "height": 844,
+      "scrollWidth": 390,
+      "scrollHeight": 874,
+      "noPersistence": true,
+      "tooSmall": []
+    },
+    {
+      "scenario": "review",
+      "width": 390,
+      "height": 844,
+      "scrollWidth": 390,
+      "scrollHeight": 844,
+      "noPersistence": true,
+      "tooSmall": []
+    },
+    {
+      "scenario": "overrides",
+      "width": 390,
+      "height": 844,
+      "scrollWidth": 390,
+      "scrollHeight": 868,
+      "noPersistence": true,
+      "tooSmall": []
+    },
+    {
+      "scenario": "import-error",
+      "width": 390,
+      "height": 844,
+      "scrollWidth": 390,
+      "scrollHeight": 844,
+      "noPersistence": true,
+      "tooSmall": []
+    },
+    {
+      "scenario": "update-error",
+      "width": 390,
+      "height": 844,
+      "scrollWidth": 390,
+      "scrollHeight": 1079,
+      "noPersistence": true,
+      "tooSmall": []
+    },
+    {
+      "scenario": "network-error",
+      "width": 390,
+      "height": 844,
+      "scrollWidth": 390,
+      "scrollHeight": 1007,
+      "noPersistence": true,
+      "tooSmall": []
+    },
+    {
+      "scenario": "diagnostics",
+      "width": 390,
+      "height": 844,
+      "scrollWidth": 390,
+      "scrollHeight": 882,
+      "noPersistence": true,
+      "tooSmall": []
+    },
+    {
+      "scenario": "settings",
+      "width": 390,
+      "height": 844,
+      "scrollWidth": 390,
+      "scrollHeight": 1136,
+      "noPersistence": true,
+      "tooSmall": []
+    },
+    {
+      "scenario": "panel",
+      "width": 390,
+      "height": 844,
+      "scrollWidth": 390,
+      "scrollHeight": 844,
+      "noPersistence": true,
+      "tooSmall": []
+    },
+    {
+      "scenario": "panel-error",
+      "width": 390,
+      "height": 844,
+      "scrollWidth": 390,
+      "scrollHeight": 844,
+      "noPersistence": true,
+      "tooSmall": []
+    },
+    {
+      "scenario": "empty",
+      "width": 360,
+      "height": 800,
+      "scrollWidth": 360,
+      "scrollHeight": 800,
+      "noPersistence": true,
+      "tooSmall": []
+    },
+    {
+      "scenario": "ready",
+      "width": 360,
+      "height": 800,
+      "scrollWidth": 360,
+      "scrollHeight": 824,
+      "noPersistence": true,
+      "tooSmall": []
+    },
+    {
+      "scenario": "permission",
+      "width": 360,
+      "height": 800,
+      "scrollWidth": 360,
+      "scrollHeight": 824,
+      "noPersistence": true,
+      "tooSmall": []
+    },
+    {
+      "scenario": "connecting",
+      "width": 360,
+      "height": 800,
+      "scrollWidth": 360,
+      "scrollHeight": 824,
+      "noPersistence": true,
+      "tooSmall": []
+    },
+    {
+      "scenario": "connected",
+      "width": 360,
+      "height": 800,
+      "scrollWidth": 360,
+      "scrollHeight": 824,
+      "noPersistence": true,
+      "tooSmall": []
+    },
+    {
+      "scenario": "disconnect",
+      "width": 360,
+      "height": 800,
+      "scrollWidth": 360,
+      "scrollHeight": 824,
+      "noPersistence": true,
+      "tooSmall": []
+    },
+    {
+      "scenario": "review",
+      "width": 360,
+      "height": 800,
+      "scrollWidth": 360,
+      "scrollHeight": 800,
+      "noPersistence": true,
+      "tooSmall": []
+    },
+    {
+      "scenario": "overrides",
+      "width": 360,
+      "height": 800,
+      "scrollWidth": 360,
+      "scrollHeight": 856,
+      "noPersistence": true,
+      "tooSmall": []
+    },
+    {
+      "scenario": "import-error",
+      "width": 360,
+      "height": 800,
+      "scrollWidth": 360,
+      "scrollHeight": 804,
+      "noPersistence": true,
+      "tooSmall": []
+    },
+    {
+      "scenario": "update-error",
+      "width": 360,
+      "height": 800,
+      "scrollWidth": 360,
+      "scrollHeight": 1070,
+      "noPersistence": true,
+      "tooSmall": []
+    },
+    {
+      "scenario": "network-error",
+      "width": 360,
+      "height": 800,
+      "scrollWidth": 360,
+      "scrollHeight": 967,
+      "noPersistence": true,
+      "tooSmall": []
+    },
+    {
+      "scenario": "diagnostics",
+      "width": 360,
+      "height": 800,
+      "scrollWidth": 360,
+      "scrollHeight": 876,
+      "noPersistence": true,
+      "tooSmall": []
+    },
+    {
+      "scenario": "settings",
+      "width": 360,
+      "height": 800,
+      "scrollWidth": 360,
+      "scrollHeight": 1098,
+      "noPersistence": true,
+      "tooSmall": []
+    },
+    {
+      "scenario": "panel",
+      "width": 360,
+      "height": 800,
+      "scrollWidth": 360,
+      "scrollHeight": 800,
+      "noPersistence": true,
+      "tooSmall": []
+    },
+    {
+      "scenario": "panel-error",
+      "width": 360,
+      "height": 800,
+      "scrollWidth": 360,
+      "scrollHeight": 800,
+      "noPersistence": true,
+      "tooSmall": []
+    },
+    {
+      "scenario": "empty",
+      "width": 412,
+      "height": 915,
+      "scrollWidth": 412,
+      "scrollHeight": 915,
+      "noPersistence": true,
+      "tooSmall": []
+    },
+    {
+      "scenario": "ready",
+      "width": 412,
+      "height": 915,
+      "scrollWidth": 412,
+      "scrollHeight": 915,
+      "noPersistence": true,
+      "tooSmall": []
+    },
+    {
+      "scenario": "permission",
+      "width": 412,
+      "height": 915,
+      "scrollWidth": 412,
+      "scrollHeight": 915,
+      "noPersistence": true,
+      "tooSmall": []
+    },
+    {
+      "scenario": "connecting",
+      "width": 412,
+      "height": 915,
+      "scrollWidth": 412,
+      "scrollHeight": 915,
+      "noPersistence": true,
+      "tooSmall": []
+    },
+    {
+      "scenario": "connected",
+      "width": 412,
+      "height": 915,
+      "scrollWidth": 412,
+      "scrollHeight": 915,
+      "noPersistence": true,
+      "tooSmall": []
+    },
+    {
+      "scenario": "disconnect",
+      "width": 412,
+      "height": 915,
+      "scrollWidth": 412,
+      "scrollHeight": 915,
+      "noPersistence": true,
+      "tooSmall": []
+    },
+    {
+      "scenario": "review",
+      "width": 412,
+      "height": 915,
+      "scrollWidth": 412,
+      "scrollHeight": 915,
+      "noPersistence": true,
+      "tooSmall": []
+    },
+    {
+      "scenario": "overrides",
+      "width": 412,
+      "height": 915,
+      "scrollWidth": 412,
+      "scrollHeight": 915,
+      "noPersistence": true,
+      "tooSmall": []
+    },
+    {
+      "scenario": "import-error",
+      "width": 412,
+      "height": 915,
+      "scrollWidth": 412,
+      "scrollHeight": 915,
+      "noPersistence": true,
+      "tooSmall": []
+    },
+    {
+      "scenario": "update-error",
+      "width": 412,
+      "height": 915,
+      "scrollWidth": 412,
+      "scrollHeight": 1079,
+      "noPersistence": true,
+      "tooSmall": []
+    },
+    {
+      "scenario": "network-error",
+      "width": 412,
+      "height": 915,
+      "scrollWidth": 412,
+      "scrollHeight": 1007,
+      "noPersistence": true,
+      "tooSmall": []
+    },
+    {
+      "scenario": "diagnostics",
+      "width": 412,
+      "height": 915,
+      "scrollWidth": 412,
+      "scrollHeight": 915,
+      "noPersistence": true,
+      "tooSmall": []
+    },
+    {
+      "scenario": "settings",
+      "width": 412,
+      "height": 915,
+      "scrollWidth": 412,
+      "scrollHeight": 1136,
+      "noPersistence": true,
+      "tooSmall": []
+    },
+    {
+      "scenario": "panel",
+      "width": 412,
+      "height": 915,
+      "scrollWidth": 412,
+      "scrollHeight": 915,
+      "noPersistence": true,
+      "tooSmall": []
+    },
+    {
+      "scenario": "panel-error",
+      "width": 412,
+      "height": 915,
+      "scrollWidth": 412,
+      "scrollHeight": 915,
+      "noPersistence": true,
+      "tooSmall": []
+    },
+    {
+      "scenario": "empty",
+      "width": 320,
+      "height": 568,
+      "scrollWidth": 320,
+      "scrollHeight": 568,
+      "noPersistence": true,
+      "tooSmall": []
+    },
+    {
+      "scenario": "ready",
+      "width": 320,
+      "height": 568,
+      "scrollWidth": 320,
+      "scrollHeight": 827,
+      "noPersistence": true,
+      "tooSmall": []
+    },
+    {
+      "scenario": "permission",
+      "width": 320,
+      "height": 568,
+      "scrollWidth": 320,
+      "scrollHeight": 827,
+      "noPersistence": true,
+      "tooSmall": []
+    },
+    {
+      "scenario": "connecting",
+      "width": 320,
+      "height": 568,
+      "scrollWidth": 320,
+      "scrollHeight": 827,
+      "noPersistence": true,
+      "tooSmall": []
+    },
+    {
+      "scenario": "connected",
+      "width": 320,
+      "height": 568,
+      "scrollWidth": 320,
+      "scrollHeight": 827,
+      "noPersistence": true,
+      "tooSmall": []
+    },
+    {
+      "scenario": "disconnect",
+      "width": 320,
+      "height": 568,
+      "scrollWidth": 320,
+      "scrollHeight": 827,
+      "noPersistence": true,
+      "tooSmall": []
+    },
+    {
+      "scenario": "review",
+      "width": 320,
+      "height": 568,
+      "scrollWidth": 320,
+      "scrollHeight": 684,
+      "noPersistence": true,
+      "tooSmall": []
+    },
+    {
+      "scenario": "overrides",
+      "width": 320,
+      "height": 568,
+      "scrollWidth": 320,
+      "scrollHeight": 840,
+      "noPersistence": true,
+      "tooSmall": []
+    },
+    {
+      "scenario": "import-error",
+      "width": 320,
+      "height": 568,
+      "scrollWidth": 320,
+      "scrollHeight": 788,
+      "noPersistence": true,
+      "tooSmall": []
+    },
+    {
+      "scenario": "update-error",
+      "width": 320,
+      "height": 568,
+      "scrollWidth": 320,
+      "scrollHeight": 1054,
+      "noPersistence": true,
+      "tooSmall": []
+    },
+    {
+      "scenario": "network-error",
+      "width": 320,
+      "height": 568,
+      "scrollWidth": 320,
+      "scrollHeight": 970,
+      "noPersistence": true,
+      "tooSmall": []
+    },
+    {
+      "scenario": "diagnostics",
+      "width": 320,
+      "height": 568,
+      "scrollWidth": 320,
+      "scrollHeight": 860,
+      "noPersistence": true,
+      "tooSmall": []
+    },
+    {
+      "scenario": "settings",
+      "width": 320,
+      "height": 568,
+      "scrollWidth": 320,
+      "scrollHeight": 1082,
+      "noPersistence": true,
+      "tooSmall": []
+    },
+    {
+      "scenario": "panel",
+      "width": 320,
+      "height": 568,
+      "scrollWidth": 320,
+      "scrollHeight": 732,
+      "noPersistence": true,
+      "tooSmall": []
+    },
+    {
+      "scenario": "panel-error",
+      "width": 320,
+      "height": 568,
+      "scrollWidth": 320,
+      "scrollHeight": 725,
+      "noPersistence": true,
+      "tooSmall": []
+    }
+  ],
+  "flows": [
+    {
+      "name": "URL 格式错误保留输入 → 示例导入 → Merge 草稿 / 差异 → 启用 → 拒绝授权 → 重试授权 → 取消连接过滤迟到回调 → 连接成功 / 合成速率",
+      "passed": true
+    },
+    {
+      "name": "Zashboard 加载失败 → 重试 → 返回，VPN 保持连接",
+      "passed": true
+    },
+    {
+      "name": "更新失败保留上份配置 → 恢复后更新 → 重命名转义 → 合成导出 → 设置开关 / 分流 / 非法端口 → 分层诊断 / 脱敏摘要",
+      "passed": true
+    },
+    {
+      "name": "确认断开 → 断开中 → 未连接，面板禁用",
+      "passed": true
+    },
+    {
+      "name": "网络中断 → 网络条件恢复 → 手动重试连接",
+      "passed": true
+    },
+    {
+      "name": "首次导入失败 → 保留链接与名称 → 重试成功",
+      "passed": true
+    },
+    {
+      "name": "本地文件导入 → 无更新入口 → 删除 → 手动粘贴 YAML 导入",
+      "passed": true
+    },
+    {
+      "name": "已连接时删除当前订阅：先断开，再删除",
+      "passed": true
+    },
+    {
+      "name": "授权弹窗键盘焦点限定 / Escape 返回",
+      "passed": true
+    },
+    {
+      "name": "减少动态效果：连接中 spinner 无动画，状态 / 取消仍可用",
+      "passed": true
+    }
+  ],
+  "runtime_errors": [],
+  "screenshots": [
+    "empty-390x844.png",
+    "ready-390x844.png",
+    "permission-390x844.png",
+    "connecting-390x844.png",
+    "connected-390x844.png",
+    "disconnect-390x844.png",
+    "review-390x844.png",
+    "overrides-390x844.png",
+    "import-error-390x844.png",
+    "update-error-390x844.png",
+    "update-error-390-full.png",
+    "network-error-390x844.png",
+    "diagnostics-390x844.png",
+    "settings-390x844.png",
+    "settings-390-full.png",
+    "panel-390x844.png",
+    "panel-error-390x844.png",
+    "empty-360x800.png",
+    "connected-360x800.png",
+    "empty-412x915.png",
+    "connected-412x915.png",
+    "empty-320x568.png",
+    "connected-320x568.png",
+    "connected-moderate-390x844.png"
+  ]
+}

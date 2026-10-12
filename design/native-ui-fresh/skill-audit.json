@@ -1,0 +1,21 @@
+{
+  "root": "design/native-ui-fresh",
+  "files": 4,
+  "errors": [],
+  "warnings": [],
+  "passes": [
+    "No official CDN assets are embedded.",
+    "No obvious protected brand-logo reference is present.",
+    "Semantic Ark color tokens are present.",
+    "Reduced-motion behavior is defined.",
+    "Responsive or orientation-specific rules are present.",
+    "Visible keyboard focus styling is present.",
+    "Viewport metadata is present.",
+    "Document language is declared.",
+    "Semantic landmarks are present.",
+    "Literal JavaScript selectors have matching HTML hooks.",
+    "HTML ID references resolve.",
+    "No common sci-fi imitation cliché is named.",
+    "Literal color count is restrained."
+  ]
+}

@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>原生 UI · 设计评审</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: #e5e8e5;
+        color: #1a2225;
+        font-family: system-ui, "Noto Sans CJK SC", sans-serif;
+      }
+      main {
+        max-width: 1100px;
+        margin: auto;
+        padding: 40px 24px;
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 50px;
+      }
+      h1 {
+        font-size: 32px;
+        margin: 12px 0 20px;
+      }
+      p {
+        font-size: 14px;
+        line-height: 1.9;
+        color: #566269;
+      }
+      label {
+        display: block;
+        font-size: 14px;
+        margin: 24px 0 8px;
+      }
+      select,
+      button,
+      a {
+        font: inherit;
+      }
+      select,
+      button {
+        min-height: 44px;
+        padding: 10px 14px;
+        border: 1px solid #b9c3bf;
+        background: #fff;
+        border-radius: 3px;
+      }
+      select {
+        width: 100%;
+      }
+      button {
+        margin-top: 16px;
+      }
+      iframe {
+        width: 390px;
+        height: 844px;
+        border: 0;
+        box-shadow: 0 8px 36px #17212b18;
+        background: #f5f6f4;
+      }
+      a {
+        display: inline-block;
+        margin-top: 24px;
+        color: #07586e;
+      }
+      small {
+        color: #566269;
+      }
+      section {
+        max-width: 390px;
+      }
+      .kicker {
+        letter-spacing: 2px;
+        font-size: 12px;
+      }
+      details {
+        margin: 24px 0;
+        font-size: 14px;
+      }
+      summary {
+        cursor: pointer;
+        min-height: 44px;
+      }
+      button:focus-visible,
+      select:focus-visible,
+      a:focus-visible {
+        outline: 3px solid #007a99;
+        outline-offset: 3px;
+      }
+      @media (max-width: 850px) {
+        main {
+          display: block;
+          padding: 24px 16px;
+        }
+        section {
+          max-width: 520px;
+          margin: 0 auto 30px;
+        }
+        iframe {
+          display: block;
+          margin: auto;
+          width: min(100%, 390px);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section>
+        <small class="kicker">FRESH / NATIVE HOST</small>
+        <h1>一条连接路径。<br />一个管理面板。</h1>
+        <p>
+          原生宿主负责订阅、系统
+          VPN、状态与恢复。节点、策略组、Smart、规则和日志交给 Zashboard。
+        </p>
+        <label for="state">流程 / 状态</label
+        ><select id="state">
+          <option value="empty">首次使用</option>
+          <option value="ready">准备连接</option>
+          <option value="permission">系统 VPN 授权</option>
+          <option value="connecting">连接中 / 可取消</option>
+          <option value="connected" selected>连接成功</option>
+          <option value="disconnect">确认断开</option>
+          <option value="review">订阅确认</option>
+          <option value="overrides">覆写方案</option>
+          <option value="import-error">首次导入失败</option>
+          <option value="update-error">订阅更新失败</option>
+          <option value="network-error">网络中断</option>
+          <option value="diagnostics">分层诊断</option>
+          <option value="settings">必要设置</option>
+          <option value="panel">Zashboard 交接</option>
+          <option value="panel-error">面板加载失败</option></select
+        ><label for="depth">设计深度</label
+        ><select id="depth">
+          <option value="minimal">Ark + minimal（推荐）</option>
+          <option value="moderate">Ark + moderate（对照）</option></select
+        ><label for="size">手机视口</label
+        ><select id="size">
+          <option>390 × 844</option>
+          <option>360 × 800</option>
+          <option>412 × 915</option>
+          <option>320 × 568</option></select
+        ><button id="reset">重新载入所选状态</button>
+        <button id="restore">演示网络恢复</button>
+        <details>
+          <summary>真实能力与规划边界</summary>
+          <p>
+            现有：URL/文件/剪贴板导入、订阅更新、VPN 启停、流量
+            WS、内核参数及网络设置。规划：完整配置/覆写事务、分层健康验证、诊断摘要和
+            Zashboard 接入。原型使用合成数据，不连接系统 VPN，不下载订阅，不执行
+            Merge。
+          </p>
+        </details>
+        <a href="index.html" target="_blank" rel="noopener"
+          >在手机浏览器独立体验 ↗</a
+        ><br /><a href="README.md">设计说明与实施顺序 ↗</a>
+      </section>
+      <iframe
+        id="phone"
+        src="index.html?state=connected"
+        title="手机交互原型"
+      ></iframe>
+    </main>
+    <script>
+      const phone = document.getElementById("phone");
+      function load() {
+        const state = document.getElementById("state").value;
+        const depth = document.getElementById("depth").value;
+        const [w, h] = document
+          .getElementById("size")
+          .value.split(" × ")
+          .map(Number);
+        phone.style.width = `${w}px`;
+        phone.style.height = `${h}px`;
+        phone.src = `index.html?state=${state}&depth=${depth}`;
+      }
+      for (const id of ["state", "depth", "size"])
+        document.getElementById(id).addEventListener("change", load);
+      document.getElementById("reset").addEventListener("click", load);
+      document.getElementById("restore").addEventListener("click", () => {
+        phone.contentWindow.prototypeQA.setNetworkError(false);
+        document.getElementById("restore").textContent = "网络已恢复，可重试";
+      });
+    </script>
+  </body>
+</html>
