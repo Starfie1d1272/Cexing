@@ -78,3 +78,8 @@ Controller HTTP/WS 的停止不代表代理侧 generic inbound 已停止。coreS
 停止先对日志 handler 注册加关闭栅栏，再关闭 socket/取消会话，等待这些受控日志 handler 清理完成。**仅等待 Serve 退出不是 handler 清理证明；也不无限等待所有 API handler**，后者可能正在等待 coreStop 持有的运行锁。已排队配置写入仍靠会话代次拒绝。
 
 新增完整 race 检查暴露锁定 Mihomo generic HTTP 的上游同步风险：入站 IP/跳过认证全局切片和默认 authenticator 的读写没有统一同步。停止后的重新监听功能已验证，但这不等于并发安全重启已通过。此风险未在本线通过依赖更换、缓存补丁或测试抑制修复；具体证据见资源清理报告，需要父任务协调依赖层整改。
+
+
+## 代理默认认证对象的同步
+
+默认代理 AuthStore 通过公开接口在 package init 一次性安装同步委托，之后不换 Default 身份。Get/SetAuthenticator 同步，已有 immutable snapshot、nil 和用户认证语义保留；它与 Controller Bearer Secret 分开。这个 wrapper 改动解决了第四项 authenticator race，不解决 upstream inbound 的三个私有前缀切片读写。产品链、实际双栈与未应用上游提案见 [race 边界报告](../evidence/controller-security/2026-10-12-race-boundary.md)；不得把部分解决当成完整 race 已通过。
