@@ -103,7 +103,7 @@ identity = {
     'freshCoreSha256': sha((root / 'clash-openharmony/entry/libs/arm64-v8a/libmihomo.so').read_bytes()),
     'core': source,
     'inputs': {file: sha((root / file).read_bytes()) for file in [
-        'core/go.mod', 'core/go.sum', 'scripts/build-core.sh', 'scripts/ci/gvisor-overlay.py',
+        'core/go.mod', 'core/go.sum', 'scripts/build-core.sh', 'scripts/ci/patch-gvisor.py',
         'scripts/prepare-geodata.sh', 'scripts/ci/package-lock.json', 'scripts/ci/toolchain.json']},
     'entries': entries,
     'signed': False,

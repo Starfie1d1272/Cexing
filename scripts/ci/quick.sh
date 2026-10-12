@@ -5,7 +5,7 @@ cd "$(dirname "$0")/../.."
 node scripts/ci/source-check.cjs
 while IFS= read -r script; do bash -n "$script"; done < <(git ls-files 'scripts/*.sh' 'scripts/ci/*.sh')
 git diff --check
-python3 scripts/ci/test-overlay.py
+python3 scripts/ci/test-gvisor-patch.py
 export OHOS_SDK_HOME="${TMPDIR:-/tmp}/clash-ci-host-mock"
 for test in scripts/test-*.cjs; do
   node -r ./scripts/ci/arkts-mocks.cjs "$test"
@@ -19,6 +19,6 @@ export GOMODCACHE="$CI_GO_ROOT/mod" GOCACHE="$CI_GO_ROOT/build"
 python3 scripts/ci/license-inventory.py > "$CI_GO_ROOT/licenses.json"
 python3 - "$CI_GO_ROOT/licenses.json" <<'PYCODE'
 import json, sys
-print('PASS: root notice inventory for', len(json.load(open(sys.argv[1]))['modules']), 'Go modules (not a legal review)')
+print('PASS: notice inventory for', len(json.load(open(sys.argv[1]))['modules']), 'Go modules (not a legal review)')
 PYCODE
 echo 'PASS: Quick checks; no SDK/HAP or device validation was performed'
