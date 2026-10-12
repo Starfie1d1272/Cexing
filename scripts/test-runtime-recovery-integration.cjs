@@ -1,4 +1,4 @@
-// Run only after PR #4 + PR #9 + docs/integration/runtime-cancel-recovery.patch.
+// Automatic runtime/controller cancellation regression; executed by Quick and Full.
 // Optional first argument: exported combined source root; SDK comes from OHOS_SDK_HOME.
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -47,6 +47,7 @@ function fixture() {
     await flush();
     assert.equal(f.VpnController.status, f.VpnStatus.Disconnected, `${cancel}: late alive must not commit Connected`);
     assert.equal(f.calls.backgroundStart, 0, `${cancel}: old probe must not start services`);
+    assert.equal(f.calls.updatesStart, 0, `${cancel}: old probe must not start subscription scheduler`);
     assert.equal(f.timers.size, 0, `${cancel}: old completion must not schedule restore`);
   }
   {

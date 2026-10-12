@@ -1,5 +1,7 @@
 # 运行时与安全线的恢复取消合流
 
+> 当前接点由 [Draft #12 修订](runtime-ci-entry.md) 拆出最小 ArkTS 恢复保护并直接应用；它不依赖 #9 的 Go 运行实现。下文保留此前完整两线组合的历史验证，待应用补丁用于旧 head，修订 Draft 不得重复应用。两个恢复测试保留 `test-*.cjs` 自动门槛。
+
 对接来源：[运行时 PR #4](https://github.com/Starfie1d1272/clash-OpenHarmony/pull/4) 的 `f6228e60bbccf4c9c44d142e92c2fe1490bfe3b7` 与[安全 PR #9](https://github.com/Starfie1d1272/clash-OpenHarmony/pull/9) 的 `9ecb964f319edff6fccfd36d78850c6b8e4fa609`。共同基线为 `7f731d5c9c8d4eba7a1680bcb3981d7877232bcc`。双方独占源码没有相互修改；下列补丁由父任务在组合审查/集成分支应用。
 
 ## 契约与最小接点
@@ -23,7 +25,7 @@ PR #4 独立分支的 AppRuntime 仍未调用该方法，基线没有该 API；�
 git apply --check docs/integration/runtime-cancel-recovery.patch
 git apply docs/integration/runtime-cancel-recovery.patch
 source scripts/env.sh
-node scripts/verify-runtime-recovery-integration.cjs
+node scripts/test-runtime-recovery-integration.cjs
 node scripts/test-vpn-recovery.cjs
 node scripts/test-app-runtime.cjs
 node scripts/test-background-lifecycle.cjs
@@ -32,7 +34,7 @@ node scripts/test-vpn-startup.cjs
 git diff --check
 ```
 
-`verify-runtime-recovery-integration.cjs` 只在合流后运行，加载实际 AppRuntime 与 VpnController 的 SDK 转译源码，使用同一个 Controller 实例及 deferred CoreApi 探活。它不是产品动态能力判断；独立基线运行会暴露缺少合流接点。可传第一个参数为导出的组合源码根目录，以免修改独立 checkout。
+`test-runtime-recovery-integration.cjs` 只在合流后运行，加载实际 AppRuntime 与 VpnController 的 SDK 转译源码，使用同一个 Controller 实例及 deferred CoreApi 探活。它不是产品动态能力判断；独立基线运行会暴露缺少合流接点。可传第一个参数为导出的组合源码根目录，以免修改独立 checkout。
 
 验证覆盖：仅 cancelRestore、当前 Ability 销毁后的旧 alive=true 不提交状态/启动后台/安排 restore；旧 Ability 销毁不失效新 Context 的探活；新鲜 alive=true 仍正常启动服务；已连接的 Ability 销毁不停止 VPN/后台；新鲜 alive=false 仍安排一个恢复计时器，旧 alive=true 不取消它。
 

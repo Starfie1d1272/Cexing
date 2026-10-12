@@ -1,9 +1,9 @@
-# 2026-10-12 运行时与 CI 检查入口复核
+# 2026-10-12 运行时取消恢复修复与自动检查
 
-固定 PR #4 `c1db85075992a6df0b00cd57c928e879bd6bfe50` 与 PR #8 `d3255402b756c4d6a2cecf84eeb8c2f306255293`。CI Quick/Full 的 `scripts/test-*.cjs` 会发现恢复组合测试，但该测试明确要求尚未合入的 PR #9 和恢复取消接点。
+独审拒绝 Draft #12 旧 head `eaadbaa8adffb6d1c4a39e88fcfa4e527ba22daf`：改名使仍真实失败的恢复测试退出 Quick/Full 的 `scripts/test-*.cjs` 自动门槛。该旧方案撤回，不能合入。独立 #4 `c1db85075992a6df0b00cd57c928e879bd6bfe50` 的旧探活在取消/当前 Ability 销毁后仍提交 Connected，并启动后台服务及订阅，这是运行缺陷而非单纯检查入口问题。
 
-独立运行 #4 的组合测试实际失败：`explicit: late alive must not commit Connected`，Connected (2) 不等于 Disconnected (0)。这不是 CI 偶发失败，也不证明恢复竞态已修复。四项普通宿主回归与该组合测试属于不同检查目标。
+本次只拆出 #9 `1b23e76297d51212b250da85b7375dd7fdab1c1b` 中独立 ArkTS 恢复保护：`recoveryAttempt`、过期结果/回调拒绝、`cancelRecovery()`，有效 start 和显式 stop 使旧恢复失效。`AppRuntime.cancelRestore()` 同步调用取消接口；现有 Ability Context 所有权判断保持。没有复制 `CoreApi.bindContext`，没有改 Controller/Go/NAPI/安全配置或依赖，没有合入 #9 的任何 Go 重载实现。
 
-本 Draft 将组合测试改名为 `verify-runtime-recovery-integration.cjs`，保留全部断言和显式执行入口，并同步合流指南。没有跳过或改写断言，没有应用缺少 API 的恢复补丁，没有改变任何生产模块。Quick/Full 继续发现全部普通宿主回归；组合恢复门槛仍按 [指南](runtime-cancel-recovery.md) 在 #4 + #9 + 接点同时存在时强制执行。
+恢复测试已恢复原 `test-runtime-recovery-integration.cjs` 名称，全部原断言保留，补充旧探活不得启动订阅调度的断言；新增 `test-vpn-recovery.cjs` 自动覆盖 start/cancel、新意图覆盖、Disconnected stop、显式取消与正常恢复。Quick/Full 的 glob 自动执行两项真实恢复测试，不跳过失败或动态检测能力。
 
-本改动需要独立复核后才能纳入 #4。本轮不将 Draft 合入 main，不宣称恢复竞态或真机流程通过。
+该 Draft 继续基于 #4，只有独立复核通过后才能按依赖合流；#4 与 #9 当前均保持未合入。构建、mock 与 Controller 可达仍不证明系统 TUN 健康或真机恢复。

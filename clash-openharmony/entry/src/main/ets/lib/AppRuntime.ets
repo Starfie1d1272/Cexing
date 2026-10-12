@@ -83,6 +83,7 @@ export namespace AppRuntime {
 
   export function cancelRestore(): void {
     restoreGeneration++;
+    VpnController.cancelRecovery();
     if (restoreTimer >= 0) {
       clearTimeout(restoreTimer);
       restoreTimer = -1;
