@@ -17,6 +17,7 @@ export interface ZashboardDeployment {
 // No engine/controller calls: the configuration transaction adopts the returned directory.
 export class ZashboardAssets {
   private static queue: Promise<void> = Promise.resolve();
+  private static transactionId: number = 0;
 
   static safePath(path: string): boolean {
     return typeof path === 'string' && path.length > 0 && path.length < 240 &&
@@ -72,6 +73,11 @@ export class ZashboardAssets {
     if (!fileIo.accessSync(path)) { fileIo.mkdirSync(path); }
     const stat = fileIo.lstatSync(path);
     if (stat.isSymbolicLink() || !stat.isDirectory()) { throw new Error('Invalid asset directory'); }
+  }
+
+  private static exists(path: string): boolean {
+    try { fileIo.lstatSync(path); return true; }
+    catch (_) { return false; }
   }
 
   private static read(path: string, limit: number): Uint8Array {
@@ -209,10 +215,14 @@ export class ZashboardAssets {
       if (manifest.version !== ZASHBOARD_VERSION) { throw new Error('Unexpected bundled version'); }
       const directory = `${root}/versions/${manifest.version}`;
       ZashboardAssets.mkdir(`${root}/versions`);
-      if (fileIo.accessSync(directory)) {
-        await ZashboardAssets.validateVersion(root, manifest.version);
-      } else {
-        staging = `${context.filesDir}/zashboard-staging-${Date.now()}`;
+      let install = true;
+      if (ZashboardAssets.exists(directory)) {
+        try { await ZashboardAssets.validateVersion(root, manifest.version); install = false; }
+        catch (_) { selectionError = '损坏的面板资源已从入包资源重新准备'; }
+      }
+      if (install) {
+        const transaction = `${Date.now()}-${ZashboardAssets.transactionId++}`;
+        staging = `${context.filesDir}/zashboard-staging-${transaction}`;
         ZashboardAssets.mkdir(staging);
         for (const entry of manifest.files) {
           const data = await context.resourceManager.getRawFileContent(`zashboard/${entry.path}`);
@@ -229,7 +239,17 @@ export class ZashboardAssets {
         }
         ZashboardAssets.write(`${staging}/manifest.json`, bytes);
         await ZashboardAssets.validate(staging, manifest);
-        fileIo.renameSync(staging, directory);
+        let quarantine = '';
+        if (ZashboardAssets.exists(directory)) {
+          quarantine = `${context.filesDir}/zashboard-quarantine-${manifest.version}-${transaction}`;
+          if (ZashboardAssets.exists(quarantine)) { throw new Error('Quarantine destination exists'); }
+          fileIo.renameSync(directory, quarantine);
+        }
+        try { fileIo.renameSync(staging, directory); }
+        catch (_) {
+          if (quarantine !== '') { fileIo.renameSync(quarantine, directory); }
+          throw new Error('Asset publish failed');
+        }
         staging = '';
       }
       if (selection.current !== manifest.version) {

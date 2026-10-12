@@ -17,6 +17,8 @@
 
 `external-ui` 路径只来自宿主，不能接受 WebView 或用户提供的路径。已有版本在每次使用前复验。完整文件集合校验防止额外文件混入。旧版本不自动删除，以免旧 WebView 的资源目录消失。安全线 `9ecb964` 的整个 UI 树 symlink 扫描会通过 startController → coreStartTun 升级为 VPN 启动失败，这是明确的合流阻塞；须改成拒绝危险静态资源而保留认证 API/VPN，并通过跨线测试。凭据失败仍须拒绝匿名运行。实际核查与安全降级约束见 [合流证据](../evidence/2026-10-12-zashboard-security-convergence.md)。
 
+同一版本的现有目录损坏时，prepare 重新从固定入包资源在服务根外构建并完整校验。只有新副本可用后才把坏目录 rename 到私有 zashboard-quarantine 目录，再发布新目录；发布失败恢复原目录并尝试旧版本。隔离副本不自动删除。平台不支持非空目录交换，因此修复同一路径的两次 rename 之间可能短暂 404，不会暴露半成品；版本选择入口仍为单文件原子替换。此修复不负责安全线的 Controller/VPN 降级。
+
 ## Smart 和缓存验收
 
 固定上游 `src/api/clash.ts` 使用 `GET /group/weights`，响应包含 `message` 与 `weights: Record<string, NodeRank[]>`，节点字段 `Name`、`Rank`、`Weight`；清理权重使用无请求体 `POST /cache/smart/flush`。这仅核实前端调用，不证明基线 Mihomo 支持 Smart；本线不换核。
