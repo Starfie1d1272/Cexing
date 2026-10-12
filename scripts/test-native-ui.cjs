@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const ts = require(path.join(process.env.OHOS_SDK_HOME, 'ets/build-tools/ets-loader/node_modules/typescript'));
-const pages = path.join(__dirname, '../clash-openharmony/entry/src/main/ets/pages');
+const pages = path.join(process.argv[2] || path.join(__dirname, '..'), 'clash-openharmony/entry/src/main/ets/pages');
 function load(name, modules, extra = {}) {
   let source = fs.readFileSync(path.join(pages, name + '.ets'), 'utf8');
   const cutoff = source.indexOf('  @Builder');
@@ -24,7 +24,10 @@ function load(name, modules, extra = {}) {
 const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 };
 (async () => {
   let now = 1000, stream, tick, dialog, stop = 0, timerCleared = 0;
-  const controller = { status: status.Connected, onChanged() {}, offChanged() {},
+  let activeHomeFile = 'fixture.yaml';
+  const listeners = new Set();
+  function emit(next) { controller.status = next; for (const listener of listeners) listener(next); }
+  const controller = { status: status.Connected, onChanged(fn) { listeners.add(fn); }, offChanged(fn) { listeners.delete(fn); },
     consumeLastStartError: () => '', stop: () => stop++, start() {} };
   const common = {
     '@kit.AbilityKit': {}, '@kit.ArkUI': { promptAction: { showToast() {} } },
@@ -34,23 +37,67 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   const Home = load('HomePage', { ...common,
     '../lib/CoreApi': { CoreApi: { StreamWatcher: class { start(_path, cb) { stream = cb; } stop() { stream = null; } },
       getConfigs: async () => null }, formatRate: n => `${n} B/s` },
-    '../lib/ProfileStore': { ProfileStore: { getActiveFile: () => 'fixture.yaml' } },
+    '../lib/ProfileStore': { ProfileStore: { getActiveFile: () => activeHomeFile } },
     '../lib/Settings': { Settings: { load: () => ({ mode: 'rule' }) } },
     '../lib/AppRuntime': { AppRuntime: { cancelRestore() {} } }
   }, { Date: { now: () => now }, setInterval: cb => { tick = cb; return 1; },
     clearInterval: () => timerCleared++, AlertDialog: { show: value => { dialog = value; } } });
   const home = new Home();
   home.rootVisible = true; home.currentVisibleTab = 0; home.aboutToAppear();
+  // Optional exported source root + review-repro runs both reported cases against a fixed tree.
+  if (process.argv[3] === 'review-repro') {
+    const failures = [];
+    const cases = [
+      ['P1 old confirmation after disconnect/reconnect', () => {
+        home.toggle(); const confirm = dialog.secondaryButton.action;
+        emit(status.Disconnected); emit(status.Connecting); emit(status.Connected);
+        confirm(); assert.equal(stop, 0, 'old confirmation stopped the new session');
+      }],
+      ['P2 valid sentinel-named profile', () => {
+        activeHomeFile = '未导入.yaml'; home.refreshProfile();
+        assert.equal(home.profileName, '未导入');
+        assert.equal(home.hasProfile, true, 'valid named profile must remain present');
+      }]
+    ];
+    for (const [label, run] of cases) {
+      try { run(); console.log('PASS:', label); }
+      catch (error) { failures.push(label); console.error('FAIL:', label, error.message); }
+    }
+    home.aboutToDisappear();
+    assert.equal(failures.length, 0, failures.join('; '));
+    return;
+  }
   stream({ up: 128, down: 256 }); assert.equal(home.upRate, '128 B/s');
   now += 4001; tick(); assert.equal(home.upRate, '—', 'stale WS sample must be cleared');
   home.currentVisibleTab = 1; home.onTabVisible(); assert.equal(stream, null);
   home.currentVisibleTab = 0; home.onTabVisible(); assert.ok(stream);
-  home.rootVisible = false; home.refreshTraffic(); assert.equal(stream, null, 'secondary navigation releases stream');
+  home.rootVisible = false; home.onRootVisible(); assert.equal(stream, null, 'secondary navigation releases stream');
+  home.rootVisible = true; home.onRootVisible();
   home.toggle(); assert.equal(stop, 0, 'disconnect requires confirmation');
-  dialog.primaryButton.action(); assert.equal(stop, 0);
-  controller.status = status.Disconnected; dialog.secondaryButton.action(); assert.equal(stop, 0, 'late confirm rechecks status');
-  controller.status = status.Connected; dialog.secondaryButton.action(); assert.equal(stop, 1);
-  home.aboutToDisappear(); assert.equal(stop, 1, 'page destruction must not stop VPN'); assert.equal(timerCleared, 1);
+  dialog.primaryButton.action(); dialog.secondaryButton.action();
+  assert.equal(stop, 0, 'cancelled confirmation must stay invalid');
+  home.toggle(); const oldSessionConfirm = dialog.secondaryButton.action;
+  emit(status.Disconnected); emit(status.Connecting); emit(status.Connected);
+  oldSessionConfirm(); assert.equal(stop, 0, 'old dialog must not stop a reconnected session');
+  home.toggle(); const oldTabConfirm = dialog.secondaryButton.action;
+  home.currentVisibleTab = 1; home.onTabVisible(); home.currentVisibleTab = 0; home.onTabVisible();
+  oldTabConfirm(); assert.equal(stop, 0, 'tab leave/return invalidates old dialog');
+  home.toggle(); const oldNavigationConfirm = dialog.secondaryButton.action;
+  home.rootVisible = false; home.onRootVisible(); home.rootVisible = true; home.onRootVisible();
+  oldNavigationConfirm(); assert.equal(stop, 0, 'secondary navigation invalidates old dialog');
+  home.toggle(); const oldPageConfirm = dialog.secondaryButton.action;
+  home.aboutToDisappear(); oldPageConfirm(); assert.equal(stop, 0, 'destroyed page cannot confirm');
+  assert.equal(timerCleared, 1);
+  home.aboutToAppear(); oldPageConfirm(); assert.equal(stop, 0, 'recreated page cannot revive old dialog');
+  home.toggle(); dialog.secondaryButton.action(); dialog.secondaryButton.action();
+  assert.equal(stop, 1, 'fresh confirmation works exactly once');
+  home.aboutToDisappear(); assert.equal(stop, 1, 'page destruction must not stop VPN');
+
+  activeHomeFile = '未导入.yaml'; home.refreshProfile();
+  assert.equal(home.profileName, '未导入'); assert.equal(home.hasProfile, true, 'display sentinel is a valid filename');
+  activeHomeFile = '未导入.yml'; home.refreshProfile(); assert.equal(home.hasProfile, true);
+  activeHomeFile = ''; home.refreshProfile(); assert.equal(home.hasProfile, false, 'empty selection has separate existence state');
+  console.log('PASS: review reproductions: old-session/hidden-page confirmation invalidation and sentinel-named profiles');
 
   let resolveProbe;
   const Diagnostics = load('DiagnosticsPage', { ...common,

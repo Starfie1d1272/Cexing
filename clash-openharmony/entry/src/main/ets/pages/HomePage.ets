@@ -12,24 +12,27 @@ const MODE_VALUES: string[] = ['rule', 'global', 'direct'];
 
 @Component
 export struct HomePage {
-  @Consume('rootVisible') @Watch('refreshTraffic') rootVisible: boolean;
+  @Consume('rootVisible') @Watch('onRootVisible') rootVisible: boolean;
   @Consume('profileRevision') @Watch('onProfilesChanged') profileRevision: number;
   @Consume('nav') navStack: NavPathStack;
   @Consume('tabJump') tabJump: number;
   @Consume('tab') @Watch('onTabVisible') currentVisibleTab: number;
   @State status: VpnStatus = VpnController.status;
   @State profileName: string = '未导入';
+  @State hasProfile: boolean = false;
   @State upRate: string = '—';
   @State downRate: string = '—';
   @State mode: string = 'rule';
   @State stageWidth: number = 340;
   @State wide: boolean = false;
   @State startFailed: boolean = false;
+  private disconnectGeneration: number = 0;
   private lastTrafficAt: number = 0;
   private freshnessTimer: number = -1;
   private watcher: CoreApi.StreamWatcher<TrafficMsg> = new CoreApi.StreamWatcher<TrafficMsg>();
   private visible: boolean = false;
   private listener: (status: VpnStatus) => void = (status: VpnStatus) => {
+    this.disconnectGeneration++;
     this.status = status;
     if (this.visible) {
       this.refreshTraffic();
@@ -42,6 +45,7 @@ export struct HomePage {
   };
 
   aboutToAppear(): void {
+    this.disconnectGeneration++;
     this.visible = true;
     this.status = VpnController.status;
     VpnController.onChanged(this.listener);
@@ -56,6 +60,7 @@ export struct HomePage {
   }
 
   aboutToDisappear(): void {
+    this.disconnectGeneration++;
     this.visible = false;
     VpnController.offChanged(this.listener);
     this.watcher.stop();
@@ -67,7 +72,13 @@ export struct HomePage {
     if (this.visible && this.currentVisibleTab === 0) { this.refreshProfile(); }
   }
 
+  private onRootVisible(): void {
+    if (!this.rootVisible) { this.disconnectGeneration++; }
+    this.refreshTraffic();
+  }
+
   private onTabVisible(): void {
+    if (this.currentVisibleTab !== 0) { this.disconnectGeneration++; }
     if (this.currentVisibleTab === 0) {
       this.refreshProfile();
     }
@@ -77,7 +88,8 @@ export struct HomePage {
   private refreshProfile(): void {
     const ctx = getContext(this) as common.UIAbilityContext;
     const file = ProfileStore.getActiveFile(ctx);
-    this.profileName = file.length > 0 ? file.replace(/\.(yaml|yml)$/, '') : '未导入';
+    this.hasProfile = file.length > 0;
+    this.profileName = this.hasProfile ? file.replace(/\.(yaml|yml)$/, '') : '未导入';
     const saved = Settings.load(ctx).mode;
     if (MODE_VALUES.indexOf(saved) >= 0) {
       this.mode = saved;
@@ -116,13 +128,18 @@ export struct HomePage {
     } else if (this.status === VpnStatus.Connecting) {
       VpnController.stop(ctx);
     } else if (this.status === VpnStatus.Connected) {
+      const confirmation = ++this.disconnectGeneration;
       AlertDialog.show({
         title: '断开连接？',
         message: '系统 VPN 会话将结束',
-        primaryButton: { value: '保持连接', action: () => {} },
+        primaryButton: { value: '保持连接', action: () => {
+          if (confirmation === this.disconnectGeneration) { this.disconnectGeneration++; }
+        } },
         secondaryButton: { value: '断开连接', action: () => {
-          // Recheck after the dialog: the runtime may have changed state.
-          if (VpnController.status === VpnStatus.Connected) {
+          // A later Connected may belong to a new session; state equality is insufficient.
+          if (confirmation === this.disconnectGeneration && this.visible && this.rootVisible &&
+            this.currentVisibleTab === 0 && VpnController.status === VpnStatus.Connected) {
+            this.disconnectGeneration++;
             AppRuntime.cancelRestore();
             VpnController.stop(ctx);
           }
@@ -251,7 +268,7 @@ export struct HomePage {
         .width('100%').margin({ top: 16, bottom: 12 })
       Scroll() {
         Column({ space: 20 }) {
-          if (this.profileName === '未导入') {
+          if (!this.hasProfile) {
             Column({ space: 18 }) {
               Text('导入订阅').fontSize(36).fontWeight(FontWeight.Bold).fontColor(UI.ink)
               Button('添加订阅').width('100%').height(56).backgroundColor(UI.accent)
@@ -266,7 +283,7 @@ export struct HomePage {
           }
         }.width('100%').padding({ bottom: 12 })
       }.layoutWeight(1).width('100%').scrollBar(BarState.Off)
-      if (this.profileName !== '未导入') {
+      if (this.hasProfile) {
         Button(this.status === VpnStatus.Disconnected ? '连接 VPN' :
           (this.status === VpnStatus.Connecting ? '取消连接' :
             (this.status === VpnStatus.Disconnecting ? '断开中…' : '断开连接')))
