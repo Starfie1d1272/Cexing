@@ -9,7 +9,7 @@ ROOT = Path(__file__).resolve().parent
 BASE = 'http://127.0.0.1:8765/design/native-ui-fresh/'
 SCENARIOS = ['empty', 'ready', 'permission', 'connecting', 'connected', 'disconnect',
              'review', 'overrides', 'import-error', 'update-error', 'network-error',
-             'diagnostics', 'settings', 'panel', 'panel-error']
+             'diagnostics', 'settings', 'profiles', 'panel', 'panel-error']
 SIZES = [(390, 844), (360, 800), (412, 915), (320, 568)]
 report = {'date_utc': '2026-10-12', 'base_main': '7f731d5c9c8d4eba7a1680bcb3981d7877232bcc', 'browser': '', 'viewports': [], 'flows': [], 'runtime_errors': [], 'screenshots': []}
 
@@ -126,7 +126,7 @@ with sync_playwright() as p:
     assert dl.value.suggested_filename == 'diagnostic-example.txt'
     flow('更新失败保留上份配置 → 恢复后更新 → 重命名转义 → 合成导出 → 设置开关 / 分流 / 非法端口 → 分层诊断 / 脱敏摘要')
     act('back')
-    act('back')
+    act('home')
     act('vpn')
     act('disconnectConfirm')
     expect('h1', '未连接')
@@ -173,6 +173,28 @@ with sync_playwright() as p:
     assert page.locator('[role="dialog"]').count() == 0
     flow('授权弹窗键盘焦点限定 / Escape 返回')
 
+    load('connected')
+    act('settings')
+    page.evaluate('window.scrollTo(0,document.documentElement.scrollHeight)')
+    assert page.evaluate('scrollY') > 0
+    assert page.locator('[data-tab="settings"]').get_attribute('aria-current') == 'page'
+    act('profiles')
+    expect('h1', '你的订阅')
+    assert page.locator('[data-tab="profiles"]').get_attribute('aria-current') == 'page'
+    act('home')
+    expect('h1', '已连接')
+    assert page.evaluate('prototypeQA.state().vpn') == 'connected'
+    flow('固定三页签：长设置页滚动后仍可切换 → 订阅 → 连接，VPN 不停止')
+    load('ready')
+    act('vpn')
+    expect('h1', '连接中')
+    act('settings')
+    page.wait_for_timeout(1700)
+    assert page.evaluate('prototypeQA.state().vpn') == 'connected'
+    act('home')
+    expect('h1', '已连接')
+    flow('连接中切换设置：异步启动继续，返回连接页显示完成结果')
+
     for w, h in SIZES:
         page.set_viewport_size({'width': w, 'height': h})
         for scenario in SCENARIOS:
@@ -183,6 +205,7 @@ with sync_playwright() as p:
                 scrollWidth:document.documentElement.scrollWidth,
                 scrollHeight:document.documentElement.scrollHeight,
                 noPersistence:localStorage.length===0,
+                tabs:[...document.querySelectorAll('[data-tab]')].map(el=>({label:el.textContent.trim(),current:el.getAttribute('aria-current'),top:el.getBoundingClientRect().top,bottom:el.getBoundingClientRect().bottom})),
                 tooSmall:[...document.querySelectorAll('button,input:not([type=radio]),select')]
                     .filter(el=>!el.closest('[inert]')&&!el.disabled)
                     .filter(el=>{const r=el.getBoundingClientRect();return r.height<44||r.width<44})
@@ -190,6 +213,12 @@ with sync_playwright() as p:
             assert metrics['scrollWidth'] == w, (scenario, w, metrics)
             assert not metrics['tooSmall'], (scenario, w, metrics)
             assert metrics['noPersistence']
+            assert [t['label'] for t in metrics['tabs']] == ['连接', '订阅', '设置']
+            assert sum(t['current']=='page' for t in metrics['tabs']) == 1
+            assert all(t['top'] >= 0 and t['bottom'] <= h for t in metrics['tabs']), metrics
+            page.evaluate('window.scrollTo(0,document.documentElement.scrollHeight)')
+            assert page.locator('.tabbar').evaluate('el=>{const r=el.getBoundingClientRect();return r.top>=0&&r.bottom<=innerHeight}')
+            page.evaluate('window.scrollTo(0,0)')
             if scenario == 'connected' and w >= 360:
                 geometry = page.evaluate('''()=>({content:document.querySelector('.handoff').getBoundingClientRect().bottom, footer:document.querySelector('footer').getBoundingClientRect().top})''')
                 assert geometry['content'] <= geometry['footer'], geometry
@@ -202,6 +231,16 @@ with sync_playwright() as p:
                     full=f'{scenario}-390-full.png'
                     page.screenshot(path=str(ROOT/'screenshots'/full),full_page=True)
                     report['screenshots'].append(full)
+                    if scenario == 'settings':
+                        # Reload after full-page capture to settle Chromium viewport restoration.
+                        load('settings')
+                        page.evaluate('window.scrollTo(0,document.documentElement.scrollHeight)')
+                        page.evaluate('new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))')
+                        assert page.locator('.tabbar').evaluate('el=>{const r=el.getBoundingClientRect();return r.top>=0&&r.bottom<=innerHeight}')
+                        scrolled='settings-scrolled-390x844.png'
+                        page.screenshot(path=str(ROOT/'screenshots'/scrolled))
+                        report['screenshots'].append(scrolled)
+                        page.evaluate('window.scrollTo(0,0)')
     page.set_viewport_size({'width':390,'height':844})
     load('connected', 'moderate')
     page.evaluate('document.activeElement.blur()')

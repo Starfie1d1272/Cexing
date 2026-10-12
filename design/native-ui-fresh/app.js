@@ -4,6 +4,7 @@ const params = new URLSearchParams(location.search);
 document.documentElement.dataset.arkDepth =
   params.get("depth") === "moderate" ? "moderate" : "minimal";
 const icons = {
+  connect: '<path d="M12 3v9"/><path d="M7 5a8 8 0 1 0 10 0"/>',
   back: '<path d="m14 5-7 7 7 7"/>',
   right: '<path d="m9 5 7 7-7 7"/>',
   arrow: '<path d="M5 19 19 5M5 5h14v14"/>',
@@ -120,6 +121,37 @@ function fact(key, value) {
 function footer(content, note = "") {
   return `<footer class="footer">${note ? `<p class="quiet">${note}</p>` : ""}${content}</footer>`;
 }
+function pageTab() {
+  if (["settings", "network", "kernel", "diagnostics"].includes(state.page))
+    return "settings";
+  if (
+    ["profiles", "profile", "import", "review", "overrides", "merge"].includes(
+      state.page,
+    )
+  )
+    return "profiles";
+  return "home";
+}
+function tabbar() {
+  const active = pageTab();
+  return `<nav class="tabbar" aria-label="主导航">${[
+    ["home", "连接", "connect"],
+    ["profiles", "订阅", "file"],
+    ["settings", "设置", "settings"],
+  ]
+    .map(
+      ([page, label, icon]) =>
+        `<button class="tab" data-tab="${page}" data-action="${page}" ${active === page ? 'aria-current="page"' : ""}>${svg(icon)}<span>${label}</span></button>`,
+    )
+    .join("")}</nav>`;
+}
+function switchTab(page) {
+  state.page = page;
+  state.stack = [];
+  state.sheet = "";
+  state.formError = "";
+  render(true);
+}
 function nav() {
   const titles = {
     home: "连接",
@@ -135,7 +167,8 @@ function nav() {
     diagnostics: "诊断",
     panel: "Zashboard",
   };
-  return `<div class="statusbar" aria-hidden="true"><span>09:41</span><span class="system">${svg("signal")}${svg("wifi")}<span class="battery"></span></span></div><header class="topbar">${state.page === "home" ? `<div class="brand">连接<span class="prototype">交互原型</span></div><button class="icon" data-action="settings" aria-label="设置">${svg("settings")}</button>` : `<div class="title"><button class="icon back" data-action="back" aria-label="返回">${svg("back")}</button><span>${titles[state.page]}</span></div>${state.page === "profiles" ? `<button class="linkbutton" data-action="importMenu">添加</button>` : ""}`}</header>`;
+  const root = ["home", "profiles", "settings"].includes(state.page);
+  return `<div class="statusbar" aria-hidden="true"><span>09:41</span><span class="system">${svg("signal")}${svg("wifi")}<span class="battery"></span></span></div><header class="topbar">${root ? `<div class="brand">${titles[state.page]}<span class="prototype">交互原型</span></div>` : `<div class="title"><button class="icon back" data-action="back" aria-label="返回">${svg("back")}</button><span>${titles[state.page]}</span></div>`}${state.page === "profiles" ? `<button class="linkbutton" data-action="importMenu">添加</button>` : ""}</header>`;
 }
 function home() {
   if (!state.profile)
@@ -154,7 +187,7 @@ function home() {
           ? "连接中断"
           : "未连接";
   const caption = connected
-    ? "内核已就绪"
+    ? "Wi-Fi · 内核已就绪"
     : connecting
       ? "等待内核就绪"
       : stopping
@@ -162,7 +195,7 @@ function home() {
         : error
           ? "网络不可用"
           : "订阅已准备就绪";
-  return `<main class="body"><section class="hero" aria-label="连接状态"><p class="eyebrow">VPN / 系统连接</p><h1>${label}</h1><p class="state">${connecting || stopping ? '<span class="spinner" aria-hidden="true"></span>' : `<span class="dot ${connected ? "" : "idle"}" aria-hidden="true"></span>`}${caption}</p><div class="summary"><span>${connected ? "会话运行中" : "等待连接"}</span><span>${connected ? "Wi-Fi" : "系统 VPN"}</span></div></section>${error ? `<div class="notice" role="alert"><strong>暂时无法连接网络</strong><p>网络恢复后可重试。</p><button class="linkbutton" data-action="diagnostics">查看诊断 ${svg("right")}</button></div>` : ""}${connected ? `<div class="traffic" aria-label="实时速率"><div><p class="rate"><span data-rate="up">128</span> <span class="unit">${connected ? "KB/s" : ""}</span></p><p class="label">${svg("up")}上传</p></div><div><p class="rate"><span data-rate="down">2.4</span> <span class="unit">${connected ? "MB/s" : ""}</span></p><p class="label">${svg("down")}下载</p></div></div>` : `<p class="quiet idle-traffic">连接后显示实时速率</p>`}<div class="sectionlabel"><span>当前订阅</span><button class="inline linkbutton" data-action="profiles">管理</button></div>${row(esc(state.name), `${state.source === "url" ? "URL 订阅" : "本地配置"} · ${state.updated}`, "profile", "", state.override === "merge" ? "已覆写" : "原始配置")}<button class="handoff" data-action="panel" ${!connected ? "disabled" : ""}>${svg("panel")}<span class="copy"><strong>打开 Zashboard</strong><small>节点 · 策略组 · 规则 · 日志</small></span>${svg("arrow")}</button>${!connected ? '<p class="quiet" style="margin-top:10px">连接后可打开面板</p>' : ""}</main>${footer(button(connected ? "断开连接" : connecting ? "取消连接" : stopping ? "正在断开…" : error ? "重新连接" : "连接 VPN", "vpn", "primary", stopping))}`;
+  return `<main class="body"><section class="hero" aria-label="连接状态"><p class="eyebrow">VPN / 系统连接</p><h1>${label}</h1><p class="state">${connecting || stopping ? '<span class="spinner" aria-hidden="true"></span>' : `<span class="dot ${connected ? "" : "idle"}" aria-hidden="true"></span>`}${caption}</p></section>${error ? `<div class="notice" role="alert"><strong>暂时无法连接网络</strong><p>网络恢复后可重试。</p><button class="linkbutton" data-action="diagnostics">查看诊断 ${svg("right")}</button></div>` : ""}${connected ? `<div class="traffic" aria-label="实时速率"><div><p class="rate"><span data-rate="up">128</span> <span class="unit">${connected ? "KB/s" : ""}</span></p><p class="label">${svg("up")}上传</p></div><div><p class="rate"><span data-rate="down">2.4</span> <span class="unit">${connected ? "MB/s" : ""}</span></p><p class="label">${svg("down")}下载</p></div></div>` : `<p class="quiet idle-traffic">连接后显示实时速率</p>`}<div class="sectionlabel"><span>当前订阅</span><button class="inline linkbutton" data-action="profiles">管理</button></div>${row(esc(state.name), `${state.source === "url" ? "URL 订阅" : "本地配置"} · ${state.updated}`, "profile", "", state.override === "merge" ? "已覆写" : "原始配置")}<button class="handoff" data-action="panel" ${!connected ? "disabled" : ""}>${svg("panel")}<span class="copy"><strong>打开 Zashboard</strong><small>节点 · 策略组 · 规则 · 日志</small></span>${svg("arrow")}</button>${!connected ? '<p class="quiet" style="margin-top:10px">连接后可打开面板</p>' : ""}</main>${footer(button(connected ? "断开连接" : connecting ? "取消连接" : stopping ? "正在断开…" : error ? "重新连接" : "连接 VPN", "vpn", "primary", stopping))}`;
 }
 function importPage() {
   return `<main class="body subpage"><p class="eyebrow">导入订阅</p><h1>添加一份配置</h1><p class="lead">${state.source === "url" ? "使用完整 Mihomo 订阅链接。" : "粘贴完整 YAML 配置。"}</p><label class="field">名称<input id="name" maxlength="32" value="${esc(state.formName)}" placeholder="例如：日常订阅" autocomplete="off"></label>${state.source === "yaml" ? '<label class="field">配置内容<textarea id="yaml" placeholder="proxies: …"></textarea></label>' : `<label class="field">订阅链接<input id="url" type="url" value="${esc(state.formUrl)}" placeholder="https://example.com/sub.yaml" inputmode="url" autocomplete="off" spellcheck="false"></label>`}${state.formError ? `<p class="field-error" role="alert">${esc(state.formError)}</p>` : ""}${state.importError ? '<div class="notice" role="alert"><strong>下载失败</strong><p>网络连接超时，链接和名称已保留。</p></div>' : ""}<button class="linkbutton" data-action="demoFill">填入示例 ${svg("right")}</button><details class="detailnote"><summary>支持什么格式？</summary><p>完整 Mihomo YAML 或订阅 YAML。剪贴板不可读取时，可手动粘贴。此交互原型使用合成内容演示，不请求订阅服务。</p></details></main>${footer(button(state.update === "import" ? "正在导入…" : state.importError ? "重新导入" : "继续", "importContinue", "primary", state.update === "import"))}`;
@@ -252,11 +285,14 @@ function render(moveFocus = false) {
     diagnostics,
     panel,
   };
-  app.innerHTML = nav() + pages[state.page]() + sheet();
+  app.innerHTML = nav() + pages[state.page]() + tabbar() + sheet();
+  if (!app.querySelector("footer"))
+    app.querySelector("main")?.classList.add("without-action");
   if (state.sheet) {
     app.querySelector("main")?.setAttribute("inert", "");
     app.querySelector("header")?.setAttribute("inert", "");
     app.querySelector("footer")?.setAttribute("inert", "");
+    app.querySelector("nav")?.setAttribute("inert", "");
     if (!oldModal)
       requestAnimationFrame(() =>
         app.querySelector('[role="dialog"] button')?.focus(),
@@ -582,6 +618,11 @@ async function action(a) {
   }
 }
 app.addEventListener("click", (e) => {
+  const tab = e.target.closest("[data-tab]");
+  if (tab) {
+    switchTab(tab.dataset.tab);
+    return;
+  }
   const control = e.target.closest("[data-action]");
   if (control) {
     action(control.dataset.action);
@@ -687,9 +728,14 @@ if (scenario === "import-error") {
   state.importError = true;
 }
 if (
-  ["review", "overrides", "settings", "diagnostics", "profile"].includes(
-    scenario,
-  )
+  [
+    "review",
+    "overrides",
+    "settings",
+    "diagnostics",
+    "profile",
+    "profiles",
+  ].includes(scenario)
 )
   state.page = scenario;
 if (scenario === "review") {

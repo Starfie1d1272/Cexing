@@ -10,6 +10,26 @@
       "scrollWidth": 390,
       "scrollHeight": 844,
       "noPersistence": true,
+      "tabs": [
+        {
+          "label": "连接",
+          "current": "page",
+          "top": 779,
+          "bottom": 836
+        },
+        {
+          "label": "订阅",
+          "current": null,
+          "top": 779,
+          "bottom": 836
+        },
+        {
+          "label": "设置",
+          "current": null,
+          "top": 779,
+          "bottom": 836
+        }
+      ],
       "tooSmall": []
     },
     {
@@ -17,8 +37,28 @@
       "width": 390,
       "height": 844,
       "scrollWidth": 390,
-      "scrollHeight": 864,
+      "scrollHeight": 844,
       "noPersistence": true,
+      "tabs": [
+        {
+          "label": "连接",
+          "current": "page",
+          "top": 779,
+          "bottom": 836
+        },
+        {
+          "label": "订阅",
+          "current": null,
+          "top": 779,
+          "bottom": 836
+        },
+        {
+          "label": "设置",
+          "current": null,
+          "top": 779,
+          "bottom": 836
+        }
+      ],
       "tooSmall": []
     },
     {
@@ -26,8 +66,28 @@
       "width": 390,
       "height": 844,
       "scrollWidth": 390,
-      "scrollHeight": 864,
+      "scrollHeight": 844,
       "noPersistence": true,
+      "tabs": [
+        {
+          "label": "连接",
+          "current": "page",
+          "top": 779,
+          "bottom": 836
+        },
+        {
+          "label": "订阅",
+          "current": null,
+          "top": 779,
+          "bottom": 836
+        },
+        {
+          "label": "设置",
+          "current": null,
+          "top": 779,
+          "bottom": 836
+        }
+      ],
       "tooSmall": []
     },
     {
@@ -35,8 +95,28 @@
       "width": 390,
       "height": 844,
       "scrollWidth": 390,
-      "scrollHeight": 864,
+      "scrollHeight": 844,
       "noPersistence": true,
+      "tabs": [
+        {
+          "label": "连接",
+          "current": "page",
+          "top": 779,
+          "bottom": 836
+        },
+        {
+          "label": "订阅",
+          "current": null,
+          "top": 779,
+          "bottom": 836
+        },
+        {
+          "label": "设置",
+          "current": null,
+          "top": 779,
+          "bottom": 836
+        }
+      ],
       "tooSmall": []
     },
     {
@@ -44,8 +124,28 @@
       "width": 390,
       "height": 844,
       "scrollWidth": 390,
-      "scrollHeight": 874,
+      "scrollHeight": 849,
       "noPersistence": true,
+      "tabs": [
+        {
+          "label": "连接",
+          "current": "page",
+          "top": 779,
+          "bottom": 836
+        },
+        {
+          "label": "订阅",
+          "current": null,
+          "top": 779,
+          "bottom": 836
+        },
+        {
+          "label": "设置",
+          "current": null,
+          "top": 779,
+          "bottom": 836
+        }
+      ],
       "tooSmall": []
     },
     {
@@ -53,8 +153,28 @@
       "width": 390,
       "height": 844,
       "scrollWidth": 390,
-      "scrollHeight": 874,
+      "scrollHeight": 849,
       "noPersistence": true,
+      "tabs": [
+        {
+          "label": "连接",
+          "current": "page",
+          "top": 779,
+          "bottom": 836
+        },
+        {
+          "label": "订阅",
+          "current": null,
+          "top": 779,
+          "bottom": 836
+        },
+        {
+          "label": "设置",
+          "current": null,
+          "top": 779,
+          "bottom": 836
+        }
+      ],
       "tooSmall": []
     },
     {
@@ -64,6 +184,26 @@
       "scrollWidth": 390,
       "scrollHeight": 844,
       "noPersistence": true,
+      "tabs": [
+        {
+          "label": "连接",
+          "current": null,
+          "top": 779,
+          "bottom": 836
+        },
+        {
+          "label": "订阅",
+          "current": "page",
+          "top": 779,
+          "bottom": 836
+        },
+        {
+          "label": "设置",
+          "current": null,
+          "top": 779,
+          "bottom": 836
+        }
+      ],
       "tooSmall": []
     },
     {
@@ -71,8 +211,28 @@
       "width": 390,
       "height": 844,
       "scrollWidth": 390,
-      "scrollHeight": 868,
+      "scrollHeight": 940,
       "noPersistence": true,
+      "tabs": [
+        {
+          "label": "连接",
+          "current": null,
+          "top": 779,
+          "bottom": 836
+        },
+        {
+          "label": "订阅",
+          "current": "page",
+          "top": 779,
+          "bottom": 836
+        },
+        {
+          "label": "设置",
+          "current": null,
+          "top": 779,
+          "bottom": 836
+        }
+      ],
       "tooSmall": []
     },
     {
@@ -80,8 +240,28 @@
       "width": 390,
       "height": 844,
       "scrollWidth": 390,
-      "scrollHeight": 844,
+      "scrollHeight": 876,
       "noPersistence": true,
+      "tabs": [
+        {
+          "label": "连接",
+          "current": null,
+          "top": 779,
+          "bottom": 836
+        },
+        {
+          "label": "订阅",
+          "current": "page",
+          "top": 779,
+          "bottom": 836
+        },
+        {
+          "label": "设置",
+          "current": null,
+          "top": 779,
+          "bottom": 836
+        }
+      ],
       "tooSmall": []
     },
     {
@@ -89,8 +269,28 @@
       "width": 390,
       "height": 844,
       "scrollWidth": 390,
-      "scrollHeight": 1079,
+      "scrollHeight": 1151,
       "noPersistence": true,
+      "tabs": [
+        {
+          "label": "连接",
+          "current": null,
+          "top": 779,
+          "bottom": 836
+        },
+        {
+          "label": "订阅",
+          "current": "page",
+          "top": 779,
+          "bottom": 836
+        },
+        {
+          "label": "设置",
+          "current": null,
+          "top": 779,
+          "bottom": 836
+        }
+      ],
       "tooSmall": []
     },
     {
@@ -98,8 +298,28 @@
       "width": 390,
       "height": 844,
       "scrollWidth": 390,
-      "scrollHeight": 1007,
+      "scrollHeight": 976,
       "noPersistence": true,
+      "tabs": [
+        {
+          "label": "连接",
+          "current": "page",
+          "top": 779,
+          "bottom": 836
+        },
+        {
+          "label": "订阅",
+          "current": null,
+          "top": 779,
+          "bottom": 836
+        },
+        {
+          "label": "设置",
+          "current": null,
+          "top": 779,
+          "bottom": 836
+        }
+      ],
       "tooSmall": []
     },
     {
@@ -107,8 +327,28 @@
       "width": 390,
       "height": 844,
       "scrollWidth": 390,
-      "scrollHeight": 882,
+      "scrollHeight": 954,
       "noPersistence": true,
+      "tabs": [
+        {
+          "label": "连接",
+          "current": null,
+          "top": 779,
+          "bottom": 836
+        },
+        {
+          "label": "订阅",
+          "current": null,
+          "top": 779,
+          "bottom": 836
+        },
+        {
+          "label": "设置",
+          "current": "page",
+          "top": 779,
+          "bottom": 836
+        }
+      ],
       "tooSmall": []
     },
     {
@@ -116,8 +356,57 @@
       "width": 390,
       "height": 844,
       "scrollWidth": 390,
-      "scrollHeight": 1136,
+      "scrollHeight": 1106,
       "noPersistence": true,
+      "tabs": [
+        {
+          "label": "连接",
+          "current": null,
+          "top": 779,
+          "bottom": 836
+        },
+        {
+          "label": "订阅",
+          "current": null,
+          "top": 779,
+          "bottom": 836
+        },
+        {
+          "label": "设置",
+          "current": "page",
+          "top": 779,
+          "bottom": 836
+        }
+      ],
+      "tooSmall": []
+    },
+    {
+      "scenario": "profiles",
+      "width": 390,
+      "height": 844,
+      "scrollWidth": 390,
+      "scrollHeight": 844,
+      "noPersistence": true,
+      "tabs": [
+        {
+          "label": "连接",
+          "current": null,
+          "top": 779,
+          "bottom": 836
+        },
+        {
+          "label": "订阅",
+          "current": "page",
+          "top": 779,
+          "bottom": 836
+        },
+        {
+          "label": "设置",
+          "current": null,
+          "top": 779,
+          "bottom": 836
+        }
+      ],
       "tooSmall": []
     },
     {
@@ -127,6 +416,26 @@
       "scrollWidth": 390,
       "scrollHeight": 844,
       "noPersistence": true,
+      "tabs": [
+        {
+          "label": "连接",
+          "current": "page",
+          "top": 779,
+          "bottom": 836
+        },
+        {
+          "label": "订阅",
+          "current": null,
+          "top": 779,
+          "bottom": 836
+        },
+        {
+          "label": "设置",
+          "current": null,
+          "top": 779,
+          "bottom": 836
+        }
+      ],
       "tooSmall": []
     },
     {
@@ -136,6 +445,26 @@
       "scrollWidth": 390,
       "scrollHeight": 844,
       "noPersistence": true,
+      "tabs": [
+        {
+          "label": "连接",
+          "current": "page",
+          "top": 779,
+          "bottom": 836
+        },
+        {
+          "label": "订阅",
+          "current": null,
+          "top": 779,
+          "bottom": 836
+        },
+        {
+          "label": "设置",
+          "current": null,
+          "top": 779,
+          "bottom": 836
+        }
+      ],
       "tooSmall": []
     },
     {
@@ -143,8 +472,28 @@
       "width": 360,
       "height": 800,
       "scrollWidth": 360,
-      "scrollHeight": 800,
+      "scrollHeight": 816,
       "noPersistence": true,
+      "tabs": [
+        {
+          "label": "连接",
+          "current": "page",
+          "top": 735,
+          "bottom": 792
+        },
+        {
+          "label": "订阅",
+          "current": null,
+          "top": 735,
+          "bottom": 792
+        },
+        {
+          "label": "设置",
+          "current": null,
+          "top": 735,
+          "bottom": 792
+        }
+      ],
       "tooSmall": []
     },
     {
@@ -152,8 +501,28 @@
       "width": 360,
       "height": 800,
       "scrollWidth": 360,
-      "scrollHeight": 824,
+      "scrollHeight": 830,
       "noPersistence": true,
+      "tabs": [
+        {
+          "label": "连接",
+          "current": "page",
+          "top": 735,
+          "bottom": 792
+        },
+        {
+          "label": "订阅",
+          "current": null,
+          "top": 735,
+          "bottom": 792
+        },
+        {
+          "label": "设置",
+          "current": null,
+          "top": 735,
+          "bottom": 792
+        }
+      ],
       "tooSmall": []
     },
     {
@@ -161,8 +530,28 @@
       "width": 360,
       "height": 800,
       "scrollWidth": 360,
-      "scrollHeight": 824,
+      "scrollHeight": 830,
       "noPersistence": true,
+      "tabs": [
+        {
+          "label": "连接",
+          "current": "page",
+          "top": 735,
+          "bottom": 792
+        },
+        {
+          "label": "订阅",
+          "current": null,
+          "top": 735,
+          "bottom": 792
+        },
+        {
+          "label": "设置",
+          "current": null,
+          "top": 735,
+          "bottom": 792
+        }
+      ],
       "tooSmall": []
     },
     {
@@ -170,8 +559,28 @@
       "width": 360,
       "height": 800,
       "scrollWidth": 360,
-      "scrollHeight": 824,
+      "scrollHeight": 830,
       "noPersistence": true,
+      "tabs": [
+        {
+          "label": "连接",
+          "current": "page",
+          "top": 735,
+          "bottom": 792
+        },
+        {
+          "label": "订阅",
+          "current": null,
+          "top": 735,
+          "bottom": 792
+        },
+        {
+          "label": "设置",
+          "current": null,
+          "top": 735,
+          "bottom": 792
+        }
+      ],
       "tooSmall": []
     },
     {
@@ -179,8 +588,28 @@
       "width": 360,
       "height": 800,
       "scrollWidth": 360,
-      "scrollHeight": 824,
+      "scrollHeight": 830,
       "noPersistence": true,
+      "tabs": [
+        {
+          "label": "连接",
+          "current": "page",
+          "top": 735,
+          "bottom": 792
+        },
+        {
+          "label": "订阅",
+          "current": null,
+          "top": 735,
+          "bottom": 792
+        },
+        {
+          "label": "设置",
+          "current": null,
+          "top": 735,
+          "bottom": 792
+        }
+      ],
       "tooSmall": []
     },
     {
@@ -188,8 +617,28 @@
       "width": 360,
       "height": 800,
       "scrollWidth": 360,
-      "scrollHeight": 824,
+      "scrollHeight": 830,
       "noPersistence": true,
+      "tabs": [
+        {
+          "label": "连接",
+          "current": "page",
+          "top": 735,
+          "bottom": 792
+        },
+        {
+          "label": "订阅",
+          "current": null,
+          "top": 735,
+          "bottom": 792
+        },
+        {
+          "label": "设置",
+          "current": null,
+          "top": 735,
+          "bottom": 792
+        }
+      ],
       "tooSmall": []
     },
     {
@@ -199,6 +648,26 @@
       "scrollWidth": 360,
       "scrollHeight": 800,
       "noPersistence": true,
+      "tabs": [
+        {
+          "label": "连接",
+          "current": null,
+          "top": 735,
+          "bottom": 792
+        },
+        {
+          "label": "订阅",
+          "current": "page",
+          "top": 735,
+          "bottom": 792
+        },
+        {
+          "label": "设置",
+          "current": null,
+          "top": 735,
+          "bottom": 792
+        }
+      ],
       "tooSmall": []
     },
     {
@@ -206,44 +675,144 @@
       "width": 360,
       "height": 800,
       "scrollWidth": 360,
-      "scrollHeight": 856,
+      "scrollHeight": 928,
       "noPersistence": true,
+      "tabs": [
+        {
+          "label": "连接",
+          "current": null,
+          "top": 735,
+          "bottom": 792
+        },
+        {
+          "label": "订阅",
+          "current": "page",
+          "top": 735,
+          "bottom": 792
+        },
+        {
+          "label": "设置",
+          "current": null,
+          "top": 735,
+          "bottom": 792
+        }
+      ],
       "tooSmall": []
     },
     {
       "scenario": "import-error",
-      "width": 360,
-      "height": 800,
-      "scrollWidth": 360,
-      "scrollHeight": 804,
-      "noPersistence": true,
-      "tooSmall": []
-    },
-    {
-      "scenario": "update-error",
-      "width": 360,
-      "height": 800,
-      "scrollWidth": 360,
-      "scrollHeight": 1070,
-      "noPersistence": true,
-      "tooSmall": []
-    },
-    {
-      "scenario": "network-error",
-      "width": 360,
-      "height": 800,
-      "scrollWidth": 360,
-      "scrollHeight": 967,
-      "noPersistence": true,
-      "tooSmall": []
-    },
-    {
-      "scenario": "diagnostics",
       "width": 360,
       "height": 800,
       "scrollWidth": 360,
       "scrollHeight": 876,
       "noPersistence": true,
+      "tabs": [
+        {
+          "label": "连接",
+          "current": null,
+          "top": 735,
+          "bottom": 792
+        },
+        {
+          "label": "订阅",
+          "current": "page",
+          "top": 735,
+          "bottom": 792
+        },
+        {
+          "label": "设置",
+          "current": null,
+          "top": 735,
+          "bottom": 792
+        }
+      ],
+      "tooSmall": []
+    },
+    {
+      "scenario": "update-error",
+      "width": 360,
+      "height": 800,
+      "scrollWidth": 360,
+      "scrollHeight": 1142,
+      "noPersistence": true,
+      "tabs": [
+        {
+          "label": "连接",
+          "current": null,
+          "top": 735,
+          "bottom": 792
+        },
+        {
+          "label": "订阅",
+          "current": "page",
+          "top": 735,
+          "bottom": 792
+        },
+        {
+          "label": "设置",
+          "current": null,
+          "top": 735,
+          "bottom": 792
+        }
+      ],
+      "tooSmall": []
+    },
+    {
+      "scenario": "network-error",
+      "width": 360,
+      "height": 800,
+      "scrollWidth": 360,
+      "scrollHeight": 973,
+      "noPersistence": true,
+      "tabs": [
+        {
+          "label": "连接",
+          "current": "page",
+          "top": 735,
+          "bottom": 792
+        },
+        {
+          "label": "订阅",
+          "current": null,
+          "top": 735,
+          "bottom": 792
+        },
+        {
+          "label": "设置",
+          "current": null,
+          "top": 735,
+          "bottom": 792
+        }
+      ],
+      "tooSmall": []
+    },
+    {
+      "scenario": "diagnostics",
+      "width": 360,
+      "height": 800,
+      "scrollWidth": 360,
+      "scrollHeight": 948,
+      "noPersistence": true,
+      "tabs": [
+        {
+          "label": "连接",
+          "current": null,
+          "top": 735,
+          "bottom": 792
+        },
+        {
+          "label": "订阅",
+          "current": null,
+          "top": 735,
+          "bottom": 792
+        },
+        {
+          "label": "设置",
+          "current": "page",
+          "top": 735,
+          "bottom": 792
+        }
+      ],
       "tooSmall": []
     },
     {
@@ -251,8 +820,57 @@
       "width": 360,
       "height": 800,
       "scrollWidth": 360,
-      "scrollHeight": 1098,
+      "scrollHeight": 1068,
       "noPersistence": true,
+      "tabs": [
+        {
+          "label": "连接",
+          "current": null,
+          "top": 735,
+          "bottom": 792
+        },
+        {
+          "label": "订阅",
+          "current": null,
+          "top": 735,
+          "bottom": 792
+        },
+        {
+          "label": "设置",
+          "current": "page",
+          "top": 735,
+          "bottom": 792
+        }
+      ],
+      "tooSmall": []
+    },
+    {
+      "scenario": "profiles",
+      "width": 360,
+      "height": 800,
+      "scrollWidth": 360,
+      "scrollHeight": 800,
+      "noPersistence": true,
+      "tabs": [
+        {
+          "label": "连接",
+          "current": null,
+          "top": 735,
+          "bottom": 792
+        },
+        {
+          "label": "订阅",
+          "current": "page",
+          "top": 735,
+          "bottom": 792
+        },
+        {
+          "label": "设置",
+          "current": null,
+          "top": 735,
+          "bottom": 792
+        }
+      ],
       "tooSmall": []
     },
     {
@@ -260,8 +878,28 @@
       "width": 360,
       "height": 800,
       "scrollWidth": 360,
-      "scrollHeight": 800,
+      "scrollHeight": 820,
       "noPersistence": true,
+      "tabs": [
+        {
+          "label": "连接",
+          "current": "page",
+          "top": 735,
+          "bottom": 792
+        },
+        {
+          "label": "订阅",
+          "current": null,
+          "top": 735,
+          "bottom": 792
+        },
+        {
+          "label": "设置",
+          "current": null,
+          "top": 735,
+          "bottom": 792
+        }
+      ],
       "tooSmall": []
     },
     {
@@ -269,8 +907,28 @@
       "width": 360,
       "height": 800,
       "scrollWidth": 360,
-      "scrollHeight": 800,
+      "scrollHeight": 813,
       "noPersistence": true,
+      "tabs": [
+        {
+          "label": "连接",
+          "current": "page",
+          "top": 735,
+          "bottom": 792
+        },
+        {
+          "label": "订阅",
+          "current": null,
+          "top": 735,
+          "bottom": 792
+        },
+        {
+          "label": "设置",
+          "current": null,
+          "top": 735,
+          "bottom": 792
+        }
+      ],
       "tooSmall": []
     },
     {
@@ -280,6 +938,26 @@
       "scrollWidth": 412,
       "scrollHeight": 915,
       "noPersistence": true,
+      "tabs": [
+        {
+          "label": "连接",
+          "current": "page",
+          "top": 850,
+          "bottom": 907
+        },
+        {
+          "label": "订阅",
+          "current": null,
+          "top": 850,
+          "bottom": 907
+        },
+        {
+          "label": "设置",
+          "current": null,
+          "top": 850,
+          "bottom": 907
+        }
+      ],
       "tooSmall": []
     },
     {
@@ -289,6 +967,26 @@
       "scrollWidth": 412,
       "scrollHeight": 915,
       "noPersistence": true,
+      "tabs": [
+        {
+          "label": "连接",
+          "current": "page",
+          "top": 850,
+          "bottom": 907
+        },
+        {
+          "label": "订阅",
+          "current": null,
+          "top": 850,
+          "bottom": 907
+        },
+        {
+          "label": "设置",
+          "current": null,
+          "top": 850,
+          "bottom": 907
+        }
+      ],
       "tooSmall": []
     },
     {
@@ -298,6 +996,26 @@
       "scrollWidth": 412,
       "scrollHeight": 915,
       "noPersistence": true,
+      "tabs": [
+        {
+          "label": "连接",
+          "current": "page",
+          "top": 850,
+          "bottom": 907
+        },
+        {
+          "label": "订阅",
+          "current": null,
+          "top": 850,
+          "bottom": 907
+        },
+        {
+          "label": "设置",
+          "current": null,
+          "top": 850,
+          "bottom": 907
+        }
+      ],
       "tooSmall": []
     },
     {
@@ -307,6 +1025,26 @@
       "scrollWidth": 412,
       "scrollHeight": 915,
       "noPersistence": true,
+      "tabs": [
+        {
+          "label": "连接",
+          "current": "page",
+          "top": 850,
+          "bottom": 907
+        },
+        {
+          "label": "订阅",
+          "current": null,
+          "top": 850,
+          "bottom": 907
+        },
+        {
+          "label": "设置",
+          "current": null,
+          "top": 850,
+          "bottom": 907
+        }
+      ],
       "tooSmall": []
     },
     {
@@ -316,6 +1054,26 @@
       "scrollWidth": 412,
       "scrollHeight": 915,
       "noPersistence": true,
+      "tabs": [
+        {
+          "label": "连接",
+          "current": "page",
+          "top": 850,
+          "bottom": 907
+        },
+        {
+          "label": "订阅",
+          "current": null,
+          "top": 850,
+          "bottom": 907
+        },
+        {
+          "label": "设置",
+          "current": null,
+          "top": 850,
+          "bottom": 907
+        }
+      ],
       "tooSmall": []
     },
     {
@@ -325,6 +1083,26 @@
       "scrollWidth": 412,
       "scrollHeight": 915,
       "noPersistence": true,
+      "tabs": [
+        {
+          "label": "连接",
+          "current": "page",
+          "top": 850,
+          "bottom": 907
+        },
+        {
+          "label": "订阅",
+          "current": null,
+          "top": 850,
+          "bottom": 907
+        },
+        {
+          "label": "设置",
+          "current": null,
+          "top": 850,
+          "bottom": 907
+        }
+      ],
       "tooSmall": []
     },
     {
@@ -334,6 +1112,26 @@
       "scrollWidth": 412,
       "scrollHeight": 915,
       "noPersistence": true,
+      "tabs": [
+        {
+          "label": "连接",
+          "current": null,
+          "top": 850,
+          "bottom": 907
+        },
+        {
+          "label": "订阅",
+          "current": "page",
+          "top": 850,
+          "bottom": 907
+        },
+        {
+          "label": "设置",
+          "current": null,
+          "top": 850,
+          "bottom": 907
+        }
+      ],
       "tooSmall": []
     },
     {
@@ -341,8 +1139,28 @@
       "width": 412,
       "height": 915,
       "scrollWidth": 412,
-      "scrollHeight": 915,
+      "scrollHeight": 940,
       "noPersistence": true,
+      "tabs": [
+        {
+          "label": "连接",
+          "current": null,
+          "top": 850,
+          "bottom": 907
+        },
+        {
+          "label": "订阅",
+          "current": "page",
+          "top": 850,
+          "bottom": 907
+        },
+        {
+          "label": "设置",
+          "current": null,
+          "top": 850,
+          "bottom": 907
+        }
+      ],
       "tooSmall": []
     },
     {
@@ -352,6 +1170,26 @@
       "scrollWidth": 412,
       "scrollHeight": 915,
       "noPersistence": true,
+      "tabs": [
+        {
+          "label": "连接",
+          "current": null,
+          "top": 850,
+          "bottom": 907
+        },
+        {
+          "label": "订阅",
+          "current": "page",
+          "top": 850,
+          "bottom": 907
+        },
+        {
+          "label": "设置",
+          "current": null,
+          "top": 850,
+          "bottom": 907
+        }
+      ],
       "tooSmall": []
     },
     {
@@ -359,8 +1197,28 @@
       "width": 412,
       "height": 915,
       "scrollWidth": 412,
-      "scrollHeight": 1079,
+      "scrollHeight": 1151,
       "noPersistence": true,
+      "tabs": [
+        {
+          "label": "连接",
+          "current": null,
+          "top": 850,
+          "bottom": 907
+        },
+        {
+          "label": "订阅",
+          "current": "page",
+          "top": 850,
+          "bottom": 907
+        },
+        {
+          "label": "设置",
+          "current": null,
+          "top": 850,
+          "bottom": 907
+        }
+      ],
       "tooSmall": []
     },
     {
@@ -368,8 +1226,28 @@
       "width": 412,
       "height": 915,
       "scrollWidth": 412,
-      "scrollHeight": 1007,
+      "scrollHeight": 976,
       "noPersistence": true,
+      "tabs": [
+        {
+          "label": "连接",
+          "current": "page",
+          "top": 850,
+          "bottom": 907
+        },
+        {
+          "label": "订阅",
+          "current": null,
+          "top": 850,
+          "bottom": 907
+        },
+        {
+          "label": "设置",
+          "current": null,
+          "top": 850,
+          "bottom": 907
+        }
+      ],
       "tooSmall": []
     },
     {
@@ -377,8 +1255,28 @@
       "width": 412,
       "height": 915,
       "scrollWidth": 412,
-      "scrollHeight": 915,
+      "scrollHeight": 954,
       "noPersistence": true,
+      "tabs": [
+        {
+          "label": "连接",
+          "current": null,
+          "top": 850,
+          "bottom": 907
+        },
+        {
+          "label": "订阅",
+          "current": null,
+          "top": 850,
+          "bottom": 907
+        },
+        {
+          "label": "设置",
+          "current": "page",
+          "top": 850,
+          "bottom": 907
+        }
+      ],
       "tooSmall": []
     },
     {
@@ -386,8 +1284,57 @@
       "width": 412,
       "height": 915,
       "scrollWidth": 412,
-      "scrollHeight": 1136,
+      "scrollHeight": 1106,
       "noPersistence": true,
+      "tabs": [
+        {
+          "label": "连接",
+          "current": null,
+          "top": 850,
+          "bottom": 907
+        },
+        {
+          "label": "订阅",
+          "current": null,
+          "top": 850,
+          "bottom": 907
+        },
+        {
+          "label": "设置",
+          "current": "page",
+          "top": 850,
+          "bottom": 907
+        }
+      ],
+      "tooSmall": []
+    },
+    {
+      "scenario": "profiles",
+      "width": 412,
+      "height": 915,
+      "scrollWidth": 412,
+      "scrollHeight": 915,
+      "noPersistence": true,
+      "tabs": [
+        {
+          "label": "连接",
+          "current": null,
+          "top": 850,
+          "bottom": 907
+        },
+        {
+          "label": "订阅",
+          "current": "page",
+          "top": 850,
+          "bottom": 907
+        },
+        {
+          "label": "设置",
+          "current": null,
+          "top": 850,
+          "bottom": 907
+        }
+      ],
       "tooSmall": []
     },
     {
@@ -397,6 +1344,26 @@
       "scrollWidth": 412,
       "scrollHeight": 915,
       "noPersistence": true,
+      "tabs": [
+        {
+          "label": "连接",
+          "current": "page",
+          "top": 850,
+          "bottom": 907
+        },
+        {
+          "label": "订阅",
+          "current": null,
+          "top": 850,
+          "bottom": 907
+        },
+        {
+          "label": "设置",
+          "current": null,
+          "top": 850,
+          "bottom": 907
+        }
+      ],
       "tooSmall": []
     },
     {
@@ -406,6 +1373,26 @@
       "scrollWidth": 412,
       "scrollHeight": 915,
       "noPersistence": true,
+      "tabs": [
+        {
+          "label": "连接",
+          "current": "page",
+          "top": 850,
+          "bottom": 907
+        },
+        {
+          "label": "订阅",
+          "current": null,
+          "top": 850,
+          "bottom": 907
+        },
+        {
+          "label": "设置",
+          "current": null,
+          "top": 850,
+          "bottom": 907
+        }
+      ],
       "tooSmall": []
     },
     {
@@ -415,6 +1402,26 @@
       "scrollWidth": 320,
       "scrollHeight": 568,
       "noPersistence": true,
+      "tabs": [
+        {
+          "label": "连接",
+          "current": "page",
+          "top": 503,
+          "bottom": 560
+        },
+        {
+          "label": "订阅",
+          "current": null,
+          "top": 503,
+          "bottom": 560
+        },
+        {
+          "label": "设置",
+          "current": null,
+          "top": 503,
+          "bottom": 560
+        }
+      ],
       "tooSmall": []
     },
     {
@@ -422,8 +1429,28 @@
       "width": 320,
       "height": 568,
       "scrollWidth": 320,
-      "scrollHeight": 827,
+      "scrollHeight": 808,
       "noPersistence": true,
+      "tabs": [
+        {
+          "label": "连接",
+          "current": "page",
+          "top": 503,
+          "bottom": 560
+        },
+        {
+          "label": "订阅",
+          "current": null,
+          "top": 503,
+          "bottom": 560
+        },
+        {
+          "label": "设置",
+          "current": null,
+          "top": 503,
+          "bottom": 560
+        }
+      ],
       "tooSmall": []
     },
     {
@@ -431,8 +1458,28 @@
       "width": 320,
       "height": 568,
       "scrollWidth": 320,
-      "scrollHeight": 827,
+      "scrollHeight": 808,
       "noPersistence": true,
+      "tabs": [
+        {
+          "label": "连接",
+          "current": "page",
+          "top": 503,
+          "bottom": 560
+        },
+        {
+          "label": "订阅",
+          "current": null,
+          "top": 503,
+          "bottom": 560
+        },
+        {
+          "label": "设置",
+          "current": null,
+          "top": 503,
+          "bottom": 560
+        }
+      ],
       "tooSmall": []
     },
     {
@@ -440,8 +1487,28 @@
       "width": 320,
       "height": 568,
       "scrollWidth": 320,
-      "scrollHeight": 827,
+      "scrollHeight": 808,
       "noPersistence": true,
+      "tabs": [
+        {
+          "label": "连接",
+          "current": "page",
+          "top": 503,
+          "bottom": 560
+        },
+        {
+          "label": "订阅",
+          "current": null,
+          "top": 503,
+          "bottom": 560
+        },
+        {
+          "label": "设置",
+          "current": null,
+          "top": 503,
+          "bottom": 560
+        }
+      ],
       "tooSmall": []
     },
     {
@@ -449,8 +1516,28 @@
       "width": 320,
       "height": 568,
       "scrollWidth": 320,
-      "scrollHeight": 827,
+      "scrollHeight": 808,
       "noPersistence": true,
+      "tabs": [
+        {
+          "label": "连接",
+          "current": "page",
+          "top": 503,
+          "bottom": 560
+        },
+        {
+          "label": "订阅",
+          "current": null,
+          "top": 503,
+          "bottom": 560
+        },
+        {
+          "label": "设置",
+          "current": null,
+          "top": 503,
+          "bottom": 560
+        }
+      ],
       "tooSmall": []
     },
     {
@@ -458,8 +1545,28 @@
       "width": 320,
       "height": 568,
       "scrollWidth": 320,
-      "scrollHeight": 827,
+      "scrollHeight": 808,
       "noPersistence": true,
+      "tabs": [
+        {
+          "label": "连接",
+          "current": "page",
+          "top": 503,
+          "bottom": 560
+        },
+        {
+          "label": "订阅",
+          "current": null,
+          "top": 503,
+          "bottom": 560
+        },
+        {
+          "label": "设置",
+          "current": null,
+          "top": 503,
+          "bottom": 560
+        }
+      ],
       "tooSmall": []
     },
     {
@@ -467,8 +1574,28 @@
       "width": 320,
       "height": 568,
       "scrollWidth": 320,
-      "scrollHeight": 684,
+      "scrollHeight": 756,
       "noPersistence": true,
+      "tabs": [
+        {
+          "label": "连接",
+          "current": null,
+          "top": 503,
+          "bottom": 560
+        },
+        {
+          "label": "订阅",
+          "current": "page",
+          "top": 503,
+          "bottom": 560
+        },
+        {
+          "label": "设置",
+          "current": null,
+          "top": 503,
+          "bottom": 560
+        }
+      ],
       "tooSmall": []
     },
     {
@@ -476,8 +1603,28 @@
       "width": 320,
       "height": 568,
       "scrollWidth": 320,
-      "scrollHeight": 840,
+      "scrollHeight": 912,
       "noPersistence": true,
+      "tabs": [
+        {
+          "label": "连接",
+          "current": null,
+          "top": 503,
+          "bottom": 560
+        },
+        {
+          "label": "订阅",
+          "current": "page",
+          "top": 503,
+          "bottom": 560
+        },
+        {
+          "label": "设置",
+          "current": null,
+          "top": 503,
+          "bottom": 560
+        }
+      ],
       "tooSmall": []
     },
     {
@@ -485,8 +1632,28 @@
       "width": 320,
       "height": 568,
       "scrollWidth": 320,
-      "scrollHeight": 788,
+      "scrollHeight": 860,
       "noPersistence": true,
+      "tabs": [
+        {
+          "label": "连接",
+          "current": null,
+          "top": 503,
+          "bottom": 560
+        },
+        {
+          "label": "订阅",
+          "current": "page",
+          "top": 503,
+          "bottom": 560
+        },
+        {
+          "label": "设置",
+          "current": null,
+          "top": 503,
+          "bottom": 560
+        }
+      ],
       "tooSmall": []
     },
     {
@@ -494,8 +1661,28 @@
       "width": 320,
       "height": 568,
       "scrollWidth": 320,
-      "scrollHeight": 1054,
+      "scrollHeight": 1126,
       "noPersistence": true,
+      "tabs": [
+        {
+          "label": "连接",
+          "current": null,
+          "top": 503,
+          "bottom": 560
+        },
+        {
+          "label": "订阅",
+          "current": "page",
+          "top": 503,
+          "bottom": 560
+        },
+        {
+          "label": "设置",
+          "current": null,
+          "top": 503,
+          "bottom": 560
+        }
+      ],
       "tooSmall": []
     },
     {
@@ -503,8 +1690,28 @@
       "width": 320,
       "height": 568,
       "scrollWidth": 320,
-      "scrollHeight": 970,
+      "scrollHeight": 951,
       "noPersistence": true,
+      "tabs": [
+        {
+          "label": "连接",
+          "current": "page",
+          "top": 503,
+          "bottom": 560
+        },
+        {
+          "label": "订阅",
+          "current": null,
+          "top": 503,
+          "bottom": 560
+        },
+        {
+          "label": "设置",
+          "current": null,
+          "top": 503,
+          "bottom": 560
+        }
+      ],
       "tooSmall": []
     },
     {
@@ -512,8 +1719,28 @@
       "width": 320,
       "height": 568,
       "scrollWidth": 320,
-      "scrollHeight": 860,
+      "scrollHeight": 932,
       "noPersistence": true,
+      "tabs": [
+        {
+          "label": "连接",
+          "current": null,
+          "top": 503,
+          "bottom": 560
+        },
+        {
+          "label": "订阅",
+          "current": null,
+          "top": 503,
+          "bottom": 560
+        },
+        {
+          "label": "设置",
+          "current": "page",
+          "top": 503,
+          "bottom": 560
+        }
+      ],
       "tooSmall": []
     },
     {
@@ -521,8 +1748,57 @@
       "width": 320,
       "height": 568,
       "scrollWidth": 320,
-      "scrollHeight": 1082,
+      "scrollHeight": 1052,
       "noPersistence": true,
+      "tabs": [
+        {
+          "label": "连接",
+          "current": null,
+          "top": 503,
+          "bottom": 560
+        },
+        {
+          "label": "订阅",
+          "current": null,
+          "top": 503,
+          "bottom": 560
+        },
+        {
+          "label": "设置",
+          "current": "page",
+          "top": 503,
+          "bottom": 560
+        }
+      ],
+      "tooSmall": []
+    },
+    {
+      "scenario": "profiles",
+      "width": 320,
+      "height": 568,
+      "scrollWidth": 320,
+      "scrollHeight": 568,
+      "noPersistence": true,
+      "tabs": [
+        {
+          "label": "连接",
+          "current": null,
+          "top": 503,
+          "bottom": 560
+        },
+        {
+          "label": "订阅",
+          "current": "page",
+          "top": 503,
+          "bottom": 560
+        },
+        {
+          "label": "设置",
+          "current": null,
+          "top": 503,
+          "bottom": 560
+        }
+      ],
       "tooSmall": []
     },
     {
@@ -530,8 +1806,28 @@
       "width": 320,
       "height": 568,
       "scrollWidth": 320,
-      "scrollHeight": 732,
+      "scrollHeight": 804,
       "noPersistence": true,
+      "tabs": [
+        {
+          "label": "连接",
+          "current": "page",
+          "top": 503,
+          "bottom": 560
+        },
+        {
+          "label": "订阅",
+          "current": null,
+          "top": 503,
+          "bottom": 560
+        },
+        {
+          "label": "设置",
+          "current": null,
+          "top": 503,
+          "bottom": 560
+        }
+      ],
       "tooSmall": []
     },
     {
@@ -539,8 +1835,28 @@
       "width": 320,
       "height": 568,
       "scrollWidth": 320,
-      "scrollHeight": 725,
+      "scrollHeight": 797,
       "noPersistence": true,
+      "tabs": [
+        {
+          "label": "连接",
+          "current": "page",
+          "top": 503,
+          "bottom": 560
+        },
+        {
+          "label": "订阅",
+          "current": null,
+          "top": 503,
+          "bottom": 560
+        },
+        {
+          "label": "设置",
+          "current": null,
+          "top": 503,
+          "bottom": 560
+        }
+      ],
       "tooSmall": []
     }
   ],
@@ -582,6 +1898,14 @@
       "passed": true
     },
     {
+      "name": "固定三页签：长设置页滚动后仍可切换 → 订阅 → 连接，VPN 不停止",
+      "passed": true
+    },
+    {
+      "name": "连接中切换设置：异步启动继续，返回连接页显示完成结果",
+      "passed": true
+    },
+    {
       "name": "减少动态效果：连接中 spinner 无动画，状态 / 取消仍可用",
       "passed": true
     }
@@ -603,6 +1927,8 @@
     "diagnostics-390x844.png",
     "settings-390x844.png",
     "settings-390-full.png",
+    "settings-scrolled-390x844.png",
+    "profiles-390x844.png",
     "panel-390x844.png",
     "panel-error-390x844.png",
     "empty-360x800.png",

@@ -6,8 +6,9 @@
 
 - `node --check app.js` 通过。
 - Ark UI 自带 `audit-ark-ui.mjs` 审查：0 errors、0 warnings；通过颜色 token、来源、焦点、响应式和 reduced-motion 等启发式检查。启发式检查不等于完整无障碍认证。
-- `verify.py`：10 组浏览器任务链通过；60 组视口/状态无横向溢出，所有可用按钮 / 输入框 / 选择器命中区 ≥44px；radio 由整行 label 提供触区；无运行时异常；未写 localStorage。
+- `verify.py`：12 组浏览器任务链通过；64 组视口/状态无横向溢出，所有可用按钮 / 输入框 / 选择器命中区 ≥44px；radio 由整行 label 提供触区；无运行时异常；未写 localStorage。
 - 浏览器实际走通 URL、文件、手动粘贴 YAML、Merge 草稿及差异、授权拒绝 / 允许、取消过滤迟到回调、连接 / 断开、更新失败重试、面板失败不停止 VPN、删除前断开、设置、分层诊断和合成文件导出。
+- 全部 64 组状态 / 尺寸均确认三个固定页签在视口内、唯一选中态正确，滚动到底后导航位置不变；长设置页切换与连接中跨页完成均验证。
 - modal 焦点限制 / Escape 返回、减少动态效果均验证；主要页面的长内容用实际滚动可达，未缩小必要文字。
 - 1440×1000 桌面评审入口实际渲染，状态切换、手机尺寸选择、moderate 对照和网络恢复控件通过，无横向溢出或运行时异常。
 - 本地 HTML / CSS / JS 入口与 Markdown 相对链接检查通过。交付只有原创实现、说明、合成数据与浏览器截图。
@@ -32,3 +33,9 @@
 `build-hap.sh` 未签名 HAP 构建成功；ZIP CRC 无错误，包含 libmihomo.so、libentry.so、libc++_shared.so、override.yaml 与 geodata/geoip.metadb。产物 SHA-256：`453ab3b2dbac6f397d1b387c8272d433fd872464c7b34ec12b3e3deb45877739`。HAP 不入仓，不作为原型交付。
 
 构建有 main 已有的 SemVer、clang 参数、ArkTS / 弃用 API 与 SDK 兼容警告，本次未修改生产代码处理它们。此构建验证的是 main 生产宿主；原型未打入 HAP，未签名、未安装、未做真机 VPN / 流量测试。
+
+## 三页签整改
+
+此前 `4cfbd25104c16b16a936d5ae20b02a800ac6fe7e` 的 [390×844 截图](https://github.com/Starfie1d1272/clash-OpenHarmony/blob/4cfbd25104c16b16a936d5ae20b02a800ac6fe7e/design/native-ui-fresh/screenshots/connected-390x844.png) 未实现底部导航，并非截图裁切。当前版本独立固定“连接 / 订阅 / 设置”，一级页不显示返回按钮，二级页保留返回和固定页签。
+
+同一 390×844 视口重渲染测量：已连接状态卡从 241.28px 收紧至 160.48px，释放约 81px。已连接状态卡移除重复会话摘要，保留状态标题与 Wi-Fi / 内核就绪单行信息。主操作与页签独立，正文预留两者的高度与安全区。26 张截图已重新从页面渲染，包含订阅、设置两个选中态，未将页签拼接到图片。
