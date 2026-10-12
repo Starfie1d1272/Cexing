@@ -1,53 +1,24 @@
-# 运行时与安全线的恢复取消合流
+# 运行时恢复取消接口
 
-> 当前接点由 [Draft #12 修订](runtime-ci-entry.md) 拆出最小 ArkTS 恢复保护并直接应用；它不依赖 #9 的 Go 运行实现。下文保留此前完整两线组合的历史验证，待应用补丁用于旧 head，修订 Draft 不得重复应用。两个恢复测试保留 `test-*.cjs` 自动门槛。
+本接点从安全线 PR #9 `1b23e76297d51212b250da85b7375dd7fdab1c1b` 拆出独立 ArkTS 恢复保护，与运行时 PR #4 `c1db85075992a6df0b00cd57c928e879bd6bfe50` 结合；修复由 Draft #12 独立审查。它不依赖 #9 的 Go Controller/并发重载实现，也不包含 `CoreApi.bindContext`。原两行待应用补丁已在源码落实并移除，不能重复应用。旧改名方案已撤回，原因及复现见 [修订证据](runtime-ci-entry.md)。
 
-对接来源：[运行时 PR #4](https://github.com/Starfie1d1272/clash-OpenHarmony/pull/4) 的 `f6228e60bbccf4c9c44d142e92c2fe1490bfe3b7` 与[安全 PR #9](https://github.com/Starfie1d1272/clash-OpenHarmony/pull/9) 的 `9ecb964f319edff6fccfd36d78850c6b8e4fa609`。共同基线为 `7f731d5c9c8d4eba7a1680bcb3981d7877232bcc`。双方独占源码没有相互修改；下列补丁由父任务在组合审查/集成分支应用。
+## 契约
 
-## 契约与最小接点
+`VpnController.cancelRecovery(): void` 同步递增独立 `recoveryAttempt`，在途 recover 探活既不能提交 Connected，也不能回调旧 onDone；它不调用 VPN stop、不改变现有状态、不撤销 startAttempt 或启动 IPC。每次新的断开态 recover 生成新意图；有效 start 和所有显式 stop（包括仍为 Disconnected 的 stop）取消旧恢复。
 
-PR #9 的 `VpnController.cancelRecovery(): void` 同步增加独立 recoveryAttempt，使在途 recover 探活既不提交 Connected，也不调用旧 onDone；它不调用 VPN stop、不改变现有状态、不撤销 startAttempt 或启动 IPC。有效 start、显式 stop、更新 recover 在安全线内已使旧探活失效。
+`AppRuntime.cancelRestore()` 先递增 restoreGeneration，再调用 cancelRecovery，随后清理 restoreTimer。initialize、显式取消、状态变化和当前 Ability 销毁共用该接点；abilityDestroyed 的 Context 判断仍保护新 Ability 的恢复，旧 Ability 的迟到销毁不能撤销新 Context 意图。已连接 Ability 销毁只撤销恢复意图，不停止 VPN/后台服务。
 
-[待应用补丁](runtime-cancel-recovery.patch) 仅两处各加一行：
+## 自动验证
 
-1. `AppRuntime.cancelRestore()` 在递增 restoreGeneration 后调用 `VpnController.cancelRecovery()`，然后照常清理 restoreTimer。
-2. `scripts/test-app-runtime.cjs` 的 Controller mock 补上同步 `cancelRecovery`，保持现有独立运行时测试可执行。
-
-不额外修改 EntryAbility：`abilityDestroyed(ctx)` 的当前 Context 判断已确保旧 Ability 的迟到销毁不调用 cancelRestore；当前 Ability 销毁会经上述调用同时失效 runtime timeout 和 Controller 探活。initialize 的已有 cancelRestore 会先撤销旧探活，再发起新 recover；状态变化和显式取消也走同一接点。服务正常连接时，sync 取消恢复只撤销恢复意图，不停止 VPN/后台服务。
-
-PR #4 独立分支的 AppRuntime 仍未调用该方法，基线没有该 API；补丁是未应用的普通文件，不被 ArkTS 编译。没有动态方法检测、类型逃逸、重复实现 Controller 代次或假装在独立基线上已经合流。父任务若只合入其中一个 PR，不应应用本补丁。
-
-## 父任务应用与验证
-
-在同时包含上述两线源码的集成分支执行：
+Quick/Full 保留 `scripts/test-*.cjs` 门槛，自动执行实际 AppRuntime/VpnController 源码的测试：
 
 ```bash
-git apply --check docs/integration/runtime-cancel-recovery.patch
-git apply docs/integration/runtime-cancel-recovery.patch
-source scripts/env.sh
 node scripts/test-runtime-recovery-integration.cjs
 node scripts/test-vpn-recovery.cjs
-node scripts/test-app-runtime.cjs
-node scripts/test-background-lifecycle.cjs
-node scripts/test-profile-name.cjs
-node scripts/test-vpn-startup.cjs
-git diff --check
 ```
 
-`test-runtime-recovery-integration.cjs` 只在合流后运行，加载实际 AppRuntime 与 VpnController 的 SDK 转译源码，使用同一个 Controller 实例及 deferred CoreApi 探活。它不是产品动态能力判断；独立基线运行会暴露缺少合流接点。可传第一个参数为导出的组合源码根目录，以免修改独立 checkout。
+组合测试覆盖 cancelRestore、当前 Ability 销毁、旧 Ability 销毁和新鲜/过期探活：旧 alive=true 不提交状态、不启动后台服务或订阅、不安排恢复；新 Context 的有效探活保留；已连接销毁不停止服务；新鲜 alive=false 只保留一个计时器，旧结果不能取消它。
 
-验证覆盖：仅 cancelRestore、当前 Ability 销毁后的旧 alive=true 不提交状态/启动后台/安排 restore；旧 Ability 销毁不失效新 Context 的探活；新鲜 alive=true 仍正常启动服务；已连接的 Ability 销毁不停止 VPN/后台；新鲜 alive=false 仍安排一个恢复计时器，旧 alive=true 不取消它。
+Controller 测试覆盖 start 后取消、新意图取代、Disconnected stop、显式 cancelRecovery 和有效恢复。可用组合测试第一个参数或 `VPN_CONTROLLER_SOURCE` 指向导出的旧源码作失败复现；标准入口使用当前真实源码，不跳过或动态检测能力。
 
-## 2026-10-12 实际结果与限制
-
-在临时目录导出 PR #4 `f6228e6`，将基线→PR #9 `9ecb964` 的完整 tracked diff 应用到导出树，`git apply --check` 无冲突。未合并、未改 main 或独立分支运行源码。
-
-- 未应用接点时：组合测试在第一项失败，`explicit: late alive must not commit Connected`，状态为 Connected 而非 Disconnected。这证明安全线内部 start/stop 保护不能替代纯运行时取消接点。
-- 应用两行补丁后：组合测试、PR #9 的 test-vpn-recovery、四组既有回归全部通过。
-- PR #4 独立源码：四组既有回归再次通过，AppRuntime/EntryAbility/Controller 运行源码与此前已构建提交一致。
-
-环境为 Linux 云端、Node 26.11.1、官方 API26 SDK 转译器，平台 IO/后台服务为 mock。本轮没有组合内核重编译、合流 HAP 构建或真机测试；父任务仍需对最终集成 tree 做 clean 构建及设备验收。此前两条独立 PR 的构建证据不能替代最终合流产物证据。
-
-这将封闭运行时报告的 recover 提交竞态，前提是两线源码与接点全部合入；Controller 探活不证明系统 TUN 健康、ProfileStore 在途写入事务边界和 native loader 的 dlclose 风险均仍独立存在。
-
-补充验证：后续审查的 AutoUpdater 排队旧 tick 问题已在运行时线单独修复，详见[复现与修复证据](../evidence/2026-10-12-runtime-reliability.md#后续审查修复停止后已排队的订阅-tick)。两行恢复取消补丁保持原样；完整组合树在纳入调度代次修复后，13 项后台生命周期场景、组合恢复、安全线恢复及其余既有回归均通过。最终集成应包含运行时线最新修复，不仅使用 dc6754c 旧 head。
+测试的系统 IO、后台服务及 CoreApi 探活使用 mock/deferred。通过只证明所覆盖的状态和迟到结果保护；Controller 可达不证明系统 TUN 健康，ProfileStore 在途 IO、Go 并发重载和真机恢复仍有独立边界。
