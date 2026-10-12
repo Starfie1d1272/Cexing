@@ -76,4 +76,10 @@ vernesong Alpha `daf3ad03021cca6031f4a7303ca6d861a14d5a16`，使用原 wrapper �
 
 实际运行 `bash scripts/sign-agc.sh` 在缺少 `clashoh-debug.cer` 时退出；`clashoh-debug.p7b` 也未提供。未签名包尚未安装，应用启动、VPN 转发、控制面通信和后台行为均 **[待验证]**。`bm dump -n com.clash.dev` 返回无法获取信息，尚不能证明设备已安装此包；安装前再确认是否会覆盖既有应用。
 
-下一步由用户按 [INSTALL.md 第 4 步](../../INSTALL.md#4-签名材料零售真机必须-网页--辅助) 在 AGC 完成应用、调试证书及当前设备 profile，放回 cer/p7b。包名暂为 `com.clash.dev`；如账号内冲突，确认新包名后按手册同步。不复用其他应用的 profile，也不公开设备 UDID。签名后由 Agent 校验、安装和抓日志；订阅导入与首次 VPN 授权由用户完成。
+下一步由用户按 [INSTALL.md 第 4 步](../../INSTALL.md#4-签名材料零售真机必须-网页--辅助) 在 AGC 完成应用、调试证书及当前设备 profile，放回 cer/p7b。本轮后续已确认使用包名 `com.starfie1d.mihomo`；AGC APP ID 与新 profile 须匹配该包名。不复用其他应用的 profile，也不公开设备 UDID。签名后由 Agent 校验、安装和抓日志；订阅导入与首次 VPN 授权由用户完成。
+
+## 包名初始化后续（2026-10-12）
+
+用户确认固定包名为 `com.starfie1d.mihomo`，工程、安装脚本、demo profile 和安装文档同步。显示名称暂保持 ClashOH；作者与许可证保留。历史原始包摘要和 `com.clash.dev` 查询保留为第一轮证据，新测试包需记录新的身份与摘要。重打包复用上轮已校验的 v1.19.32 原生库，core/go.mod 仍保留调研基线，本次未重新交叉编译内核。
+
+新包已 clean 构建并检查 module.json 为 `com.starfie1d.mihomo`，包内内核摘要与 v1.19.32 验证库一致，ZIP CRC 通过。新 HAP 75,720,181 B，SHA-256 `99abba26eb84b81b14f27873fddf25c352e84c53f26cdecd252aa43a26a8cbcf`；替换本地 dist 中的最新版测试包。尚未签名/安装。

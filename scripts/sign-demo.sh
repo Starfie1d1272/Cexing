@@ -47,7 +47,7 @@ profile = {
     'bundle-info': {
         'developer-id': 'OpenHarmony',
         'distribution-certificate': leaf,
-        'bundle-name': 'com.clash.dev',
+        'bundle-name': 'com.starfie1d.mihomo',
         'apl': 'normal',
         'app-feature': 'hos_normal_app',
     },

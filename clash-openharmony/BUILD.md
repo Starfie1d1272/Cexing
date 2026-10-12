@@ -55,7 +55,7 @@ harmony-mihomo/
 │   ├── sign-demo.sh               # SDK OpenHarmony demo 证书签名（仅模拟器/授权机，见 4.7）
 │   ├── install.sh                 # hdc 安装 + aa start 启动
 │   └── logs.sh                    # hilog 过滤 ClashOH 相关日志
-└── clash-openharmony/             # Stage 模型应用（bundleName com.clash.dev）
+└── clash-openharmony/             # Stage 模型应用（bundleName com.starfie1d.mihomo）
     ├── AppScope/app.json5         # 应用级配置
     ├── entry/src/main/module.json5      # 模块配置（EntryAbility + ClashVpnAbility(vpn 扩展)）
     ├── entry/src/main/cpp/        # NAPI 桥（libentry.so）
@@ -157,7 +157,7 @@ OpenHarmony 授权设备。签名产物：`dist/clashoh-signed.hap`。
 ```bash
 $HDC list targets                 # 确认设备在册
 $HDC install -r dist/clashoh-signed.hap
-$HDC shell aa start -b com.clash.dev -a EntryAbility
+$HDC shell aa start -b com.starfie1d.mihomo -a EntryAbility
 ```
 
 ## 4. 关键技术点（改动过的部分，升级时别覆盖）

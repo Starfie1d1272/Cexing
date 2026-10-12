@@ -5,4 +5,4 @@ source "$(dirname "$0")/env.sh"
 HAP="${1:-$PROJECT_ROOT/dist/clashoh-signed.hap}"
 $HDC list targets
 $HDC install -r "$HAP"
-$HDC shell aa start -b com.clash.dev -a EntryAbility
+$HDC shell aa start -b com.starfie1d.mihomo -a EntryAbility

@@ -90,10 +90,10 @@ cd ../..
 ### 4.2 AGC 创建应用 🧑
 
 1. AGC →「我的项目」→ 新建项目 → 新建应用，类型选 **HarmonyOS 应用**。
-2. 包名填 `com.clash.dev`。
+2. 包名填 `com.starfie1d.mihomo`。
    - 若提示包名已被占用：改用你自己的包名（如 `com.<你的名字>.clashoh`），并同步修改：
      - `clash-openharmony/AppScope/app.json5` 的 `bundleName`
-     - `scripts/install.sh` 里 `aa start -b com.clash.dev` 的包名
+     - `scripts/install.sh` 里 `aa start -b com.starfie1d.mihomo` 的包名
      - `scripts/sign-demo.sh` 里 profile JSON 的 `bundle-name`（可选路线才用）
 
 ### 4.3 AGC 创建调试证书 🧑
