@@ -91,3 +91,11 @@ vernesong Alpha `daf3ad03021cca6031f4a7303ca6d861a14d5a16`，使用原 wrapper �
 使用最新正式 v1.19.32 的新包名测试包签名，产物 `dist/mihomo-v1.19.32-signed.hap`，76,390,164 B，SHA-256 `0c02e1a8dd887e7523312853a47061d43f2f13c4505194fafb697566c30294e2`。`scripts/install.sh` 返回 install bundle successfully、start ability successfully；bm 读回应用包名 `com.starfie1d.mihomo`、versionName `0.1.0`、appProvisionType `debug`。进程存在，hilog 有 EntryAbility.onCreate 和 loadContent succeeded。
 
 首次启动 recover 为 Disconnected，Controller 连接被拒绝，符合尚未启动 VPN 的状态；有 shared_state/cardSync 文件缺失警告，后续检查，暂未扩展修复范围。当前仅确认签名安装与 UI 启动，尚未证明 Go 内核运行与 VPN 转发。下一步由用户导入订阅、激活配置并完成首次 VPN 授权，再核实内核版本、TUN、出口、DNS 与后台行为。
+
+## 订阅真机回归（2026-10-12）
+
+通过 HDC uitest 读取原 Clash 当前激活配置并导入新应用，原客户端配置未修改。确认 application/octet-stream 响应的正常配置被旧实现当成空内容；两个下载入口改为 expectDataType=STRING 后，真机首次导入和更新均成功。自动命名改为 Content-Disposition，重新导入的名称与服务端文件名一致，配置已激活并在首页显示。11 项 ArkTS 命名 helper 测试及 HAP 构建通过。
+
+最新版内核仍为 v1.19.32，包内库摘要保持一致。当前 unsigned HAP SHA-256 `6fa8a5cb7410189546d803f2f59edfe287f71e3ef91d62a41e4c4c909ac3e8bc`；signed HAP SHA-256 `d2c7858e3933827c25a490aad6cd225a017e623cddd670e99818a093bf2c03b7`，已安装。已发起 VPN 连接，系统首次授权框出现；等待用户确认 Allow，内核运行与流量转发仍待验收。
+
+空白弹框、配置操作菜单样式异常已按用户报告登记于 issues.md，待独立复现与修复。私人订阅链接和 UI 中间产物在导入验证后清理。

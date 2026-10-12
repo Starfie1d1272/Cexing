@@ -41,6 +41,7 @@
 - [Zashboard 嵌入方案](zashboard.md)
 - [HarmonyOS 生命周期审查](harmonyos-vpn.md)
 - [本机、构建及签名记录](compatibility.md)
+- [真机问题记录](issues.md)
 - [参考源码与版本登记](sources.md)
 - [P0–P5 与下一批任务](../roadmap.md)
 - [架构决策 0001](../decisions/0001-architecture.md)
