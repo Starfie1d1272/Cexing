@@ -1,0 +1,447 @@
+Selected unmodified DATA RACE blocks from the original sanitized host log.
+Full sanitized log SHA-256: 67fc5b08da3de29f02e4f2d6c2587dfa3fa58622fdb2dc7341d01c25c50ac351
+Original report count: 61 (repeated reports, not distinct defects).
+
+==================
+WARNING: DATA RACE
+Read at 0x000005098f20 by goroutine 19:
+  github.com/metacubex/mihomo/adapter/inbound.isAllowed()
+      MODULE_CACHE/github.com/metacubex/mihomo@v1.19.32/adapter/inbound/ipfilter.go:42 +0x178
+  github.com/metacubex/mihomo/adapter/inbound.IsRemoteAddrDisAllowed()
+      MODULE_CACHE/github.com/metacubex/mihomo@v1.19.32/adapter/inbound/ipfilter.go:36 +0x1a7
+  github.com/metacubex/mihomo/listener/http.NewWithConfig.func2()
+      MODULE_CACHE/github.com/metacubex/mihomo@v1.19.32/listener/http/server.go:139 +0x144
+
+Previous write at 0x000005098f20 by goroutine 11:
+  github.com/metacubex/mihomo/adapter/inbound.SetAllowedIPs()
+      MODULE_CACHE/github.com/metacubex/mihomo@v1.19.32/adapter/inbound/ipfilter.go:14 +0x1be
+  github.com/metacubex/mihomo/hub/executor.updateListeners()
+      MODULE_CACHE/github.com/metacubex/mihomo@v1.19.32/hub/executor/executor.go:195 +0x16b
+  github.com/metacubex/mihomo/hub/executor.ApplyConfig()
+      MODULE_CACHE/github.com/metacubex/mihomo@v1.19.32/hub/executor/executor.go:107 +0x5f3
+  core.TestResearchReloadTraffic()
+      PR9_CHECKOUT/core/reload_lifecycle_research_test.go:47 +0x4d9
+  testing.tRunner()
+      GO_ROOT/src/testing/testing.go:2195 +0x21c
+  testing.(*T).Run.gowrap1()
+      GO_ROOT/src/testing/testing.go:2260 +0x38
+
+Goroutine 19 (running) created at:
+  github.com/metacubex/mihomo/listener/http.NewWithConfig()
+      MODULE_CACHE/github.com/metacubex/mihomo@v1.19.32/listener/http/server.go:127 +0xe64
+  github.com/metacubex/mihomo/listener/inbound.(*HTTP).Listen()
+      MODULE_CACHE/github.com/metacubex/mihomo@v1.19.32/listener/inbound/http.go:64 +0xb09
+  github.com/metacubex/mihomo/listener.PatchInboundListeners()
+      MODULE_CACHE/github.com/metacubex/mihomo@v1.19.32/listener/listener.go:639 +0x29d
+  github.com/metacubex/mihomo/hub/executor.updateListeners()
+      MODULE_CACHE/github.com/metacubex/mihomo@v1.19.32/hub/executor/executor.go:187 +0x64
+  github.com/metacubex/mihomo/hub/executor.ApplyConfig()
+      MODULE_CACHE/github.com/metacubex/mihomo@v1.19.32/hub/executor/executor.go:107 +0x5f3
+  core.TestResearchReloadTraffic()
+      PR9_CHECKOUT/core/reload_lifecycle_research_test.go:47 +0x4d9
+  testing.tRunner()
+      GO_ROOT/src/testing/testing.go:2195 +0x21c
+  testing.(*T).Run.gowrap1()
+      GO_ROOT/src/testing/testing.go:2260 +0x38
+
+Goroutine 11 (running) created at:
+  testing.(*T).Run()
+      GO_ROOT/src/testing/testing.go:2260 +0xb12
+  testing.runTests.func1()
+      GO_ROOT/src/testing/testing.go:2744 +0x84
+  testing.tRunner()
+      GO_ROOT/src/testing/testing.go:2195 +0x21c
+  testing.runTests()
+      GO_ROOT/src/testing/testing.go:2742 +0x9e9
+  testing.(*M).Run()
+      GO_ROOT/src/testing/testing.go:2602 +0xf44
+  main.main()
+      _testmain.go:54 +0x164
+==================
+==================
+WARNING: DATA RACE
+Read at 0x000005098f40 by goroutine 19:
+  github.com/metacubex/mihomo/adapter/inbound.isDisAllowed()
+      MODULE_CACHE/github.com/metacubex/mihomo@v1.19.32/adapter/inbound/ipfilter.go:46 +0x1b8
+  github.com/metacubex/mihomo/adapter/inbound.IsRemoteAddrDisAllowed()
+      MODULE_CACHE/github.com/metacubex/mihomo@v1.19.32/adapter/inbound/ipfilter.go:36 +0x1a7
+  github.com/metacubex/mihomo/listener/http.NewWithConfig.func2()
+      MODULE_CACHE/github.com/metacubex/mihomo@v1.19.32/listener/http/server.go:139 +0x144
+
+Previous write at 0x000005098f40 by goroutine 11:
+  github.com/metacubex/mihomo/adapter/inbound.SetDisAllowedIPs()
+      MODULE_CACHE/github.com/metacubex/mihomo@v1.19.32/adapter/inbound/ipfilter.go:18 +0x265
+  github.com/metacubex/mihomo/hub/executor.updateListeners()
+      MODULE_CACHE/github.com/metacubex/mihomo@v1.19.32/hub/executor/executor.go:196 +0x212
+  github.com/metacubex/mihomo/hub/executor.ApplyConfig()
+      MODULE_CACHE/github.com/metacubex/mihomo@v1.19.32/hub/executor/executor.go:107 +0x5f3
+  core.TestResearchReloadTraffic()
+      PR9_CHECKOUT/core/reload_lifecycle_research_test.go:47 +0x4d9
+  testing.tRunner()
+      GO_ROOT/src/testing/testing.go:2195 +0x21c
+  testing.(*T).Run.gowrap1()
+      GO_ROOT/src/testing/testing.go:2260 +0x38
+
+Goroutine 19 (running) created at:
+  github.com/metacubex/mihomo/listener/http.NewWithConfig()
+      MODULE_CACHE/github.com/metacubex/mihomo@v1.19.32/listener/http/server.go:127 +0xe64
+  github.com/metacubex/mihomo/listener/inbound.(*HTTP).Listen()
+      MODULE_CACHE/github.com/metacubex/mihomo@v1.19.32/listener/inbound/http.go:64 +0xb09
+  github.com/metacubex/mihomo/listener.PatchInboundListeners()
+      MODULE_CACHE/github.com/metacubex/mihomo@v1.19.32/listener/listener.go:639 +0x29d
+  github.com/metacubex/mihomo/hub/executor.updateListeners()
+      MODULE_CACHE/github.com/metacubex/mihomo@v1.19.32/hub/executor/executor.go:187 +0x64
+  github.com/metacubex/mihomo/hub/executor.ApplyConfig()
+      MODULE_CACHE/github.com/metacubex/mihomo@v1.19.32/hub/executor/executor.go:107 +0x5f3
+  core.TestResearchReloadTraffic()
+      PR9_CHECKOUT/core/reload_lifecycle_research_test.go:47 +0x4d9
+  testing.tRunner()
+      GO_ROOT/src/testing/testing.go:2195 +0x21c
+  testing.(*T).Run.gowrap1()
+      GO_ROOT/src/testing/testing.go:2260 +0x38
+
+Goroutine 11 (running) created at:
+  testing.(*T).Run()
+      GO_ROOT/src/testing/testing.go:2260 +0xb12
+  testing.runTests.func1()
+      GO_ROOT/src/testing/testing.go:2744 +0x84
+  testing.tRunner()
+      GO_ROOT/src/testing/testing.go:2195 +0x21c
+  testing.runTests()
+      GO_ROOT/src/testing/testing.go:2742 +0x9e9
+  testing.(*M).Run()
+      GO_ROOT/src/testing/testing.go:2602 +0xf44
+  main.main()
+      _testmain.go:54 +0x164
+==================
+==================
+WARNING: DATA RACE
+Read at 0x000005098f00 by goroutine 19:
+  github.com/metacubex/mihomo/adapter/inbound.skipAuth()
+      MODULE_CACHE/github.com/metacubex/mihomo@v1.19.32/adapter/inbound/auth.go:37 +0x159
+  github.com/metacubex/mihomo/adapter/inbound.SkipAuthRemoteAddr()
+      MODULE_CACHE/github.com/metacubex/mihomo@v1.19.32/adapter/inbound/auth.go:25 +0x189
+  github.com/metacubex/mihomo/listener/http.NewWithConfig.func2()
+      MODULE_CACHE/github.com/metacubex/mihomo@v1.19.32/listener/http/server.go:143 +0x164
+
+Previous write at 0x000005098f00 by goroutine 11:
+  github.com/metacubex/mihomo/adapter/inbound.SetSkipAuthPrefixes()
+      MODULE_CACHE/github.com/metacubex/mihomo@v1.19.32/adapter/inbound/auth.go:13 +0x117
+  github.com/metacubex/mihomo/hub/executor.updateListeners()
+      MODULE_CACHE/github.com/metacubex/mihomo@v1.19.32/hub/executor/executor.go:194 +0xa0
+  github.com/metacubex/mihomo/hub/executor.ApplyConfig()
+      MODULE_CACHE/github.com/metacubex/mihomo@v1.19.32/hub/executor/executor.go:107 +0x5f3
+  core.TestResearchReloadTraffic()
+      PR9_CHECKOUT/core/reload_lifecycle_research_test.go:47 +0x4d9
+  testing.tRunner()
+      GO_ROOT/src/testing/testing.go:2195 +0x21c
+  testing.(*T).Run.gowrap1()
+      GO_ROOT/src/testing/testing.go:2260 +0x38
+
+Goroutine 19 (running) created at:
+  github.com/metacubex/mihomo/listener/http.NewWithConfig()
+      MODULE_CACHE/github.com/metacubex/mihomo@v1.19.32/listener/http/server.go:127 +0xe64
+  github.com/metacubex/mihomo/listener/inbound.(*HTTP).Listen()
+      MODULE_CACHE/github.com/metacubex/mihomo@v1.19.32/listener/inbound/http.go:64 +0xb09
+  github.com/metacubex/mihomo/listener.PatchInboundListeners()
+      MODULE_CACHE/github.com/metacubex/mihomo@v1.19.32/listener/listener.go:639 +0x29d
+  github.com/metacubex/mihomo/hub/executor.updateListeners()
+      MODULE_CACHE/github.com/metacubex/mihomo@v1.19.32/hub/executor/executor.go:187 +0x64
+  github.com/metacubex/mihomo/hub/executor.ApplyConfig()
+      MODULE_CACHE/github.com/metacubex/mihomo@v1.19.32/hub/executor/executor.go:107 +0x5f3
+  core.TestResearchReloadTraffic()
+      PR9_CHECKOUT/core/reload_lifecycle_research_test.go:47 +0x4d9
+  testing.tRunner()
+      GO_ROOT/src/testing/testing.go:2195 +0x21c
+  testing.(*T).Run.gowrap1()
+      GO_ROOT/src/testing/testing.go:2260 +0x38
+
+Goroutine 11 (running) created at:
+  testing.(*T).Run()
+      GO_ROOT/src/testing/testing.go:2260 +0xb12
+  testing.runTests.func1()
+      GO_ROOT/src/testing/testing.go:2744 +0x84
+  testing.tRunner()
+      GO_ROOT/src/testing/testing.go:2195 +0x21c
+  testing.runTests()
+      GO_ROOT/src/testing/testing.go:2742 +0x9e9
+  testing.(*M).Run()
+      GO_ROOT/src/testing/testing.go:2602 +0xf44
+  main.main()
+      _testmain.go:54 +0x164
+==================
+==================
+WARNING: DATA RACE
+Read at 0x00000495272a by goroutine 28:
+  github.com/metacubex/mihomo/component/resolver.LookupIPv6WithResolver()
+      MODULE_CACHE/github.com/metacubex/mihomo@v1.19.32/component/resolver/resolver.go:107 +0x64
+  github.com/metacubex/mihomo/component/resolver.LookupIPv6()
+      MODULE_CACHE/github.com/metacubex/mihomo@v1.19.32/component/resolver/resolver.go:136 +0x144
+  core.TestResearchReloadTraffic.func4()
+      PR9_CHECKOUT/core/reload_lifecycle_research_test.go:95 +0x10e
+
+Previous write at 0x00000495272a by goroutine 44:
+  github.com/metacubex/mihomo/hub/executor.updateGeneral()
+      MODULE_CACHE/github.com/metacubex/mihomo@v1.19.32/hub/executor/executor.go:396 +0x110
+  github.com/metacubex/mihomo/config.temporaryUpdateGeneral()
+      MODULE_CACHE/github.com/metacubex/mihomo@v1.19.32/hub/executor/executor.go:387 +0x3a
+  github.com/metacubex/mihomo/config.ParseRawConfig()
+      MODULE_CACHE/github.com/metacubex/mihomo@v1.19.32/config/config.go:638 +0x164
+  core.preparePlatformConfig()
+      PR9_CHECKOUT/core/controller_security.go:201 +0x53b
+  core.reloadPlatformConfig()
+      PR9_CHECKOUT/core/controller_security.go:313 +0x567
+  github.com/metacubex/http.HandlerFunc.ServeHTTP()
+      MODULE_CACHE/github.com/metacubex/http@v0.1.8/server.go:2287 +0x47
+  github.com/metacubex/mihomo/hub/route.authentication.1.1()
+      MODULE_CACHE/github.com/metacubex/mihomo@v1.19.32/hub/route/server.go:361 +0x291
+  github.com/metacubex/http.HandlerFunc.ServeHTTP()
+      MODULE_CACHE/github.com/metacubex/http@v0.1.8/server.go:2287 +0x47
+  github.com/metacubex/chi.(*ChainHandler).ServeHTTP()
+      MODULE_CACHE/github.com/metacubex/chi@v0.1.1/chain.go:31 +0x61
+  github.com/metacubex/chi.(*Mux).routeHTTP()
+      MODULE_CACHE/github.com/metacubex/chi@v0.1.1/mux.go:475 +0x43d
+  github.com/metacubex/chi.(*Mux).routeHTTP-fm()
+      <autogenerated>:1 +0x48
+  github.com/metacubex/http.HandlerFunc.ServeHTTP()
+      MODULE_CACHE/github.com/metacubex/http@v0.1.8/server.go:2287 +0x47
+  github.com/metacubex/chi/cors.(*Cors).Handler.func1()
+      MODULE_CACHE/github.com/metacubex/chi@v0.1.1/cors/cors.go:236 +0x35c
+  github.com/metacubex/http.HandlerFunc.ServeHTTP()
+      MODULE_CACHE/github.com/metacubex/http@v0.1.8/server.go:2287 +0x47
+  github.com/metacubex/chi.(*Mux).ServeHTTP()
+      MODULE_CACHE/github.com/metacubex/chi@v0.1.1/mux.go:90 +0x6b1
+  core.serveController.func2()
+      PR9_CHECKOUT/core/controller_listener.go:135 +0x96
+  github.com/metacubex/http.HandlerFunc.ServeHTTP()
+      MODULE_CACHE/github.com/metacubex/http@v0.1.8/server.go:2287 +0x47
+  github.com/metacubex/http.serverHandler.ServeHTTP()
+      MODULE_CACHE/github.com/metacubex/http@v0.1.8/server.go:3293 +0x2a1
+  github.com/metacubex/http.(*conn).serve()
+      MODULE_CACHE/github.com/metacubex/http@v0.1.8/server.go:2074 +0xf04
+  github.com/metacubex/http.(*Server).Serve.gowrap3()
+      MODULE_CACHE/github.com/metacubex/http@v0.1.8/server.go:3446 +0x46
+
+Goroutine 28 (running) created at:
+  core.TestResearchReloadTraffic()
+      PR9_CHECKOUT/core/reload_lifecycle_research_test.go:85 +0xd2a
+  testing.tRunner()
+      GO_ROOT/src/testing/testing.go:2195 +0x21c
+  testing.(*T).Run.gowrap1()
+      GO_ROOT/src/testing/testing.go:2260 +0x38
+
+Goroutine 44 (running) created at:
+  github.com/metacubex/http.(*Server).Serve()
+      MODULE_CACHE/github.com/metacubex/http@v0.1.8/server.go:3446 +0x889
+  core.serveController.func3()
+      PR9_CHECKOUT/core/controller_listener.go:145 +0xc4
+==================
+==================
+WARNING: DATA RACE
+Write at 0x000005097010 by goroutine 44:
+  github.com/metacubex/mihomo/hub/executor.updateDNS()
+      MODULE_CACHE/github.com/metacubex/mihomo@v1.19.32/hub/executor/executor.go:284 +0x7b1
+  github.com/metacubex/mihomo/hub/executor.ApplyConfig()
+      MODULE_CACHE/github.com/metacubex/mihomo@v1.19.32/hub/executor/executor.go:105 +0x584
+  core.reloadPlatformConfig()
+      PR9_CHECKOUT/core/controller_security.go:319 +0x57a
+  github.com/metacubex/http.HandlerFunc.ServeHTTP()
+      MODULE_CACHE/github.com/metacubex/http@v0.1.8/server.go:2287 +0x47
+  github.com/metacubex/mihomo/hub/route.authentication.1.1()
+      MODULE_CACHE/github.com/metacubex/mihomo@v1.19.32/hub/route/server.go:361 +0x291
+  github.com/metacubex/http.HandlerFunc.ServeHTTP()
+      MODULE_CACHE/github.com/metacubex/http@v0.1.8/server.go:2287 +0x47
+  github.com/metacubex/chi.(*ChainHandler).ServeHTTP()
+      MODULE_CACHE/github.com/metacubex/chi@v0.1.1/chain.go:31 +0x61
+  github.com/metacubex/chi.(*Mux).routeHTTP()
+      MODULE_CACHE/github.com/metacubex/chi@v0.1.1/mux.go:475 +0x43d
+  github.com/metacubex/chi.(*Mux).routeHTTP-fm()
+      <autogenerated>:1 +0x48
+  github.com/metacubex/http.HandlerFunc.ServeHTTP()
+      MODULE_CACHE/github.com/metacubex/http@v0.1.8/server.go:2287 +0x47
+  github.com/metacubex/chi/cors.(*Cors).Handler.func1()
+      MODULE_CACHE/github.com/metacubex/chi@v0.1.1/cors/cors.go:236 +0x35c
+  github.com/metacubex/http.HandlerFunc.ServeHTTP()
+      MODULE_CACHE/github.com/metacubex/http@v0.1.8/server.go:2287 +0x47
+  github.com/metacubex/chi.(*Mux).ServeHTTP()
+      MODULE_CACHE/github.com/metacubex/chi@v0.1.1/mux.go:90 +0x6b1
+  core.serveController.func2()
+      PR9_CHECKOUT/core/controller_listener.go:135 +0x96
+  github.com/metacubex/http.HandlerFunc.ServeHTTP()
+      MODULE_CACHE/github.com/metacubex/http@v0.1.8/server.go:2287 +0x47
+  github.com/metacubex/http.serverHandler.ServeHTTP()
+      MODULE_CACHE/github.com/metacubex/http@v0.1.8/server.go:3293 +0x2a1
+  github.com/metacubex/http.(*conn).serve()
+      MODULE_CACHE/github.com/metacubex/http@v0.1.8/server.go:2074 +0xf04
+  github.com/metacubex/http.(*Server).Serve.gowrap3()
+      MODULE_CACHE/github.com/metacubex/http@v0.1.8/server.go:3446 +0x46
+
+Previous read at 0x000005097010 by goroutine 28:
+  github.com/metacubex/mihomo/component/resolver.LookupIP()
+      MODULE_CACHE/github.com/metacubex/mihomo@v1.19.32/component/resolver/resolver.go:179 +0xe4
+  core.TestResearchReloadTraffic.func4()
+      PR9_CHECKOUT/core/reload_lifecycle_research_test.go:94 +0xd5
+
+Goroutine 44 (running) created at:
+  github.com/metacubex/http.(*Server).Serve()
+      MODULE_CACHE/github.com/metacubex/http@v0.1.8/server.go:3446 +0x889
+  core.serveController.func3()
+      PR9_CHECKOUT/core/controller_listener.go:145 +0xc4
+
+Goroutine 28 (running) created at:
+  core.TestResearchReloadTraffic()
+      PR9_CHECKOUT/core/reload_lifecycle_research_test.go:85 +0xd2a
+  testing.tRunner()
+      GO_ROOT/src/testing/testing.go:2195 +0x21c
+  testing.(*T).Run.gowrap1()
+      GO_ROOT/src/testing/testing.go:2260 +0x38
+==================
+==================
+WARNING: DATA RACE
+Write at 0x00000495272a by goroutine 44:
+  github.com/metacubex/mihomo/hub/executor.updateGeneral()
+      MODULE_CACHE/github.com/metacubex/mihomo@v1.19.32/hub/executor/executor.go:396 +0x110
+  github.com/metacubex/mihomo/hub/executor.temporaryUpdateGeneral.func1()
+      MODULE_CACHE/github.com/metacubex/mihomo@v1.19.32/hub/executor/executor.go:389 +0x30
+  runtime.deferreturn()
+      GO_ROOT/src/runtime/panic.go:668 +0x53
+  core.preparePlatformConfig()
+      PR9_CHECKOUT/core/controller_security.go:201 +0x53b
+  core.reloadPlatformConfig()
+      PR9_CHECKOUT/core/controller_security.go:313 +0x567
+  github.com/metacubex/http.HandlerFunc.ServeHTTP()
+      MODULE_CACHE/github.com/metacubex/http@v0.1.8/server.go:2287 +0x47
+  github.com/metacubex/mihomo/hub/route.authentication.1.1()
+      MODULE_CACHE/github.com/metacubex/mihomo@v1.19.32/hub/route/server.go:361 +0x291
+  github.com/metacubex/http.HandlerFunc.ServeHTTP()
+      MODULE_CACHE/github.com/metacubex/http@v0.1.8/server.go:2287 +0x47
+  github.com/metacubex/chi.(*ChainHandler).ServeHTTP()
+      MODULE_CACHE/github.com/metacubex/chi@v0.1.1/chain.go:31 +0x61
+  github.com/metacubex/chi.(*Mux).routeHTTP()
+      MODULE_CACHE/github.com/metacubex/chi@v0.1.1/mux.go:475 +0x43d
+  github.com/metacubex/chi.(*Mux).routeHTTP-fm()
+      <autogenerated>:1 +0x48
+  github.com/metacubex/http.HandlerFunc.ServeHTTP()
+      MODULE_CACHE/github.com/metacubex/http@v0.1.8/server.go:2287 +0x47
+  github.com/metacubex/chi/cors.(*Cors).Handler.func1()
+      MODULE_CACHE/github.com/metacubex/chi@v0.1.1/cors/cors.go:236 +0x35c
+  github.com/metacubex/http.HandlerFunc.ServeHTTP()
+      MODULE_CACHE/github.com/metacubex/http@v0.1.8/server.go:2287 +0x47
+  github.com/metacubex/chi.(*Mux).ServeHTTP()
+      MODULE_CACHE/github.com/metacubex/chi@v0.1.1/mux.go:90 +0x6b1
+  core.serveController.func2()
+      PR9_CHECKOUT/core/controller_listener.go:135 +0x96
+  github.com/metacubex/http.HandlerFunc.ServeHTTP()
+      MODULE_CACHE/github.com/metacubex/http@v0.1.8/server.go:2287 +0x47
+  github.com/metacubex/http.serverHandler.ServeHTTP()
+      MODULE_CACHE/github.com/metacubex/http@v0.1.8/server.go:3293 +0x2a1
+  github.com/metacubex/http.(*conn).serve()
+      MODULE_CACHE/github.com/metacubex/http@v0.1.8/server.go:2074 +0xf04
+  github.com/metacubex/http.(*Server).Serve.gowrap3()
+      MODULE_CACHE/github.com/metacubex/http@v0.1.8/server.go:3446 +0x46
+
+Previous read at 0x00000495272a by goroutine 28:
+  github.com/metacubex/mihomo/component/resolver.LookupIPv6WithResolver()
+      MODULE_CACHE/github.com/metacubex/mihomo@v1.19.32/component/resolver/resolver.go:107 +0x64
+  github.com/metacubex/mihomo/component/resolver.LookupIPv6()
+      MODULE_CACHE/github.com/metacubex/mihomo@v1.19.32/component/resolver/resolver.go:136 +0x144
+  core.TestResearchReloadTraffic.func4()
+      PR9_CHECKOUT/core/reload_lifecycle_research_test.go:95 +0x10e
+
+Goroutine 44 (running) created at:
+  github.com/metacubex/http.(*Server).Serve()
+      MODULE_CACHE/github.com/metacubex/http@v0.1.8/server.go:3446 +0x889
+  core.serveController.func3()
+      PR9_CHECKOUT/core/controller_listener.go:145 +0xc4
+
+Goroutine 28 (running) created at:
+  core.TestResearchReloadTraffic()
+      PR9_CHECKOUT/core/reload_lifecycle_research_test.go:85 +0xd2a
+  testing.tRunner()
+      GO_ROOT/src/testing/testing.go:2195 +0x21c
+  testing.(*T).Run.gowrap1()
+      GO_ROOT/src/testing/testing.go:2260 +0x38
+==================
+==================
+WARNING: DATA RACE
+Read at 0x000005097030 by goroutine 73:
+  github.com/metacubex/mihomo/adapter/outbound.(*Direct).DialContext()
+      MODULE_CACHE/github.com/metacubex/mihomo@v1.19.32/adapter/outbound/direct.go:29 +0xc4
+  github.com/metacubex/mihomo/adapter.(*Proxy).DialContext()
+      MODULE_CACHE/github.com/metacubex/mihomo@v1.19.32/adapter/adapter.go:57 +0x61
+  github.com/metacubex/mihomo/tunnel.handleTCPConn.func3()
+      MODULE_CACHE/github.com/metacubex/mihomo@v1.19.32/tunnel/tunnel.go:577 +0xca
+  github.com/metacubex/mihomo/tunnel.retry[go.shape.8aa1dfdcbf46101f74aa867b43b575e4933929f2e3cbdbe49d571989315cc633]()
+      MODULE_CACHE/github.com/metacubex/mihomo@v1.19.32/tunnel/tunnel.go:742 +0x10e
+  github.com/metacubex/mihomo/tunnel.handleTCPConn()
+      MODULE_CACHE/github.com/metacubex/mihomo@v1.19.32/tunnel/tunnel.go:576 +0xa4a
+  github.com/metacubex/mihomo/tunnel.tunnel.HandleTCPConn()
+      MODULE_CACHE/github.com/metacubex/mihomo@v1.19.32/tunnel/tunnel.go:82 +0x49
+  github.com/metacubex/mihomo/tunnel.(*tunnel).HandleTCPConn()
+      <autogenerated>:1 +0x49
+  github.com/metacubex/mihomo/listener/http.newClient.func1.gowrap1()
+      MODULE_CACHE/github.com/metacubex/mihomo@v1.19.32/listener/http/client.go:38 +0x66
+
+Previous write at 0x000005097030 by goroutine 44:
+  github.com/metacubex/mihomo/hub/executor.updateDNS()
+      MODULE_CACHE/github.com/metacubex/mihomo@v1.19.32/hub/executor/executor.go:298 +0x9d7
+  github.com/metacubex/mihomo/hub/executor.ApplyConfig()
+      MODULE_CACHE/github.com/metacubex/mihomo@v1.19.32/hub/executor/executor.go:105 +0x584
+  core.reloadPlatformConfig()
+      PR9_CHECKOUT/core/controller_security.go:319 +0x57a
+  github.com/metacubex/http.HandlerFunc.ServeHTTP()
+      MODULE_CACHE/github.com/metacubex/http@v0.1.8/server.go:2287 +0x47
+  github.com/metacubex/mihomo/hub/route.authentication.1.1()
+      MODULE_CACHE/github.com/metacubex/mihomo@v1.19.32/hub/route/server.go:361 +0x291
+  github.com/metacubex/http.HandlerFunc.ServeHTTP()
+      MODULE_CACHE/github.com/metacubex/http@v0.1.8/server.go:2287 +0x47
+  github.com/metacubex/chi.(*ChainHandler).ServeHTTP()
+      MODULE_CACHE/github.com/metacubex/chi@v0.1.1/chain.go:31 +0x61
+  github.com/metacubex/chi.(*Mux).routeHTTP()
+      MODULE_CACHE/github.com/metacubex/chi@v0.1.1/mux.go:475 +0x43d
+  github.com/metacubex/chi.(*Mux).routeHTTP-fm()
+      <autogenerated>:1 +0x48
+  github.com/metacubex/http.HandlerFunc.ServeHTTP()
+      MODULE_CACHE/github.com/metacubex/http@v0.1.8/server.go:2287 +0x47
+  github.com/metacubex/chi/cors.(*Cors).Handler.func1()
+      MODULE_CACHE/github.com/metacubex/chi@v0.1.1/cors/cors.go:236 +0x35c
+  github.com/metacubex/http.HandlerFunc.ServeHTTP()
+      MODULE_CACHE/github.com/metacubex/http@v0.1.8/server.go:2287 +0x47
+  github.com/metacubex/chi.(*Mux).ServeHTTP()
+      MODULE_CACHE/github.com/metacubex/chi@v0.1.1/mux.go:90 +0x6b1
+  core.serveController.func2()
+      PR9_CHECKOUT/core/controller_listener.go:135 +0x96
+  github.com/metacubex/http.HandlerFunc.ServeHTTP()
+      MODULE_CACHE/github.com/metacubex/http@v0.1.8/server.go:2287 +0x47
+  github.com/metacubex/http.serverHandler.ServeHTTP()
+      MODULE_CACHE/github.com/metacubex/http@v0.1.8/server.go:3293 +0x2a1
+  github.com/metacubex/http.(*conn).serve()
+      MODULE_CACHE/github.com/metacubex/http@v0.1.8/server.go:2074 +0xf04
+  github.com/metacubex/http.(*Server).Serve.gowrap3()
+      MODULE_CACHE/github.com/metacubex/http@v0.1.8/server.go:3446 +0x46
+
+Goroutine 73 (running) created at:
+  github.com/metacubex/mihomo/listener/http.newClient.func1()
+      MODULE_CACHE/github.com/metacubex/mihomo@v1.19.32/listener/http/client.go:38 +0x2fd
+  github.com/metacubex/http.(*Transport).dial()
+      MODULE_CACHE/github.com/metacubex/http@v0.1.8/transport.go:1300 +0xe6
+  github.com/metacubex/http.(*Transport).dialConn()
+      MODULE_CACHE/github.com/metacubex/http@v0.1.8/transport.go:1808 +0x984
+  github.com/metacubex/http.(*Transport).dialConnFor()
+      MODULE_CACHE/github.com/metacubex/http@v0.1.8/transport.go:1641 +0xe4
+  github.com/metacubex/http.(*Transport).startDialConnForLocked.func1()
+      MODULE_CACHE/github.com/metacubex/http@v0.1.8/transport.go:1622 +0x3c
+
+Goroutine 44 (running) created at:
+  github.com/metacubex/http.(*Server).Serve()
+      MODULE_CACHE/github.com/metacubex/http@v0.1.8/server.go:3446 +0x889
+  core.serveController.func3()
+      PR9_CHECKOUT/core/controller_listener.go:145 +0xc4
+==================
+
+    reload_lifecycle_research_test.go:115: 40 authenticated PUTs; successful real loopback proxy responses: 130
+    testing.go:1867: race detected during execution of test
+--- FAIL: TestResearchReloadTraffic (1.02s)
+FAIL
+exit status 1
+FAIL	core	1.044s

@@ -1,0 +1,116 @@
+package main
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"strings"
+	"sync"
+	"sync/atomic"
+	"testing"
+	"time"
+
+	"github.com/metacubex/mihomo/component/resolver"
+	"github.com/metacubex/mihomo/hub/executor"
+)
+
+// Disposable host experiment: real authenticated PUT and loopback HTTP proxy traffic.
+func TestResearchReloadTraffic(t *testing.T) {
+	home := t.TempDir()
+	if err := coreInit(home); err != nil {
+		t.Fatal(err)
+	}
+	seedSyntheticPanel(t, home)
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { io.WriteString(w, "ok") }))
+	defer backend.Close()
+	backendURL, _ := url.Parse(backend.URL)
+	port := backendURL.Port()
+	reserved, err := net.Listen("tcp4", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	proxyAddress := reserved.Addr().String()
+	proxyPort := reserved.Addr().(*net.TCPAddr).Port
+	reserved.Close()
+	text := func(i int) string {
+		return fmt.Sprintf("mixed-port: 0\nmode: direct\nlog-level: silent\nipv6: %t\nuse-system-hosts: %t\nhosts:\n  reload.test: [127.0.0.1, '::1']\ndns:\n  enable: %t\n  nameserver: [udp://127.0.0.1:15353]\nlisteners:\n- name: research-http\n  type: http\n  listen: 127.0.0.1\n  port: %d\n", i%2 == 0, i%2 == 0, i%2 == 0, proxyPort)
+	}
+	cfg, err := preparePlatformConfig(text(0), `{"mixedPort":0}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	executor.ApplyConfig(cfg, true)
+	if err := startController(); err != nil {
+		t.Fatal(err)
+	}
+	defer coreStop()
+	proxyURL, _ := url.Parse("http://" + proxyAddress)
+	proxyTransport := &http.Transport{Proxy: http.ProxyURL(proxyURL), DisableKeepAlives: true}
+	defer proxyTransport.CloseIdleConnections()
+	proxyClient := &http.Client{Transport: proxyTransport, Timeout: time.Second}
+	controllerTransport := &http.Transport{Proxy: nil}
+	defer controllerTransport.CloseIdleConnections()
+	controllerClient := &http.Client{Transport: controllerTransport, Timeout: 5 * time.Second}
+	var successful atomic.Int64
+	done := make(chan struct{})
+	var wg sync.WaitGroup
+	for n := 0; n < 4; n++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for {
+				select {
+				case <-done:
+					return
+				default:
+				}
+				resp, e := proxyClient.Get("http://reload.test:" + port + "/")
+				if e == nil {
+					io.Copy(io.Discard, resp.Body)
+					resp.Body.Close()
+					if resp.StatusCode == 200 {
+						successful.Add(1)
+					}
+				}
+			}
+		}()
+	}
+	// Lookup wrappers read resolver identity even when a hosts entry avoids network DNS.
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for {
+			select {
+			case <-done:
+				return
+			default:
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+			resolver.LookupIP(ctx, "reload.test")
+			resolver.LookupIPv6(ctx, "reload.test")
+			cancel()
+		}
+	}()
+	defer func() { close(done); wg.Wait() }()
+	for i := 0; i < 40; i++ {
+		body, _ := json.Marshal(map[string]string{"payload": text(i)})
+		req, _ := http.NewRequest(http.MethodPut, "http://"+defaultController+"/configs", strings.NewReader(string(body)))
+		req.Header.Set("Authorization", "Bearer "+controllerSecret)
+		req.Header.Set("Content-Type", "application/json")
+		resp, e := controllerClient.Do(req)
+		if e != nil {
+			t.Fatal(e)
+		}
+		io.Copy(io.Discard, resp.Body)
+		resp.Body.Close()
+		if resp.StatusCode != 204 {
+			t.Fatalf("PUT returned %d", resp.StatusCode)
+		}
+	}
+	t.Logf("40 authenticated PUTs; successful real loopback proxy responses: %d", successful.Load())
+}
