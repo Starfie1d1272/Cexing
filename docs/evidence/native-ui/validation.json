@@ -1,0 +1,93 @@
+{
+  "dateUTC": "2026-10-12",
+  "sourceCommit": "cc387cf0ab90c341e09cc6981f268bd1ab5a680c",
+  "hapSha256": "d89902888c1531e098ef01f9da2e40a75841422c3a94bdbdfdafe75837da7283",
+  "checks": [
+    {
+      "step": "initial HAP build",
+      "result": "failed",
+      "reason": "locked Zashboard rawfile manifest absent"
+    },
+    {
+      "step": "locked panel resource preparation",
+      "result": "passed",
+      "manifestChanged": false,
+      "pinChanged": false
+    },
+    {
+      "step": "first ArkTS compilation",
+      "result": "failed",
+      "reason": "untyped Select option; Select.fontSize unavailable; slider_horizontal_3 unknown"
+    },
+    {
+      "step": "initial HAP identity",
+      "result": "failed",
+      "reason": "reused core source module mismatch: github.com/ajg/form"
+    },
+    {
+      "step": "first native logic regression",
+      "result": "failed",
+      "reason": "test decorator removal touched @kit import; corrected to decorator lines only"
+    },
+    {
+      "step": "core rebuild",
+      "result": "passed",
+      "moduleIntegrity": "verified before and after private-cache gVisor patch"
+    },
+    {
+      "step": "hvigor clean and HAP build",
+      "result": "passed",
+      "tasks": 33,
+      "executed": 32,
+      "upToDate": 1,
+      "arktsWarnings": 128
+    },
+    {
+      "step": "final HAP verification",
+      "result": "passed",
+      "checks": [
+        "ZIP CRC",
+        "unsigned identity",
+        "ARM64",
+        "four C ABI",
+        "fresh stripped core identity",
+        "all rawfile hashes"
+      ]
+    },
+    {
+      "step": "native-ui, profile-name, vpn-startup, app-runtime, background-lifecycle, runtime-recovery-integration",
+      "result": "passed",
+      "evidenceKind": "SDK TypeScript compiler and mock logic"
+    },
+    {
+      "step": "native visual and physical-device validation",
+      "result": "not run"
+    },
+    {
+      "step": "Library test-package save",
+      "result": "blocked",
+      "reason": "HTTP 401 authentication failure on helper tool discovery; one identical retry also failed",
+      "writeConfirmed": false
+    }
+  ],
+  "screenshots": [
+    {
+      "path": "screenshots/browser-baseline-home.png",
+      "kind": "existing Chromium browser prototype reference, not native execution",
+      "sourceCommit": "8131567d44ce02f9af3b149c5eb83c9cf238d93c",
+      "sha256": "a4878a345825a45977e0919aac9e43078a1fb7450e5b29237eaa6ea56b409c33"
+    },
+    {
+      "path": "screenshots/browser-baseline-profile.png",
+      "kind": "existing Chromium browser prototype reference, not native execution",
+      "sourceCommit": "8131567d44ce02f9af3b149c5eb83c9cf238d93c",
+      "sha256": "106ee252a9c2acfed77b72060a78e8876d33cdc55c30d33a9e821d73968c9f92"
+    },
+    {
+      "path": "screenshots/browser-baseline-settings.png",
+      "kind": "existing Chromium browser prototype reference, not native execution",
+      "sourceCommit": "8131567d44ce02f9af3b149c5eb83c9cf238d93c",
+      "sha256": "c942fa3e95253257a3868b1fe9280ab085636f6b82f11e7cebd6d1c29a3e1908"
+    }
+  ]
+}
