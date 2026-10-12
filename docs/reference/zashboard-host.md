@@ -4,18 +4,18 @@
 
 ## 合流所需最小接口
 
-- 配置线调用 `ZashboardAssets.prepare(context)`，得到 `directory`、`version`、`fallback` 和 `error`。`directory` 非空才可生成强约束 `external-ui`；必须删除用户提供的 `external-ui-url`，禁止运行时下载。失败且无旧版本时，省略 UI 参数并继续 VPN 启动。不要在面板里调用 VPN start/stop。
-- 资源选择记录与内核使用的配置分开。切换记录不会改变运行中的内核；将返回目录通过配置事务采纳。回退也须由配置事务采纳 `rollback(context)` 返回的目录，不能直接重启内核。
-- 安全线提供无凭据的 `http://127.0.0.1:<实际端口>/ui/` 和内存会话注入/撤销机制；统一原生 REST/WS 与面板认证。页面 props 仅接受 URL 和资源版本，未验证认证前 `authenticated` 必须为 false。禁止 URL/query/hash 中传 secret；不能用静态页 200 证明认证。
+- 配置线调用 `ZashboardAssets.prepare(context)`，得到 `directory`、`version`、`fallback` 和 `error`。`directory` 非空时恒为 `<filesDir>/ui`，符合安全线固定 external-ui 强约束；必须删除用户提供的 `external-ui-url`，禁止运行时下载。失败且无旧版本时，禁用面板入口并继续 VPN 启动。不要在面板里调用 VPN start/stop。
+- `ui/versions/<version>` 是只读完整资源。`ui/index.html` 同时记录 current/previous 和同源跳转目标，单文件原子替换完成切换及回退。旧页面继续使用旧版本相对资源，重开时切到新版本；无需改变内核目录配置或重启。`rollback(context)` 仅切换静态入口并返回版本，调用方更新页面 version。
+- 已核对安全线 `docs/reference/controller-security.md`：`CoreApi.getControllerAccess()` 返回内存中的 `{ httpBase, wsBase, secret } | null`，地址为 `http://127.0.0.1:9090` / 对应 WS。资源模块不调用 CoreApi；正式会话适配器应从此接口取得凭据并在受信任前端内存注入/撤销。页面 props 仅接受无凭据 URL 和资源版本，未验证认证前 `authenticated` 必须为 false。禁止导航 URL/query/hash 中传 secret；不能用静态页 200 证明认证。
 - 上游默认将 backend/password 存入 localStorage，并用 URL token 建立 WS；正式接入前必须另行完成内存凭据适配、WS 鉴权及撤销、配置重载后凭据保持测试。当前组件不会请求或持有 secret，也不会绕过鉴权。
 - 安全线还需在前端执行前配置仅允许实际 Controller HTTP/WS origin 的 CSP/网络约束；ArkWeb 请求回调的 WebSocket 覆盖不应被假定为已验证。任何会话注入机制只能给可信固定资源授权，不能放开外部 backend 或自定义远端脚本。
 - 原生页使用独立 ArkWeb；只允许相同回环 origin 的 `/ui/` 文档导航，无 JS bridge、文件访问或弹窗。页面关闭只释放 WebView。未启用组件不能被解释为 REST/WS 已验收。
 
 ## 资源事务
 
-从锁定源码和 pnpm lock 构建本地 Fira Sans 字体版，携带许可、图标、PWA 资源和逐文件 SHA-256 清单。资源以内容清单摘要命名私有版本目录；进程内串行，并持有文件独占锁防止跨进程并发铺盘。先写 staging、逐文件验证，再 rename，最后原子替换 active 记录。损坏或缺失保留上个校验通过的版本并返回可恢复错误。路径必须为受限相对路径，无绝对路径、空段、点段、反斜线或编码转义；磁盘内容禁止 symlink。
+从锁定源码和 pnpm lock 构建本地 Fira Sans 字体版，携带许可、图标、PWA 资源和逐文件 SHA-256 清单。资源以内容清单摘要命名私有版本目录；进程内串行，并持有文件独占锁防止跨进程并发铺盘。先写服务目录以外的 staging、逐文件验证，再 rename 到 ui/versions，最后原子替换 ui/index.html。损坏或缺失保留上个校验通过的版本并返回可恢复错误。路径必须为受限相对路径，无绝对路径、空段、点段、反斜线或编码转义；磁盘内容禁止 symlink。
 
-`external-ui` 路径只来自资源模块，不能接受 WebView 或用户提供的路径。已有版本在每次使用前复验。完整文件集合校验防止额外文件混入。旧版本不自动删除，以免运行中的 external-ui 指向消失目录。
+`external-ui` 路径只来自宿主，不能接受 WebView 或用户提供的路径。已有版本在每次使用前复验。完整文件集合校验防止额外文件混入。旧版本不自动删除，以免旧 WebView 的资源目录消失。合流仍需解决资源损坏与安全线启动扫描的关系：UI 缺失或损坏应降级为 404/禁用入口，不能因为 UI 校验失败而阻止 VPN；特别是旧版本 symlink 的拒绝须通过跨线测试。
 
 ## Smart 和缓存验收
 

@@ -22,7 +22,7 @@ const fileIo = {
   openSync(p, flags) { return { fd: fs.openSync(p, flags & modes.WRITE_ONLY ? (p.endsWith('deployment.lock') ? 'a' : 'wx') : fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW), tryLock() { if (rejectLock) throw Error('synthetic lock contention'); } }; },
   closeSync: f => fs.closeSync(f.fd), readSync: (fd, data) => fs.readSync(fd, Buffer.from(data)),
   writeSync: (fd, data) => fs.writeSync(fd, Buffer.from(data)), fsyncSync: fs.fsyncSync,
-  renameSync(from, to) { if (rejectSelection && to.endsWith('active.json')) throw Error('synthetic disk failure'); fs.renameSync(from, to); }
+  renameSync(from, to) { if (rejectSelection && to.endsWith('/ui/index.html')) throw Error('synthetic disk failure'); fs.renameSync(from, to); }
 };
 const modules = {
   '@kit.CoreFileKit': { fileIo },
@@ -50,8 +50,8 @@ assert.equal(Policy.validSession(true, url, 'a'.repeat(64)), true);
 for (const bad of ['http://localhost:9090/ui/', 'https://127.0.0.1:9090/ui/', 'http://127.0.0.1:0/ui/', 'http://127.0.0.1:65536/ui/', url + '?secret=synthetic', 'http://user@127.0.0.1:9090/ui/']) {
   assert.equal(Policy.validSession(true, bad, 'a'.repeat(64)), false);
 }
-for (const good of [url, url + '#/', url + '#/proxies']) assert.equal(Policy.navigation(url, good), true);
-for (const bad of ['https://example.invalid/', 'file:///tmp/index.html', url + '../restart', url + 'index.html', url + '?secret=synthetic', url + '#/../restart']) assert.equal(Policy.navigation(url, bad), false);
+for (const good of [url, url + '#/', url + '#/proxies', url + 'versions/' + 'a'.repeat(64) + '/#/proxies']) assert.equal(Policy.navigation(url, 'a'.repeat(64), good), true);
+for (const bad of ['https://example.invalid/', 'file:///tmp/index.html', url + '../restart', url + 'index.html', url + '?secret=synthetic', url + '#/../restart', url + 'versions/' + 'b'.repeat(64) + '/']) assert.equal(Policy.navigation(url, 'a'.repeat(64), bad), false);
 for (const good of ['http://127.0.0.1:9090/proxies', 'http://127.0.0.1:9090/ui/assets/local.js', 'ws://127.0.0.1:9090/traffic']) assert.equal(Policy.request(url, good), true);
 for (const bad of ['http://127.0.0.1:9091/version', 'http://127.0.0.1:9090.evil.invalid/version', 'https://example.invalid/a.js', 'http://127.0.0.1:9090/restart', 'http://127.0.0.1:9090/%72estart', 'http://127.0.0.1:9090/upgrade/ui', 'http://127.0.0.1:9090/ui/../restart']) assert.equal(Policy.request(url, bad), false);
 const home = fs.mkdtempSync(path.join(os.tmpdir(), 'zashboard-regression-'));
@@ -75,17 +75,17 @@ const host = { filesDir: home, resourceManager: { async getRawFileContent(p) {
   const firstVersion = fixture('first');
   const first = await Assets.prepare(host);
   assert.equal(first.version, firstVersion);
-  assert.equal(fs.readFileSync(first.directory + '/index.html', 'utf8'), 'first');
-  const before = fs.readFileSync(home + '/zashboard/active.json', 'utf8');
+  assert.equal(fs.readFileSync(first.directory + '/versions/' + firstVersion + '/index.html', 'utf8'), 'first');
+  const before = fs.readFileSync(home + '/ui/index.html', 'utf8');
   rejectLock = true;
   assert.equal((await Assets.prepare(host)).directory, '');
   rejectLock = false;
-  assert.equal(fs.readFileSync(home + '/zashboard/active.json', 'utf8'), before);
-  fs.writeFileSync(home + '/zashboard/active.json', 'invalid synthetic record');
+  assert.equal(fs.readFileSync(home + '/ui/index.html', 'utf8'), before);
+  fs.writeFileSync(home + '/ui/index.html', 'invalid synthetic record');
   const repaired = await Assets.prepare(host);
   assert.equal(repaired.version, firstVersion);
   assert.ok(repaired.error);
-  assert.equal(fs.readFileSync(home + '/zashboard/active.json', 'utf8'), before);
+  assert.equal(fs.readFileSync(home + '/ui/index.html', 'utf8'), before);
   const same = await Promise.all([Assets.prepare(host), Assets.prepare(host)]);
   assert.ok(same.every(v => v.version === firstVersion));
   const secondVersion = fixture('second');
@@ -94,13 +94,13 @@ const host = { filesDir: home, resourceManager: { async getRawFileContent(p) {
   rejectSelection = false;
   assert.equal(failedCommit.version, firstVersion);
   assert.equal(failedCommit.fallback, true);
-  assert.equal(fs.readFileSync(home + '/zashboard/active.json', 'utf8'), before);
+  assert.equal(fs.readFileSync(home + '/ui/index.html', 'utf8'), before);
   const second = await Assets.prepare(host);
   assert.equal(second.version, secondVersion);
   const reverted = await Assets.rollback(host);
   assert.equal(reverted.version, firstVersion);
   assert.equal((await Assets.rollback(host)).version, secondVersion);
-  fs.writeFileSync(second.directory + '/index.html', 'broken');
+  fs.writeFileSync(second.directory + '/versions/' + secondVersion + '/index.html', 'broken');
   const fallback = await Assets.prepare(host);
   assert.equal(fallback.version, firstVersion);
   assert.equal(fallback.fallback, true);
@@ -110,10 +110,10 @@ const host = { filesDir: home, resourceManager: { async getRawFileContent(p) {
   fixture('third');
   resources['zashboard/index.html'] = Buffer.from('wrong');
   assert.equal((await Assets.prepare(host)).version, firstVersion);
-  fs.symlinkSync('/tmp', first.directory + '/unsafe');
+  fs.symlinkSync('/tmp', first.directory + '/versions/' + firstVersion + '/unsafe');
   assert.equal((await Assets.prepare(host)).directory, '');
-  fs.unlinkSync(first.directory + '/unsafe');
-  fs.writeFileSync(first.directory + '/extra.js', 'unlisted');
+  fs.unlinkSync(first.directory + '/versions/' + firstVersion + '/unsafe');
+  fs.writeFileSync(first.directory + '/versions/' + firstVersion + '/extra.js', 'unlisted');
   assert.equal((await Assets.prepare(host)).directory, '');
   console.log('PASS: Web origin/navigation/lifecycle endpoint policy, path rejection, verified install, serialized reopen, atomic failure, rollback, corruption fallback, bad rawfile, symlink and unlisted-file rejection');
 })().finally(() => fs.rmSync(home, { recursive: true, force: true })).catch(e => { console.error(e); process.exitCode = 1; });

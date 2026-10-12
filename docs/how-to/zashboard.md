@@ -21,6 +21,6 @@ node scripts/test-zashboard-assets.cjs
 bash scripts/build-hap.sh
 ```
 
-HAP 脚本在构建前验证 rawfile 全集，构建后检查 ZIP CRC、包内全集及逐项摘要。构建不包含运行时联网下载。实际铺盘由配置事务调用 [宿主接口](../reference/zashboard-host.md)，不由页面启动 VPN。第一次使用失败时返回无目录的可恢复错误；有已校验版本则回退。文件锁竞争直接返回可重试错误，调用方应保留现有 UI 配置并继续 VPN 流程。
+HAP 脚本在构建前验证 rawfile 全集，构建后检查 ZIP CRC、包内全集及逐项摘要。构建不包含运行时联网下载。实际铺盘由宿主调用 [宿主接口](../reference/zashboard-host.md)，不由页面启动 VPN。资源使用固定私有 ui 根和 versions 子目录，原子替换 ui/index.html 切换或回退版本。第一次使用失败时返回无目录的可恢复错误；有已校验版本则回退。文件锁竞争直接返回可重试错误，调用方应保留现有 UI 配置并继续 VPN 流程。
 
 页面和资源模块会编译入 HAP，但没有进入按钮，默认拒绝加载 WebView。安全会话、内存 secret/WS 适配和真机验收完成前不得开放或删除 ProxyPage。上游 PWA 文件保留入包，但不自动注册；历史 service worker 缓存迁移需要真机单独验证。

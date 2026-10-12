@@ -18,7 +18,7 @@ export struct ZashboardPage {
   }
 
   private allowedNavigation(target: string): boolean {
-    return this.validSession() && ZashboardPolicy.navigation(this.url, target);
+    return this.validSession() && ZashboardPolicy.navigation(this.url, this.version, target);
   }
 
   aboutToDisappear(): void {

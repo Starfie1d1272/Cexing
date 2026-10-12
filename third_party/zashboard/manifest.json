@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "version": "64073e6939bfc5d490a613566e9da5a83dec228f832f0fd40fa4131c855e2538",
+  "version": "46d47f5edfb3da6c9b2bf7d3f706ae2dad2ff4248248c85381f7eb4c248cb839",
   "sourceSha": "50717b02dac68425cdc5b80cb754bea768ee4fc9",
   "files": [
     {
@@ -10,8 +10,8 @@
     },
     {
       "path": "LICENSE",
-      "size": 1058,
-      "sha256": "ffc390eec51f16b58506b1a42c99fe0cd9ffea1e3081aab443100fd8c20182d9"
+      "size": 1057,
+      "sha256": "43eba9de6e699bf67e44d0bb6f2285e17c13a62a1bd6a9657b0761bd6c9aecb7"
     },
     {
       "path": "THIRD_PARTY_NOTICES.md",

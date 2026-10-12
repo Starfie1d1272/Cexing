@@ -39,7 +39,7 @@ export class ZashboardAssets {
         const version = selection.previous;
         await ZashboardAssets.validateVersion(root, version);
         ZashboardAssets.select(root, { current: version, previous: selection.current });
-        return { directory: `${root}/${version}`, version, fallback: true, error: '' };
+        return { directory: root, version, fallback: true, error: '' };
       } catch (_) {
         return { directory: '', version: '', fallback: false, error: '无法回退面板资源' };
       }
@@ -63,7 +63,7 @@ export class ZashboardAssets {
   }
 
   private static root(context: common.Context): string {
-    const root = `${context.filesDir}/zashboard`;
+    const root = `${context.filesDir}/ui`;
     ZashboardAssets.mkdir(root);
     return root;
   }
@@ -122,19 +122,29 @@ export class ZashboardAssets {
     return manifest;
   }
 
+  private static entry(selection: AssetSelection): string {
+    return `<!doctype html><!--ZASHBOARD_SELECTION:${JSON.stringify(selection)}-->` +
+      `<meta charset="utf-8"><title>Zashboard</title>` +
+      `<script>location.replace('./versions/${selection.current}/' + location.hash)</script>`;
+  }
+
   private static selection(root: string): AssetSelection {
-    if (!fileIo.accessSync(`${root}/active.json`)) { return { current: '', previous: '' }; }
-    const data = ZashboardAssets.read(`${root}/active.json`, 512);
-    const result = JSON.parse(new util.TextDecoder().decodeToString(data)) as AssetSelection;
+    if (!fileIo.accessSync(`${root}/index.html`)) { return { current: '', previous: '' }; }
+    const data = ZashboardAssets.read(`${root}/index.html`, 1024);
+    const text = new util.TextDecoder().decodeToString(data);
+    const match = /^<!doctype html><!--ZASHBOARD_SELECTION:(\{[^<>]+\})-->/.exec(text);
+    if (match === null) { throw new Error('Invalid selection'); }
+    const result = JSON.parse(match[1]) as AssetSelection;
     if (!/^[a-f0-9]{64}$/.test(result.current) ||
-      (result.previous !== '' && !/^[a-f0-9]{64}$/.test(result.previous))) { throw new Error('Invalid selection'); }
+      (result.previous !== '' && !/^[a-f0-9]{64}$/.test(result.previous)) ||
+      text !== ZashboardAssets.entry(result)) { throw new Error('Invalid selection'); }
     return result;
   }
 
   private static select(root: string, selection: AssetSelection): void {
-    const temp = `${root}/active-${Date.now()}.tmp`;
-    ZashboardAssets.write(temp, new util.TextEncoder().encodeInto(JSON.stringify(selection)));
-    try { fileIo.renameSync(temp, `${root}/active.json`); }
+    const temp = `${root}/entry-${Date.now()}.tmp`;
+    ZashboardAssets.write(temp, new util.TextEncoder().encodeInto(ZashboardAssets.entry(selection)));
+    try { fileIo.renameSync(temp, `${root}/index.html`); }
     finally { if (fileIo.accessSync(temp)) { fileIo.unlinkSync(temp); } }
   }
 
@@ -167,7 +177,8 @@ export class ZashboardAssets {
 
   private static async validateVersion(root: string, version: string): Promise<void> {
     if (!/^[a-f0-9]{64}$/.test(version)) { throw new Error('Invalid version'); }
-    const directory = `${root}/${version}`;
+    ZashboardAssets.mkdir(`${root}/versions`);
+    const directory = `${root}/versions/${version}`;
     const stat = fileIo.lstatSync(directory);
     if (stat.isSymbolicLink() || !stat.isDirectory()) { throw new Error('Invalid version directory'); }
     const bytes = ZashboardAssets.read(`${directory}/manifest.json`, 512 * 1024);
@@ -196,11 +207,12 @@ export class ZashboardAssets {
       if (await ZashboardAssets.hash(bytes) !== ZASHBOARD_MANIFEST_SHA256) { throw new Error('Untrusted manifest'); }
       const manifest = ZashboardAssets.parse(bytes);
       if (manifest.version !== ZASHBOARD_VERSION) { throw new Error('Unexpected bundled version'); }
-      const directory = `${root}/${manifest.version}`;
+      const directory = `${root}/versions/${manifest.version}`;
+      ZashboardAssets.mkdir(`${root}/versions`);
       if (fileIo.accessSync(directory)) {
         await ZashboardAssets.validateVersion(root, manifest.version);
       } else {
-        staging = `${root}/staging-${Date.now()}`;
+        staging = `${context.filesDir}/zashboard-staging-${Date.now()}`;
         ZashboardAssets.mkdir(staging);
         for (const entry of manifest.files) {
           const data = await context.resourceManager.getRawFileContent(`zashboard/${entry.path}`);
@@ -227,13 +239,14 @@ export class ZashboardAssets {
         }
         ZashboardAssets.select(root, { current: manifest.version, previous });
       }
-      return { directory, version: manifest.version, fallback: false, error: selectionError };
+      return { directory: root, version: manifest.version, fallback: false, error: selectionError };
     } catch (_) {
       if (staging !== '') { try { fileIo.rmdirSync(staging); } catch (_) {} }
       for (const version of [selection.current, selection.previous]) {
         try {
           await ZashboardAssets.validateVersion(root, version);
-          return { directory: `${root}/${version}`, version, fallback: true, error: '面板资源校验失败，已保留可用版本' };
+          if (version !== selection.current) { ZashboardAssets.select(root, { current: version, previous: '' }); }
+          return { directory: root, version, fallback: true, error: '面板资源校验失败，已保留可用版本' };
         } catch (_) {}
       }
       return { directory: '', version: '', fallback: false, error: '面板资源不可用，可重新准备；VPN 可继续运行' };

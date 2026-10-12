@@ -16,9 +16,9 @@ fi
 [ "$(pnpm --version)" = '11.20.0' ] || { echo 'Use locked pnpm 11.20.0' >&2; exit 1; }
 # Only the reviewed host patch may differ from the pinned upstream source.
 if git -C "$SOURCE" diff --quiet; then
-  git -C "$SOURCE" apply "$PIN/host.patch"
+  git -C "$SOURCE" apply --unidiff-zero "$PIN/host.patch"
 fi
-git -C "$SOURCE" diff --binary > "${TMPDIR:-/tmp}/zashboard-host-diff-$$"
+git -C "$SOURCE" diff --binary --unified=0 > "${TMPDIR:-/tmp}/zashboard-host-diff-$$"
 trap 'rm -f "${TMPDIR:-/tmp}/zashboard-host-diff-$$"' EXIT
 cmp "${TMPDIR:-/tmp}/zashboard-host-diff-$$" "$PIN/host.patch"
 cd "$SOURCE"

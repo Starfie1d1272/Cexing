@@ -7,9 +7,11 @@ export class ZashboardPolicy {
       Number(match[1]) <= 65535 && /^[a-f0-9]{64}$/.test(version);
   }
 
-  static navigation(url: string, target: string): boolean {
+  static navigation(url: string, version: string, target: string): boolean {
     if (!target.startsWith(url)) { return false; }
-    const suffix = target.substring(url.length);
+    const prefix = `${url}versions/${version}/`;
+    let suffix = target.substring(url.length);
+    if (target.startsWith(prefix)) { suffix = target.substring(prefix.length); }
     return suffix === '' || suffix === '#' || suffix === '#/' || (suffix.startsWith('#/') &&
       ZashboardAssets.safePath(suffix.substring(2)));
   }
