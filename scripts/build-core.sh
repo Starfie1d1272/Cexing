@@ -91,6 +91,7 @@ trap 'chmod -R u+w "$PRIVATE_MODCACHE"; rm -rf "$PRIVATE_MODCACHE"' EXIT
 export GOMODCACHE="$PRIVATE_MODCACHE"
 (cd "$CORE_DIR" && go mod download && go mod verify)
 (cd "$CORE_DIR" && python3 "$SCRIPT_DIR/ci/patch-gvisor.py" "$PRIVATE_MODCACHE")
+(cd "$CORE_DIR" && python3 "$SCRIPT_DIR/ci/patch-smart.py" "$PRIVATE_MODCACHE")
 
 # ---- 3. 交叉编译 ----
 echo "[build-core] compiling libmihomo.so (GOOS=android GOARCH=arm64, tags: netgo ohos cmfa with_gvisor)"
@@ -106,10 +107,11 @@ export CXXFLAGS="$CFLAGS"
 mkdir -p "$OUT_DIR"
 (cd "$CORE_DIR" && go build -mod=readonly -trimpath -buildvcs=false \
   -tags "netgo ohos cmfa with_gvisor" \
-  -ldflags "-w" \
+  -ldflags "-w -X main.smartPatchSHA=$(sha256sum "$CORE_DIR/patches/smart-offline.patch" | cut -d' ' -f1)" \
   -buildmode=c-shared \
   -o "$OUT_DIR/libmihomo.so" .)
 
+(cd "$CORE_DIR" && python3 "$SCRIPT_DIR/ci/patch-smart.py" "$PRIVATE_MODCACHE" restore)
 (cd "$CORE_DIR" && python3 "$SCRIPT_DIR/ci/patch-gvisor.py" "$PRIVATE_MODCACHE" verify)
 
 echo "[build-core] done:"

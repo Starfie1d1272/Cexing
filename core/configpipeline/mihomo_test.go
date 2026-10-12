@@ -24,9 +24,9 @@ func TestLockedMihomoValidator(t *testing.T) {
 		if _, err := c.Compile(context.Background(), Request{Original: []byte(invalid)}); err == nil {
 			t.Fatal("locked core accepted invalid protocol")
 		}
-		smart := strings.Replace(original, "type: select", "type: smart", 1)
-		if _, err := c.Compile(context.Background(), Request{Original: []byte(smart)}); err == nil {
-			t.Fatal("locked baseline unexpectedly accepted smart")
+		smart := strings.Replace(original, "type: select", "type: smart, uselightgbm: false, collectdata: false, prefer-asn: false", 1)
+		if _, err := c.Compile(context.Background(), Request{Original: []byte(smart)}); err != nil {
+			t.Fatalf("locked Smart core rejected smart: %v", err)
 		}
 		providerOnly := `proxy-providers:
   feed:

@@ -24,6 +24,7 @@ if [ -n "${CI_HVIGOR_WRAPPER_TOOLS:-}" ]; then
   cp -R "$CI_HVIGOR_WRAPPER_TOOLS" "$HVIGOR_USER_HOME/wrapper/tools"
 fi
 (cd core && go mod download && go mod verify)
+bash scripts/test-smart.sh
 python3 scripts/ci/license-inventory.py > "$CI_BUILD_ROOT/licenses.json"
 for test in scripts/test-*.cjs; do node "$test"; done
 (cd clash-openharmony && "$CLT_ROOT/ohpm/bin/ohpm" install)

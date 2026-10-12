@@ -14,7 +14,12 @@ while text.strip():
     if obj.get('Main'):
         continue
     if obj.get('Replace'):
-        raise SystemExit('Module replacement requires an explicit license/source review: ' + obj['Path'])
+        replacement = obj['Replace']
+        if (obj['Path'], replacement['Path'], replacement['Version'], replacement.get('Sum')) != (
+            'github.com/metacubex/mihomo', 'github.com/vernesong/mihomo',
+            'v1.19.10-0.20261012020909-daf3ad03021c', 'h1:23XrQ5vZacJbpvuIadl9FNjak2VXIQbzwXx+xU/OtME='):
+            raise SystemExit('Unreviewed module replacement: ' + obj['Path'])
+        obj = replacement
     if not obj.get('Dir'):
         not_downloaded.append({'path': obj['Path'], 'version': obj['Version']})
         continue

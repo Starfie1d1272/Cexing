@@ -51,4 +51,7 @@ func mihomoFree(p *C.char) {
 	C.free(unsafe.Pointer(p))
 }
 
+// Bound by build-core.sh and inspected in the packaged Go build metadata.
+var smartPatchSHA string
+
 func main() {}
