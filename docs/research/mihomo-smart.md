@@ -4,7 +4,7 @@
 
 ## 候选与差异 [源码确认]
 
-当前产品基线是 MetaCubeX Mihomo `v1.19.29`。两个 Smart 候选均声明模块 `github.com/metacubex/mihomo`、`go 1.20`，属于 Alpha 分支；当前可取得的最新 vernesong 提交是 `daf3ad03021cca6031f4a7303ca6d861a14d5a16`（2026-10-12），lux5am 是 `8d4c8c70faedc27fda176ee18742ab86b5835a83`。
+初始调查基线是 MetaCubeX Mihomo `v1.19.29`；后续产品基线已升级到 `v1.19.32`，完成签名安装、IPv4 浏览器代理转发和停止/重连验收。两个 Smart 候选均声明模块 `github.com/metacubex/mihomo`、`go 1.20`，属于 Alpha 分支；当前可取得的最新 vernesong 提交是 `daf3ad03021cca6031f4a7303ca6d861a14d5a16`（2026-10-12），lux5am 是 `8d4c8c70faedc27fda176ee18742ab86b5835a83`。
 
 vernesong gVisor 为 `v0.0.0-20260922041103-e2cbcd6e7400`，lux5am 与本项目原始内核均为 `v0.0.0-20251227095601-261ec1326fe8`。Smart 的缓存与连接评分实现也有变化；同模块名不能证明运行行为完全兼容。优先用最新 vernesong 做隔离试验，再建立固定 SHA 的稳定性门禁。
 
@@ -20,7 +20,7 @@ replace github.com/metacubex/mihomo => github.com/vernesong/mihomo v1.19.10-0.20
 
 结果：动态库约 80 MiB；生成头文件与原始 `libmihomo.h` 字节一致，四个 `mihomoInit/mihomoStartTun/mihomoStop/mihomoFree` 导出存在。本轮无需修改 wrapper、NAPI 或 Go runtime 就能编译这个固定候选。OHOS ABI 的运行兼容、耗电与内存仍待设备验证。
 
-试验只在临时副本进行，主工程继续使用原始内核。产品接入阶段修改 `core/go.mod/go.sum`，固定依赖来源，记录 gVisor 补丁身份；随后按模型准备与配置 contract 修改启动 owner，保持原 ABI。
+试验只在临时副本进行，主工程当前使用已验证的标准稳定内核 v1.19.32。产品接入阶段修改 `core/go.mod/go.sum`，固定依赖来源，记录 gVisor 补丁身份；随后按模型准备与配置 contract 修改启动 owner，保持原 ABI。
 
 ## 模型与真实选路 [源码确认][待验证]
 
