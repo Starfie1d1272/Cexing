@@ -29,13 +29,18 @@ const store = { ProfileStore: {
   setActive: (_, name) => { active = name; },
   updateProfileContent: (_, name, content) => { files[name] = content; },
   downloadFromOrigin: async () => ({ content: 'proxies: [updated]', meta: {} }),
-  commitDownloaded: (_, name, value) => { files[name] = value.content; }
+  commitDownloaded: (_, name, value) => { files[name] = value.content; },
+  saveMergeDraft: (_, name, value) => { files[name + '.merge'] = value; }
 } };
 const context = { exports: {}, require: name => {
   if (name.endsWith('CoreApi')) return core;
   if (name.endsWith('ProfileStore')) return store;
   if (name.endsWith('VpnController')) return controller;
-  if (name.endsWith('CoreValidator')) return { CoreValidator: { validate: async () => {} } };
+  if (name.endsWith('CoreValidator')) return { CoreValidator: { validate: async () => {},
+    previewMerge: async (_, __, overlay) => {
+      if (overlay.includes('secret:')) throw new Error('protected');
+      return { digest: 'synthetic', changes: [{ section: 'hosts', before: 0, after: 1 }] };
+    } } };
   return {};
 } };
 vm.runInNewContext(js, context);
@@ -62,5 +67,11 @@ const tx = context.exports.ProfileTransactions;
   resolveApply('applied');
   assert.equal(await first, 'applied');
   assert.equal(files['new.yaml'], 'proxies: [updated]');
+  pending = false;
+  const preview = await tx.saveMergeDraft({}, 'new.yaml', 'hosts: {synthetic.example: 192.0.2.1}');
+  assert.equal(preview.changes[0].section, 'hosts');
+  assert.equal(files['new.yaml.merge'], 'hosts: {synthetic.example: 192.0.2.1}');
+  await assert.rejects(tx.saveMergeDraft({}, 'new.yaml', 'secret: forbidden'), /protected/);
+  assert.equal(files['new.yaml.merge'], 'hosts: {synthetic.example: 192.0.2.1}');
   console.log('PASS: rejected, unknown, parse, and concurrent profile transactions');
 })().catch(error => { console.error(error); process.exitCode = 1; });

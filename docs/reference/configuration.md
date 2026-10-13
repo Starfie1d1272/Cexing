@@ -9,7 +9,7 @@
 | 格式 | 接入方式与边界 |
 |---|---|
 | 完整 Mihomo YAML / 订阅 YAML | 保留普通导入；完整解析、provider/引用校验由新流水线承担 |
-| Merge YAML | 已固定 [Clash Verge v2.5.8 语义](config-compatibility/spec.md) 并有独立 Go 编译器；待接入每订阅存储、预览和生产事务 |
+| Merge YAML | 已固定 [Clash Verge v2.5.8 语义](config-compatibility/spec.md)；内部接口可保存每订阅草案并预览固定 section 差异，尚未提供用户入口，草案不生效；生产事务与更新重应用待接入 |
 | 可移植策略预设 | 待实现独立、可验证的策略转换，不塞入 UI 或存储模块 |
 | Clash Verge `Script.js` | 可导入在原平台生成的最终 YAML；任意 JS 执行需另行设计受限环境 |
 | OpenClash Shell/Ruby | 可导入最终 YAML 或移植策略语义；不在手机直接执行 shell/Ruby |

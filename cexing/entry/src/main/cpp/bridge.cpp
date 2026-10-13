@@ -34,6 +34,7 @@ typedef char *(*MihomoStartTunFn)(int, const char *, const char *);
 typedef void (*MihomoStopFn)();
 typedef void (*MihomoFreeFn)(char *);
 typedef char *(*MihomoValidateFn)(const char *, const char *, const char *);
+typedef char *(*MihomoPreviewFn)(const char *, const char *, const char *, const char *);
 
 static void *gHandle = nullptr;
 static MihomoInitFn gInit = nullptr;
@@ -41,11 +42,12 @@ static MihomoStartTunFn gStartTun = nullptr;
 static MihomoStopFn gStop = nullptr;
 static MihomoFreeFn gFree = nullptr;
 static MihomoValidateFn gValidate = nullptr;
+static MihomoPreviewFn gPreview = nullptr;
 static std::mutex gMutex;
 static Status gStatus = {false, "libmihomo.so", "", 0, 0};
 static bool gStderrRedirected = false;
 
-enum class Op { Init, StartTun, Stop, Validate };
+enum class Op { Init, StartTun, Stop, Validate, Preview };
 
 struct Job {
     Op op;
@@ -53,6 +55,7 @@ struct Job {
     std::string arg;       // homeDir / configJson
     std::string overrides; // 用户设置覆写（JSON，可为空串）
     std::string homeDir;
+    std::string overlay;
     std::string result;
     bool done = false;
     std::condition_variable cv;
@@ -87,7 +90,7 @@ static void redirectStderrOnce() {
 static bool ensureLoaded() {
     if (gHandle != nullptr) {
         // Go runtime cannot be unloaded. Cache an incomplete ABI as unavailable.
-        return gInit != nullptr && gStartTun != nullptr && gStop != nullptr && gFree != nullptr && gValidate != nullptr;
+        return gInit != nullptr && gStartTun != nullptr && gStop != nullptr && gFree != nullptr && gValidate != nullptr && gPreview != nullptr;
     }
     redirectStderrOnce();
     dlerror();
@@ -105,7 +108,8 @@ static bool ensureLoaded() {
     gStop = reinterpret_cast<MihomoStopFn>(dlsym(h, "mihomoStop"));
     gFree = reinterpret_cast<MihomoFreeFn>(dlsym(h, "mihomoFree"));
     gValidate = reinterpret_cast<MihomoValidateFn>(dlsym(h, "mihomoValidateOffline"));
-    if (gInit == nullptr || gStartTun == nullptr || gStop == nullptr || gFree == nullptr || gValidate == nullptr) {
+    gPreview = reinterpret_cast<MihomoPreviewFn>(dlsym(h, "mihomoPreviewMerge"));
+    if (gInit == nullptr || gStartTun == nullptr || gStop == nullptr || gFree == nullptr || gValidate == nullptr || gPreview == nullptr) {
         const char *err = dlerror();
         gStatus.lastError = std::string("dlsym failed: ") + (err != nullptr ? err : "symbol not found");
         gStatus.loaded = false;
@@ -156,6 +160,11 @@ static void *workerMain(void *) {
                     job->result = raw;
                     gFree(raw);
                 }
+                break;
+            }
+            case Op::Preview: {
+                char *raw = gPreview(job->homeDir.c_str(), job->arg.c_str(), job->overlay.c_str(), job->overrides.c_str());
+                if (raw != nullptr) { job->result = raw; gFree(raw); }
                 break;
             }
         }
@@ -262,6 +271,16 @@ std::string ValidateOffline(const std::string &homeDir, const std::string &confi
     job->op = Op::Validate;
     job->homeDir = homeDir;
     job->arg = configJson;
+    job->overrides = overridesJson;
+    return submit(job);
+}
+
+std::string PreviewMerge(const std::string &homeDir, const std::string &original, const std::string &overlay, const std::string &overridesJson) {
+    auto job = std::make_shared<Job>();
+    job->op = Op::Preview;
+    job->homeDir = homeDir;
+    job->arg = original;
+    job->overlay = overlay;
     job->overrides = overridesJson;
     return submit(job);
 }

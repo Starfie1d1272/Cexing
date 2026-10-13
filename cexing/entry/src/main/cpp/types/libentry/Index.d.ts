@@ -26,5 +26,8 @@ export const stopCore: () => Promise<void>;
  * Empty string means valid; fixed error codes distinguish unresolved resources. */
 export const validateOffline: (homeDir: string, configJson: string, overridesJson: string) => Promise<string>;
 
+/** Pinned Verge v2.5.8 Merge preview. Returns only fixed-section counts and digest. */
+export const previewMerge: (homeDir: string, original: string, overlay: string, overridesJson: string) => Promise<string>;
+
 /** 桥接层状态（库是否加载、调用计数等）。 */
 export const getBridgeStatus: () => BridgeStatus;
