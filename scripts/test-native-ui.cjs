@@ -49,6 +49,7 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
     '../lib/ProfileStore': { ProfileStore: { getActiveFile: () => activeHomeFile } },
     '../lib/Settings': { Settings: { load: () => ({ mode: 'rule' }) } },
     '../lib/AppRuntime': { AppRuntime: { cancelRestore: () => cancelRestore++ } },
+    '../lib/ProfileTransactions': { ProfileTransactions: { ensureActiveSmartPolicy: async () => {} } },
     './ProfilePage': { ProfileDetailBus: { current: '' } }
   }, { Date: { now: () => now }, setInterval: cb => { tick = cb; return 1; },
     clearInterval: () => timerCleared++, AlertDialog: { show: value => { dialog = value; } } });
@@ -89,7 +90,7 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   assert.equal(cancelRestore, 1, 'explicit stop cancels pending restore');
   assert.equal(dialog, undefined, 'disconnect must not show a confirmation');
   emit(status.Disconnecting); home.toggle(); assert.equal(stop, 1, 'disconnecting ignores another tap');
-  emit(status.Disconnected); home.toggle(); assert.equal(start, 1, 'reconnect starts normally');
+  emit(status.Disconnected); await home.toggle(); assert.equal(start, 1, 'reconnect starts normally');
   emit(status.Connecting); home.toggle(); assert.equal(stop, 2, 'connecting can be cancelled');
   emit(status.Disconnecting); emit(status.Disconnected); emit(status.Connecting); emit(status.Connected);
   assert.equal(stop, 2, 'old stop did not trigger a new stop after reconnect');
@@ -114,7 +115,7 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   let finishStop;
   stopResult = () => new Promise(resolve => { finishStop = resolve; });
   emit(status.Connected); home.toggle(); emit(status.Disconnecting); emit(status.Disconnected);
-  home.toggle(); assert.equal(home.stopUnknown, false, 'a new start clears the old stop warning');
+  await home.toggle(); assert.equal(home.stopUnknown, false, 'a new start clears the old stop warning');
   finishStop(false);
   await new Promise(resolve => setImmediate(resolve));
   assert.equal(toasts.length, 0, 'old stop result cannot toast after a newer start');

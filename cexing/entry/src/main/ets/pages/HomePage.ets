@@ -5,6 +5,7 @@ import { CoreApi, TrafficMsg, formatRate } from '../lib/CoreApi';
 import { ProfileStore } from '../lib/ProfileStore';
 import { Settings } from '../lib/Settings';
 import { AppRuntime } from '../lib/AppRuntime';
+import { ProfileTransactions } from '../lib/ProfileTransactions';
 import { NativeTheme as UI } from './NativeTheme';
 import { ProfileDetailBus } from './ProfilePage';
 
@@ -19,6 +20,7 @@ export struct HomePage {
   @Consume('tabJump') tabJump: number;
   @Consume('tab') @Watch('onTabVisible') currentVisibleTab: number;
   @State status: VpnStatus = VpnController.status;
+  private preparingSmart: boolean = false;
   @State profileName: string = '未导入';
   @State hasProfile: boolean = false;
   @State upRate: string = '—';
@@ -143,10 +145,11 @@ export struct HomePage {
     }
   }
 
-  private toggle(): void {
+  private async toggle(): Promise<void> {
     AppRuntime.cancelRestore();
     const ctx = getContext(this) as common.UIAbilityContext;
     if (this.status === VpnStatus.Disconnected) {
+      if (this.preparingSmart) { return; }
       this.stopRequest++;
       if (ProfileStore.getActiveFile(ctx).length === 0) {
         this.tabJump = 1;
@@ -154,6 +157,14 @@ export struct HomePage {
       }
       this.startFailed = false;
       this.stopUnknown = false;
+      this.preparingSmart = true;
+      try { await ProfileTransactions.ensureActiveSmartPolicy(ctx); }
+      catch (_) {
+        this.startFailed = true;
+        promptAction.showToast({ message: '当前配置未能生成，请检查配置后重试' });
+        return;
+      } finally { this.preparingSmart = false; }
+      if (VpnController.status !== VpnStatus.Disconnected) { return; }
       VpnController.start(ctx);
     } else if (this.status === VpnStatus.Connecting) {
       this.stopVpn(ctx);

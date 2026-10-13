@@ -88,12 +88,13 @@ func (s FileStore) Stage(ctx context.Context, r Result) (Version, error) {
 		}
 	}()
 	provenance, err := json.Marshal(struct {
-		Original  []byte
-		Overlays  [][]byte
-		Digest    string
-		ProfileID string
-		Metadata  string
-	}{r.Original, r.Overlays, r.Digest, r.ProfileID, r.Metadata})
+		Original        []byte
+		Overlays        [][]byte
+		Digest          string
+		ProfileID       string
+		Metadata        string
+		SmartConversion bool
+	}{r.Original, r.Overlays, r.Digest, r.ProfileID, r.Metadata, r.SmartConversion})
 	if err != nil {
 		return Version{}, err
 	}

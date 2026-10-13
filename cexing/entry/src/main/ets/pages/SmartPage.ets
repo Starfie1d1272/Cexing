@@ -3,6 +3,8 @@ import { fileIo, picker } from '@kit.CoreFileKit';
 import { CoreApi, SmartStatus } from '../lib/CoreApi';
 import { VpnController, VpnStatus } from '../lib/VpnController';
 import { SmartModelRestart } from '../lib/SmartModelRestart';
+import { Settings } from '../lib/Settings';
+import { ProfileTransactions } from '../lib/ProfileTransactions';
 import { NativeTheme as UI } from './NativeTheme';
 
 const MODEL_URL = 'https://github.com/vernesong/mihomo/releases/tag/LightGBM-Model';
@@ -18,12 +20,14 @@ export struct SmartPage {
   @State private ready: boolean = false;
   @State private busy: boolean = false;
   @State private restartRequired: boolean = false;
+  @State private autoConvert: boolean = true;
   private generation: number = 0;
   private timer: number = -1;
   private active: boolean = false;
 
   aboutToAppear(): void {
     this.active = true;
+    this.autoConvert = Settings.load(getContext(this) as common.UIAbilityContext).smartAutoConvert;
     this.onVisible();
   }
 
@@ -81,6 +85,23 @@ export struct SmartPage {
     } catch (_) { this.message = `请在浏览器打开 ${MODEL_URL}`; }
   }
 
+  private async changeAutoConvert(on: boolean): Promise<void> {
+    if (this.busy) { return; }
+    this.busy = true;
+    const before = this.autoConvert;
+    this.autoConvert = on;
+    try {
+      const context = getContext(this) as common.UIAbilityContext;
+      const result = await ProfileTransactions.setSmartAutoConvert(context, on);
+      this.message = result === 'applied' ? '已应用到当前运行配置' : '已保存，下次连接时生效';
+      this.stopPolling();
+      this.refresh(this.generation);
+    } catch (error) {
+      this.autoConvert = before;
+      this.message = (error as Error).message;
+    } finally { this.busy = false; }
+  }
+
   private async importModel(): Promise<void> {
     if (this.busy || !this.ready) { return; }
     this.busy = true;
@@ -134,6 +155,16 @@ export struct SmartPage {
   build() {
     Scroll() {
       Column({ space: 20 }) {
+        Row({ space: 12 }) {
+          Column({ space: 4 }) {
+            Text('自动转换为 Smart').fontSize(17).fontWeight(600).fontColor(UI.ink)
+            Text('默认开启；仅转换当前运行副本中的 URL Test 与负载均衡组。关闭后恢复原类型，订阅内容不变。')
+              .fontSize(13).fontColor(UI.muted)
+          }.layoutWeight(1).alignItems(HorizontalAlign.Start)
+          Toggle({ type: ToggleType.Switch, isOn: this.autoConvert })
+            .selectedColor(UI.accent).enabled(!this.busy)
+            .onChange((on: boolean) => { this.changeAutoConvert(on); })
+        }.padding(20).width('100%').borderRadius(24).backgroundColor(UI.surface)
         Column({ space: 12 }) {
           Text('策略状态').fontSize(13).fontColor(UI.muted)
           Text(this.groupSummary).fontSize(17).fontColor(UI.ink)
