@@ -1,4 +1,5 @@
 import { common, Want } from '@kit.AbilityKit';
+import { promptAction } from '@kit.ArkUI';
 import { VpnController, VpnStatus } from './VpnController';
 import { ProfileStore } from './ProfileStore';
 import { ProfileTransactions } from './ProfileTransactions';
@@ -13,7 +14,7 @@ export namespace ConnectionEntry {
   let context: common.UIAbilityContext | null = null;
   let registered: boolean = false;
   let consumed: number = 0;
-  let routed: number = 0;
+  let running: boolean = false;
   let stopUnknown: boolean = false;
 
   function changed(): void {
@@ -32,7 +33,7 @@ export namespace ConnectionEntry {
     context = ctx;
     action = '';
     consumed = request;
-    routed = request;
+    running = false;
     ready = false;
     stopUnknown = ConnectionCards.read(ctx).stopUnknown;
     if (!registered) {
@@ -47,17 +48,18 @@ export namespace ConnectionEntry {
     ready = true;
     if (action.length > 0) { AppRuntime.cancelRestore(); }
     changed();
+    executePending();
   }
 
   export function destroyed(ctx: common.UIAbilityContext): void {
     if (context !== ctx) { return; }
     ready = false;
     request++;
-    routed = request;
+    running = false;
     changed();
   }
 
-  // A Want only opens a foreground confirmation. It never toggles the VPN.
+  // Explicit intents execute once after runtime recovery, without a second confirmation.
   export function receive(want: Want): void {
     let desired = want.parameters?.cexingConnectionAction;
     // postCardAction's router payload is serialized under Want.parameters.params;
@@ -73,70 +75,78 @@ export namespace ConnectionEntry {
     if (ready) { AppRuntime.cancelRestore(); }
     request++;
     AppStorage.setOrCreate('connectionEntryRequest', request);
+    executePending();
   }
 
-  export function takeNavigation(): boolean {
-    if (request <= routed) { return false; }
-    routed = request;
-    return true;
+  async function executePending(): Promise<void> {
+    if (!ready || context === null || running || request === consumed) { return; }
+    const ctx = context;
+    const expected = request;
+    running = true;
+    let message = '';
+    try { message = await execute(ctx, expected); }
+    catch (_) { message = '操作未完成，请检查连接后重试'; }
+    finally {
+      if (context !== ctx) { return; }
+      running = false;
+      if (context === ctx && expected === request && message.length > 0) {
+        promptAction.showToast({ message, duration: 3000 });
+      }
+      if (ready && request !== consumed) { executePending(); }
+    }
   }
 
   export function label(): string {
-    if (!ready) { return '正在核对本机状态…'; }
-    if (VpnController.status === VpnStatus.Disconnecting) { return '断开中…'; }
-    if (stopUnknown || VpnController.getLastStopCompleted() === false) { return '停止结果未知'; }
-    if (VpnController.status === VpnStatus.Connecting) { return '连接中…'; }
-    if (VpnController.status === VpnStatus.Connected) {
-      return VpnController.getTunCreateObserved() && VpnController.getKernelReadyReported() ?
-        '应用报告已连接' : '本机服务可用，VPN 待确认';
-    }
-    if (VpnController.getLastStartFailure() !== null) { return '连接失败，VPN 待确认'; }
-    return VpnController.getLastStopCompleted() === true ? '已确认断开' : '未检测到本机服务';
+    if (!ready) { return '正在核对连接'; }
+    if (VpnController.status === VpnStatus.Disconnecting) { return '断开中'; }
+    if (VpnController.status === VpnStatus.Connecting) { return '连接中'; }
+    if (VpnController.status === VpnStatus.Connected) { return '已连接'; }
+    if (stopUnknown || VpnController.getLastStopCompleted() === false) { return '状态待核对'; }
+    if (VpnController.getLastStartFailure() !== null) { return '连接失败'; }
+    return '未连接';
   }
 
-  export function canConfirm(): boolean {
-    if (!ready || context === null || request === consumed || ProfileTransactions.isBusy()) { return false; }
-    if (action === 'disconnect') {
-      return VpnController.status === VpnStatus.Connected || VpnController.status === VpnStatus.Connecting;
-    }
-    return action === 'connect' && VpnController.status === VpnStatus.Disconnected &&
-      !stopUnknown && VpnController.getLastStopCompleted() !== false &&
-      !ProfileStore.isApplyUncertain(context) && ProfileStore.getActiveFile(context).length > 0;
-  }
-
-  export async function confirm(ctx: common.UIAbilityContext, expectedRequest: number,
-    expectedRevision: number): Promise<string> {
-    if (context !== ctx || request !== expectedRequest || revision !== expectedRevision || !canConfirm()) {
-      return '状态或入口已变化，请查看当前连接状态';
-    }
-    consumed = request;
+  async function execute(ctx: common.UIAbilityContext, expected: number): Promise<string> {
+    consumed = expected;
     AppRuntime.cancelRestore();
-    if (action === 'connect') {
-      try { await ProfileTransactions.ensureActiveSmartPolicy(ctx); }
-      catch (_) {
-        if (context !== ctx || request !== expectedRequest) { return ''; }
-        changed();
-        return '当前配置未能生成，请检查配置后重试';
-      }
-      // Preparation is asynchronous: another Want, Ability, VPN session or stop result
-      // may have superseded the confirmed intent while the transaction was running.
-      if (context !== ctx || !ready || request !== expectedRequest ||
-        revision !== expectedRevision || action !== 'connect' ||
-        VpnController.status !== VpnStatus.Disconnected || stopUnknown ||
-        VpnController.getLastStopCompleted() === false ||
-        ProfileTransactions.isBusy() || ProfileStore.isApplyUncertain(ctx) ||
-        ProfileStore.getActiveFile(ctx).length === 0) {
-        return '状态或入口已变化，请查看当前连接状态';
-      }
-      VpnController.start(ctx);
+    if (action === 'disconnect') {
+      if (VpnController.status === VpnStatus.Disconnected && !stopUnknown &&
+        !VpnController.needsStop()) { return ''; }
+      let completed = false;
+      try { completed = await VpnController.stop(ctx); } catch (_) {}
+      if (context !== ctx || request !== expected) { return ''; }
+      stopUnknown = !completed;
       changed();
-      return '已进入系统连接与授权流程';
+      return completed ? '' : '断开未确认，请检查系统 VPN 后重试';
     }
-    let completed = false;
-    try { completed = await VpnController.stop(ctx); } catch (_) {}
-    if (context !== ctx || request !== expectedRequest) { return ''; }
-    stopUnknown = !completed;
+    if (VpnController.status === VpnStatus.Connected) {
+      await VpnController.verify(ctx);
+      if (context !== ctx || request !== expected || !ready) { return ''; }
+    }
+    if (VpnController.status === VpnStatus.Connected || VpnController.status === VpnStatus.Connecting) { return ''; }
+    if (VpnController.status === VpnStatus.Disconnecting) { return '正在断开，请稍后连接'; }
+    if (stopUnknown || VpnController.needsStop()) {
+      return '请先重试断开，确认当前连接已结束';
+    }
+    if (ProfileStore.isApplyUncertain(ctx)) {
+      return '请先确认当前配置';
+    }
+    if (ProfileTransactions.isBusy()) { return '配置正在更新，请稍后连接'; }
+    const file = ProfileStore.getActiveFile(ctx);
+    if (file.length === 0) { return '请先添加并启用订阅'; }
+    const expectedRevision = revision;
+    try { await ProfileTransactions.ensureActiveSmartPolicy(ctx); }
+    catch (_) {
+      if (context !== ctx || request !== expected) { return ''; }
+      return '当前配置未能生成，请检查后重试';
+    }
+    if (context !== ctx || !ready || request !== expected || revision !== expectedRevision || action !== 'connect' ||
+      VpnController.status !== VpnStatus.Disconnected || stopUnknown ||
+      VpnController.needsStop() || ProfileTransactions.isBusy() ||
+      ProfileStore.isApplyUncertain(ctx) || ProfileStore.getActiveFile(ctx) !== file) { return ''; }
+    const started = VpnController.start(ctx);
     changed();
-    return completed ? '已确认断开' : '停止结果未知，请检查系统 VPN 状态';
+    if (!started) { return '连接未开始，请查看当前状态后重试'; }
+    return '';
   }
 }

@@ -31,8 +31,8 @@ Mihomo `/restart` 使用进程 exec 语义，不适合鸿蒙扩展宿主；原�
 
 ## 桌面连接入口
 
-`ConnectionFormAbility` 通过公开 `FormExtensionAbility` 的创建、更新、移除回调登记卡片 ID，使用 `formProvider.updateForm` 同步应用最近报告。卡片扩展不持有 VPN、后台任务或恢复定时器；闲置回收后仍能从应用沙箱读取报告。卡片标注报告时间，不把历史状态或 Controller 探活当作当前系统隧道与转发证明。未确认停止继续显示结果未知，冷进程不自动清除此保护。
+`ConnectionFormAbility` 通过公开 `FormExtensionAbility` 的创建、更新、移除回调登记卡片 ID，使用 `formProvider.updateForm` 同步运行时核对的状态。卡片扩展不持有 VPN、后台任务或恢复定时器；闲置回收后读取缓存仅显示“状态待核对”与上次核对时间，不恢复历史连接结论。卡片标注核对时间，运行时发布携带数值时间戳；超过一分钟的结论转为“状态待核对”。卡片使用公开 `TextClock.onDateChange` 核对新鲜度，按平台卡片的分钟回调节奏更新（不宣称即时失联检测）。不把历史状态或 Controller 探活当作当前系统隧道与转发证明。未确认停止继续显示结果未知，冷进程不自动清除此保护。
 
-卡片的 `postCardAction(router)` 和图标的 `ohos.ability.shortcuts` 都进入 singleton `EntryAbility`。前者的 JSON 数据位于 `Want.parameters.params`，后者直接位于 `Want.parameters`；冷启动由 `onCreate` 接收，已有实例由 `onNewWant` 接收。`ConnectionEntry` 仅接受显式 connect/disconnect 请求并打开前台确认页。恢复完成后核对最新请求、状态代次、上下文、配置事务占用及未知标记；重复确认只提交一次。连接和断开仍由 `VpnController` 执行，连接保留系统正常授权流程。可分别移除 form 扩展注册或 shortcuts metadata 停用对应桌面入口。
+卡片的 `postCardAction(router)` 和图标的 `ohos.ability.shortcuts` 都进入 singleton `EntryAbility`。前者的 JSON 数据位于 `Want.parameters.params`，后者直接位于 `Want.parameters`；冷启动由 `onCreate` 接收，已有实例由 `onNewWant` 接收。`ConnectionEntry` 仅接受显式 connect/disconnect 请求，运行时恢复后直接执行一次。异步配置准备后重新核对最新请求、上下文、当前订阅、配置事务占用及未知标记；重复请求保持对应连接意图，断开意图能取消在途准备或启动。连接和断开仍由 `VpnController` 执行，连接保留系统正常授权流程。可分别移除 form 扩展注册或 shortcuts metadata 停用对应桌面入口。
 
 注册依据 [华为模块配置](https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/module-configuration-file)、[卡片配置](https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/arkts-ui-widget-configuration)、[router 事件](https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/arkts-ui-widget-event-router)与官方 SDK 的 `modulecheck/forms.json`、`shortcuts.json`、`FormExtensionAbility`/`UIAbility`/`postCardAction` 声明。上游公开的[模块配置](https://github.com/openharmony/docs/blob/master/zh-cn/application-dev/quick-start/module-configuration-file.md)和[router 事件](https://github.com/openharmony/docs/blob/master/zh-cn/application-dev/form/arkts-ui-widget-event-router.md)说明同一注册与 Want 数据契约。普通应用不依赖系统专用的 `onChangeFormVisibility` 回调，也不注册控制中心 tile。

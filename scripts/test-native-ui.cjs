@@ -109,9 +109,9 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   stopResult = async () => false;
   home.toggle(); emit(status.Disconnecting); emit(status.Disconnected);
   await new Promise(resolve => setImmediate(resolve));
-  assert.ok(toasts.includes('停止结果未知，请检查系统 VPN 状态后重试'),
+  assert.ok(toasts.includes('断开未确认，请检查系统 VPN 状态后重试'),
     'false stop must be visible despite Disconnected status');
-  assert.equal(home.label(), '停止结果未知', 'the card must retain an unconfirmed stop after the toast');
+  assert.equal(home.label(), '断开未确认', 'the card must retain an unconfirmed stop after the toast');
   assert.ok(home.stateLine().includes('重试断开'));
   const beforeRetryStart = start;
   let retryPreparation = 0;
@@ -144,7 +144,7 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   const rebuiltHome = new Home();
   rebuiltHome.rootVisible = true; rebuiltHome.currentVisibleTab = 0;
   rebuiltHome.aboutToAppear();
-  assert.equal(rebuiltHome.label(), '停止结果未知', 'page recreation must restore the controller stop outcome');
+  assert.equal(rebuiltHome.label(), '断开未确认', 'page recreation must restore the controller stop outcome');
   assert.ok(rebuiltHome.stateLine().includes('重试断开'));
   rebuiltHome.aboutToDisappear();
   emit(status.Connected);
