@@ -36,7 +36,7 @@ const context = { exports: {}, require: name => {
   if (name.endsWith('CoreApi')) return core;
   if (name.endsWith('ProfileStore')) return store;
   if (name.endsWith('VpnController')) return controller;
-  if (name.endsWith('CoreValidator')) return { CoreValidator: { validate: async () => {},
+  if (name.endsWith('CoreValidator')) return { CoreValidator: { validate: async () => '',
     previewMerge: async (_, __, overlay) => {
       if (overlay.includes('secret:')) throw new Error('protected');
       return { digest: 'synthetic', changes: [{ section: 'hosts', before: 0, after: 1 }] };

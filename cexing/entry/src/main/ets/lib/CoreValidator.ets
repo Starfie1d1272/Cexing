@@ -18,13 +18,14 @@ export namespace CoreValidator {
     fileIo.moveFileSync(temp, path);
   }
 
-  export async function validate(context: common.Context, content: string): Promise<void> {
+  export async function validate(context: common.Context, content: string): Promise<string> {
     await ensureGeoData(context);
     const overrides = settingsOverrides(context);
     let code = '';
     try { code = await core.validateOffline(context.filesDir, content, overrides); }
     catch (_) { throw new Error('本机配置校验不可用，原配置未修改'); }
-    if (code === '') { return; }
+    if (code === '') { return ''; }
+    if (/^CACHED_PROVIDER:[0-9a-f]{64}$/.test(code)) { return code; }
     if (code === 'PROVIDER_UNRESOLVED') {
       throw new Error('配置包含尚未验证的 provider 资源，原配置未修改');
     }

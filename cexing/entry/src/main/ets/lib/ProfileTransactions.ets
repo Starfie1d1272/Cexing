@@ -56,11 +56,14 @@ export namespace ProfileTransactions {
       const candidate = ProfileStore.getProfileContent(context, file);
       if (candidate === null) { throw new Error('目标配置不存在或读取失败'); }
       ProfileStore.prepareContent(candidate);
-      await CoreValidator.validate(context, candidate);
+      const receipt = await CoreValidator.validate(context, candidate);
       const oldFile = ProfileStore.getActiveFile(context);
       if (oldFile === file) { return 'saved'; }
       const live = await running(context);
       const previous = live ? ProfileStore.getActiveContent(context) : null;
+      if (receipt.length > 0 && await CoreValidator.validate(context, candidate) !== receipt) {
+        throw new Error('provider 缓存已变化，请重试');
+      }
       if (live) { await apply(context, candidate); }
       try { ProfileStore.setActive(context, file); } catch (e) {
         if (live) { await restore(context, previous); }
@@ -74,10 +77,13 @@ export namespace ProfileTransactions {
     enter(context);
     try {
       const candidate = ProfileStore.prepareContent(content);
-      await CoreValidator.validate(context, candidate);
+      const receipt = await CoreValidator.validate(context, candidate);
       const active = ProfileStore.getActiveFile(context) === file;
       const live = active ? await running(context) : false;
       const previous = live ? ProfileStore.getProfileContent(context, file) : null;
+      if (receipt.length > 0 && await CoreValidator.validate(context, candidate) !== receipt) {
+        throw new Error('provider 缓存已变化，请重试');
+      }
       if (live) { await apply(context, candidate); }
       try { ProfileStore.updateProfileContent(context, file, candidate); } catch (e) {
         if (live) { await restore(context, previous); }
@@ -92,11 +98,14 @@ export namespace ProfileTransactions {
     enter(context);
     try {
       const downloaded = await ProfileStore.downloadFromOrigin(context, file);
-      await CoreValidator.validate(context, downloaded.content);
+      const receipt = await CoreValidator.validate(context, downloaded.content);
       if (isCurrent !== undefined && !isCurrent()) { throw new Error('更新已取消'); }
       const active = ProfileStore.getActiveFile(context) === file;
       const live = active ? await running(context) : false;
       const previous = live ? ProfileStore.getProfileContent(context, file) : null;
+      if (receipt.length > 0 && await CoreValidator.validate(context, downloaded.content) !== receipt) {
+        throw new Error('provider 缓存已变化，请重试');
+      }
       if (live) { await apply(context, downloaded.content); }
       try { ProfileStore.commitDownloaded(context, file, downloaded); } catch (e) {
         if (live) { await restore(context, previous); }
