@@ -52,7 +52,7 @@ struct Index {
     } else if (name === 'proxies') {
       NavDestination() { ProxyPage() }.title('代理组')
     } else if (name === 'zashboard') {
-      NavDestination() { ZashboardPage({ visible: this.zashboardVisible }) }.title('Zashboard')
+      NavDestination() { ZashboardPage({ visible: this.zashboardVisible }) }.title('控制面板')
         .onShown(() => { this.zashboardVisible = true; })
         .onHidden(() => { this.zashboardVisible = false; })
     } else if (name === 'smart') {
