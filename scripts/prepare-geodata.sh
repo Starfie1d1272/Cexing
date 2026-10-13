@@ -3,7 +3,7 @@
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/env.sh"
-URL=https://github.com/MetaCubeX/meta-rules-dat/releases/download/latest/geoip.metadb
+URL=https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/4a2afc7ba1b88bff15c3f8f54a45fc6f9ed4bab3/geoip.metadb
 SHA=b8f447617c3f6d8ef0f7528c23dfba695bca16a31a396bc4c1fca49e9f038ae3
 OUT="$PROJECT_ROOT/entry/src/main/resources/rawfile/geodata/geoip.metadb"
 if [ -f "$OUT" ] && [ "$(shasum -a 256 "$OUT" | awk '{print $1}')" = "$SHA" ]; then
