@@ -47,9 +47,12 @@ func mihomoStop() {
 
 //export mihomoValidateOffline
 func mihomoValidateOffline(home, config, overrides *C.char) *C.char {
-	err := coreValidateOffline(C.GoString(home), C.GoString(config), C.GoString(overrides))
+	receipt, err := coreValidateOfflineWithReceipt(C.GoString(home), C.GoString(config), C.GoString(overrides))
 	if err == nil {
-		return nil
+		if receipt == "" {
+			return nil
+		}
+		return C.CString("CACHED_PROVIDER:" + receipt)
 	}
 	return C.CString(err.Error())
 }

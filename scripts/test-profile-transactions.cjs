@@ -35,7 +35,7 @@ const context = { exports: {}, require: name => {
   if (name.endsWith('CoreApi')) return core;
   if (name.endsWith('ProfileStore')) return store;
   if (name.endsWith('VpnController')) return controller;
-  if (name.endsWith('CoreValidator')) return { CoreValidator: { validate: async () => {} } };
+  if (name.endsWith('CoreValidator')) return { CoreValidator: { validate: async () => '' } };
   return {};
 } };
 vm.runInNewContext(js, context);
