@@ -1,4 +1,5 @@
 import { ZashboardAssets } from '../lib/ZashboardAssets';
+import { SmartModelAssets } from '../lib/SmartModelAssets';
 /*
  * CexingVpnAbility.ets - VPN 扩展能力(独立进程 :vpn)
  *
@@ -183,6 +184,10 @@ export default class CexingVpnAbility extends VpnExtensionAbility {
       const filesDir = this.context.filesDir;
       this.startupPhase = 'assets';
       await this.seedGeoData(filesDir);
+      // Install a verified offline model before the Go runtime first attempts to load it.
+      // Failure is recoverable: Smart continues with its statistical weights.
+      const smartModel = await SmartModelAssets.prepare(this.context);
+      if (smartModel.state !== 'ready') { Logger.warn(TAG, smartModel.message); }
       // Static resource failure is recoverable; Controller credentials still fail closed.
       await ZashboardAssets.prepare(this.context);
       this.startupPhase = 'core-init';
