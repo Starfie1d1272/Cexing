@@ -8,23 +8,23 @@ function packet(marker,count=1){return JSON.stringify({schema:'cexing-support-bu
 const facts=view.DiagnosticsBundleView.facts(packet('A'));
 assert.ok(facts.some(s=>s.includes('上一会话：2')));assert.ok(facts.some(s=>s.includes('记录丢弃 3')));assert.ok(facts.some(s=>s.includes('文件损坏')));assert.ok(facts.some(s=>s.includes('不能据此判断')));
 let clock=1760000000000,uuid=0,nextFD=0,copyFail=false,shortWrite=false;
-const files=new Map(),directories=new Set(),descriptors=new Map(),closed=[],copies=[];
+const files=new Map(),modified=new Map(),directories=new Set(),descriptors=new Map(),closed=[],copies=[];
 const fileIo={OpenMode:{READ_WRITE:1,CREATE:2,TRUNC:4,WRITE_ONLY:8,NOFOLLOW:16},
  accessSync:p=>files.has(p)||directories.has(p),mkdirSync:p=>directories.add(p),
  listFileSync:dir=>Array.from(files.keys()).filter(p=>p.startsWith(dir+'/')).map(p=>p.slice(dir.length+1)),
- unlinkSync:p=>files.delete(p),
+ unlinkSync:p=>{modified.delete(p);return files.delete(p);},statSync:p=>({mtime:(modified.get(p)??clock)/1000}),utimes:(p,time)=>modified.set(p,time),
  openSync:(path,mode)=>{const fd=++nextFD;if(!files.has(path)||(mode&4))files.set(path,Buffer.alloc(0));descriptors.set(fd,{path,position:0});return {fd};},
- writeSync:(fd,buffer)=>{const d=descriptors.get(fd),all=Buffer.from(buffer),bytes=all.subarray(0,shortWrite?Math.min(7,all.length):all.length);files.set(d.path,Buffer.concat([files.get(d.path),bytes]));d.position+=bytes.length;return bytes.length;},
+ writeSync:(fd,buffer)=>{const d=descriptors.get(fd),all=Buffer.from(buffer),bytes=all.subarray(0,shortWrite?Math.min(7,all.length):all.length);files.set(d.path,Buffer.concat([files.get(d.path),bytes]));modified.set(d.path,clock);d.position+=bytes.length;return bytes.length;},
  fsyncSync(){},closeSync:file=>{const fd=typeof file==='number'?file:file.fd;closed.push(descriptors.get(fd).path);descriptors.delete(fd);},
  copyFileSync:(src,to)=>{if(copyFail)throw Error('disk');const dest=typeof to==='number'?descriptors.get(to).path:to;const bytes=Buffer.from(files.get(src));copies.push({src,dest,bytes});files.set(dest,bytes);}
 };
 const snapshots=load('cexing/entry/src/main/ets/lib/DiagnosticExportSnapshots.ets',{'@kit.CoreFileKit':{fileIo},'@kit.ArkTS':{util:{TextEncoder:class{encodeInto(s){return new TextEncoder().encode(s);}},generateRandomUUID:()=>`00000000-0000-0000-0000-${String(++uuid).padStart(12,'0')}`}}},{Date:{now:()=>clock}});
-let outcome='success',stage='controller_version',listener,currentJson=packet('A'),exportsMade=0,checks=0,holdPicker=false,holdShare=false,dest=['file://chosen'],opened,copied;
-const pickerWaits=[],shareCalls=[],messages=[];
+let outcome='success',stage='controller_version',listener,currentJson=packet('A'),exportsMade=0,checks=0,holdPicker=false,holdShare=false,holdCheck=false,holdProxy=false,dest=['file://chosen'],opened,copied;
+const pickerWaits=[],shareCalls=[],messages=[],checkWaits=[],proxyWaits=[];
 const deviceInfo={osFullName:'HarmonyOS 7.0.0.109'};
 const context={filesDir:'/private',cacheDir:'/cache',startAbility:async w=>{opened=w.uri;}};
-const service={record:async()=>true,check:async(_ctx,kind)=>{checks++;return {kind,stage,outcome,at:'2026-10-13T00:00:00Z',durationMs:1};},exportBundle:async()=>{exportsMade++;const json=currentJson;files.set('/cache/cexing-support.json',Buffer.from(json));return {json,path:'/cache/cexing-support.json',fileName:'cexing-support.json'};}};
-const modules={'../lib/CoreApi':{CoreApi:{getProxies:async()=>({UserChoice:{}})}},'./NativeTheme':{},
+const service={record:async()=>true,check:(_ctx,kind)=>{checks++;const result={kind,stage,outcome,at:'2026-10-13T00:00:00Z',durationMs:1};return holdCheck?new Promise(resolve=>checkWaits.push(()=>resolve(result))):Promise.resolve(result);},exportBundle:async()=>{exportsMade++;const json=currentJson;files.set('/cache/cexing-support.json',Buffer.from(json));return {json,path:'/cache/cexing-support.json',fileName:'cexing-support.json'};}};
+const modules={'../lib/CoreApi':{CoreApi:{getProxies:()=>holdProxy?new Promise(resolve=>proxyWaits.push(()=>resolve({UserChoice:{}}))):Promise.resolve({UserChoice:{}})}},'./NativeTheme':{},
  '../lib/VpnController':{VpnController:{status:2,onChanged:fn=>{listener=fn;},offChanged(){},getLastStartFailure:()=>null,getTunCreateObserved:()=>true,getKernelReadyReported:()=>true},VpnStatus:{Connected:2,Connecting:1,Disconnecting:3}},
  '../lib/ConnectionFailure':failures,'../lib/DiagnosticsBundleView':view,'../lib/DiagnosticExportSnapshots':snapshots,'../lib/DiagnosticsService':{DiagnosticsService:service},
  '@kit.BasicServicesKit':{deviceInfo,pasteboard:{MIMETYPE_TEXT_PLAIN:'text/plain',createData:(_m,s)=>s,getSystemPasteboard:()=>({setData:async s=>{copied=s;}})}},
@@ -56,13 +56,24 @@ const readURI=uri=>files.get(uri.slice('file://'.length)).toString();
  // Active shares survive cleanup and page reentry even after the grace period.
  const lease=snapshots.DiagnosticExportSnapshots.create(context,packet('cleanup'),false);assert.ok(files.has(aPath)&&files.has(bPath));snapshots.DiagnosticExportSnapshots.release(lease,false);
  page.aboutToDisappear();page.aboutToAppear();a.dismiss();a.dismiss();assert.ok(files.has(bPath),'late/idempotent A dismiss does not release B');
- const lease2=snapshots.DiagnosticExportSnapshots.create(context,packet('cleanup2'),false);assert.ok(!files.has(aPath)&&files.has(bPath));snapshots.DiagnosticExportSnapshots.release(lease2,false);b.dismiss();
+ const lease2=snapshots.DiagnosticExportSnapshots.create(context,packet('cleanup2'),false);assert.ok(files.has(aPath)&&files.has(bPath),'dismiss refreshes retained mtime after a long activity');snapshots.DiagnosticExportSnapshots.release(lease2,false);b.dismiss();
+ // All operation owners: old save success/cancel/share completion cannot
+ // clear a newer DNS check or proxy-list load after a VPN notification.
+ holdShare=false;holdPicker=true;holdCheck=true;
+ for(const choice of [[],['file://old-save']]) {
+  const old=page.exportSupport(false);await flush();listener(page.status===0?2:0);
+  const newer=page.check('dns');await flush();pickerWaits.shift()(choice);await old;
+  assert.equal(page.busy,true,'old export completion/cancel cannot clear newer check');checkWaits.shift()();await newer;assert.equal(page.busy,false);
+ }
+ holdPicker=false;holdShare=true;const oldShare=page.exportSupport(true);await flush();const oldController=shareCalls.at(-1);listener(page.status===0?2:0);holdProxy=true;
+ const newProxy=page.chooseProxy();await flush();oldController.resolve();await oldShare;assert.equal(page.busy,true,'old share cannot clear proxy operation');proxyWaits.shift()();await newProxy;oldController.dismiss();holdShare=false;holdProxy=false;
+ const oldCheck=page.check('dns');await flush();listener(page.status===0?2:0);holdPicker=true;const newSave=page.exportSupport(false);await flush();checkWaits.shift()();await oldCheck;assert.equal(page.busy,true,'old check cannot clear newer export');pickerWaits.shift()([]);await newSave;holdCheck=false;
  // Picker completion after leaving/reentering cannot write a user file.
  holdShare=false;holdPicker=true;currentJson=packet('old-page');const late=page.exportSupport(false);await flush();page.aboutToDisappear();page.aboutToAppear();pickerWaits.shift()(['file://late']);await late;assert.ok(!files.has('file://late'));
  // Fresh exports remain accurate and partial native writes are completed.
  holdPicker=false;shortWrite=true;const small=snapshots.DiagnosticExportSnapshots.create(context,'{"中文":"完整"}',false);assert.equal(files.get(small.path).toString(),'{"中文":"完整"}');snapshots.DiagnosticExportSnapshots.release(small,false);shortWrite=false;
- const retained=[];for(let i=0;i<16;i++){const item=snapshots.DiagnosticExportSnapshots.create(context,'{}',true);retained.push(item);snapshots.DiagnosticExportSnapshots.release(item,true);}
- assert.throws(()=>snapshots.DiagnosticExportSnapshots.create(context,'{}',true),/snapshot_capacity/);const reservedSave=snapshots.DiagnosticExportSnapshots.create(context,'{}',false);snapshots.DiagnosticExportSnapshots.release(reservedSave,false);
+ const quotaContext={cacheDir:'/quota'};const retained=[];for(let i=0;i<16;i++){const item=snapshots.DiagnosticExportSnapshots.create(quotaContext,'{}',true);retained.push(item);snapshots.DiagnosticExportSnapshots.release(item,true);}
+ assert.throws(()=>snapshots.DiagnosticExportSnapshots.create(quotaContext,'{}',true),/snapshot_capacity/);const reservedSave=snapshots.DiagnosticExportSnapshots.create(quotaContext,'{}',false);snapshots.DiagnosticExportSnapshots.release(reservedSave,false);
  assert.throws(()=>snapshots.DiagnosticExportSnapshots.create(context,'x'.repeat(1024*1024+1),false),/snapshot_size/);
  await page.chooseProxy();assert.deepEqual(Array.from(page.proxyNames),['UserChoice']);assert.equal(page.proxyName,'');await page.copySummary();assert.match(copied,/controller_checked_at=/);deviceInfo.osFullName='https://private.invalid/?token=secret';await page.copySummary();assert.match(copied,/system_version=unknown/);assert.ok(!copied.includes('secret'));await page.openFeedback();assert.ok(opened.includes('template=diagnostics.yml'));
  assert.match(src,/Text\(this\.control\)/);assert.ok(!src.includes('this.Fact('));

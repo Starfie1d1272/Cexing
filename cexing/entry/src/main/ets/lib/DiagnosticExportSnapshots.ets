@@ -24,11 +24,18 @@ export class DiagnosticExportSnapshots {
       // Handoffs retain a grace period. Known live picker/share leases are
       // never collected, even when the page disappeared or the clock moved.
       if (match !== null && !DiagnosticExportSnapshots.active.has(path) &&
-        Date.now() - Number(match[1]) > DiagnosticExportSnapshots.retainMs) {
+        DiagnosticExportSnapshots.expired(path)) {
         try { fileIo.unlinkSync(path); } catch (_) {}
       }
     }
     return fileIo.listFileSync(directory).filter((name: string) => DiagnosticExportSnapshots.names.test(name));
+  }
+
+  private static expired(path: string): boolean {
+    try {
+      const modified = fileIo.statSync(path).mtime * 1000;
+      return Number.isFinite(modified) && modified > 0 && Date.now() - modified > DiagnosticExportSnapshots.retainMs;
+    } catch (_) { return false; }
   }
 
   static create(context: common.Context, json: string, share: boolean): DiagnosticExportSnapshot {
@@ -70,7 +77,13 @@ export class DiagnosticExportSnapshots {
 
   static release(snapshot: DiagnosticExportSnapshot, retain: boolean): void {
     // Idempotent, operation-scoped release: a late A callback cannot release B.
-    if (!DiagnosticExportSnapshots.active.delete(snapshot.path)) { return; }
+    if (!DiagnosticExportSnapshots.active.has(snapshot.path)) { return; }
+    if (retain) {
+      // Refresh the handoff grace period when activity finishes, not when a
+      // potentially long-lived dialog first captured its JSON.
+      try { fileIo.utimes(snapshot.path, Date.now()); } catch (_) { return; }
+    }
+    DiagnosticExportSnapshots.active.delete(snapshot.path);
     if (!retain) { try { fileIo.unlinkSync(snapshot.path); } catch (_) {} }
   }
 }

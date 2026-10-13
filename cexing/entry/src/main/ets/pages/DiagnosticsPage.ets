@@ -30,13 +30,15 @@ export struct DiagnosticsPage {
   private generation: number = 0;
   private exportEpoch: number = 0;
   private exportAction: number = 0;
+  private operationSequence: number = 0;
+  private activeOperation: number = 0;
   private listener: (status: VpnStatus) => void = (status: VpnStatus) => {
     if (this.status === status) { return; }
     this.status = status;
     this.checkedAt = '';
     this.control = '尚未检查本机服务';
     this.generation++;
-    this.busy = false;
+    this.cancelOperation();
   };
 
   aboutToAppear(): void {
@@ -49,16 +51,38 @@ export struct DiagnosticsPage {
     this.visible = false;
     this.exportEpoch++;
     this.generation++;
-    this.busy = false;
+    this.cancelOperation();
     this.control = '尚未检查本机服务';
     this.checkedAt = '';
     VpnController.offChanged(this.listener);
   }
 
+  private beginOperation(): number {
+    const operation = ++this.operationSequence;
+    this.activeOperation = operation;
+    this.busy = true;
+    return operation;
+  }
+
+  private ownsOperation(operation: number): boolean {
+    return this.activeOperation === operation;
+  }
+
+  private finishOperation(operation: number): void {
+    if (!this.ownsOperation(operation)) { return; }
+    this.activeOperation = 0;
+    this.busy = false;
+  }
+
+  private cancelOperation(): void {
+    this.activeOperation = 0;
+    this.busy = false;
+  }
+
   private async check(kind: DiagnosticCheckKind = 'controller'): Promise<void> {
     if (this.busy || !this.visible) { return; }
     const attempt = ++this.generation;
-    this.busy = true;
+    const operation = this.beginOperation();
     if (kind === 'controller') { this.checkedAt = ''; this.control = '正在检查…'; }
     const context = getContext(this) as common.UIAbilityContext;
     let timeoutId: number = -1;
@@ -82,18 +106,18 @@ export struct DiagnosticsPage {
     this.checkLines = this.results.map((item: DiagnosticCheckResult) =>
       `${DiagnosticsBundleView.title(item.kind)}：${DiagnosticsBundleView.result(item)} · ${item.at} · ${item.durationMs} ms`);
     if (result.details?.['evidencePersisted'] === false) { this.exportMessage = '本次检查证据未保存成功，请重试导出'; }
-    this.busy = false;
+    this.finishOperation(operation);
     promptAction.showToast({ message: label });
   }
 
   private async chooseProxy(): Promise<void> {
     if (this.busy || !this.visible) { return; }
     const attempt = this.generation;
-    this.busy = true;
+    const operation = this.beginOperation();
     const proxies = await CoreApi.getProxies().catch(() => null);
     if (!this.visible || attempt !== this.generation) { return; }
     this.proxyNames = proxies === null ? [] : Object.keys(proxies);
-    this.busy = false;
+    this.finishOperation(operation);
     if (this.proxyNames.length === 0) { this.exportMessage = '测试代理列表未读取到，请连接后重试'; }
   }
 
@@ -101,7 +125,7 @@ export struct DiagnosticsPage {
     if (this.busy || !this.visible) { return; }
     const epoch = this.exportEpoch;
     const action = ++this.exportAction;
-    this.busy = true;
+    const operation = this.beginOperation();
     const context = getContext(this) as common.UIAbilityContext;
     this.exportMessage = '正在准备诊断支持包…';
     let snapshot: DiagnosticExportSnapshot | null = null;
@@ -131,7 +155,7 @@ export struct DiagnosticsPage {
           try { controller.off('dismiss', dismiss); } catch (_) {}
           throw error as Error;
         }
-        if (this.visible && epoch === this.exportEpoch && action === this.exportAction) {
+        if (this.visible && epoch === this.exportEpoch && action === this.exportAction && this.ownsOperation(operation)) {
           this.exportMessage = '已打开系统分享面板，请审核内容后选择接收应用';
         }
       } else {
@@ -140,22 +164,22 @@ export struct DiagnosticsPage {
         });
         if (!this.visible || epoch !== this.exportEpoch) { return; }
         if (uris.length === 0) {
-          if (action === this.exportAction) { this.exportMessage = '保存已取消，诊断包保留在应用中'; }
+          if (action === this.exportAction && this.ownsOperation(operation)) { this.exportMessage = '保存已取消，诊断包保留在应用中'; }
           return;
         }
         const file = fileIo.openSync(uris[0], fileIo.OpenMode.READ_WRITE | fileIo.OpenMode.CREATE | fileIo.OpenMode.TRUNC);
         try { fileIo.copyFileSync(snapshot.path, file.fd); } finally { fileIo.closeSync(file); }
-        if (action === this.exportAction) { this.exportMessage = '诊断支持包已保存，请审核证据范围后提交'; }
+        if (action === this.exportAction && this.ownsOperation(operation)) { this.exportMessage = '诊断支持包已保存，请审核证据范围后提交'; }
       }
     } catch (error) {
-      if (this.visible && epoch === this.exportEpoch && action === this.exportAction) {
+      if (this.visible && epoch === this.exportEpoch && action === this.exportAction && this.ownsOperation(operation)) {
         this.exportMessage = (error as Error).message === 'snapshot_capacity' ?
           '已有诊断文件仍在等待或保留，请先完成保存/分享或稍后重试' :
           '诊断包保存或分享未完成，可重试；历史证据保留';
       }
     } finally {
       if (snapshot !== null && !handedToShare) { DiagnosticExportSnapshots.release(snapshot, false); }
-      if (epoch === this.exportEpoch && action === this.exportAction) { this.busy = false; }
+      this.finishOperation(operation);
     }
   }
 
