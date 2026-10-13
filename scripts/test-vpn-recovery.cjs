@@ -30,7 +30,7 @@ function load(options = {}) {
   };
   const context = { filesDir: '/synthetic', applicationInfo: { name: 'test.bundle' },
     connectServiceExtensionAbility: (want, value) => {
-      calls.bind++; callbacks = value;
+      calls.bind++; if (options.throwBind) throw Error('synthetic binding failure'); callbacks = value;
       if (want.parameters.RECOVER_ONLY) assert.equal(want.parameters.VPN_CONFIG, undefined);
       else session = want.parameters.SESSION_ID;
       return options.id ?? 0;
@@ -74,6 +74,12 @@ async function recover(f) {
     assert.equal(invalid.VpnController.status,invalid.VpnStatus.Disconnected);
     assert.equal(invalid.VpnController.getLastStopCompleted(),false);
   }
+  const retryOptions = {throwBind:true}, retry = load(retryOptions);
+  let firstResult;
+  retry.VpnController.recover(v=>firstResult=v,retry.context);retry.probes.shift()(true);await flush();
+  assert.equal(firstResult,false);
+  retryOptions.throwBind=false;assert.equal(await recover(retry),true,'failed binding may retry without retaining a rejected attempt');
+  assert.equal(retry.calls.bind,2);
   const stale=load({staleReceipt:true});await recover(stale);
   assert.equal(await stale.VpnController.stop(stale.context),false,'an old receipt cannot confirm this session');
   const late=load();let completed=0;

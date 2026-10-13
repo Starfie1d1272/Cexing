@@ -280,7 +280,13 @@ export namespace VpnController {
         if (serviceId < 0) { clearTimeout(timer); resolve(null); }
       } catch (_) { clearTimeout(timer); resolve(null); }
     });
-    return recoveryBinding;
+    const binding = recoveryBinding;
+    binding.then(() => {
+      if (recoveryBinding === binding && serviceRemote === null && serviceId < 0) {
+        recoveryBinding = null;
+      }
+    });
+    return binding;
   }
 
   function serviceLost(attempt: number, detached: boolean = true): void {
