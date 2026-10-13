@@ -2,13 +2,14 @@
 # 构建 HAP(未签名) — 用法: bash scripts/build-hap.sh [release]
 set -e
 source "$(dirname "$0")/env.sh"
-python3 "$REPO_ROOT/scripts/zashboard-assets.py" verify
+bash "$REPO_ROOT/scripts/ci/prepare-zashboard.sh"
 python3 "$REPO_ROOT/scripts/prepare-smart-model.py" --verify
 [ -f "$PROJECT_ROOT/entry/src/main/resources/rawfile/geodata/geoip.metadb" ] || {
   echo '[build-hap] Missing GeoIP snapshot; run bash scripts/prepare-geodata.sh first' >&2
   exit 1
 }
 cd "$PROJECT_ROOT"
+hvigorw clean --no-daemon
 MODE="${1:-debug}"
 if [ "$MODE" = "release" ]; then
   hvigorw assembleHap -p buildMode=release --no-daemon

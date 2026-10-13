@@ -2,6 +2,7 @@
 # Public dependencies only. ArkTS results are host mocks, not SDK compilation.
 set -euo pipefail
 cd "$(dirname "$0")/../.."
+python3 scripts/test-zashboard-cache.py
 node scripts/ci/source-check.cjs
 while IFS= read -r script; do bash -n "$script"; done < <(git ls-files 'scripts/*.sh' 'scripts/ci/*.sh')
 git diff --check
