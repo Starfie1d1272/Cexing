@@ -102,10 +102,20 @@ export namespace ProfileStore {
   }
 
   function writeMeta(context: common.Context, all: Record<string, ProfileMetaExt>): void {
+    atomicText(metaPath(context), JSON.stringify(all));
+  }
+
+  function readMetaStrict(context: common.Context): Record<string, ProfileMetaExt> {
     const p = metaPath(context);
-    const f = fileIo.openSync(p, fileIo.OpenMode.READ_WRITE | fileIo.OpenMode.CREATE | fileIo.OpenMode.TRUNC);
-    fileIo.writeSync(f.fd, JSON.stringify(all));
-    fileIo.closeSync(f);
+    if (!fileIo.accessSync(p)) { return {}; }
+    const raw = fileIo.readTextSync(p);
+    return raw.trim().length === 0 ? {} : JSON.parse(raw) as Record<string, ProfileMetaExt>;
+  }
+
+  function writeMetaEntryStrict(context: common.Context, file: string, entry: ProfileMetaExt): void {
+    const all = readMetaStrict(context);
+    all[file] = entry;
+    writeMeta(context, all);
   }
 
   /** 写入/覆盖单个 profile 的 meta 条目 */
@@ -426,21 +436,35 @@ export namespace ProfileStore {
     }
   }
 
-  /** 覆盖写配置（编辑页保存）：sanitize + validate，刷新 meta.updatedAt；失败抛错 */
-  export function updateProfileContent(context: common.Context, file: string, content: string): void {
+  function replaceProfileContent(context: common.Context, file: string, content: string,
+    entry: ProfileMetaExt): void {
     const clean = prepareContent(content);
     const p = `${ensureDir(context)}/${file}`;
     if (!fileIo.accessSync(p)) { throw new Error('配置文件不存在'); }
-    atomicText(`${p}.last-good`, fileIo.readTextSync(p));
-    atomicText(p, clean);
-    const prev = getMeta(context)[file];
+    const previous = fileIo.readTextSync(p);
+    // Reject malformed metadata before touching the effective source.
+    readMetaStrict(context);
+    atomicText(`${p}.last-good`, previous);
+    try {
+      atomicText(p, clean);
+      writeMetaEntryStrict(context, file, entry);
+    } catch (_) {
+      try { atomicText(p, previous); }
+      catch (_) { throw new Error('PROFILE_ROLLBACK_FAILED'); }
+      throw new Error('保存配置和元数据失败，原配置已恢复');
+    }
+    Logger.info(TAG, `profile ${file} updated (${clean.length} bytes)`);
+  }
+
+  /** 覆盖写配置（编辑页保存）：元数据失败时恢复原文；失败抛错 */
+  export function updateProfileContent(context: common.Context, file: string, content: string): void {
+    const prev = readMetaStrict(context)[file];
     const entry: ProfileMetaExt = {
       origin: prev !== undefined ? prev.origin : '',
       sub: prev !== undefined ? prev.sub : { upload: 0, download: 0, total: 0, expire: 0 },
       updatedAt: Math.floor(Date.now() / 1000)
     };
-    setMetaEntry(context, file, entry);
-    Logger.info(TAG, `profile ${file} updated (${clean.length} bytes)`);
+    replaceProfileContent(context, file, content, entry);
   }
 
   export function prepareContent(content: string): string {
@@ -547,8 +571,7 @@ export namespace ProfileStore {
 
 
   export function commitDownloaded(context: common.Context, file: string, candidate: DownloadedProfile): void {
-    updateProfileContent(context, file, candidate.content);
-    setMetaEntry(context, file, candidate.meta);
+    replaceProfileContent(context, file, candidate.content, candidate.meta);
   }
 
   function validateConfig(content: string): void {

@@ -12,6 +12,7 @@ const data = new Map();
 let unlinkResolve;
 let unlinkReject;
 let delayDelete = false;
+let failMetaMove = false;
 const io = {
   OpenMode: { READ_WRITE: 2, CREATE: 64, TRUNC: 512 },
   accessSync: name => data.has(name) || name === '/files/profiles',
@@ -20,7 +21,10 @@ const io = {
   writeSync: (name, value) => { data.set(name, value); },
   closeSync: () => {},
   readTextSync: name => data.get(name),
-  moveFileSync: (from, to) => { data.set(to, data.get(from)); data.delete(from); },
+  moveFileSync: (from, to) => {
+    if (failMetaMove && to === '/files/profiles/meta.json') throw Error('synthetic metadata write failure');
+    data.set(to, data.get(from)); data.delete(from);
+  },
   unlinkSync: name => { data.delete(name); },
   unlink: name => delayDelete ? new Promise((resolve, reject) => {
     unlinkResolve = () => { data.delete(name); resolve(); };
@@ -45,6 +49,14 @@ const ctx = { filesDir: '/files' };
   assert.equal(first, 'same.yaml');
   assert.equal(second, 'same (2).yaml');
   assert.equal(data.get('/files/profiles/same.yaml'), 'proxies: [synthetic]');
+  failMetaMove = true;
+  assert.throws(() => store.updateProfileContent(ctx, first, 'proxies: [updated]'), /原配置已恢复/);
+  assert.equal(data.get('/files/profiles/same.yaml'), 'proxies: [synthetic]');
+  assert.throws(() => store.commitDownloaded(ctx, first, {
+    content: 'proxies: [downloaded]', meta: { origin: 'synthetic', sub: {}, updatedAt: 1 }
+  }), /原配置已恢复/);
+  assert.equal(data.get('/files/profiles/same.yaml'), 'proxies: [synthetic]');
+  failMetaMove = false;
   delayDelete = true;
   const removal = store.deleteProfile(ctx, first);
   assert.equal(data.has('/files/profiles/same.yaml'), true);
@@ -52,6 +64,7 @@ const ctx = { filesDir: '/files' };
   await assert.rejects(removal, /synthetic failure/);
   assert.equal(data.has('/files/profiles/same.yaml'), true);
   const retry = store.deleteProfile(ctx, first);
+  delayDelete = false;
   unlinkResolve();
   await retry;
   assert.equal(data.has('/files/profiles/same.yaml'), false);

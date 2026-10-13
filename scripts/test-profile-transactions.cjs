@@ -15,6 +15,7 @@ let resolveApply;
 let pending = false;
 let uncertain = false;
 let applies = 0;
+let failDiskRollback = false;
 const controller = { VpnStatus: { Disconnected: 0, Connected: 2 }, VpnController: { status: 2 } };
 const core = { CoreApi: {
   isAlive: async () => true,
@@ -28,7 +29,10 @@ const store = { ProfileStore: {
   getActiveFile: () => active,
   prepareContent: content => { if (content.includes('bad')) throw new Error('parse'); return content; },
   setActive: (_, name) => { active = name; },
-  updateProfileContent: (_, name, content) => { files[name] = content; },
+  updateProfileContent: (_, name, content) => {
+    if (failDiskRollback) throw new Error('PROFILE_ROLLBACK_FAILED');
+    files[name] = content;
+  },
   downloadFromOrigin: async () => ({ content: 'proxies: [updated]', meta: {} }),
   commitDownloaded: (_, name, value) => { files[name] = value.content; }
 } };
@@ -68,5 +72,8 @@ const tx = context.exports.ProfileTransactions;
   const before = applies;
   assert.equal(await tx.activate({}, 'new.yaml'), 'applied');
   assert.equal(applies, before + 1, 'selecting the current file must confirm runtime application');
+  failDiskRollback = true;
+  await assert.rejects(tx.edit({}, 'new.yaml', 'proxies: [changed]'), /保存配置失败/);
+  assert.equal(uncertain, true, 'failed disk rollback must block further activation');
   console.log('PASS: rejected, unknown, parse, and concurrent profile transactions');
 })().catch(error => { console.error(error); process.exitCode = 1; });
