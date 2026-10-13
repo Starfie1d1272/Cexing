@@ -41,6 +41,36 @@ export interface DiagnosticExport {
   path: string;
   fileName: string;
 }
+interface DiagnosticEnvironment {
+  appVersion: string;
+  versionCode: number;
+  sdkVersion: number;
+  osVersion: string;
+  deviceType: string;
+  abi: string;
+}
+interface DiagnosticSettings {
+  keepAlive: boolean;
+  ipv6: boolean;
+  allowLan: boolean;
+  logToFile: boolean;
+  smartAutoConvert: boolean;
+  autoUpdate: boolean;
+  autoRestore: boolean;
+  mixedPort: number;
+  autoUpdateIntervalHours: number;
+  accessMode: string;
+  mode: string;
+  logLevel: string;
+}
+interface DiagnosticObservations {
+  vpnState: string;
+  tunCreateObserved: boolean;
+  kernelReadyReported: boolean;
+  stopOutcome: string;
+  substageCoverage: string;
+  failureCategory?: string;
+}
 interface DiagnosticRequest {
   op: string;
   contextCollected?: boolean;
@@ -51,9 +81,9 @@ interface DiagnosticRequest {
   reason?: string;
   code?: string;
   durationMs?: number;
-  environment?: Record<string, Object>;
-  settings?: Record<string, Object>;
-  observations?: Record<string, Object>;
+  environment?: DiagnosticEnvironment;
+  settings?: DiagnosticSettings;
+  observations?: DiagnosticObservations;
 }
 interface DiagnosticResponse { error?: string; recorded?: boolean; schema?: string; }
 
@@ -84,13 +114,13 @@ export namespace DiagnosticsService {
       const names = ['disconnected', 'connecting', 'connected', 'disconnecting'];
       const failure = VpnController.getLastStartFailure();
       const stop = VpnController.getLastStopCompleted();
-      const observations: Record<string, Object> = {
+      const observations: DiagnosticObservations = {
         vpnState: names[status] ?? 'unknown', tunCreateObserved: VpnController.getTunCreateObserved(),
         kernelReadyReported: VpnController.getKernelReadyReported(),
         stopOutcome: stop === null ? 'not_reported' : stop ? 'completed' : 'unknown',
         substageCoverage: 'system_authorization_binding_protect_assets_not_observable_via_status_getters'
       };
-      if (failure !== null) { observations['failureCategory'] = failure.category; }
+      if (failure !== null) { observations.failureCategory = failure.category; }
       const request: DiagnosticRequest = { op: 'diagnostics-record', operation: 'vpn',
         stage: failure?.phase ?? 'state_observation', outcome: failure === null ? 'observed' : 'failed',
         code: failure === null || failure.code === 0 ? undefined : `${failure.code}`, observations: observations };
@@ -195,7 +225,11 @@ export namespace DiagnosticsService {
     const ok = await record(context, { operation: `check_${result.kind}`, stage: result.stage,
       outcome: result.outcome, object: proxy, reason: result.reason,
       code: result.error?.code, durationMs: result.durationMs });
-    if (!ok) { result.details = { evidencePersisted: false }; }
+    if (!ok) {
+      const details: Record<string, Object> = result.details ?? JSON.parse('{}') as Record<string, Object>;
+      details['evidencePersisted'] = false;
+      result.details = details;
+    }
   }
 
   /** A reviewable local JSON file; the page owns DocumentViewPicker/save or
