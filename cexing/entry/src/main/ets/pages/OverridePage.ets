@@ -104,7 +104,9 @@ export struct OverridePage {
           .backgroundColor(UI.surface)
           .borderRadius(24)
 
-          Text('下次启动生效 · 订阅 Merge 尚未接入')
+          Text('这些设置在下次启动 VPN 时生效')
+            .fontSize(13).fontColor(UI.muted).width('100%')
+          Text('订阅 Merge 请在配置编辑页预览、应用或停用；草稿不自动生效，更新后沿用已应用 Merge')
             .fontSize(13).fontColor(UI.muted).width('100%')
           if (this.portError.length > 0) {
             Text(this.portError).fontSize(14).fontColor(UI.error).width('100%')
