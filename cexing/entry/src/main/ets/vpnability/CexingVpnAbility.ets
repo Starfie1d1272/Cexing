@@ -23,6 +23,8 @@ import { ConnectionFailures } from '../lib/ConnectionFailure';
 const TAG = 'vpn';
 // 主进程（首页）读取的最近一次启动失败原因
 const LAST_ERROR_FILE = 'last_start_error.txt';
+// Shared sandbox receipt. Main process accepts it only for the matching start session.
+const LAST_STOP_FILE = 'last_stop_result.json';
 // 与 lib/VpnController.ets 的 VpnConfig.addresses 保持一致（系统 tun 接口地址）
 const TUN_ADDR = '172.19.0.1';
 const TUN_PREFIX = 30;
@@ -63,6 +65,11 @@ interface UserOverrides {
   mode: string;
   /** 内核日志是否落盘 mihomo.log（false=仅系统 hilog；wrapper 消费，不进 mihomo 配置） */
   logToFile: boolean;
+}
+
+interface StopResult {
+  session: string;
+  completed: boolean;
 }
 
 class CoreStatusRemote extends rpc.RemoteObject {
@@ -118,6 +125,21 @@ export default class CexingVpnAbility extends VpnExtensionAbility {
 
   private clearLastError(): void {
     this.writeLastError('');
+  }
+
+  private writeStopResult(session: string, completed: boolean): void {
+    try {
+      const result: StopResult = { session, completed };
+      const path = `${this.context.filesDir}/${LAST_STOP_FILE}`;
+      const file = fileIo.openSync(path, fileIo.OpenMode.READ_WRITE | fileIo.OpenMode.CREATE | fileIo.OpenMode.TRUNC);
+      try {
+        fileIo.writeSync(file.fd, JSON.stringify(result));
+      } finally {
+        fileIo.closeSync(file);
+      }
+    } catch (_) {
+      Logger.warn(TAG, 'stop completion record unavailable');
+    }
   }
 
   onCreate(): void {
@@ -242,15 +264,19 @@ export default class CexingVpnAbility extends VpnExtensionAbility {
     }
     this.stopping = true;
     this.cleanup().catch((e: Object) => {
-      Logger.error(TAG, `cleanup failed: ${JSON.stringify(e)}`);
+      Logger.error(TAG, 'cleanup failed');
+      this.writeStopResult(this.startupSession, false);
     });
   }
 
   private async cleanup(): Promise<void> {
+    const session = this.startupSession;
+    let completed = true;
     try {
       await this.connection.destroy();
     } catch (e) {
-      Logger.error(TAG, `destroy failed: ${JSON.stringify(e)}`);
+      completed = false;
+      Logger.error(TAG, 'VPN destroy failed');
     }
     if (this.starting !== null) {
       await this.starting;
@@ -260,12 +286,14 @@ export default class CexingVpnAbility extends VpnExtensionAbility {
         await core.stopCore();
         Logger.info(TAG, 'mihomo core stopped');
       } catch (e) {
-        Logger.error(TAG, `stopCore failed: ${JSON.stringify(e)}`);
+        completed = false;
+        Logger.error(TAG, 'stopCore failed');
       }
       this.coreStarted = false;
       this.coreInitialized = false;
     }
     this.starting = null;
+    this.writeStopResult(session, completed);
   }
 
   onDestroy(): void {
