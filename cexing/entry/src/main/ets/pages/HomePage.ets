@@ -30,6 +30,7 @@ export struct HomePage {
   @State shortWindow: boolean = false;
   @State prioritizePanel: boolean = false;
   @State startFailed: boolean = false;
+  @State stopUnknown: boolean = false;
   private lastTrafficAt: number = 0;
   private freshnessTimer: number = -1;
   private stopRequest: number = 0;
@@ -39,6 +40,7 @@ export struct HomePage {
     if ((status === VpnStatus.Connecting || status === VpnStatus.Connected) &&
       (this.status === VpnStatus.Disconnected || this.status === VpnStatus.Disconnecting)) {
       this.stopRequest++;
+      this.stopUnknown = false;
     }
     this.status = status;
     if (this.visible) {
@@ -58,6 +60,8 @@ export struct HomePage {
   aboutToAppear(): void {
     this.visible = true;
     this.status = VpnController.status;
+    this.stopUnknown = this.status === VpnStatus.Disconnected &&
+      VpnController.getLastStopCompleted() === false;
     VpnController.onChanged(this.listener);
     this.showStartFailure();
     this.refreshProfile();
@@ -131,7 +135,9 @@ export struct HomePage {
     let completed = false;
     try { completed = await VpnController.stop(ctx); }
     catch (_) {}
-    if (!completed && request === this.stopRequest && this.visible && this.rootVisible &&
+    if (request !== this.stopRequest) { return; }
+    this.stopUnknown = !completed;
+    if (!completed && this.visible && this.rootVisible &&
       this.currentVisibleTab === 0) {
       promptAction.showToast({ message: '停止结果未知，请检查系统 VPN 状态后重试', duration: 3000 });
     }
@@ -147,6 +153,7 @@ export struct HomePage {
         return;
       }
       this.startFailed = false;
+      this.stopUnknown = false;
       VpnController.start(ctx);
     } else if (this.status === VpnStatus.Connecting) {
       this.stopVpn(ctx);
@@ -172,14 +179,15 @@ export struct HomePage {
     if (this.status === VpnStatus.Connected) { return '已连接'; }
     if (this.status === VpnStatus.Connecting) { return '连接中…'; }
     if (this.status === VpnStatus.Disconnecting) { return '断开中…'; }
-    return this.startFailed ? '连接失败' : '未连接';
+    return this.stopUnknown ? '停止结果未知' : (this.startFailed ? '连接失败' : '未连接');
   }
 
   private stateLine(): string {
     if (this.status === VpnStatus.Connected) { return '应用报告已连接，可检查网络'; }
     if (this.status === VpnStatus.Connecting) { return '正在建立系统连接'; }
     if (this.status === VpnStatus.Disconnecting) { return '正在结束系统会话'; }
-    return this.startFailed ? '可重试或前往诊断' : '准备连接';
+    return this.stopUnknown ? '请检查系统 VPN 状态或前往诊断' :
+      (this.startFailed ? '可重试或前往诊断' : '准备连接');
   }
 
   @Builder
