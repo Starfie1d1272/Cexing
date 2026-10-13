@@ -1,11 +1,9 @@
-// 用法：source scripts/env.sh && node scripts/test-profile-name.cjs
+// Host-only fixture compilation; application syntax is checked by the SDK build.
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
-const sdk = process.env.OHOS_SDK_HOME;
-assert.ok(sdk, 'Run source scripts/env.sh first');
-const ts = require(path.join(sdk, 'ets/build-tools/ets-loader/node_modules/typescript'));
+const ts = require('./ci/transpile-arkts.cjs');
 const source = fs.readFileSync(path.join(__dirname, '../cexing/entry/src/main/ets/lib/ProfileName.ets'), 'utf8');
 const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS } });
 const context = { exports: {} };

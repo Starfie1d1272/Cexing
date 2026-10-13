@@ -1,13 +1,11 @@
-// Real ArkTS resource implementation, SDK transpiler, synthetic rawfiles and real temp filesystem.
+// Real ArkTS resource implementation, TypeScript host fixture, synthetic rawfiles and real temp filesystem.
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
 const vm = require('node:vm');
 const crypto = require('node:crypto');
-const sdk = process.env.OHOS_SDK_HOME;
-assert.ok(sdk, 'source scripts/env.sh first');
-const ts = require(path.join(sdk, 'ets/build-tools/ets-loader/node_modules/typescript'));
+const ts = require('./ci/transpile-arkts.cjs');
 const source = fs.readFileSync(path.join(__dirname, '../cexing/entry/src/main/ets/lib/ZashboardAssets.ets'), 'utf8');
 const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS } });
 const digest = data => crypto.createHash('sha256').update(data).digest('hex');

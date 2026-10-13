@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
-const ts = require(path.join(process.env.OHOS_SDK_HOME, 'ets/build-tools/ets-loader/node_modules/typescript'));
+const ts = require('./ci/transpile-arkts.cjs');
 const base = path.join(__dirname, '../cexing/entry/src/main/ets');
 function compile(file, modules, extras = {}, page = false) {
   let source = fs.readFileSync(path.join(base, file), 'utf8');
