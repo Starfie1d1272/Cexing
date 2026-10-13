@@ -100,9 +100,11 @@ export namespace ProfileStore {
     if (state !== null) {
       for (const name of Object.keys(state.Profiles)) {
         const version = state.Profiles[name];
-        const source = JSON.parse(fileIo.readTextSync(`${context.filesDir}/profile-versions/${version.ID}/source.json`)) as
-          Record<string, string>;
-        all[name] = JSON.parse(source['Metadata']) as ProfileMetaExt;
+        try {
+          const source = JSON.parse(fileIo.readTextSync(`${context.filesDir}/profile-versions/${version.ID}/source.json`)) as
+            Record<string, string>;
+          all[name] = JSON.parse(source['Metadata']) as ProfileMetaExt;
+        } catch (_) { throw new Error('有效配置元数据损坏，请勿继续修改'); }
       }
     }
     return all;

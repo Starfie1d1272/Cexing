@@ -87,6 +87,10 @@ func executeVersionAction(home string, action versionAction) (versionResponse, e
 			!json.Valid([]byte(action.Metadata)) {
 			return versionResponse{}, errors.New("VERSION_INVALID")
 		}
+		var metadata map[string]any
+		if json.Unmarshal([]byte(action.Metadata), &metadata) != nil || metadata == nil {
+			return versionResponse{}, errors.New("VERSION_INVALID")
+		}
 		result, receipt, err := compilePinnedMerge(home, action.Original, action.Overlay, action.Overrides)
 		if err != nil || len(result.YAML) > maxConfigBytes {
 			return versionResponse{}, errors.New("VERSION_COMPILE_FAILED")
