@@ -78,19 +78,20 @@ export struct ZashboardPage {
 
   private reopen(): void {
     this.releaseWeb();
-    this.error = '正在验证本机面板会话…';
+    this.error = '正在准备控制面板…';
     const context = getContext(this) as common.UIAbilityContext;
     this.session.start(context, (view: ZashboardSessionView | null, error: string) => this.changed(view, error));
   }
 
   build() {
     Column({ space: 12 }) {
+      Text('Zashboard').fontSize(12).fontColor(UI.muted).width('100%')
       if (!this.validSession()) {
         Scroll() {
           Column({ space: 20 }) {
-            Text('面板暂未打开').fontSize(24).fontWeight(600, { enableVariableFontWeight: true }).fontColor(UI.ink)
-            Text(this.error || '正在验证本机面板会话…').fontSize(16).fontColor(UI.muted)
-            Button('重新打开面板').width('100%').height(56).backgroundColor(UI.action).fontColor(UI.onAccent)
+            Text('打开控制面板').fontSize(24).fontWeight(600, { enableVariableFontWeight: true }).fontColor(UI.ink)
+            Text(this.error || '正在准备控制面板…').fontSize(16).fontColor(UI.muted)
+            Button('重新打开').width('100%').height(56).backgroundColor(UI.action).fontColor(UI.onAccent)
               .onClick(() => this.reopen())
             Text('返回连接页不会断开 VPN。').fontSize(13).fontColor(UI.muted)
           }.padding(24).width('100%').constraintSize({ maxWidth: 760 })
@@ -106,6 +107,9 @@ export struct ZashboardPage {
         }
         if (this.open) {
           Web({ src: `${this.url}versions/${this.version}/`, controller: this.controller })
+            .darkMode(WebDarkMode.Auto)
+            .forceDarkAccess(false)
+            .backgroundColor(UI.paper)
             .javaScriptAccess(true)
             .javaScriptOnDocumentStart([{ script: this.bootstrap, scriptRules: ['http://127.0.0.1:9090'] }])
             .fileAccess(false)
@@ -116,7 +120,7 @@ export struct ZashboardPage {
             .multiWindowAccess(false)
             .onControllerAttached(() => {
               try { this.controller.removeCache(true); }
-              catch (_) { this.releaseWeb(); this.error = '面板缓存清理失败，请关闭后重开。'; }
+              catch (_) { this.releaseWeb(); this.error = '缓存清理失败，请重新打开。'; }
             })
             .onInterceptRequest((event) => {
               const target = event.request.getRequestUrl();
@@ -133,12 +137,12 @@ export struct ZashboardPage {
             .onLoadIntercept((event) => !this.allowedNavigation(event.data.getRequestUrl()))
             .onOverrideUrlLoading((request) => !this.allowedNavigation(request.getRequestUrl()))
             .onConsole(() => true)
-            .onRenderExited(() => { this.releaseWeb(); this.error = '面板渲染进程退出，请重新打开。'; })
+            .onRenderExited(() => { this.releaseWeb(); this.error = '控制面板已退出，请重新打开。'; })
             .onErrorReceive((event) => {
-              if (event.request.isMainFrame()) { this.error = '面板加载失败，可重新打开；VPN 继续运行。'; }
+              if (event.request.isMainFrame()) { this.error = '加载失败，请重新打开；VPN 继续运行。'; }
             })
             .onHttpErrorReceive((event) => {
-              if (event.request.isMainFrame()) { this.error = '面板服务不可用，请检查会话后重开。'; }
+              if (event.request.isMainFrame()) { this.error = '服务暂不可用，请重新打开。'; }
             })
             .width('100%')
             .layoutWeight(1)

@@ -78,7 +78,7 @@ process.stdout.write(context.exports.ZashboardSession.bootstrap(fixture.secret,f
         with sync_playwright() as playwright:
             browser = playwright.chromium.launch(executable_path=os.environ.get('CHROMIUM_BINARY') or shutil.which('chromium'),
                                                  headless=True, args=['--no-sandbox'])
-            context = browser.new_context(service_workers='allow')
+            context = browser.new_context(service_workers='allow', color_scheme='light', viewport={'width': 390, 'height': 844})
             context.add_init_script(bootstrap)
             page = context.new_page()
             requests, sockets, console, violations, traffic_frames = [], [], [], [], []
@@ -96,6 +96,27 @@ process.stdout.write(context.exports.ZashboardSession.bootstrap(fixture.secret,f
             page.wait_for_function("window.__OHOS_PANEL_REVOKE__ && !window.__OHOS_PANEL_BOOTSTRAP__")
             assert page.url.startswith(url) and secret not in page.url
             assert secret not in page.locator('body').inner_text(), 'Credential displayed'
+            # Locked upstream uses prefers-color-scheme with automatic theme enabled by default.
+            page.wait_for_function("document.documentElement.dataset.theme === 'light'")
+            screenshot_dir = os.environ.get('ZASHBOARD_SCREENSHOTS')
+            if screenshot_dir:
+                Path(screenshot_dir).mkdir(parents=True, exist_ok=True)
+                page.screenshot(path=str(Path(screenshot_dir) / 'panel-light.png'))
+            page.emulate_media(color_scheme='dark')
+            page.wait_for_function("document.documentElement.dataset.theme === 'dark'")
+            if screenshot_dir:
+                page.screenshot(path=str(Path(screenshot_dir) / 'panel-dark.png'))
+            page.emulate_media(color_scheme='light')
+            page.wait_for_function("document.documentElement.dataset.theme === 'light'")
+            # An explicit panel preference retains upstream priority over automatic media.
+            page.evaluate("localStorage.setItem('config/auto-theme', 'false')")
+            page.emulate_media(color_scheme='dark')
+            page.reload(wait_until='networkidle')
+            page.wait_for_function("document.documentElement.dataset.theme === 'light'")
+            page.evaluate("localStorage.removeItem('config/auto-theme')")
+            page.reload(wait_until='networkidle')
+            page.wait_for_function("document.documentElement.dataset.theme === 'dark'")
+
             assert secret not in page.evaluate('JSON.stringify({...localStorage,...sessionStorage})'), 'Credential persisted'
             assert any(request.url.endswith('/version') and request.headers.get('authorization') == 'Bearer ' + secret
                        for request in requests), 'Real panel did not authenticate REST'
@@ -146,6 +167,8 @@ process.stdout.write(context.exports.ZashboardSession.bootstrap(fixture.secret,f
             page.goto(url, wait_until='networkidle')
             page.get_by_text('Local test', exact=False).first.wait_for(timeout=20000)
             assert not page.evaluate('!!window.__OHOS_PANEL_BOOTSTRAP__')
+            page.emulate_media(color_scheme='dark')
+            page.wait_for_function("document.documentElement.dataset.theme === 'dark'")
             # Observe genuine Controller loss. ArkWeb absorbs all console messages; Chromium's
             # internal WS diagnostics can include token URLs, so never print raw console/URLs.
             Path(str(ready)+'.stop').touch()
@@ -156,7 +179,7 @@ process.stdout.write(context.exports.ZashboardSession.bootstrap(fixture.secret,f
         assert process.returncode == 0, 'Controller fixture cleanup failed'
         log.seek(0)
         assert secret not in log.read(), 'Controller logs exposed fixture credential'
-        print('PASS: built Zashboard on real Go Controller: authenticated REST/traffic WS, anonymous rejection, CSP HTTP/WS/inline-script blocking, reload, actual WS reconnect after server restart, revoke/reentry, real server loss; Chromium only, no ArkWeb/device/TUN claim')
+        print('PASS: built Zashboard on real Go Controller: light/dark/live media/manual preference/reentry, authenticated REST/traffic WS, anonymous rejection, CSP HTTP/WS/inline-script blocking, reload, actual WS reconnect after server restart, revoke/reentry, real server loss; Chromium only, no ArkWeb/device/TUN claim')
     except Exception as error:
         print('FAIL: ' + safe(error))
         raise SystemExit(1)
