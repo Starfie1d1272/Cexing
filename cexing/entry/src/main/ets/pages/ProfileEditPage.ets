@@ -22,8 +22,15 @@ export struct ProfileEditPage {
   @Consume('profileRevision') profileRevision: number;
   @Consume('nav') navStack: NavPathStack;
   @State text: string = '';
+  // Only loading/discarding replaces the native editor's text. Keystrokes must
+  // not feed the entire document back through ArkUI's reactive state.
+  private editedText: string = '';
+  private file: string = '';
+  private draftTimer: number = -1;
+  @State editorRevision: number = 0;
   @State dirty: boolean = false;
   @State draftPersisted: boolean = false;
+  @State draftPending: boolean = false;
   @State loadFailed: boolean = false;
   @State showSaveAsSheet: boolean = false;
   @State saveAsInput: string = '';
@@ -35,22 +42,23 @@ export struct ProfileEditPage {
   @State mergeLoadFailed: boolean = false;
 
   aboutToAppear(): void {
+    this.file = ProfileEditBus.current;
     const context = getContext(this) as common.UIAbilityContext;
-    const content = ProfileStore.getProfileContent(context, ProfileEditBus.current);
+    const content = ProfileStore.getProfileContent(context, this.file);
     if (content === null) {
       this.loadFailed = true;
       return;
     }
     this.loadFailed = false;
     try {
-      this.mergeText = ProfileStore.getMergeDraft(context, ProfileEditBus.current);
+      this.mergeText = ProfileStore.getMergeDraft(context, this.file);
       this.mergeLoadFailed = false;
     } catch (_) {
       this.mergeText = '';
       this.mergeLoadFailed = true;
     }
     try {
-      const draft = ProfileStore.readDraft(context, ProfileEditBus.current);
+      const draft = ProfileStore.readDraft(context, this.file);
       this.text = draft === null ? content : draft;
       this.dirty = draft !== null;
       this.draftPersisted = draft !== null;
@@ -58,6 +66,19 @@ export struct ProfileEditPage {
       this.text = content;
       this.dirty = false;
       this.draftPersisted = false;
+    }
+    this.editedText = this.text;
+    this.draftPending = false;
+  }
+
+  aboutToDisappear(): void {
+    this.flushDraft();
+  }
+
+  private cancelDraftTimer(): void {
+    if (this.draftTimer !== -1) {
+      clearTimeout(this.draftTimer);
+      this.draftTimer = -1;
     }
   }
 
@@ -72,20 +93,23 @@ export struct ProfileEditPage {
       return;
     }
     const context = getContext(this) as common.UIAbilityContext;
-    const file = ProfileEditBus.current;
+    const file = this.file;
     if (file.length === 0) {
       this.toast('目标配置不存在');
       return;
     }
-    const snapshot = this.text;
+    this.flushDraft();
+    const snapshot = this.editedText;
     this.saving = true;
     try {
       const result = await ProfileTransactions.edit(context, file, snapshot);
-      this.dirty = this.text !== snapshot;
+      this.dirty = this.editedText !== snapshot;
       if (!this.dirty) { this.draftPersisted = false; }
       this.profileRevision++;
       this.toast(result === 'applied' ? '已保存并应用' : '已保存，启用或启动后生效');
       if (!this.dirty) {
+        this.cancelDraftTimer();
+        this.draftPending = false;
         try { ProfileStore.clearDraft(context, file); } catch (_) { /* saved text remains authoritative */ }
       }
     } catch (e) {
@@ -98,21 +122,45 @@ export struct ProfileEditPage {
   }
 
   private discardDraft(): void {
+    if (this.saving) { return; }
     const context = getContext(this) as common.UIAbilityContext;
-    const content = ProfileStore.getProfileContent(context, ProfileEditBus.current);
+    const content = ProfileStore.getProfileContent(context, this.file);
     if (content === null) { this.toast('无法读取已保存配置'); return; }
-    try { ProfileStore.clearDraft(context, ProfileEditBus.current); } catch (_) {
+    try { ProfileStore.clearDraft(context, this.file); } catch (_) {
       this.toast('草稿删除失败'); return;
     }
+    this.cancelDraftTimer();
+    this.editedText = content;
     this.text = content;
+    this.editorRevision++;
     this.dirty = false;
     this.draftPersisted = false;
+    this.draftPending = false;
+  }
+
+  private onTextChanged(value: string): void {
+    this.editedText = value;
+    this.dirty = true;
+    this.draftPersisted = false;
+    this.draftPending = true;
+    this.cancelDraftTimer();
+    this.draftTimer = setTimeout(() => {
+      this.draftTimer = -1;
+      this.flushDraft();
+    }, 600);
+  }
+
+  private flushDraft(): void {
+    this.cancelDraftTimer();
+    if (!this.dirty || (!this.draftPending && this.draftPersisted)) { return; }
+    this.persistDraft(this.editedText);
   }
 
   private persistDraft(value: string): void {
     this.dirty = true;
+    this.draftPending = false;
     try {
-      ProfileStore.writeDraft(getContext(this) as common.UIAbilityContext, ProfileEditBus.current, value);
+      ProfileStore.writeDraft(getContext(this) as common.UIAbilityContext, this.file, value);
       this.draftPersisted = true;
     } catch (_) {
       this.draftPersisted = false;
@@ -130,7 +178,7 @@ export struct ProfileEditPage {
     }
     const context = getContext(this) as common.UIAbilityContext;
     try {
-      const file = ProfileStore.importContent(context, input, this.text);
+      const file = ProfileStore.importContent(context, input, this.editedText);
       this.profileRevision++;
       this.toast(`已另存为 ${file}`);
     } catch (e) {
@@ -146,7 +194,7 @@ export struct ProfileEditPage {
     this.mergeSummary = '';
     try {
       const context = getContext(this) as common.UIAbilityContext;
-      const result = await ProfileTransactions.saveMergeDraft(context, ProfileEditBus.current, this.mergeText);
+      const result = await ProfileTransactions.saveMergeDraft(context, this.file, this.mergeText);
       this.mergeSummary = result.changes.map((change: MergeChange) =>
         `${change.section}: ${change.before} → ${change.after}`).join(' · ');
       if (this.mergeSummary.length === 0) { this.mergeSummary = '配置内容无统计差异'; }
@@ -162,7 +210,7 @@ export struct ProfileEditPage {
     this.mergeBusy = true;
     try {
       const context = getContext(this) as common.UIAbilityContext;
-      const result = await ProfileTransactions.applyMerge(context, ProfileEditBus.current, this.mergeText);
+      const result = await ProfileTransactions.applyMerge(context, this.file, this.mergeText);
       this.toast(result === 'applied' ? 'Merge 已保存并应用' : 'Merge 已保存，下次连接时生效');
       this.profileRevision++;
     } catch (e) {
@@ -173,8 +221,8 @@ export struct ProfileEditPage {
   @Builder
   MergeSheet() {
     Column({ space: 12 }) {
-      Text('每订阅 Merge 草稿').fontSize(17).fontWeight(FontWeight.Medium).fontColor(UI.ink)
-      Text('采用 Clash Verge 2.5.8 合并规则。预览只保存草稿；点击应用才改变有效配置。清空后应用可停用 Merge。')
+      Text('本订阅覆写（Merge）').fontSize(17).fontWeight(FontWeight.Medium).fontColor(UI.ink)
+      Text('仅作用于当前订阅，不影响其他订阅。采用 Clash Verge 2.5.8 合并规则。预览只保存草稿；点击应用才生效。清空后应用可停用覆写。')
         .fontSize(13).fontColor(UI.muted)
       if (this.mergeLoadFailed) {
         Text('现有 Merge 草稿读取失败，已阻止覆盖').fontSize(13).fontColor(UI.error)
@@ -257,20 +305,21 @@ export struct ProfileEditPage {
     Column({ space: 8 }) {
       Row() {
         Column({ space: 2 }) {
-          Text(`编辑中：${ProfileEditBus.current}`)
+          Text(`编辑中：${this.file}`)
             .fontSize(13)
             .fontColor(UI.muted)
             .maxLines(1)
             .textOverflow({ overflow: TextOverflow.Ellipsis })
           if (this.dirty) {
-            Text(this.draftPersisted ? '未保存 · 草稿已保留，返回后可继续编辑' : '未保存 · 草稿保留失败，请先保存配置')
+            Text(this.draftPending ? '未保存 · 正在保留草稿' :
+              (this.draftPersisted ? '未保存 · 草稿已保留，返回后可继续编辑' : '未保存 · 草稿保留失败，请先保存配置'))
               .fontSize(13)
               .fontColor(UI.accentText)
           }
         }
         .alignItems(HorizontalAlign.Start)
         .layoutWeight(1)
-        Button('Merge 预览')
+        Button('本订阅覆写')
           .fontSize(13).height(40).backgroundColor(UI.soft).fontColor(UI.ink)
           .enabled(!this.loadFailed).onClick(() => { this.showMergeSheet = true; })
         this.HeaderButton('另存为', $r('sys.symbol.doc_filled_on_doc'), UI.muted, !this.loadFailed, () => {
@@ -296,21 +345,25 @@ export struct ProfileEditPage {
         .layoutWeight(1)
         .justifyContent(FlexAlign.Center)
       } else {
-        TextArea({ text: $$this.text })
-          .width('100%')
-          .layoutWeight(1)
-          .fontSize(14)
-          .fontFamily('HarmonyOS Sans Mono')
-          .backgroundColor(UI.surface)
-          .borderRadius(12)
-          .padding(12)
-          .onChange((v: string) => {
-            this.persistDraft(v);
-          })
+        // Recreate only on explicit discard, even when the initial seed is unchanged.
+        ForEach([this.editorRevision], (_revision: number) => {
+          TextArea({ text: this.text })
+            .width('100%')
+            .layoutWeight(1)
+            .fontSize(14)
+            .fontFamily('HarmonyOS Sans Mono')
+            .backgroundColor(UI.surface)
+            .borderRadius(12)
+            .padding(12)
+            .onChange((v: string) => {
+              this.onTextChanged(v);
+            })
+        }, (revision: number) => revision.toString())
       }
 
       if (this.dirty) {
         Button('放弃草稿').height(44).backgroundColor(UI.soft).fontColor(UI.error)
+          .enabled(!this.saving)
           .onClick(() => this.discardDraft())
       }
       Text('保存会校验配置；运行中成功热加载后才覆盖原文件')
