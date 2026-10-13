@@ -86,6 +86,7 @@ export namespace ProfileTransactions {
       }
       if (live) { await apply(context, candidate); }
       try { ProfileStore.updateProfileContent(context, file, candidate); } catch (e) {
+        if ((e as Error).message === 'PROFILE_ROLLBACK_FAILED') { markUnknown(context); }
         if (live) { await restore(context, previous); }
         throw new Error('保存配置失败');
       }
@@ -108,6 +109,7 @@ export namespace ProfileTransactions {
       }
       if (live) { await apply(context, downloaded.content); }
       try { ProfileStore.commitDownloaded(context, file, downloaded); } catch (e) {
+        if ((e as Error).message === 'PROFILE_ROLLBACK_FAILED') { markUnknown(context); }
         if (live) { await restore(context, previous); }
         throw new Error('保存更新失败');
       }
