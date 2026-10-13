@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"syscall"
@@ -243,5 +244,95 @@ func TestDiagnosticConfigFreeEnumsAndOverridesCannotLeakOnDisk(t *testing.T) {
 	}
 	if strings.Contains(string(data), private) || !strings.Contains(string(data), "effective_config") || !strings.Contains(string(data), "unknown") {
 		t.Fatal("config free string escaped, or useful context lost")
+	}
+}
+
+// secretMu is a deterministic gate inside text(): it lets this test inspect
+// the privacy transaction after capacity was read but before replacement. No
+// production test hook, timing-only race, or second capacity check is used.
+func TestDiagnosticCapacityAndReplacementShareOneTransaction(t *testing.T) {
+	s, err := newDiagnosticStore(t.TempDir(), "kernel")
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.registerPrivateConfig(map[string]any{"password": "CapacityTransactionKnownFixture"})
+	s.privacyMu.Lock()
+	s.privateBytes = 8 * 1024 * 1024
+	s.privacyMu.Unlock()
+	secretMu.Lock()
+	held := true
+	var workers sync.WaitGroup
+	defer func() {
+		if held {
+			secretMu.Unlock()
+		}
+		workers.Wait()
+	}()
+	result := make(chan *diagnosticError, 1)
+	workers.Add(1)
+	go func() {
+		defer workers.Done()
+		result <- s.logFailure("[TCP] dial fixture error: connection refused CapacityTransactionKnownFixture")
+	}()
+	// Wait until our reader is actually inside text(), blocked by secretMu.
+	deadline := time.Now().Add(3 * time.Second)
+	for {
+		stack := make([]byte, 256*1024)
+		n := runtime.Stack(stack, true)
+		if strings.Contains(string(stack[:n]), "core.(*diagnosticStore).text(") && strings.Contains(string(stack[:n]), "core.redactControllerSecret(") {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("text did not reach the controlled replacement gate")
+		}
+		runtime.Gosched()
+	}
+	if s.privacyMu.TryLock() {
+		s.privacyMu.Unlock()
+		t.Fatal("capacity guard was released before replacement")
+	}
+	registered := make(chan struct{})
+	workers.Add(1)
+	go func() {
+		defer workers.Done()
+		s.registerPrivateConfig(map[string]any{"password": "CapacityTransactionSkippedFixture"})
+		close(registered)
+	}()
+	// The writer must be waiting on the same privacy lock, not already committed.
+	for {
+		select {
+		case <-registered:
+			t.Fatal("capacity transition interleaved with text replacement")
+		default:
+		}
+		stack := make([]byte, 256*1024)
+		n := runtime.Stack(stack, true)
+		if strings.Contains(string(stack[:n]), "core.(*diagnosticStore).registerPrivateConfig(") {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("registration did not reach the controlled writer gate")
+		}
+		runtime.Gosched()
+	}
+	secretMu.Unlock()
+	held = false
+	before := <-result
+	<-registered
+	after := s.logFailure("[TCP] dial fixture error: connection refused CapacityTransactionSkippedFixture")
+	if !after.DetailOmitted || after.Condition != "connection_refused" {
+		t.Fatal("post-transition event did not fail closed with useful condition")
+	}
+	for _, failure := range []*diagnosticError{before, after} {
+		if err = s.record(diagnosticEvent{Operation: "core", Stage: "runtime_error", Outcome: "warning", Error: failure}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	data, err := os.ReadFile(filepath.Join(s.root, "kernel-current.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), "CapacityTransactionKnownFixture") || strings.Contains(string(data), "CapacityTransactionSkippedFixture") || !strings.Contains(string(data), "detailOmitted") || !strings.Contains(string(data), "connection_refused") {
+		t.Fatal("capacity interleaving leaked to disk or lost technical evidence")
 	}
 }
