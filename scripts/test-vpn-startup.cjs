@@ -28,36 +28,47 @@ const missing = failures.summary('connected', 'not-run', null);
 assert.ok(missing.includes('system_session=not-observed'));
 assert.ok(missing.includes('kernel_readiness=not-reported'), 'Connected must not infer core readiness');
 assert.equal(failures.decode(JSON.stringify({ phase: 'core-start', category: secret, code: 3 })), null);
-function load(relative, modules, timers = []) {
+function load(relative, modules, timers = [], clock = Date) {
   const source = fs.readFileSync(path.join(__dirname, '../cexing/entry/src/main/ets', relative), 'utf8');
   const output = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText;
   const context = { exports: {}, require: name => {
     assert.ok(name in modules, `Missing mock: ${name}`);
     return modules[name];
-  }, setTimeout: fn => { timers.push(fn); }, Date, Promise, Uint8Array, Object, JSON };
+  }, setTimeout: fn => { timers.push(fn); }, Date: clock, Promise, Uint8Array, Object, JSON };
   vm.runInNewContext(output, context);
   return context.exports;
 }
 async function testClient(mode) {
   let callbacks;
   let session = '';
+  let activeSession = '';
+  let stopReceipt = '';
   let ready = false;
   let error = '';
   const timers = [];
   const settings = { accessMode: 'all', accessList: [], ipv6: false, vpnWasConnected: false };
   const context = {
     filesDir: '/private', applicationInfo: { name: 'test.bundle' },
-    connectServiceExtensionAbility: (want, value) => { callbacks = value; session = want.parameters.SESSION_ID; return 1; },
-    disconnectServiceExtensionAbility: async () => {}
+    connectServiceExtensionAbility: (want, value) => {
+      callbacks = value; session = want.parameters.SESSION_ID; activeSession = session; return 1;
+    },
+    disconnectServiceExtensionAbility: async () => {
+      stopReceipt = JSON.stringify({ session: mode === 'stale-receipt' ? 'old-session' : activeSession,
+        completed: mode !== 'cleanup-failed' });
+    }
   };
   const modules = {
-    '@kit.NetworkKit': { vpnExtension: { startVpnExtensionAbility: async () => {}, stopVpnExtensionAbility() {} } },
-    '@kit.CoreFileKit': { fileIo: {} }, './Logger': logger,
+    '@kit.NetworkKit': { vpnExtension: { startVpnExtensionAbility: async () => {},
+      stopVpnExtensionAbility: async () => { if (mode === 'stop-failed') throw Error('synthetic stop failure'); } } },
+    '@kit.CoreFileKit': { fileIo: { accessSync: () => stopReceipt.length > 0,
+      readTextSync: () => stopReceipt } }, './Logger': logger,
     './ConnectionFailure': failureModule.exports,
     './CoreApi': { CoreApi: { bindContext() {} } }, './Settings': { Settings: { load: () => settings, save() {} } },
     '@kit.IPCKit': { rpc: { MessageSequence: { create: () => ({ reclaim() {} }) }, MessageOption: class {} } }
   };
-  const { VpnController: controller, VpnStatus } = load('lib/VpnController.ets', modules, timers);
+  let clockTick = 0;
+  const clock = mode === 'stale-receipt' ? { now: () => (clockTick += 20000) } : Date;
+  const { VpnController: controller, VpnStatus } = load('lib/VpnController.ets', modules, timers, clock);
   const remote = { sendMessageRequest: async () => {
     let strings = 0;
     let booleans = 0;
@@ -107,8 +118,9 @@ async function testClient(mode) {
     assert.equal(controller.status, VpnStatus.Disconnected, 'A ready response from another session must be rejected');
     assert.equal(controller.lastStartFailure.phase, 'readiness');
   } else {
-    controller.stop(context);
-    await flush();
+    const stopped = await controller.stop(context);
+    assert.equal(stopped, mode !== 'stop-failed' && mode !== 'cleanup-failed' && mode !== 'stale-receipt',
+      'Stop result must require matching extension cleanup and system stop completion');
     ready = true;
     timers.shift()();
     await flush();
@@ -122,14 +134,16 @@ async function testExtension() {
   let stopCount = 0;
   let destroyCount = 0;
   let prepared = 0;
+  const files = new Map();
   const pending = new Promise(resolve => { complete = resolve; });
   const connection = { create: async () => 32, protectProcessNet: async () => {},
     destroy: async () => { destroyCount++; } };
   const modules = {
     '@kit.NetworkKit': { VpnExtensionAbility: class {}, vpnExtension: { createVpnConnection: () => connection } },
     '@kit.IPCKit': { rpc: { RemoteObject: class {} } },
-    '@kit.CoreFileKit': { fileIo: { accessSync: () => false, openSync: () => ({ fd: 1 }),
-      writeSync() {}, closeSync() {}, renameSync() {}, OpenMode: {} } },
+    '@kit.CoreFileKit': { fileIo: { accessSync: () => false, openSync: path => ({ fd: path }),
+      writeSync: (fd, value) => files.set(fd, value), closeSync() {},
+      renameSync: (from, to) => files.set(to, files.get(from)), OpenMode: {} } },
     'libentry.so': { default: { initCore: async () => { assert.ok(prepared > 0, 'Prepare static assets before Controller initialization'); return ''; }, startTun: () => pending,
       stopCore: async () => { stopCount++; } } },
     '../lib/CoreApi': { CoreApi: { bindContext() {} } },
@@ -159,6 +173,8 @@ async function testExtension() {
   complete('');
   await flush();
   assert.equal(stopCount, 1, 'Stop must clean up a late kernel startup');
+  assert.equal(JSON.parse(files.get('/private/last_stop_result.json')).completed, true,
+    'Extension receipt must follow the awaited native stop');
   const restarted = extension.onConnect({ parameters: { VPN_CONFIG: {} } });
   await flush();
   restarted.onRemoteMessageRequest(1, {}, { writeBoolean: value => { reportedReady = value; }, writeString() {} }, {});
@@ -170,6 +186,9 @@ async function testExtension() {
   await testClient('error');
   await testClient('stale');
   await testClient('cancel');
+  await testClient('stop-failed');
+  await testClient('cleanup-failed');
+  await testClient('stale-receipt');
   await testExtension();
   console.log('PASS: readiness, error propagation, cancellation and extension lifecycle scenarios');
 })().catch(error => { console.error(error); process.exitCode = 1; });
