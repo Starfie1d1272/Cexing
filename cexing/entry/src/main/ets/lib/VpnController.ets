@@ -11,7 +11,6 @@ import { Logger } from './Logger';
 import { CoreApi } from './CoreApi';
 import { rpc } from '@kit.IPCKit';
 import { Settings } from './Settings';
-import { ProfileStore } from './ProfileStore';
 
 const TAG = 'vpnCtrl';
 const VPN_ABILITY_NAME = 'CexingVpnAbility';
@@ -325,25 +324,18 @@ export namespace VpnController {
     const want: Want = { bundleName: context.applicationInfo.name, abilityName: VPN_ABILITY_NAME };
     const id = serviceId;
     const finish = async (): Promise<void> => {
-      let disconnected = id <= 0;
       if (id > 0) {
-        try { await context.disconnectServiceExtensionAbility(id); disconnected = true; }
+        try { await context.disconnectServiceExtensionAbility(id); }
         catch (e) { Logger.error(TAG, `disconnectServiceExtensionAbility failed: ${JSON.stringify(e)}`); }
       }
-      let stopped = false;
-      try { await vpnExtension.stopVpnExtensionAbility(want); stopped = true; }
+      try { await vpnExtension.stopVpnExtensionAbility(want); }
       catch (e) { Logger.error(TAG, `stopVpnExtensionAbility failed: ${JSON.stringify(e)}`); }
       if (attempt !== startAttempt || status !== VpnStatus.Disconnecting) { return; }
       serviceId = 0;
-      // A transport probe alone is not proof. Clear uncertainty only after the
-      // system stop and service disconnect complete, with the old core absent.
-      let coreAbsent = false;
-      if (stopped && disconnected) { coreAbsent = !(await CoreApi.isAlive()); }
-      if (attempt !== startAttempt || status !== VpnStatus.Disconnecting) { return; }
+      // Neither system-stop resolution nor a Controller probe proves native
+      // extension cleanup. The session-bound stop result is integrated by the
+      // runtime line before clearing an uncertain config outcome.
       setStatus(VpnStatus.Disconnected);
-      if (stopped && disconnected && coreAbsent) {
-        try { ProfileStore.clearApplyUncertain(context); } catch (_) {}
-      }
     };
     finish().catch((e: Object) => { Logger.error(TAG, `stop completion failed: ${JSON.stringify(e)}`); });
   }
