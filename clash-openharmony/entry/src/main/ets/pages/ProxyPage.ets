@@ -56,7 +56,7 @@ export struct ProxyPage {
 
   build() {
     Column({ space: 12 }) {
-      Button('刷新').height(48).backgroundColor(UI.soft).fontColor(UI.accent).enabled(!this.busy).onClick(() => this.refresh())
+      Button('刷新').height(48).backgroundColor(UI.soft).fontColor(UI.accentText).enabled(!this.busy).onClick(() => this.refresh())
       if (this.message.length > 0) {
         Text(this.message).fontSize(14).fontColor(UI.muted)
       }
@@ -67,7 +67,7 @@ export struct ProxyPage {
               Text(group.name).fontSize(17).fontWeight(FontWeight.Medium).fontColor(UI.ink)
               Text(group.now === undefined ? group.type : `${group.type} · ${group.now}`).fontSize(14).fontColor(UI.muted)
               if (group.type === 'Selector') {
-                Button('选择节点').height(48).backgroundColor(UI.soft).fontColor(UI.accent).enabled(!this.busy).onClick(() => this.choose(group))
+                Button('选择节点').height(48).backgroundColor(UI.soft).fontColor(UI.accentText).enabled(!this.busy).onClick(() => this.choose(group))
               }
             }
             .alignItems(HorizontalAlign.Start)

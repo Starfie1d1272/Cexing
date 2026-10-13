@@ -25,6 +25,8 @@ export struct HomePage {
   @State mode: string = 'rule';
   @State stageWidth: number = 340;
   @State wide: boolean = false;
+  @State stageHeight: number = 174;
+  @State shortWindow: boolean = false;
   @State startFailed: boolean = false;
   private disconnectGeneration: number = 0;
   private lastTrafficAt: number = 0;
@@ -178,48 +180,60 @@ export struct HomePage {
   @Builder
   Rate(value: string, label: string) {
     Column({ space: 7 }) {
-      Text(value).fontSize(26).fontWeight(FontWeight.Medium).fontColor(Color.White)
-        .maxLines(1).textOverflow({ overflow: TextOverflow.Ellipsis })
       Text(label).fontSize(12).fontColor('#C9D3D9')
+      Text() {
+        Span(value.split(' ')[0]).fontSize(28).fontWeight(600)
+        Span(value.indexOf(' ') >= 0 ? ` ${value.substring(value.indexOf(' ') + 1)}` : '')
+          .fontSize(12).fontColor('#C9D3D9')
+      }.fontColor(Color.White).fontFeature('tnum')
     }.alignItems(HorizontalAlign.Start).layoutWeight(1)
+      .accessibilityGroup(true).accessibilityText(`${label} ${value}`)
   }
 
   @Builder
   ConnectionCard() {
     Column() {
       Stack({ alignContent: Alignment.Start }) {
-        Polygon().width('100%').height(174)
+        Polygon().width('100%').height(this.stageHeight)
           .points([[this.stageWidth * 0.87, 0], [this.stageWidth, 0],
-            [this.stageWidth, 174], [this.stageWidth * 0.64, 174]])
+            [this.stageWidth, this.stageHeight], [this.stageWidth * 0.64, this.stageHeight]])
           .fill('#EDF0F1').accessibilityLevel('no')
-        Polygon().width('100%').height(174)
-          .points([[this.stageWidth, 24], [this.stageWidth, 174], [this.stageWidth * 0.74, 174]])
+        Polygon().width('100%').height(this.stageHeight)
+          .points([[this.stageWidth, this.stageHeight * 0.14], [this.stageWidth, this.stageHeight], [this.stageWidth * 0.74, this.stageHeight]])
           .fill(UI.stage).accessibilityLevel('no')
-        Polygon().width('100%').height(174)
-          .points([[this.stageWidth * 0.86, 104], [this.stageWidth * 0.87, 104],
-            [this.stageWidth * 0.75, 174], [this.stageWidth * 0.74, 174]])
+        Polygon().width('100%').height(this.stageHeight)
+          .points([[this.stageWidth * 0.86, this.stageHeight * 0.6], [this.stageWidth * 0.87, this.stageHeight * 0.6],
+            [this.stageWidth * 0.75, this.stageHeight], [this.stageWidth * 0.74, this.stageHeight]])
           .fill(this.status === VpnStatus.Connected ? UI.signal : '#AEBCC3').accessibilityLevel('no')
         Column({ space: 13 }) {
-          Text('VPN / 系统连接').fontSize(12).fontColor(UI.muted).margin({ bottom: 5 })
-          Text(this.label()).fontSize(36).fontWeight(FontWeight.Bold).fontColor(UI.ink)
+          if (!this.shortWindow) {
+            Text('VPN / 系统连接').fontSize(12).fontColor(UI.stateMuted).margin({ bottom: 5 })
+          }
+          Text(this.label()).fontSize(36).fontWeight(600, { enableVariableFontWeight: true }).fontColor(UI.stateInk)
           Row({ space: 8 }) {
             if (this.status === VpnStatus.Connecting || this.status === VpnStatus.Disconnecting) {
-              LoadingProgress().width(16).height(16).color(UI.accent)
+              LoadingProgress().width(16).height(16).color('#00869B')
             } else {
               Circle().width(7).height(7)
-                .fill(this.status === VpnStatus.Connected ? UI.accent : '#97A6AE')
+                .fill(this.status === VpnStatus.Connected ? '#00869B' : '#97A6AE')
             }
-            Text(this.stateLine()).fontSize(13).fontColor(UI.muted)
+            Text(this.stateLine()).fontSize(13).fontColor(UI.stateMuted)
           }
-        }.alignItems(HorizontalAlign.Start).padding(24).width('74%')
-      }.width('100%').height(174)
+        }.alignItems(HorizontalAlign.Start).padding({ left: 24, right: 24, top: this.shortWindow ? 16 : 24,
+          bottom: this.shortWindow ? 16 : 24 }).width('74%')
+      }.width('100%').height(this.stageHeight)
         .onAreaChange((_old: Area, area: Area) => { this.stageWidth = Number(area.width); })
-      Row({ space: 20 }) {
-        this.Rate(this.upRate, '↑ 上传')
-        Divider().vertical(true).height(48).color('#52616A')
-        this.Rate(this.downRate, '↓ 下载')
-      }.padding({ top: 18, bottom: 18, left: 24, right: 24 }).width('100%').backgroundColor(UI.stage)
-    }.width(this.wide ? '48%' : '100%').backgroundColor(UI.surface)
+      if (this.status === VpnStatus.Connected) {
+        Row({ space: 20 }) {
+          this.Rate(this.upRate, '↑ 上传')
+          Divider().vertical(true).height(48).color('#52616A')
+          this.Rate(this.downRate, '↓ 下载')
+        }.padding({ top: 18, bottom: 18, left: 24, right: 24 }).width('100%').backgroundColor(UI.stage)
+      } else {
+        Text('连接后显示实时速率').fontSize(12).fontColor('#C9D3D9').width('100%')
+          .padding({ top: 17, bottom: 17, left: 24, right: 24 }).backgroundColor(UI.stage)
+      }
+    }.width(this.wide ? '48%' : '100%').backgroundColor(Color.White)
       .borderRadius(28).clip(true).border({ width: 1, color: UI.line })
   }
 
@@ -243,14 +257,14 @@ export struct HomePage {
         ForEach(MODE_LABELS, (label: string, index: number) => {
           Button(label).layoutWeight(1).height(48).fontSize(14)
             .backgroundColor(this.mode === MODE_VALUES[index] ? UI.soft : Color.Transparent)
-            .fontColor(this.mode === MODE_VALUES[index] ? UI.accent : UI.muted)
+            .fontColor(this.mode === MODE_VALUES[index] ? UI.accentText : UI.muted)
             .enabled(this.status === VpnStatus.Connected || this.status === VpnStatus.Disconnected)
             .onClick(() => this.changeMode(index))
         }, (label: string) => label)
       }.padding(4).borderRadius(28).backgroundColor(UI.surface).width('100%')
       Button({ type: ButtonType.Normal }) {
         Row({ space: 12 }) {
-          SymbolGlyph($r('sys.symbol.chevron_right')).fontSize(18).fontColor([UI.accent])
+          SymbolGlyph($r('sys.symbol.chevron_right')).fontSize(18).fontColor([UI.accentText])
           Text('Zashboard 面板').fontSize(17).fontWeight(FontWeight.Medium).layoutWeight(1)
         }.width('100%').padding(18)
       }.width('100%').constraintSize({ minHeight: 80 }).borderRadius(24)
@@ -263,14 +277,14 @@ export struct HomePage {
 
   build() {
     Column({ space: 12 }) {
-      Text('连接').fontSize(26).fontWeight(FontWeight.Bold).fontColor(UI.ink)
+      Text('连接').fontSize(26).fontWeight(600, { enableVariableFontWeight: true }).fontColor(UI.ink)
         .width('100%').margin({ top: 16, bottom: 12 })
       Scroll() {
         Column({ space: 20 }) {
           if (!this.hasProfile) {
             Column({ space: 18 }) {
               Text('导入订阅').fontSize(36).fontWeight(FontWeight.Bold).fontColor(UI.ink)
-              Button('添加订阅').width('100%').height(56).backgroundColor(UI.accent)
+              Button('添加订阅').width('100%').height(56).backgroundColor(UI.action).fontColor(UI.onAccent)
                 .onClick(() => { this.tabJump = 1; })
             }.padding(24).width('100%').borderRadius(28).backgroundColor(UI.surface)
           } else {
@@ -287,13 +301,18 @@ export struct HomePage {
           (this.status === VpnStatus.Connecting ? '取消连接' :
             (this.status === VpnStatus.Disconnecting ? '断开中…' : '断开连接')))
           .width('100%').height(56).fontSize(16).fontWeight(FontWeight.Medium)
-          .backgroundColor(this.status === VpnStatus.Connected ? UI.soft : UI.accent)
-          .fontColor(this.status === VpnStatus.Connected ? UI.accent : Color.White)
+          .backgroundColor(this.status === VpnStatus.Connected ? UI.soft : UI.action)
+          .fontColor(this.status === VpnStatus.Connected ? UI.accentText : UI.onAccent)
           .enabled(this.status !== VpnStatus.Disconnecting).onClick(() => this.toggle())
       }
     }.padding({ left: 24, right: 24, bottom: 12 }).width('100%').height('100%')
-      .backgroundColor(UI.paper)
-      .onAreaChange((_old: Area, area: Area) => { this.wide = Number(area.width) >= 700; })
+      .backgroundColor(UI.paper).constraintSize({ maxWidth: 1120 }).alignSelf(ItemAlign.Center)
+      .onAreaChange((_old: Area, area: Area) => {
+        this.wide = Number(area.width) >= 700;
+        const scale = (getContext(this) as common.UIAbilityContext).config.fontSizeScale ?? 1;
+        this.shortWindow = Number(area.height) <= 400;
+        this.stageHeight = (this.shortWindow ? 134 : 174) + Math.max(0, scale - 1) * 160;
+      })
 
   }
 }

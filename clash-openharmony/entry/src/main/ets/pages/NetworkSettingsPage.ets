@@ -86,7 +86,7 @@ export struct NetworkSettingsPage {
             this.showAddDialog = false;
           })
         Button('添加')
-          .height(48).backgroundColor(UI.accent)
+          .height(48).backgroundColor(UI.action).fontColor(UI.onAccent)
           .layoutWeight(1)
           .onClick(() => {
             const pkg = this.inputPkg.trim();
@@ -138,8 +138,8 @@ export struct NetworkSettingsPage {
                 .layoutWeight(1)
                 .textAlign(TextAlign.Center)
                 .fontWeight(this.accessIndex === index ? FontWeight.Medium : FontWeight.Regular)
-                .fontColor(this.accessIndex === index ? Color.White : UI.muted)
-                .backgroundColor(this.accessIndex === index ? UI.accent : Color.Transparent)
+                .fontColor(this.accessIndex === index ? UI.onAccent : UI.muted)
+                .backgroundColor(this.accessIndex === index ? UI.action : Color.Transparent)
                 .borderRadius(14)
                 .padding({ left: 4, right: 4 })
                 .stateStyles({
@@ -193,10 +193,10 @@ export struct NetworkSettingsPage {
             Row({ space: 6 }) {
               SymbolGlyph($r('sys.symbol.plus'))
                 .fontSize(14)
-                .fontColor([UI.accent])
+                .fontColor([UI.accentText])
               Text('添加包名')
                 .fontSize(14)
-                .fontColor(UI.accent)
+                .fontColor(UI.accentText)
             }
             .width('100%')
             .constraintSize({ minHeight: 48 })
@@ -223,7 +223,7 @@ export struct NetworkSettingsPage {
       .width('100%')
       .padding({ left: 24, right: 24, top: 8 })
     }
-    .width('100%').height('100%').backgroundColor(UI.paper)
+    .width('100%').height('100%').backgroundColor(UI.paper).constraintSize({ maxWidth: 760 }).alignSelf(ItemAlign.Center)
     .bindSheet($$this.showAddDialog, this.AddPkgDialog(), { height: SheetSize.MEDIUM })
   }
 }

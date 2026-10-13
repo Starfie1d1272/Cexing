@@ -133,24 +133,30 @@ export struct SmartPage {
 
   build() {
     Scroll() {
-      Column({ space: 18 }) {
-        Text(this.groupSummary).fontSize(17).fontColor(UI.ink)
-        Text(this.modelSummary).fontSize(17).fontColor(UI.ink)
-        Text(this.predictions).fontSize(14).fontColor(UI.muted)
-        Text(this.message).fontSize(14).fontColor(UI.muted)
-        Text('在订阅编辑页配置 type: smart，引用原有至少两个节点，并让规则引用该组。无模型也可使用统计策略。')
-          .fontSize(14).fontColor(UI.muted)
-        Button('获取官方 Model.bin').width('100%').height(48).backgroundColor(UI.soft).fontColor(UI.accent)
+      Column({ space: 20 }) {
+        Column({ space: 12 }) {
+          Text('策略状态').fontSize(13).fontColor(UI.muted)
+          Text(this.groupSummary).fontSize(17).fontColor(UI.ink)
+        }.padding(20).width('100%').borderRadius(24).backgroundColor(UI.surface)
+          .alignItems(HorizontalAlign.Start)
+        Column({ space: 12 }) {
+          Text('离线模型').fontSize(13).fontColor(UI.muted)
+          Text(this.modelSummary).fontSize(20).fontWeight(600, { enableVariableFontWeight: true }).fontColor(UI.ink)
+          Text(this.predictions).fontSize(14).fontColor(UI.muted)
+          Text(this.message).fontSize(14).fontColor(UI.muted)
+        }.padding(20).width('100%').borderRadius(24).backgroundColor(UI.surface)
+          .alignItems(HorizontalAlign.Start)
+        Text('在订阅中配置 type: smart，引用至少两个节点并让规则引用该组。无模型可用统计策略。').fontSize(14).fontColor(UI.muted)
+        Button('获取官方模型').width('100%').height(48).backgroundColor(UI.soft).fontColor(UI.accentText)
           .onClick(() => this.openModelSource())
-        Text('下载 Release 的 Model.bin 到手机，再选择文件导入。9,345,218 字节；应用会校验固定摘要及模型格式，不自动下载。')
-          .fontSize(14).fontColor(UI.muted)
-        Button(this.busy ? '处理中…' : '选择模型文件并导入').width('100%').height(48)
-          .backgroundColor(UI.accent).enabled(this.ready && !this.busy).onClick(() => this.importModel())
+        Text('下载官方 Model.bin 后导入，应用会校验文件。').fontSize(14).fontColor(UI.muted)
+        Button(this.busy ? '处理中…' : '导入模型').width('100%').height(56)
+          .backgroundColor(UI.action).fontColor(UI.onAccent).enabled(this.ready && !this.busy).onClick(() => this.importModel())
         if (this.restartRequired) {
-          Button('重启应用使模型生效').width('100%').height(48).enabled(!this.busy)
-            .backgroundColor(UI.accent).onClick(() => this.confirmRestart())
+          Button('重启应用使模型生效').width('100%').height(56).enabled(!this.busy)
+            .backgroundColor(UI.action).fontColor(UI.onAccent).onClick(() => this.confirmRestart())
         }
-      }.width('100%').alignItems(HorizontalAlign.Start).padding(24)
+      }.width('100%').constraintSize({ maxWidth: 760 }).alignItems(HorizontalAlign.Start).padding(24)
     }.width('100%').height('100%').backgroundColor(UI.paper)
   }
 }

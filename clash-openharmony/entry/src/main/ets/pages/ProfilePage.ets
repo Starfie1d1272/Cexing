@@ -430,12 +430,12 @@ export struct ProfilePage {
           })
           this.DetailAction('导出配置', () => { this.exportProfile(p); })
           if (!p.active) {
-            Button('启用订阅').width('100%').height(56).backgroundColor(UI.accent)
+            Button('启用订阅').width('100%').height(56).backgroundColor(UI.action).fontColor(UI.onAccent)
               .onClick(() => this.activate(p))
           }
           if (this.isUrlProfile(p.file)) {
             Button(this.updatingFile === p.file ? '更新中…' : '更新订阅')
-              .width('100%').height(56).backgroundColor(UI.accent).enabled(this.updatingFile.length === 0)
+              .width('100%').height(56).backgroundColor(UI.action).fontColor(UI.onAccent).enabled(this.updatingFile.length === 0)
               .onClick(() => this.updateProfile(p))
             this.DetailAction('复制订阅链接', () => {
               this.copyOrigin(getContext(this) as common.UIAbilityContext, p.file);
@@ -534,7 +534,7 @@ export struct ProfilePage {
           })
         Button(this.importing ? '导入中…' : '导入')
           .height(48)
-          .backgroundColor(UI.accent)
+          .backgroundColor(UI.action).fontColor(UI.onAccent)
           .layoutWeight(1)
           .enabled(!this.importing)
           .onClick(() => this.importUrl())
@@ -571,7 +571,7 @@ export struct ProfilePage {
             this.renameInput = '';
           })
         Button('确定')
-          .height(48).backgroundColor(UI.accent)
+          .height(48).backgroundColor(UI.action).fontColor(UI.onAccent)
           .layoutWeight(1)
           .onClick(() => {
             this.doRename();
@@ -612,7 +612,7 @@ export struct ProfilePage {
         Text(this.importError).fontSize(14).fontColor(UI.error)
       }
       Button(this.importing ? '导入中…' : '导入').width('100%').height(56)
-        .backgroundColor(UI.accent).enabled(!this.importing).onClick(() => this.importPaste())
+        .backgroundColor(UI.action).fontColor(UI.onAccent).enabled(!this.importing).onClick(() => this.importPaste())
     }.padding(24).width('100%')
   }
 
@@ -622,13 +622,13 @@ export struct ProfilePage {
       Text('订阅已准备好').fontSize(24).fontWeight(FontWeight.Bold).fontColor(UI.ink)
       Text(this.importedFile.replace(/\.(yaml|yml)$/, '')).fontSize(16).fontColor(UI.muted)
         .maxLines(2).textOverflow({ overflow: TextOverflow.Ellipsis })
-      Button('启用订阅').width('100%').height(56).backgroundColor(UI.accent).onClick(() => {
+      Button('启用订阅').width('100%').height(56).backgroundColor(UI.action).fontColor(UI.onAccent).onClick(() => {
         const profile = this.profiles.find((p: ProfileMeta) => p.file === this.importedFile);
         if (profile !== undefined) { this.activate(profile); }
         this.showSheet = false;
         this.sheetMode = SHEET_NONE;
       })
-      Button('稍后启用').width('100%').height(48).backgroundColor(UI.soft).fontColor(UI.accent)
+      Button('稍后启用').width('100%').height(48).backgroundColor(UI.soft).fontColor(UI.accentText)
         .onClick(() => { this.showSheet = false; this.sheetMode = SHEET_NONE; })
     }.padding(24).width('100%')
   }
@@ -651,7 +651,7 @@ export struct ProfilePage {
       } else {
         Row() {
           Text('订阅').fontSize(26).fontWeight(FontWeight.Bold).fontColor(UI.ink).layoutWeight(1)
-          Button('添加').height(48).fontSize(14).backgroundColor(UI.soft).fontColor(UI.accent)
+          Button('添加').height(48).fontSize(14).backgroundColor(UI.soft).fontColor(UI.accentText)
             .onClick(() => { this.sheetMode = SHEET_IMPORT; this.importError = ''; this.showSheet = true; })
         }.width('100%').margin({ top: 16, bottom: 12 })
         if (this.profiles.length === 0) {
@@ -674,7 +674,7 @@ export struct ProfilePage {
         }
       }
     }.width('100%').height('100%').padding({ left: 24, right: 24, bottom: 12 })
-      .backgroundColor(UI.paper)
+      .backgroundColor(UI.paper).constraintSize({ maxWidth: 760 }).alignSelf(ItemAlign.Center)
       .bindSheet($$this.showSheet, this.MainSheet(), { height: SheetSize.FIT_CONTENT,
         shouldDismiss: (dismiss: SheetDismiss) => { if (!this.importing) { dismiss.dismiss(); } } })
   }

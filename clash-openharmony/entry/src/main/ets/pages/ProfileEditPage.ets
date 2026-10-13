@@ -130,7 +130,7 @@ export struct ProfileEditPage {
             this.saveAsInput = '';
           })
         Button('保存副本')
-          .height(48).backgroundColor(UI.accent)
+          .height(48).backgroundColor(UI.action).fontColor(UI.onAccent)
           .layoutWeight(1)
           .onClick(() => {
             this.saveAs();
@@ -155,7 +155,7 @@ export struct ProfileEditPage {
           if (this.dirty) {
             Text('未保存')
               .fontSize(13)
-              .fontColor(UI.accent)
+              .fontColor(UI.accentText)
           }
         }
         .alignItems(HorizontalAlign.Start)
@@ -205,7 +205,7 @@ export struct ProfileEditPage {
     .width('100%')
     .height('100%')
     .padding({ left: 24, right: 24 })
-    .backgroundColor(UI.paper)
+    .backgroundColor(UI.paper).constraintSize({ maxWidth: 760 }).alignSelf(ItemAlign.Center)
     .bindSheet($$this.showSaveAsSheet, this.SaveAsSheet(), { height: SheetSize.MEDIUM })
   }
 }

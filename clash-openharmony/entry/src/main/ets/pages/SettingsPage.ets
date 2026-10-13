@@ -288,6 +288,6 @@ export struct SettingsPage {
     .width('100%')
     .height('100%')
     .padding({ left: 24, right: 24 })
-    .backgroundColor(UI.paper)
+    .backgroundColor(UI.paper).constraintSize({ maxWidth: 760 }).alignSelf(ItemAlign.Center)
   }
 }
