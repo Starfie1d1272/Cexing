@@ -11,7 +11,7 @@ export struct GlobalMergeEditor {
   @Consume('profileRevision') profileRevision: number;
   onClose: () => void = () => {};
   @State initialText: string = '';
-  @State enabled: boolean = false;
+  @State globalEnabled: boolean = false;
   @State busy: boolean = false;
   @State loadFailed: boolean = false;
   @State summary: string = '';
@@ -22,7 +22,7 @@ export struct GlobalMergeEditor {
     try {
       const context = getContext(this) as common.UIAbilityContext;
       const current = EffectiveVersions.globalContent(context);
-      this.enabled = current.length > 0;
+      this.globalEnabled = current.length > 0;
       this.initialText = GlobalMergeDraft.read(context) ?? current;
       this.editedText = this.initialText;
       this.loadFailed = false;
@@ -73,7 +73,7 @@ export struct GlobalMergeEditor {
     try {
       const result = await ProfileTransactions.applyGlobalMerge(
         getContext(this) as common.UIAbilityContext, this.editedText);
-      this.enabled = this.editedText.length > 0;
+      this.globalEnabled = this.editedText.length > 0;
       this.profileRevision++;
       this.toast(result === 'applied' ? '全局覆写已应用' : '全局覆写已保存，启动后生效');
       this.summary = '其他订阅会在启用或更新时重新校验并应用。';
@@ -84,7 +84,7 @@ export struct GlobalMergeEditor {
   build() {
     Column({ space: 12 }) {
       Text('全局覆写').fontSize(22).fontWeight(FontWeight.Bold).fontColor(UI.ink)
-      Text(this.enabled ? '已启用 · 适用于所有订阅' : '未启用 · 空全局不改变原有行为')
+      Text(this.globalEnabled ? '已启用 · 适用于所有订阅' : '未启用 · 空全局不改变原有行为')
         .fontSize(13).fontColor(UI.accentText)
       Text('全局覆写是所有订阅的共同基线，本订阅覆写优先。之后执行 Smart 策略，宿主安全设置最终生效。')
         .fontSize(13).fontColor(UI.muted)
