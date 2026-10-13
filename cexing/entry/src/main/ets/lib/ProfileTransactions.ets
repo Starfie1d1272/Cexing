@@ -55,10 +55,10 @@ export namespace ProfileTransactions {
       if (candidate === null) { throw new Error('目标配置不存在或读取失败'); }
       ProfileStore.prepareContent(candidate);
       const oldFile = ProfileStore.getActiveFile(context);
-      if (oldFile === file) { return 'saved'; }
       const live = await running(context);
       const previous = live ? ProfileStore.getActiveContent(context) : null;
       if (live) { await apply(context, candidate); }
+      if (oldFile === file) { return live ? 'applied' : 'saved'; }
       try { ProfileStore.setActive(context, file); } catch (e) {
         if (live) { await restore(context, previous); }
         throw new Error('保存当前选择失败');
