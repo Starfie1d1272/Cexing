@@ -1,6 +1,6 @@
 # CI 与构建身份
 
-Quick 在 GitHub 托管 Ubuntu runner 上执行；Full 只由人工调度到可信的、可销毁的官方 SDK runner。两者均不签名、不安装设备、不发布到商店或自动合并。Full 完成校验后保存该次 CI 构建的未签名测试包。仓库、应用名称和 bundleName 保持源声明。
+Quick 在 GitHub 托管 Ubuntu runner 上执行；Full 只由人工调度到 GitHub-hosted Ubuntu 或预装授权 SDK 的可信 runner。两者均不签名、不安装设备、不发布到商店或自动合并。Full 完成校验后保存该次 CI 构建的未签名测试包。仓库、应用名称和 bundleName 保持源声明。
 
 ## Quick
 
@@ -17,7 +17,11 @@ Go 在独立临时模块/构建缓存执行 `go mod download`、`go mod verify` 
 
 ## Full 的官方环境
 
-先按 [构建指南](build.md) 和 [华为入口](https://developer.huawei.com/consumer/cn/download/) 取得并接受官方工具链授权。仓库不自动下载 SDK，不分发 SDK/NDK、个人 AGC 证书、登录设置或开发者凭据。现有环境的 SDK 来源和 archive 摘要只是环境证据，不能据此推定公共镜像再分发授权。
+按 [构建指南](build.md) 和 [华为入口](https://developer.huawei.com/consumer/cn/download/) 核对工具链许可。托管 Full 使用 `scripts/ci/sdk-download.json` 中已核对的镜像归档，固定版本、字节数和 SHA-256，校验 ZIP 路径/符号链接/CRC 后解压；来源与摘要依据写入构建身份。此摘要与已有云归档和独立社区 PKGBUILD 一致，**不是独立取得的华为官方摘要，也不证明镜像发布者拥有再分发许可**。仓库不分发 SDK/NDK 或开发者凭据。只在接受供应商许可、获准使用该环境后运行。
+
+默认镜像的文件服务 URL 有有效期。失效时，管理员可在 `harmonyos-ci` environment 设置可选 secret `HARMONYOS_CLT_URL`，替换为允许主机上的同版本归档；不得改变摘要来接受未知内容。该 secret 只用于下载，不授予 GitHub/Huawei 账号权限，不应填入 Cookie、密码或访问账号的 Token。更换镜像主机需审查 `setup-clt.py` 主机列表。没有官方无人值守登录接口的验证证据；CI 不自动登录或接受账号协议。
+
+SDK 不进入公开 Actions Cache。公共仓库缓存可被 PR 工作流读取，不能把它当私有 SDK 存储；确认独立分发/缓存授权前，不启用该优化。公开 Go 下载归档、Zashboard 资源和固定 GeoIP 可缓存，每次仍校验模块或完整资源摘要。新内核始终重新编译，NAPI/ArkTS 始终 clean 构建，不缓存 HAP、签名目录、解压/打补丁的模块或 Go 编译缓存。
 
 经审查的组合保存在 `scripts/ci/toolchain.json`：CLT 26.0.0.851、SDK/NDK 26.0.0.105/API 26、Hvigor/plugin 6.26.8、ohpm 26.0.0.630、wrapper pnpm 10.28.2、Go 1.27.2、Node 26.11.1、JDK 27。不同组合需独立验证并更新该文件及 Actions 声明。构建前校验声明，构建后校验实际 wrapper pnpm；供应商 wrapper 的浮动 npm 安装若解析到其他版本会明确失败，不修改官方 SDK 来绕过。
 
@@ -33,9 +37,9 @@ npm ci --prefix scripts/ci --ignore-scripts --no-audit --no-fund
 bash scripts/ci/full.sh
 ```
 
-Full 要求干净、已提交的 checkout。Go、npm 和 Hvigor 缓存分别写入临时目录，退出时清理。ohpm 声明目前只有本地 NAPI 类型依赖，没有外部包；提交官方 ohpm 生成的 entry lockfile，安装后确认未改变输入；引入外部依赖时 source-check 会拒绝，届时须增加受审查的锁文件/冻结安装方式。供应商内部依赖保留官方安装内容，未声明实现整个 SDK 的逐字节可复现。
+Full 要求干净、已提交的 checkout。Go 解压模块、编译、npm 和 Hvigor 缓存分别写入临时目录，退出时清理；公开 Go 下载归档只作为副本种子，校验后复用，补丁不改共享归档。ohpm 声明目前只有本地 NAPI 类型依赖，没有外部包；提交官方 ohpm 生成的 entry lockfile，安装后确认未改变输入；引入外部依赖时 source-check 会拒绝，届时须增加受审查的锁文件/冻结安装方式。供应商内部依赖保留官方安装内容，未声明实现整个 SDK 的逐字节可复现。
 
-有离线面板源码声明时，Full 先以提交锁定的 pnpm 和一次性源码目录准备 Zashboard，验证实际 SHA、上游锁、宿主补丁及已有资源清单。生成的 manifest/Pin 必须与已审查 Git 输入相同，差异立即失败；不自动接受新的资源摘要。
+有离线面板源码声明时，Full 校验已有缓存的完整 Zashboard 文件集及摘要；缓存未命中时以提交锁定的 pnpm 和一次性源码目录准备 Zashboard，验证实际 SHA、上游锁、宿主补丁及已有资源清单。生成的 manifest/Pin 必须与已审查 Git 输入相同，差异立即失败；不自动接受新的资源摘要。
 
 顺序是：模块完整性和许可证清单 → SDK mock 回归 → ohpm → 新编译 native core → 再次模块完整性 → 固定 GeoIP → Hvigor clean → 未签名 HAP → wrapper 版本 → 包内校验。GeoIP 的 latest 下载地址会变化，摘要不符时停止并审查可信快照，不自动更新 pin。
 
@@ -54,10 +58,20 @@ Full 要求干净、已提交的 checkout。Go、npm 和 Hvigor 缓存分别写�
 
 Quick 在 PR、main/本 CI 分支 push 和人工调度运行，只授予 `contents: read`，checkout 不保留凭据，无共享 Go 缓存。
 
-Full workflow 只有 `workflow_dispatch`，必须明确选择官方 SDK 授权已接受；runner 标签为 `self-hosted, linux, x64, harmonyos-ci`。仓库管理员应把 runner 限制到本仓库、每次使用干净临时机器，并给 `harmonyos-ci` environment 配置审批及受信分支限制。环境名称本身不会自动创建审批规则；调度前审查要执行的 commit。不要将此 runner 接到 PR 或 `pull_request_target`，不要执行未审查的 PR 内容。
+Full 只有 `workflow_dispatch`。默认 `runner=github-hosted` 运行在 `ubuntu-24.04`，自动安装固定 Go、Node、JDK 27 和固定 CLT/SDK。`runner=self-hosted` 仅是可选备用，要求标签 `self-hosted, linux, x64, harmonyos-ci`，不要求用户购买或维护服务器。
 
-Full 成功完成所有检查后，将该次 CI 构建的未签名 HAP、build-identity.json、module-notices.json、Hokit 说明和 SHA256SUMS 保存为 Actions artifact，7 天后过期。暂存前要求报告 commit 与 GITHUB_SHA 相同、signed=false，并核对 HAP 字节摘要与已验证产物一致；不以本地旧包替代 CI 输出。artifact 名包含完整源码 SHA、run ID 和 attempt；没有宣称与其他构建逐字节相同。
+调度前审查本次提交，填写 `reviewed_sha`（所选分支完整 40 位 SHA）和 `authorized_sdk=true`。分支仅允许 main 与本任务的 `ci/github-hosted-hap`；不运行 PR 或 `pull_request_target`，不接受任意 checkout ref。任务仅 `contents: read`，checkout 不保留凭据。仓库管理员应为 `harmonyos-ci` environment 配置受信分支限制与审批；环境名称本身不建立审批规则。分支白名单和 SHA 复核也不等于 GitHub 的独立 reviewer 审批。请保护允许的分支和 workflow 写权限。
 
-下载方式：进入该次 Full run，在 Artifacts 下载 unsigned-test-hap 包并解压，核对 SHA256SUMS，然后用用户本地 Hokit 一键签名安装。HAP 包内包含所需原生库；不单独上传 SDK、工具、签名材料或用户配置。Quick 不生成 HAP。若 Full 排队等待 runner 或 environment 授权，尚无测试包，不能把 Quick 成功当成包已生成。GeoIP 数据源 notices 和分发义务仍需发行负责人核查。若 runner/官方工具缺失，Full 不会在托管 runner 上伪装成功；Quick 可独立运行。签名仍遵循 [设备指南](device.md)，不属于 CI。
+```bash
+sha=$(git rev-parse HEAD)
+gh workflow run full.yml --ref ci/github-hosted-hap \
+  -f runner=github-hosted -f authorized_sdk=true -f reviewed_sha="$sha"
+```
+
+`build-timings-<SHA>-<run>-<attempt>` artifact 保存 SDK 准备、Go 下载、Smart 测试/内核编译、Zashboard、ohpm、GeoIP、Hvigor clean、NAPI/ArkTS/HAP 和验证阶段的秒数/退出码，失败也保留已有计时。NAPI 与 ArkTS 分项时间可从同一 Hvigor 日志读取；上传时间在 Actions steps 中读取。SDK 每次冷下载，所谓热缓存仅表示公开依赖与资源命中，不意味着复用 SDK。没有成功跑两次前，不给出本项目冷/热耗时承诺。来源调查、方案成本和实测见 [调查证据](../evidence/2026-10-13-github-hosted-hap.md)。
+
+Full 成功完成所有检查后，将该次 CI 构建的未签名 HAP、build-identity.json、module-notices.json、项目 GPL 许可、第三方/Smart notices、Hokit 说明和 SHA256SUMS 保存为 Actions artifact，7 天后过期。暂存前要求报告 commit 与 GITHUB_SHA 相同、signed=false，并核对 HAP 字节摘要与已验证产物一致；不以本地旧包替代 CI 输出。artifact 名包含完整源码 SHA、run ID 和 attempt；没有宣称与其他构建逐字节相同。
+
+下载方式：进入该次 Full run，在 Artifacts 下载 unsigned-test-hap 包并解压，核对 SHA256SUMS，然后用用户本地 Hokit 一键签名安装。HAP 包内包含所需原生库；不单独上传 SDK、工具、签名材料或用户配置。Quick 不生成 HAP。若 Full 排队等待 runner 或 environment 授权，尚无测试包，不能把 Quick 成功当成包已生成。GeoIP 数据源 notices 和分发义务仍需发行负责人核查。若镜像下载、版本、摘要或构建校验失败，Full 明确失败且不上传 HAP；Quick 可独立运行。签名仍遵循 [设备指南](device.md)，不属于 CI。
 
 机制参考：[Go overlay/trimpath](https://pkg.go.dev/cmd/go)、[GitHub Actions runner 与依赖固定](https://docs.github.com/en/actions/security-for-github-actions/security-guides/security-hardening-for-github-actions)。

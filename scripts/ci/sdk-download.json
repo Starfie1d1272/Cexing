@@ -1,0 +1,10 @@
+{
+  "clt": "26.0.0.851",
+  "url": "https://box.nju.edu.cn/seafhttp/f/7c42b6daf0df40fa8d93/?op=view",
+  "sha256": "ab604bd92721d5cbcafd154e6461d46b9f1b105e7b89eab04a9d046681198082",
+  "bytes": 2348063309,
+  "checksumSource": "Previously supplied cloud archive; independently matches alex3236/devecostudio-linux PKGBUILD (not an independently obtained Huawei checksum)",
+  "reference": "https://github.com/alex3236/devecostudio-linux/blob/e94cf6d0022f03e69e8231c26767bf55b03602e9/PKGBUILD",
+  "sourceKind": "user-provided-university-mirror",
+  "durability": "Temporary file-serving URL; renew the reviewed URL if it expires, keeping this version and digest"
+}

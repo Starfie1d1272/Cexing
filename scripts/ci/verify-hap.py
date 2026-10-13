@@ -144,6 +144,12 @@ identity = {
     'deviceValidated': False,
     'distributionApproved': False
 }
+if os.environ.get('GITHUB_ACTIONS') == 'true':
+    require(identity['commit'] == os.environ['GITHUB_SHA'], 'GitHub build commit differs from checkout')
+    identity['github'] = {key: os.environ[key] for key in [
+        'GITHUB_REPOSITORY', 'GITHUB_RUN_ID', 'GITHUB_RUN_ATTEMPT', 'GITHUB_SHA']}
+if os.environ.get('CI_SDK_PROVENANCE'):
+    identity['sdkProvenance'] = json.loads(pathlib.Path(os.environ['CI_SDK_PROVENANCE']).read_text())
 # Keep optional host overlay paths out of public build evidence.
 identity['core']['Settings'] = [s for s in source['Settings'] if s['Key'] != '-overlay']
 (report / 'build-identity.json').write_text(json.dumps(identity, indent=2) + '\n')

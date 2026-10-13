@@ -6,9 +6,12 @@ bash scripts/test-smart-loader.sh
 SMART_TEST_CACHE="$(mktemp -d)"
 trap 'chmod -R u+w "$SMART_TEST_CACHE"; rm -rf "$SMART_TEST_CACHE"' EXIT
 export GOMODCACHE="$SMART_TEST_CACHE/mod" GOFLAGS=-mod=readonly
+source scripts/ci/go-download-cache.sh
+ci_seed_go_download_cache
 cd core
 go mod download
 go mod verify
+ci_save_go_download_cache
 python3 ../scripts/ci/patch-smart.py "$GOMODCACHE"
 UPSTREAM="$(go list -m -f '{{.Replace.Dir}}' github.com/metacubex/mihomo)"
 cp ../tests/smart/model_test.go.txt "$UPSTREAM/component/smart/lightgbm/ohos_beta_test.go"

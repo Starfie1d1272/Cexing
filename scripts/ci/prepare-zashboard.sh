@@ -5,6 +5,12 @@ cd "$(dirname "$0")/../.."
 ROOT="$PWD"
 export PATH="$ROOT/scripts/ci/node_modules/.bin:$PATH"
 PIN="$ROOT/third_party/zashboard/source.json"
+RAW="$ROOT/clash-openharmony/entry/src/main/resources/rawfile/zashboard"
+if [ -d "$RAW" ]; then
+  # A cache hit must match the complete reviewed resource set and every digest.
+  python3 scripts/zashboard-assets.py verify
+  exit 0
+fi
 SOURCE="$(mktemp -d)"
 export XDG_DATA_HOME="$SOURCE/data" XDG_CACHE_HOME="$SOURCE/cache" XDG_CONFIG_HOME="$SOURCE/config"
 trap 'rm -rf "$SOURCE"' EXIT
