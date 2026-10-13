@@ -31,6 +31,8 @@ export struct DiagnosticsPage {
   aboutToDisappear(): void {
     this.visible = false;
     this.generation++;
+    this.busy = false;
+    this.control = '尚未检查本机服务';
     VpnController.offChanged(this.listener);
   }
 
@@ -38,16 +40,21 @@ export struct DiagnosticsPage {
     if (this.busy) { return; }
     const attempt = ++this.generation;
     this.busy = true;
+    this.control = '正在检查…';
     let timeoutId: number = -1;
     const result = await Promise.race<string>([
-      CoreApi.isAlive().then((alive: boolean) => alive ? 'reachable' : 'failed').catch(() => 'failed'),
+      CoreApi.checkController().catch(() => 'failed'),
       new Promise<string>((resolve) => { timeoutId = setTimeout(() => resolve('timeout'), 5000); })
     ]);
     if (timeoutId >= 0) { clearTimeout(timeoutId); }
     if (!this.visible || attempt !== this.generation) { return; }
     this.control = result === 'reachable' ? '本机服务可达' :
-      result === 'timeout' ? '检查超时' : '本机服务无响应，请确认连接后重试';
+      result === 'timeout' ? '检查超时' :
+      result === 'credentials' ? '连接信息不可用，请重新连接' :
+      result === 'authorization' ? '连接认证失败，请断开后重新连接' :
+      '本机服务无响应，请确认连接后重试';
     this.busy = false;
+    promptAction.showToast({ message: result === 'reachable' ? '检查完成，本机服务响应正常' : this.control });
   }
 
   private connection(): string {
@@ -62,7 +69,7 @@ export struct DiagnosticsPage {
     const states = ['disconnected', 'connecting', 'connected', 'disconnecting'];
     const control = this.control === '本机服务可达' ? 'reachable' :
       this.control === '检查超时' ? 'timeout' :
-      this.control === '本机服务无响应，请确认连接后重试' ? 'failed' : 'not-run';
+      this.control === '尚未检查本机服务' || this.busy ? 'not-run' : 'failed';
     try {
       const bundle = await bundleManager.getBundleInfoForSelf(bundleManager.BundleFlag.GET_BUNDLE_INFO_DEFAULT);
       if (!this.visible || attempt !== this.generation) { return; }
@@ -100,8 +107,9 @@ export struct DiagnosticsPage {
             Divider().color(UI.line).margin({ left: 18, right: 18 })
             this.Fact('本机服务', this.control)
           }.width('100%').borderRadius(24).backgroundColor(UI.surface)
-          Text('这项检查只查看应用状态和本机服务。要确认网站能否打开，请在连接后用设备访问网页。')
-            .fontSize(14).fontColor(UI.muted).width('100%')
+          if (this.control === '检查超时') {
+            Text('请重试检查；若仍超时，请断开后重新连接。').fontSize(14).fontColor(UI.error).width('100%')
+          }
           if (VpnController.getLastStartFailure() !== null) {
             Text(`最近启动失败：${ConnectionFailures.label(VpnController.getLastStartFailure()!)}`)
               .fontSize(14).fontColor(UI.error).width('100%')
@@ -109,6 +117,7 @@ export struct DiagnosticsPage {
           Button(this.detailsOpen ? '收起技术详情' : '查看技术详情').height(48)
             .backgroundColor(UI.surface).fontColor(UI.accentText).onClick(() => { this.detailsOpen = !this.detailsOpen; })
           if (this.detailsOpen) {
+            Text('本机服务检查不测试网站访问或系统隧道转发。').fontSize(14).fontColor(UI.muted).width('100%')
             Column() {
               this.Fact('VPN 系统会话', '此页无法独立确认')
               Divider().color(UI.line).margin({ left: 18, right: 18 })

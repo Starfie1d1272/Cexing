@@ -148,14 +148,25 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
 
   let resolveProbe;
   const Diagnostics = load('DiagnosticsPage', { ...common,
-    '../lib/CoreApi': { CoreApi: { isAlive: () => new Promise(resolve => { resolveProbe = resolve; }) } }
+    '../lib/CoreApi': { CoreApi: { checkController: () => new Promise(resolve => { resolveProbe = resolve; }) } }
   }, { setTimeout: () => 1, clearTimeout() {} });
   const diagnostics = new Diagnostics(); diagnostics.aboutToAppear();
-  const pending = diagnostics.check(); diagnostics.aboutToDisappear(); resolveProbe(true); await pending;
+  const pending = diagnostics.check(); assert.equal(diagnostics.busy, true);
+  assert.equal(diagnostics.control, '正在检查…'); diagnostics.aboutToDisappear(); resolveProbe('reachable'); await pending;
   assert.equal(diagnostics.control, '尚未检查本机服务', 'late probe must not update destroyed page');
+  const ResultDiagnostics = load('DiagnosticsPage', { ...common,
+    '../lib/CoreApi': { CoreApi: { checkController: async () => 'authorization' } }
+  }, { setTimeout: () => 1, clearTimeout() {} });
+  const resultDiagnostics = new ResultDiagnostics(); resultDiagnostics.aboutToAppear();
+  await resultDiagnostics.check();
+  assert.equal(resultDiagnostics.busy, false);
+  assert.equal(resultDiagnostics.control, '连接认证失败，请断开后重新连接');
+  assert.ok(toasts.includes(resultDiagnostics.control));
+  resultDiagnostics.aboutToDisappear(); resultDiagnostics.aboutToAppear();
+  await resultDiagnostics.check(); assert.equal(resultDiagnostics.busy, false, 'returning can run another check');
   let expireProbe;
   const TimedDiagnostics = load('DiagnosticsPage', { ...common,
-    '../lib/CoreApi': { CoreApi: { isAlive: () => new Promise(() => {}) } }
+    '../lib/CoreApi': { CoreApi: { checkController: () => new Promise(() => {}) } }
   }, { setTimeout: fn => { expireProbe = fn; return 1; }, clearTimeout() {} });
   const timedDiagnostics = new TimedDiagnostics(); timedDiagnostics.aboutToAppear();
   const timedProbe = timedDiagnostics.check(); expireProbe(); await timedProbe;

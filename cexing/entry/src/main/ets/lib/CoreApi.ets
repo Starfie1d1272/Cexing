@@ -22,6 +22,8 @@ export interface ControllerAccess {
   secret: string;
 }
 
+export type ControllerCheck = 'reachable' | 'credentials' | 'authorization' | 'failed';
+
 export interface ControllerUiStatus {
   available: boolean;
   error: string;
@@ -165,6 +167,25 @@ export namespace CoreApi {
     } catch (_) { return null; }
   }
 
+  /** User diagnosis retains a safe failure category, never response bodies or credentials. */
+  export async function checkController(): Promise<ControllerCheck> {
+    const access = getControllerAccess();
+    if (access === null) { return 'credentials'; }
+    const req = http.createHttp();
+    try {
+      const response = await req.request(access.httpBase + '/version', {
+        method: http.RequestMethod.GET,
+        header: { 'Authorization': `Bearer ${access.secret}` },
+        connectTimeout: 4000, readTimeout: 4000
+      });
+      if (response.responseCode === 401 || response.responseCode === 403) { return 'authorization'; }
+      if (response.responseCode !== 200) { return 'failed'; }
+      const version = JSON.parse(typeof response.result === 'string' ? response.result : JSON.stringify(response.result)) as Record<string, string>;
+      return typeof version['version'] === 'string' && version['version'].length > 0 ? 'reachable' : 'failed';
+    } catch (_) { return 'failed'; }
+    finally { req.destroy(); }
+  }
+
   export async function isAlive(): Promise<boolean> {
     return (await request(http.RequestMethod.GET, '/version')) !== null;
   }
@@ -219,7 +240,7 @@ export namespace CoreApi {
     try {
       const r = JSON.parse(s) as ConnectionsResp;
       const t: TrafficMsg = { up: r.uploadTotal, down: r.downloadTotal };
-      return t;
+      return validTraffic(t) ? t : null;
     } catch (e) {
       return null;
     }
@@ -297,6 +318,7 @@ export namespace CoreApi {
     private stopped: boolean = true;
     private gotFirst: boolean = false;
     private reconnectTimer: number = -1;
+    private trafficDeadline: number = -1;
     private generation: number = 0;
 
     start(path: string, cb: (msg: T) => void): void {
@@ -327,6 +349,7 @@ export namespace CoreApi {
     }
 
     private releaseSocket(): void {
+      if (this.trafficDeadline >= 0) { clearTimeout(this.trafficDeadline); this.trafficDeadline = -1; }
       const ws = this.ws;
       this.ws = null;
       if (ws === null) {
@@ -372,11 +395,16 @@ export namespace CoreApi {
             text = util.TextDecoder.create('utf-8').decodeToString(new Uint8Array(value));
           }
           if (text.length > 0) {
+            const sample = JSON.parse(text) as T;
+            if (this.path === '/traffic') {
+              if (!validTraffic(sample as TrafficMsg)) { return; }
+              this.armTrafficDeadline(ws, generation);
+            }
             if (!this.gotFirst) {
               this.gotFirst = true;
               Logger.info(TAG, 'ws first message');
             }
-            this.cb(JSON.parse(text) as T);
+            this.cb(sample);
           }
         } catch (e) {
           // Ignore a malformed message without logging arbitrary payloads.
@@ -394,11 +422,23 @@ export namespace CoreApi {
         Logger.warn(TAG, 'ws connection failed');
         reconnect();
       });
+      this.armTrafficDeadline(ws, generation);
       ws.connect(access.wsBase + this.path, {
         header: { 'Authorization': `Bearer ${access.secret}` }
       }).catch(() => {
         reconnect();
       });
+    }
+
+    private armTrafficDeadline(ws: webSocket.WebSocket, generation: number): void {
+      if (this.path !== '/traffic') { return; }
+      if (this.trafficDeadline >= 0) { clearTimeout(this.trafficDeadline); }
+      this.trafficDeadline = setTimeout(() => {
+        if (this.stopped || this.ws !== ws || generation !== this.generation) { return; }
+        this.trafficDeadline = -1;
+        this.releaseSocket();
+        this.retry(generation);
+      }, 5000);
     }
 
     stop(): void {
@@ -414,7 +454,14 @@ export namespace CoreApi {
   }
 }
 
+export function validTraffic(sample: TrafficMsg): boolean {
+  return sample !== null && typeof sample === 'object' &&
+    typeof sample.up === 'number' && Number.isFinite(sample.up) && sample.up >= 0 &&
+    typeof sample.down === 'number' && Number.isFinite(sample.down) && sample.down >= 0;
+}
+
 export function formatRate(bytesPerSec: number): string {
+  if (!Number.isFinite(bytesPerSec) || bytesPerSec < 0) { return '—'; }
   if (bytesPerSec < 1024) {
     return `${bytesPerSec} B/s`;
   }
