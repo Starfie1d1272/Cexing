@@ -59,7 +59,8 @@ function compile(file, modules, extras = {}, page = false) {
   }, { setTimeout: fn => { timers.set(++timerID, fn); return timerID; }, clearTimeout: id => timers.delete(id) }, true);
   const page = new SmartPage(); page.visible = true; page.aboutToAppear();
   await new Promise(setImmediate);
-  assert.equal(page.modelSummary, '模型已加载'); assert.equal(page.predictions, '尚无模型参与证据');
+  assert.equal(page.modelSummary, '模型已加载'); assert.equal(page.predictions, '本进程有效预测 0 次');
+  assert.match(page.predictionNote, /尚未记录有效预测/);
   assert.ok(page.groupSummary.includes('original'));
   let pending = page.importModel(); selectResolve(['synthetic.bin']); await pending;
   assert.equal(uploaded, 1); assert.equal(closed, 1); assert.equal(page.restartRequired, true);
