@@ -289,11 +289,16 @@ export namespace ProfileTransactions {
       const result = await publish(context, file, ProfileStore.prepareContent(original),
         ProfileStore.getEnabledMerge(context, file), metadata(context, file),
         activate || ProfileStore.getActiveFile(context) === file, undefined, plan);
-      if (restore !== '' && !(await CoreApi.selectProxy(restoreSelector, restore))) {
-        throw new Error('原选项恢复失败，请在代理面板手动选择');
-      }
       if (plan === null || !plan.enable || plan.disabled === true) {
         ProfileStore.clearPendingRegionSelection(context, file);
+        if (restore !== '') {
+          let restored = false;
+          try { restored = await CoreApi.selectProxy(restoreSelector, restore); } catch (_) {}
+          if (!restored) {
+            // The disabled version is already committed. Keep the previous choice for retry on reconnect.
+            throw new Error('地区策略已关闭，但原选项未恢复；请在代理面板手动选择，或重连后重试自动恢复');
+          }
+        }
         if (restore !== '' || (VpnController.status === VpnStatus.Connected &&
           ProfileStore.getActiveFile(context) === file) || plan === null) {
           ProfileStore.clearPreviousRegionSelection(context, file);

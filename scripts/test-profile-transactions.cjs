@@ -163,6 +163,24 @@ const tx = context.exports.ProfileTransactions;
   await tx.update({}, 'new.yaml');
   assert.equal(regionPlans.get(state.Current.ID).assignments.unknown, '日本',
     'subscription updates must reapply the saved region choice');
+  currentProxyChoice = 'Cexing Smart Main';
+  previousRegionChoice = 'Original';
+  pendingRegionSelector = 'Main';
+  selectAccepted = false;
+  const beforePartialDisable = state.Current.ID;
+  await assert.rejects(tx.setRegionPlan({}, 'new.yaml', { ...region, enable: false }),
+    /地区策略已关闭，但原选项未恢复/);
+  assert.notEqual(state.Current.ID, beforePartialDisable,
+    'failed Controller restore must not hide a committed disable');
+  assert.equal(regionPlans.get(state.Current.ID).enable, false);
+  assert.equal(previousRegionChoice, 'Original', 'retain the original choice for reconnect retry');
+  assert.equal(pendingRegionSelector, '', 'discard the obsolete enable intent after disable');
+  selectAccepted = true;
+  assert.equal(await tx.applyPendingRegionSelection({}), true,
+    'reconnect retry must restore the original choice');
+  assert.equal(currentProxyChoice, 'Original');
+  assert.equal(previousRegionChoice, '');
+  assert.equal(await tx.setRegionPlan({}, 'new.yaml', region), 'applied');
   response = 'rejected';
   const beforeRegionFailure = state.Current.ID;
   await assert.rejects(tx.setRegionPlan({}, 'new.yaml', null), /拒绝/);
