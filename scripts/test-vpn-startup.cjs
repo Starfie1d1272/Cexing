@@ -129,7 +129,7 @@ async function testClient(mode) {
   }
   assert.equal(notifications, 1, 'Detached page must not receive late status changes');
 }
-async function testExtension() {
+async function testExtension(failStop = false) {
   let complete;
   let stopCount = 0;
   let destroyCount = 0;
@@ -145,7 +145,7 @@ async function testExtension() {
       writeSync: (fd, value) => files.set(fd, value), closeSync() {},
       renameSync: (from, to) => files.set(to, files.get(from)), OpenMode: {} } },
     'libentry.so': { __esModule: true, default: { initCore: async () => { assert.ok(prepared > 0, 'Prepare static assets before Controller initialization'); return ''; }, startTun: () => pending,
-      stopCore: async () => { stopCount++; } } },
+      stopCore: async () => { stopCount++; if (failStop) throw Error('synthetic native stop failure'); } } },
     '../lib/CoreApi': { CoreApi: { bindContext() {} } },
     '../lib/ZashboardAssets': { ZashboardAssets: { prepare: async () => { prepared++; return { directory: '', error: 'synthetic missing panel' }; } } },
     '../lib/Logger': logger, '../lib/ConnectionFailure': failureModule.exports,
@@ -173,8 +173,9 @@ async function testExtension() {
   complete('');
   await flush();
   assert.equal(stopCount, 1, 'Stop must clean up a late kernel startup');
-  assert.equal(JSON.parse(files.get('/private/last_stop_result.json')).completed, true,
-    'Extension receipt must follow the awaited native stop');
+  assert.equal(JSON.parse(files.get('/private/last_stop_result.json')).completed, !failStop,
+    'Extension receipt must reflect the awaited native stop result');
+  if (failStop) return;
   const restarted = extension.onConnect({ parameters: { VPN_CONFIG: {} } });
   await flush();
   restarted.onRemoteMessageRequest(1, {}, { writeBoolean: value => { reportedReady = value; }, writeString() {} }, {});
@@ -190,5 +191,6 @@ async function testExtension() {
   await testClient('cleanup-failed');
   await testClient('stale-receipt');
   await testExtension();
+  await testExtension(true);
   console.log('PASS: readiness, error propagation, cancellation and extension lifecycle scenarios');
 })().catch(error => { console.error(error); process.exitCode = 1; });

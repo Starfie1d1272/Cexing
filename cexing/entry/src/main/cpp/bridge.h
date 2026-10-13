@@ -22,7 +22,7 @@ struct Status {
 // 主线程直进 Go c-shared 会 SIGSEGV）。返回错误串，空串 = 成功。
 std::string Init(const std::string &homeDir);
 std::string StartTun(int fd, const std::string &configJson, const std::string &overridesJson);
-void Stop();
+std::string Stop();
 Status GetStatus();
 
 } // namespace bridge

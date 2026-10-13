@@ -245,10 +245,18 @@ std::string StartTun(int fd, const std::string &configJson, const std::string &o
     return err;
 }
 
-void Stop() {
+std::string Stop() {
     auto job = std::make_shared<Job>();
     job->op = Op::Stop;
-    submit(job); // 忽略结果，stop 无返回
+    std::string err = submit(job);
+    {
+        std::lock_guard<std::mutex> lock(gMutex);
+        gStatus.callCount++;
+        if (!err.empty()) {
+            gStatus.failCount++;
+        }
+    }
+    return err;
 }
 
 Status GetStatus() {

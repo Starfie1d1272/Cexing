@@ -56,7 +56,7 @@ void CoreExecute(napi_env env, void *data) {
             ctx->err = bridge::StartTun(ctx->fd, ctx->configJson, ctx->overridesJson);
             break;
         case 2:
-            bridge::Stop();
+            ctx->err = bridge::Stop();
             break;
     }
 }
@@ -64,12 +64,20 @@ void CoreExecute(napi_env env, void *data) {
 void CoreComplete(napi_env env, napi_status status, void *data) {
     auto *ctx = static_cast<CoreContext *>(data);
     napi_value result;
-    if (ctx->op == 2) {
+    if (ctx->op == 2 && (status != napi_ok || !ctx->err.empty())) {
+        // The bridge may include a loader path in its error. Keep that in the
+        // private bridge status and reject with a fixed message for ArkTS.
+        napi_value message;
+        napi_create_string_utf8(env, "core stop failed", NAPI_AUTO_LENGTH, &message);
+        napi_create_error(env, nullptr, message, &result);
+        napi_reject_deferred(env, ctx->deferred, result);
+    } else if (ctx->op == 2) {
         napi_get_undefined(env, &result);
+        napi_resolve_deferred(env, ctx->deferred, result);
     } else {
         napi_create_string_utf8(env, ctx->err.c_str(), ctx->err.size(), &result);
+        napi_resolve_deferred(env, ctx->deferred, result);
     }
-    napi_resolve_deferred(env, ctx->deferred, result);
     napi_delete_async_work(env, ctx->work);
     delete ctx;
 }
