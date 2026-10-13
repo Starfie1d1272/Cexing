@@ -3,11 +3,11 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
-const sdk = process.env.OHOS_SDK_HOME;
-assert.ok(sdk, 'Run source scripts/env.sh first');
-const ts = require(path.join(sdk, 'ets/build-tools/ets-loader/node_modules/typescript'));
+const ts = require('./ci/transpile-arkts.cjs');
 const source = fs.readFileSync(path.join(__dirname, '../cexing/entry/src/main/ets/lib/ProfileTransactions.ets'), 'utf8');
-const js = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText;
+const js = ts.transpileModule(source, { compilerOptions: {
+  module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020
+} }).outputText;
 const files = { 'old.yaml': 'proxies: [old]', 'new.yaml': 'proxies: [new]' };
 let active = 'old.yaml';
 let response = 'applied';
