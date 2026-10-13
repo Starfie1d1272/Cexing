@@ -49,4 +49,10 @@ with tempfile.TemporaryDirectory() as temporary:
 print('PASS: lock-scoped deterministic notices and missing/changed license rejection')
 assert len(zashboard_notices.lock_packages((zashboard_notices.PIN / 'pnpm-lock.yaml').read_text())) == 702
 assert zashboard_notices.reviewed_notices() == zashboard_notices.reviewed_notices()
+corpus = json.loads((zashboard_notices.PIN / 'dependency-notices.json').read_text())
+natural = next(item for item in corpus['packages'] if item['key'] == 'natural-compare@1.4.0')
+notice = natural['notices'][0]
+assert 'Copyright (c) 2012-2015 Lauri Rooden <lauri@rooden.ee>' in notice['text']
+assert notice['attributionSource'] == 'npm:natural-compare@1.4.0:README.md'
+assert notice['attributionSourceSha256'] == 'ced6cb1fe6ee15a32c63ea8c7e0425454e80456a890c6df3909429530566d40a'
 print('PASS: complete reviewed Zashboard lock corpus (702 packages)')
