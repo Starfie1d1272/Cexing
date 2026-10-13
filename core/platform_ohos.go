@@ -18,17 +18,12 @@ func enforceStack(stack constant.TUNStack) constant.TUNStack {
 
 // applyPlatformDefaults - ohos 默认值:
 //   - Controller / TUN 强约束由 preparePlatformConfig 最后统一施加
-//   - dns.listen 用非特权端口 1053（沙箱内 53 可能被系统保留）
+//   - DNS 监听范围由最终平台投影约束为 loopback:1053
 //   - find-process-mode 默认 off（/proc 进程解析在鸿蒙沙箱不可靠且拖慢首包）
 //   - sniffer 平台默认（见 applySnifferDefaults）
 func applyPlatformDefaults(overlay map[string]any) {
 	if _, ok := overlay["find-process-mode"]; !ok {
 		overlay["find-process-mode"] = "off"
-	}
-	if dns, ok := overlay["dns"].(map[string]any); ok && dns != nil {
-		if _, ok := dns["listen"]; !ok {
-			dns["listen"] = defaultDNSListen
-		}
 	}
 	applySnifferDefaults(overlay)
 }

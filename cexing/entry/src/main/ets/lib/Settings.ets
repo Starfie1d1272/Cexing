@@ -12,7 +12,7 @@ const STORE = 'clashoh_settings';
 export class AppSettings {
   keepAlive: boolean = true;
   ipv6: boolean = false;
-  allowLan: boolean = true;
+  allowLan: boolean = false;
   logLevel: string = 'info';
   mixedPort: number = 7890;
   /** 按应用分流: all=全部走VPN, white=仅名单走(trusted), black=名单外走(blocked) */
@@ -52,7 +52,9 @@ export namespace Settings {
     try {
       s.keepAlive = p.getSync('keepAlive', true) as boolean;
       s.ipv6 = p.getSync('ipv6', false) as boolean;
-      s.allowLan = p.getSync('allowLan', true) as boolean;
+      // Legacy true included the old default; it cannot establish consent.
+      s.allowLan = p.getSync('allowLanConfirmed', false) === true &&
+        p.getSync('allowLan', false) === true;
       s.logLevel = p.getSync('logLevel', 'info') as string;
       s.mixedPort = p.getSync('mixedPort', 7890) as number;
       s.accessMode = p.getSync('accessMode', 'all') as string;
@@ -76,7 +78,6 @@ export namespace Settings {
     try {
       p.putSync('keepAlive', s.keepAlive);
       p.putSync('ipv6', s.ipv6);
-      p.putSync('allowLan', s.allowLan);
       p.putSync('logLevel', s.logLevel);
       p.putSync('mixedPort', s.mixedPort);
       p.putSync('accessMode', s.accessMode);
@@ -99,6 +100,18 @@ export namespace Settings {
   export function setSmartAutoConvert(context: common.Context, enabled: boolean): void {
     const p = getStore(context);
     p.putSync('smartAutoConvert', enabled);
+    p.flushSync();
+  }
+
+  /** Called only after explicit LAN risk confirmation, or to disable sharing. */
+  export function setAllowLan(context: common.Context, enabled: boolean): void {
+    const p = getStore(context);
+    // Revoke first: a partial failure cannot turn a legacy true into consent.
+    p.putSync('allowLanConfirmed', false);
+    p.flushSync();
+    p.putSync('allowLan', enabled);
+    p.flushSync();
+    p.putSync('allowLanConfirmed', enabled);
     p.flushSync();
   }
 }

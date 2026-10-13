@@ -16,8 +16,9 @@ const LOG_OPTIONS: SelectOption[] = [
 export struct OverridePage {
   @State mixedPort: string = '7890';
   @State logLevel: string = 'info';
-  @State allowLan: boolean = true;
+  @State allowLan: boolean = false;
   @State portError: string = '';
+  private lanDialogGeneration: number = 0;
 
   aboutToAppear(): void {
     const context = getContext(this) as common.UIAbilityContext;
@@ -38,9 +39,47 @@ export struct OverridePage {
     this.portError = '';
     s.mixedPort = port;
     s.logLevel = this.logLevel;
-    s.allowLan = this.allowLan;
     Settings.save(context, s);
     promptAction.showToast({ message: '已保存，下次启动 VPN 生效', duration: 1500 });
+  }
+
+  aboutToDisappear(): void {
+    this.lanDialogGeneration++;
+  }
+
+  private saveAllowLan(enabled: boolean): void {
+    const context = getContext(this) as common.UIAbilityContext;
+    try {
+      Settings.setAllowLan(context, enabled);
+      this.allowLan = enabled;
+      promptAction.showToast({ message: '已保存，下次启动 VPN 生效', duration: 1500 });
+    } catch (_) {
+      this.allowLan = Settings.load(context).allowLan;
+      promptAction.showToast({ message: '保存失败，请重试', duration: 1500 });
+    }
+  }
+
+  private changeAllowLan(enabled: boolean): void {
+    const generation = ++this.lanDialogGeneration;
+    if (!enabled) {
+      this.saveAllowLan(false);
+      return;
+    }
+    this.allowLan = true;
+    AlertDialog.show({
+      title: '允许同网设备使用代理？',
+      message: '开启后，同一局域网设备可能无需认证即可使用手机代理，消耗手机网络和代理流量。请仅在可信网络主动共享。此操作不会开放局域网 DNS；下次启动 VPN 生效。',
+      cancel: () => { this.lanDialogGeneration++; this.allowLan = false; },
+      primaryButton: { value: '取消', action: () => {
+        this.lanDialogGeneration++; this.allowLan = false;
+      } },
+      secondaryButton: { value: '确认开启', action: () => {
+        if (generation === this.lanDialogGeneration) {
+          this.lanDialogGeneration++;
+          this.saveAllowLan(true);
+        }
+      } }
+    });
   }
 
   build() {
@@ -77,7 +116,7 @@ export struct OverridePage {
               Toggle({ type: ToggleType.Switch, isOn: this.allowLan })
                 .selectedColor(UI.accent)
                 .onChange((v: boolean) => {
-                  this.allowLan = v;
+                  this.changeAllowLan(v);
                 })
             }
             .width('100%')

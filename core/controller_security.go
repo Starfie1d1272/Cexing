@@ -145,6 +145,11 @@ func (controllerLogWriter) Write(p []byte) (int, error) {
 // A persisted candidate must never contain either subscription or app secret.
 func projectPlatformConfig(overlay map[string]any) {
 	applyPlatformDefaults(overlay)
+	// The TUN resolver is in-process. Standalone DNS must never be exposed by a
+	// subscription or Merge; LAN proxy consent does not authorize LAN DNS.
+	if dns, ok := overlay["dns"].(map[string]any); ok && dns != nil {
+		dns["listen"] = defaultDNSListen
+	}
 	delete(overlay, "secret")
 	overlay["external-controller"] = defaultController
 	for _, key := range []string{"external-controller-tls", "external-controller-unix", "external-controller-pipe", "external-doh-server", "external-ui-url", "external-ui-name"} {
