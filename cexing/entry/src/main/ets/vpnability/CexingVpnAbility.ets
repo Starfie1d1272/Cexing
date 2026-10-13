@@ -19,10 +19,13 @@ import { ProfileStore } from '../lib/ProfileStore';
 import { EffectiveVersions } from '../lib/EffectiveVersions';
 import { Settings } from '../lib/Settings';
 import { CoreApi } from '../lib/CoreApi';
+import { ConnectionFailures } from '../lib/ConnectionFailure';
 
 const TAG = 'vpn';
 // 主进程（首页）读取的最近一次启动失败原因
 const LAST_ERROR_FILE = 'last_start_error.txt';
+// Shared sandbox receipt. Main process accepts it only for the matching start session.
+const LAST_STOP_FILE = 'last_stop_result.json';
 // 与 lib/VpnController.ets 的 VpnConfig.addresses 保持一致（系统 tun 接口地址）
 const TUN_ADDR = '172.19.0.1';
 const TUN_PREFIX = 30;
@@ -65,14 +68,24 @@ interface UserOverrides {
   logToFile: boolean;
 }
 
+interface StopResult {
+  session: string;
+  completed: boolean;
+}
+
 class CoreStatusRemote extends rpc.RemoteObject {
   private isReady: () => boolean;
   private getError: () => string;
+  private getSession: () => string;
+  private wasTunCreated: () => boolean;
 
-  constructor(isReady: () => boolean, getError: () => string) {
+  constructor(isReady: () => boolean, getError: () => string, getSession: () => string,
+    wasTunCreated: () => boolean) {
     super('CEXING_VPN_ABILITY');
     this.isReady = isReady;
     this.getError = getError;
+    this.getSession = getSession;
+    this.wasTunCreated = wasTunCreated;
   }
 
   onRemoteMessageRequest(code: number, data: rpc.MessageSequence, reply: rpc.MessageSequence,
@@ -82,6 +95,8 @@ class CoreStatusRemote extends rpc.RemoteObject {
     }
     reply.writeBoolean(this.isReady());
     reply.writeString(this.getError());
+    reply.writeString(this.getSession());
+    reply.writeBoolean(this.wasTunCreated());
     return true;
   }
 }
@@ -93,6 +108,9 @@ export default class CexingVpnAbility extends VpnExtensionAbility {
   private startupError = '';
   private starting: Promise<void> | null = null;
   private stopping = false;
+  private startupPhase: string = 'vpn';
+  private startupSession: string = '';
+  private tunCreateObserved: boolean = false;
 
   /** 记录启动失败原因到 filesDir，主进程（首页）断开回调时读取并提示用户 */
   private writeLastError(msg: string): void {
@@ -110,6 +128,21 @@ export default class CexingVpnAbility extends VpnExtensionAbility {
     this.writeLastError('');
   }
 
+  private writeStopResult(session: string, completed: boolean): void {
+    try {
+      const result: StopResult = { session, completed };
+      const path = `${this.context.filesDir}/${LAST_STOP_FILE}`;
+      const file = fileIo.openSync(path, fileIo.OpenMode.READ_WRITE | fileIo.OpenMode.CREATE | fileIo.OpenMode.TRUNC);
+      try {
+        fileIo.writeSync(file.fd, JSON.stringify(result));
+      } finally {
+        fileIo.closeSync(file);
+      }
+    } catch (_) {
+      Logger.warn(TAG, 'stop completion record unavailable');
+    }
+  }
+
   onCreate(): void {
     Logger.info(TAG, 'CexingVpnAbility.onCreate');
     CoreApi.bindContext(this.context);
@@ -119,16 +152,22 @@ export default class CexingVpnAbility extends VpnExtensionAbility {
   onConnect(want: Want): rpc.RemoteObject {
     Logger.info(TAG, 'CexingVpnAbility.onConnect');
     if (this.stopping && this.starting !== null) {
-      return new CoreStatusRemote(() => false, () => 'VPN 正在停止，请稍后重试');
+      return new CoreStatusRemote(() => false, () => 'VPN 正在停止，请稍后重试',
+        () => this.startupSession, () => this.tunCreateObserved);
     }
     if (this.starting !== null) {
-      return new CoreStatusRemote(() => this.coreStarted && !this.stopping, () => this.startupError);
+      return new CoreStatusRemote(() => this.coreStarted && !this.stopping, () => this.startupError,
+        () => this.startupSession, () => this.tunCreateObserved);
     }
     this.clearLastError();
     this.startupError = '';
+    this.startupPhase = 'vpn';
+    this.startupSession = want.parameters?.['SESSION_ID'] as string ?? '';
+    this.tunCreateObserved = false;
     this.stopping = false;
     this.starting = this.startCore(want);
-    return new CoreStatusRemote(() => this.coreStarted, () => this.startupError);
+    return new CoreStatusRemote(() => this.coreStarted, () => this.startupError,
+      () => this.startupSession, () => this.tunCreateObserved);
   }
 
   private async startCore(want: Want): Promise<void> {
@@ -136,14 +175,18 @@ export default class CexingVpnAbility extends VpnExtensionAbility {
     try {
       const config = want.parameters?.['VPN_CONFIG'] as vpnExtension.VpnConfig;
       fd = await this.connection.create(config);
+      this.tunCreateObserved = true;
       Logger.info(TAG, `tun fd acquired: ${fd}`);
+      this.startupPhase = 'protect';
       await this.connection.protectProcessNet();
       Logger.info(TAG, 'protectProcessNet done, starting mihomo core...');
 
       const filesDir = this.context.filesDir;
+      this.startupPhase = 'assets';
       await this.seedGeoData(filesDir);
       // Static resource failure is recoverable; Controller credentials still fail closed.
       await ZashboardAssets.prepare(this.context);
+      this.startupPhase = 'core-init';
       const initErr: string = await core.initCore(filesDir);
       if (initErr) {
         Logger.error(TAG, 'initCore failed');
@@ -152,6 +195,7 @@ export default class CexingVpnAbility extends VpnExtensionAbility {
       Logger.info(TAG, `initCore ok, homeDir=${filesDir}`);
       this.coreInitialized = true;
 
+      this.startupPhase = 'config';
       const cfg: string = await this.buildCoreConfig();
       // 用户覆写合并进内核配置：覆写项 > 订阅配置同名键（ipv6 只用于 VpnConfig，不传）
       const s = Settings.load(this.context);
@@ -164,26 +208,25 @@ export default class CexingVpnAbility extends VpnExtensionAbility {
       };
       Logger.info(TAG,
         `user overrides: mixedPort=${s.mixedPort} logLevel=${s.logLevel} allowLan=${s.allowLan} mode=${s.mode} logToFile=${s.logToFile}`);
+      this.startupPhase = 'core-start';
       const startErr: string = await core.startTun(fd, cfg, JSON.stringify(overrides));
       if (startErr) {
-        Logger.error(TAG, 'startTun failed');
-        const hint = startErr.includes('parse configJson')
-          ? `${startErr}\n提示：请到「配置」页重新导入订阅（UTF-8），或换一个配置激活后重启 VPN。`
-          : startErr;
-        throw new Error(hint);
+        this.startupPhase = startErr.includes('parse configJson') ? 'config' : 'core-start';
+        throw new Error(startErr);
       }
       this.coreStarted = true;
       Logger.info(TAG, 'mihomo core started, TUN handed over');
     } catch (e) {
       const msg = (e as Error).message ?? JSON.stringify(e);
-      this.startupError = msg;
-      Logger.error(TAG, `onConnect failed: ${msg}`);
-      this.writeLastError(msg);
+      this.startupError = ConnectionFailures.encode(this.startupSession,
+        ConnectionFailures.classify(this.startupPhase, msg));
+      Logger.error(TAG, `onConnect failed: ${this.startupPhase}`);
+      this.writeLastError(this.startupError);
       if (this.coreInitialized) {
         try {
           await core.stopCore();
         } catch (e2) {
-          Logger.error(TAG, `stopCore failed: ${JSON.stringify(e2)}`);
+          Logger.error(TAG, 'stopCore failed during startup cleanup');
         }
         this.coreStarted = false;
         this.coreInitialized = false;
@@ -192,7 +235,7 @@ export default class CexingVpnAbility extends VpnExtensionAbility {
         try {
           await this.connection.destroy();
         } catch (e2) {
-          Logger.error(TAG, `cleanup destroy failed: ${JSON.stringify(e2)}`);
+          Logger.error(TAG, 'VPN destroy failed during startup cleanup');
         }
       }
     }
@@ -222,15 +265,19 @@ export default class CexingVpnAbility extends VpnExtensionAbility {
     }
     this.stopping = true;
     this.cleanup().catch((e: Object) => {
-      Logger.error(TAG, `cleanup failed: ${JSON.stringify(e)}`);
+      Logger.error(TAG, 'cleanup failed');
+      this.writeStopResult(this.startupSession, false);
     });
   }
 
   private async cleanup(): Promise<void> {
+    const session = this.startupSession;
+    let completed = true;
     try {
       await this.connection.destroy();
     } catch (e) {
-      Logger.error(TAG, `destroy failed: ${JSON.stringify(e)}`);
+      completed = false;
+      Logger.error(TAG, 'VPN destroy failed');
     }
     if (this.starting !== null) {
       await this.starting;
@@ -240,12 +287,14 @@ export default class CexingVpnAbility extends VpnExtensionAbility {
         await core.stopCore();
         Logger.info(TAG, 'mihomo core stopped');
       } catch (e) {
-        Logger.error(TAG, `stopCore failed: ${JSON.stringify(e)}`);
+        completed = false;
+        Logger.error(TAG, 'stopCore failed');
       }
       this.coreStarted = false;
       this.coreInitialized = false;
     }
     this.starting = null;
+    this.writeStopResult(session, completed);
   }
 
   onDestroy(): void {
