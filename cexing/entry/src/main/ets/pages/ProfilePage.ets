@@ -33,6 +33,7 @@ export struct ProfilePage {
   @Prop detailFile: string = '';
   @Consume('profileRevision') @Watch('refresh') profileRevision: number;
   @Consume('nav') navStack: NavPathStack;
+  @Consume('tabJump') tabJump: number;
   @Consume('tab') @Watch('onTabVisible') currentVisibleTab: number;
   @State profiles: ProfileMeta[] = [];
   @State metas: Record<string, ProfileMetaExt> = {};
@@ -162,6 +163,8 @@ export struct ProfilePage {
       this.toast(`已激活「${p.name}」，启动 VPN 后生效`);
     }
     this.changed();
+    if (this.detailFile.length > 0) { this.navStack.pop(); }
+    this.tabJump = 0;
   }
 
   private async updateProfile(p: ProfileMeta): Promise<void> {

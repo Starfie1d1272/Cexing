@@ -5,13 +5,14 @@ import { NativeTheme as UI } from './NativeTheme';
 @Component
 export struct DiagnosticsPage {
   @State status: VpnStatus = VpnController.status;
-  @State control: string = '尚未检查';
+  @State control: string = '尚未检查本机服务';
   @State busy: boolean = false;
+  @State detailsOpen: boolean = false;
   private visible: boolean = false;
   private generation: number = 0;
   private listener: (status: VpnStatus) => void = (status: VpnStatus) => {
     this.status = status;
-    this.control = '尚未检查';
+    this.control = '尚未检查本机服务';
     this.generation++;
     this.busy = false;
   };
@@ -34,14 +35,14 @@ export struct DiagnosticsPage {
     this.busy = true;
     const alive = await CoreApi.isAlive();
     if (!this.visible || attempt !== this.generation) { return; }
-    this.control = alive ? 'Controller 可达' : 'Controller 不可达';
+    this.control = alive ? '本机服务有响应' : '本机服务无响应，请确认连接后重试';
     this.busy = false;
   }
 
-  private kernel(): string {
-    if (this.status === VpnStatus.Connected) { return '宿主报告已就绪'; }
-    if (this.status === VpnStatus.Connecting) { return '启动中'; }
-    if (this.status === VpnStatus.Disconnecting) { return '停止中'; }
+  private connection(): string {
+    if (this.status === VpnStatus.Connected) { return '应用报告已连接'; }
+    if (this.status === VpnStatus.Connecting) { return '正在连接'; }
+    if (this.status === VpnStatus.Disconnecting) { return '正在断开'; }
     return '未连接';
   }
 
@@ -58,20 +59,30 @@ export struct DiagnosticsPage {
     Column({ space: 20 }) {
       Scroll() {
         Column({ space: 16 }) {
+          Text('连接检查').fontSize(26).fontWeight(FontWeight.Bold).fontColor(UI.ink).width('100%')
           Column() {
-            this.Fact('系统会话', '需设备确认')
+            this.Fact('连接状态', this.connection())
             Divider().color(UI.line).margin({ left: 18, right: 18 })
-            this.Fact('内核', this.kernel())
-            Divider().color(UI.line).margin({ left: 18, right: 18 })
-            this.Fact('控制面', this.control)
-            Divider().color(UI.line).margin({ left: 18, right: 18 })
-            this.Fact('真实转发', '需设备验证')
+            this.Fact('本机服务', this.control)
           }.width('100%').borderRadius(24).backgroundColor(UI.surface)
-          Text('就绪与控制面可达不代表流量已通过系统隧道。')
-            .fontSize(13).fontColor(UI.muted).width('100%')
+          Text('这项检查只查看应用状态和本机服务。要确认网站能否打开，请在连接后用设备访问网页。')
+            .fontSize(14).fontColor(UI.muted).width('100%')
+          Button(this.detailsOpen ? '收起技术详情' : '查看技术详情').height(48)
+            .backgroundColor(UI.surface).fontColor(UI.accentText).onClick(() => { this.detailsOpen = !this.detailsOpen; })
+          if (this.detailsOpen) {
+            Column() {
+              this.Fact('VPN 系统会话', '此页无法独立确认')
+              Divider().color(UI.line).margin({ left: 18, right: 18 })
+              this.Fact('内核就绪', this.status === VpnStatus.Connected ? '扩展报告已就绪' : '尚未报告就绪')
+              Divider().color(UI.line).margin({ left: 18, right: 18 })
+              this.Fact('Controller', this.control)
+              Divider().color(UI.line).margin({ left: 18, right: 18 })
+              this.Fact('真实转发', '此页未测试')
+            }.width('100%').borderRadius(24).backgroundColor(UI.surface)
+          }
         }.width('100%')
       }.width('100%').layoutWeight(1)
-      Button(this.busy ? '检查中…' : '检查控制面').width('100%').height(56)
+      Button(this.busy ? '检查中…' : '检查本机服务').width('100%').height(56)
         .backgroundColor(UI.action).fontColor(UI.onAccent).enabled(!this.busy).onClick(() => this.check())
     }.width('100%').height('100%').padding(24).backgroundColor(UI.paper).constraintSize({ maxWidth: 760 }).alignSelf(ItemAlign.Center)
   }

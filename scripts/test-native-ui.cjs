@@ -23,12 +23,12 @@ function load(name, modules, extra = {}) {
 }
 const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 };
 (async () => {
-  let now = 1000, stream, tick, dialog, stop = 0, timerCleared = 0;
+  let now = 1000, stream, tick, dialog, stop = 0, start = 0, cancelRestore = 0, timerCleared = 0;
   let activeHomeFile = 'fixture.yaml';
   const listeners = new Set();
   function emit(next) { controller.status = next; for (const listener of listeners) listener(next); }
   const controller = { status: status.Connected, onChanged(fn) { listeners.add(fn); }, offChanged(fn) { listeners.delete(fn); },
-    consumeLastStartError: () => '', stop: () => stop++, start() {} };
+    consumeLastStartError: () => '', stop: () => stop++, start: () => start++ };
   const common = {
     '@kit.AbilityKit': {}, '@kit.ArkUI': { promptAction: { showToast() {} } },
     '../lib/VpnController': { VpnController: controller, VpnStatus: status },
@@ -39,7 +39,8 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
       getConfigs: async () => null }, formatRate: n => `${n} B/s` },
     '../lib/ProfileStore': { ProfileStore: { getActiveFile: () => activeHomeFile } },
     '../lib/Settings': { Settings: { load: () => ({ mode: 'rule' }) } },
-    '../lib/AppRuntime': { AppRuntime: { cancelRestore() {} } }
+    '../lib/AppRuntime': { AppRuntime: { cancelRestore: () => cancelRestore++ } },
+    './ProfilePage': { ProfileDetailBus: { current: '' } }
   }, { Date: { now: () => now }, setInterval: cb => { tick = cb; return 1; },
     clearInterval: () => timerCleared++, AlertDialog: { show: value => { dialog = value; } } });
   const home = new Home();
@@ -73,31 +74,24 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   home.currentVisibleTab = 0; home.onTabVisible(); assert.ok(stream);
   home.rootVisible = false; home.onRootVisible(); assert.equal(stream, null, 'secondary navigation releases stream');
   home.rootVisible = true; home.onRootVisible();
-  home.toggle(); assert.equal(stop, 0, 'disconnect requires confirmation');
-  dialog.primaryButton.action(); dialog.secondaryButton.action();
-  assert.equal(stop, 0, 'cancelled confirmation must stay invalid');
-  home.toggle(); const oldSessionConfirm = dialog.secondaryButton.action;
-  emit(status.Disconnected); emit(status.Connecting); emit(status.Connected);
-  oldSessionConfirm(); assert.equal(stop, 0, 'old dialog must not stop a reconnected session');
-  home.toggle(); const oldTabConfirm = dialog.secondaryButton.action;
-  home.currentVisibleTab = 1; home.onTabVisible(); home.currentVisibleTab = 0; home.onTabVisible();
-  oldTabConfirm(); assert.equal(stop, 0, 'tab leave/return invalidates old dialog');
-  home.toggle(); const oldNavigationConfirm = dialog.secondaryButton.action;
-  home.rootVisible = false; home.onRootVisible(); home.rootVisible = true; home.onRootVisible();
-  oldNavigationConfirm(); assert.equal(stop, 0, 'secondary navigation invalidates old dialog');
-  home.toggle(); const oldPageConfirm = dialog.secondaryButton.action;
-  home.aboutToDisappear(); oldPageConfirm(); assert.equal(stop, 0, 'destroyed page cannot confirm');
+  home.toggle(); assert.equal(stop, 1, 'one tap disconnects immediately');
+  assert.equal(cancelRestore, 1, 'explicit stop cancels pending restore');
+  assert.equal(dialog, undefined, 'disconnect must not show a confirmation');
+  emit(status.Disconnecting); home.toggle(); assert.equal(stop, 1, 'disconnecting ignores another tap');
+  emit(status.Disconnected); home.toggle(); assert.equal(start, 1, 'reconnect starts normally');
+  emit(status.Connecting); home.toggle(); assert.equal(stop, 2, 'connecting can be cancelled');
+  emit(status.Disconnecting); emit(status.Disconnected); emit(status.Connecting); emit(status.Connected);
+  assert.equal(stop, 2, 'old stop did not trigger a new stop after reconnect');
+  home.aboutToDisappear(); assert.equal(stop, 2, 'page destruction must not stop VPN');
   assert.equal(timerCleared, 1);
-  home.aboutToAppear(); oldPageConfirm(); assert.equal(stop, 0, 'recreated page cannot revive old dialog');
-  home.toggle(); dialog.secondaryButton.action(); dialog.secondaryButton.action();
-  assert.equal(stop, 1, 'fresh confirmation works exactly once');
-  home.aboutToDisappear(); assert.equal(stop, 1, 'page destruction must not stop VPN');
+  home.aboutToAppear(); assert.equal(stop, 2, 'recreated page cannot revive a stop action');
+  home.aboutToDisappear();
 
   activeHomeFile = '未导入.yaml'; home.refreshProfile();
   assert.equal(home.profileName, '未导入'); assert.equal(home.hasProfile, true, 'display sentinel is a valid filename');
   activeHomeFile = '未导入.yml'; home.refreshProfile(); assert.equal(home.hasProfile, true);
   activeHomeFile = ''; home.refreshProfile(); assert.equal(home.hasProfile, false, 'empty selection has separate existence state');
-  console.log('PASS: review reproductions: old-session/hidden-page confirmation invalidation and sentinel-named profiles');
+  console.log('PASS: one-tap stop, cancel/reconnect, stale traffic and sentinel-named profiles');
 
   let resolveProbe;
   const Diagnostics = load('DiagnosticsPage', { ...common,
@@ -105,7 +99,7 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   });
   const diagnostics = new Diagnostics(); diagnostics.aboutToAppear();
   const pending = diagnostics.check(); diagnostics.aboutToDisappear(); resolveProbe(true); await pending;
-  assert.equal(diagnostics.control, '尚未检查', 'late probe must not update destroyed page');
+  assert.equal(diagnostics.control, '尚未检查本机服务', 'late probe must not update destroyed page');
 
   let saved = 0, value;
   const Override = load('OverridePage', { ...common,
@@ -134,5 +128,5 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   controller.status = status.Connected; profile.confirmDelete(profiles[0]); dialog.secondaryButton.action();
   assert.equal(deleted, 0, 'running active profile must be protected');
   controller.status = status.Disconnected; dialog.secondaryButton.action(); assert.equal(deleted, 1);
-  console.log('PASS: native page stale traffic/navigation ownership, disconnect confirmation, stale diagnosis, invalid port, import retry/confirmation and active-delete guard');
+  console.log('PASS: native page traffic/navigation ownership, one-tap disconnect, stale diagnosis, invalid port, import retry/confirmation and active-delete guard');
 })().catch(error => { console.error(error); process.exit(1); });
