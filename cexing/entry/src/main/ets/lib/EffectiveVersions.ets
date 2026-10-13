@@ -15,6 +15,7 @@ export interface RegionPlan {
   mode: string;
   selector: string;
   enable: boolean;
+  disabled?: boolean;
   assignments: Record<string, string>;
 }
 export interface RegionPreview {

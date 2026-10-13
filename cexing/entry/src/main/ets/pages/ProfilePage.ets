@@ -124,7 +124,9 @@ export struct ProfilePage {
       this.changed();
       this.showSheet = false;
       this.sheetMode = SHEET_NONE;
-      this.toast(enable ? '地区策略与订阅已启用' : '地区策略已创建，可稍后启用');
+      const pending = ProfileStore.pendingRegionSelection(context, this.importedFile) !== '';
+      this.toast(enable ? (pending ? '地区策略已创建，连接后选择新入口' : '地区入口已选择') :
+        '地区策略已创建，可稍后启用');
     } catch (e) { this.importError = (e as Error).message ?? '地区策略未保存'; }
     finally { this.regionBusy = false; }
   }
@@ -169,9 +171,11 @@ export struct ProfilePage {
       if (saved === null) { return; }
       const context = getContext(this) as common.UIAbilityContext;
       await ProfileTransactions.setRegionPlan(context, file, { mode: saved.mode,
-        selector: saved.selector, assignments: saved.assignments, enable: !saved.enable });
+        selector: saved.selector, assignments: saved.assignments,
+        enable: !saved.enable, disabled: saved.enable });
       this.changed();
-      this.toast(saved.enable ? '已恢复原订阅规则，策略可重新启用' : '已启用 Smart 地区策略');
+      this.toast(saved.enable ? '已恢复原订阅策略，地区入口可重新启用' :
+        '地区入口已创建，待连接后选择');
     } catch (e) { this.toast((e as Error).message ?? '地区策略切换失败'); }
   }
 
@@ -524,7 +528,7 @@ export struct ProfilePage {
           this.DetailAction('内核参数覆写', () => { this.navStack.pushPath({ name: 'override' }); })
           if (this.savedRegion(p.file) !== null) {
             this.DetailAction('修改 Smart 地区策略', () => { this.editRegion(p.file); })
-            this.DetailAction(this.savedRegion(p.file)?.enable ? '关闭地区策略并恢复原规则' :
+            this.DetailAction(this.savedRegion(p.file)?.enable ? '关闭地区策略并恢复原配置' :
               '启用 Smart 地区策略', () => { this.toggleRegion(p.file); })
           } else {
             this.DetailAction('创建 Smart 地区策略', () => { this.editRegion(p.file); })

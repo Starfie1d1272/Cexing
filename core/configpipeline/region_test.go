@@ -19,7 +19,7 @@ rules:
   - MATCH,Main
 `
 
-func TestRegionPreviewAndRuleTarget(t *testing.T) {
+func TestRegionPreviewAndOriginalSelector(t *testing.T) {
 	root, err := RegionMergedSource([]byte(regionFixture), nil)
 	if err != nil {
 		t.Fatal(err)
@@ -40,10 +40,16 @@ func TestRegionPreviewAndRuleTarget(t *testing.T) {
 		t.Fatal(err)
 	}
 	got, _ := yaml.Marshal(root)
-	if !strings.Contains(string(got), "DOMAIN,example.test,Cexing Smart Main") ||
-		!strings.Contains(string(got), "MATCH,Cexing Smart Main") ||
+	if !strings.Contains(string(got), "DOMAIN,example.test,Main") ||
+		!strings.Contains(string(got), "MATCH,Main") ||
 		!strings.Contains(string(got), "empty-fallback: REJECT") {
-		t.Fatalf("generated rule/fallback mismatch: %s", got)
+		t.Fatalf("generated selector/fallback mismatch: %s", got)
+	}
+	original := field(root, "proxy-groups").Content[0]
+	members := field(original, "proxies")
+	if members.Content[len(members.Content)-1].Value != "Cexing Smart Main" ||
+		field(field(root, "proxy-groups").Content[len(field(root, "proxy-groups").Content)-1], "proxies").Content[0].Value == "Main" {
+		t.Fatal("new entry missing from original Selector or generated cycle")
 	}
 	if err := ApplyRegion(context.Background(), root, plan); err == nil {
 		t.Fatal("applying to generated output must not duplicate groups")

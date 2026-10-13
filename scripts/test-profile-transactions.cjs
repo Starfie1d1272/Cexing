@@ -24,9 +24,16 @@ let failCommit = false;
 let lostAck = false;
 let smartAutoConvert = true;
 let smartCurrent = false;
+let pendingRegionSelector = '';
+let previousRegionChoice = '';
+let currentProxyChoice = 'Original';
+let selectAccepted = true;
 const controller = { VpnStatus: { Disconnected: 0, Connected: 2 }, VpnController: { status: 2 } };
 const core = { CoreApi: {
   isAlive: async () => true,
+  getProxies: async () => ({ Main: { now: currentProxyChoice,
+    all: ['Original', 'Cexing Smart Main'] } }),
+  selectProxy: async (_, name) => { if (selectAccepted) currentProxyChoice = name; return selectAccepted; },
   applyConfigText: async () => { applies++; return pending ? await new Promise(resolve => { resolveApply = resolve; }) : response; }
 } };
 const versions = { EffectiveVersions: {
@@ -54,6 +61,12 @@ const versions = { EffectiveVersions: {
   discard: async (_, version) => { staged.delete(version.Path); }
 } };
 const store = { ProfileStore: {
+  pendingRegionSelection: () => pendingRegionSelector,
+  setPendingRegionSelection: (_, __, selector) => { pendingRegionSelector = selector; },
+  clearPendingRegionSelection: () => { pendingRegionSelector = ''; },
+  previousRegionSelection: () => previousRegionChoice,
+  setPreviousRegionSelection: (_, __, name) => { previousRegionChoice = name; },
+  clearPreviousRegionSelection: () => { previousRegionChoice = ''; },
   isApplyUncertain: () => uncertain,
   markApplyUncertain: () => { uncertain = true; },
   getProfileContent: (_, name) => originals[name] ?? null,
@@ -167,5 +180,20 @@ const tx = context.exports.ProfileTransactions;
   assert.equal(smartCurrent, true);
   assert.equal(await tx.setRegionPlan({}, 'old.yaml', region, true), 'saved');
   assert.equal(state.Current.ProfileID, 'old.yaml', 'create and enable must select the imported profile');
+  assert.equal(pendingRegionSelector, 'Main', 'offline selection intent must survive until Controller is ready');
+  controller.VpnController.status = 2;
+  selectAccepted = false;
+  assert.equal(await tx.applyPendingRegionSelection({}), false);
+  assert.equal(pendingRegionSelector, 'Main', 'failed Controller selection must remain pending');
+  selectAccepted = true;
+  assert.equal(await tx.applyPendingRegionSelection({}), true);
+  assert.equal(pendingRegionSelector, '', 'one-time explicit selection must be consumed');
+  controller.VpnController.status = 0;
+  assert.equal(await tx.setRegionPlan({}, 'old.yaml', { ...region, enable: false, disabled: true }), 'saved');
+  assert.equal(previousRegionChoice, 'Original', 'offline disable retains the manual choice for restore');
+  controller.VpnController.status = 2;
+  assert.equal(await tx.applyPendingRegionSelection({}), true);
+  assert.equal(currentProxyChoice, 'Original');
+  assert.equal(previousRegionChoice, '');
   console.log('PASS: rejected, unknown, staged pointer, merge reapply and concurrent profile transactions');
 })().catch(error => { console.error(error); process.exitCode = 1; });

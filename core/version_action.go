@@ -75,7 +75,7 @@ func executeVersionAction(home string, action versionAction) (versionResponse, e
 		if action.RegionPlan == nil || len(action.Original) > maxConfigBytes || len(action.Overlay) > maxConfigBytes {
 			return versionResponse{}, errors.New("REGION_INVALID")
 		}
-		preview, err := previewRegion(action.Original, action.Overlay, *action.RegionPlan)
+		preview, err := previewRegion(home, action.Original, action.Overlay, *action.RegionPlan)
 		if err != nil {
 			return versionResponse{}, errors.New("REGION_PREVIEW_FAILED")
 		}

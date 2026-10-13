@@ -6,18 +6,21 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"time"
 
-	RC "github.com/metacubex/mihomo/rules/common"
+	"github.com/dlclark/regexp2"
 	"gopkg.in/yaml.v3"
 )
 
 // RegionPlan is stored per subscription. Assignments are explicit user
 // corrections to name-based guesses; they never describe a node's true location.
 type RegionPlan struct {
-	Mode        string            `json:"mode"`
-	Selector    string            `json:"selector"`
-	Enable      bool              `json:"enable"`
-	Assignments map[string]string `json:"assignments,omitempty"`
+	Mode              string              `json:"mode"`
+	Selector          string              `json:"selector"`
+	Enable            bool                `json:"enable"`
+	Disabled          bool                `json:"disabled,omitempty"`
+	Assignments       map[string]string   `json:"assignments,omitempty"`
+	ResolvedProviders map[string][]string `json:"-"`
 }
 
 type RegionPreview struct {
@@ -87,6 +90,11 @@ func RegionMergedSource(original, overlay []byte) (*yaml.Node, error) {
 // references are never flattened. A provider-backed selector is pending until a
 // separate provider snapshot can prove its members; it cannot be generated here.
 func PreviewRegion(root *yaml.Node, selector string, assignments map[string]string) (RegionPreview, error) {
+	return PreviewRegionWithProviders(root, selector, assignments, nil)
+}
+
+func PreviewRegionWithProviders(root *yaml.Node, selector string, assignments map[string]string,
+	resolved map[string][]string) (RegionPreview, error) {
 	p := RegionPreview{Selectors: []string{}, Nodes: map[string]string{}, Counts: map[string]int{}}
 	groups, proxies := field(root, "proxy-groups"), field(root, "proxies")
 	if groups == nil || groups.Kind != yaml.SequenceNode {
@@ -128,12 +136,21 @@ func PreviewRegion(root *yaml.Node, selector string, assignments map[string]stri
 	if selected == nil || field(selected, "type").Value != "select" {
 		return p, nil
 	}
-	if use := field(selected, "use"); use != nil && len(use.Content) > 0 {
-		p.ProviderPending = true
+	providerNames := []string{}
+	if use := field(selected, "use"); use != nil {
+		for _, ref := range use.Content {
+			providerNames = append(providerNames, ref.Value)
+		}
 	}
 	if all := field(selected, "include-all"); all != nil && all.Value == "true" {
-		p.ProviderPending = true
+		if providers := field(root, "proxy-providers"); providers != nil {
+			for i := 0; i < len(providers.Content); i += 2 {
+				providerNames = append(providerNames, providers.Content[i].Value)
+			}
+		}
 	}
+	sort.Strings(providerNames)
+	providerNames = uniqueStrings(providerNames)
 	if members := field(selected, "proxies"); members != nil {
 		for _, n := range members.Content {
 			if !proxyNames[n.Value] {
@@ -153,8 +170,112 @@ func PreviewRegion(root *yaml.Node, selector string, assignments map[string]stri
 			}
 		}
 	}
+	if all := field(selected, "include-all"); all != nil && all.Value == "true" {
+		for name := range proxyNames {
+			if _, already := p.Nodes[name]; already {
+				continue
+			}
+			region := guessRegion(name)
+			if override, ok := assignments[name]; ok {
+				if !validRegion(override) {
+					return p, errors.New("invalid region assignment")
+				}
+				region = override
+			}
+			p.Nodes[name] = region
+			p.Counts[region]++
+			if region == "未知" {
+				p.Unknown++
+			}
+		}
+	}
+	filters, err := compileProviderFilters(field(selected, "filter"))
+	if err != nil {
+		return p, err
+	}
+	excludes, err := compileProviderFilters(field(selected, "exclude-filter"))
+	if err != nil {
+		return p, err
+	}
+	for _, provider := range providerNames {
+		names, ok := resolved[provider]
+		if !ok {
+			p.ProviderPending = true
+			continue
+		}
+		for _, name := range names {
+			if strings.Contains(name, "`") {
+				return p, errors.New("provider node name cannot be filtered exactly")
+			}
+			include, err := matchesProviderFilters(filters, name)
+			if err != nil {
+				return p, err
+			}
+			exclude, err := matchesProviderFilters(excludes, name)
+			if err != nil {
+				return p, err
+			}
+			if (len(filters) > 0 && !include) || (len(excludes) > 0 && exclude) {
+				continue
+			}
+			if _, exists := p.Nodes[name]; exists {
+				return p, errors.New("duplicate explicit and provider node")
+			}
+			region := guessRegion(name)
+			if override, ok := assignments[name]; ok {
+				if !validRegion(override) {
+					return p, errors.New("invalid region assignment")
+				}
+				region = override
+			}
+			p.Nodes[name] = region
+			p.Counts[region]++
+			if region == "未知" {
+				p.Unknown++
+			}
+		}
+	}
 	p.Eligible = !p.ProviderPending && len(p.Nodes) > 0
 	return p, nil
+}
+
+func compileProviderFilters(node *yaml.Node) ([]*regexp2.Regexp, error) {
+	if node == nil || node.Value == "" {
+		return nil, nil
+	}
+	filters := []*regexp2.Regexp{}
+	for _, part := range strings.Split(node.Value, "`") {
+		compiled, err := regexp2.Compile(part, regexp2.None)
+		if err != nil {
+			return nil, errors.New("invalid provider filter")
+		}
+		compiled.MatchTimeout = 100 * time.Millisecond
+		filters = append(filters, compiled)
+	}
+	return filters, nil
+}
+
+func matchesProviderFilters(filters []*regexp2.Regexp, name string) (bool, error) {
+	for _, filter := range filters {
+		matched, err := filter.MatchString(name)
+		if err != nil {
+			return false, errors.New("provider filter timed out")
+		}
+		if matched {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func uniqueStrings(values []string) []string {
+	out := values[:0]
+	for _, value := range values {
+		if len(out) == 0 || out[len(out)-1] != value {
+			out = append(out, value)
+		}
+	}
+	return out
 }
 
 func validRegion(code string) bool {
@@ -186,7 +307,7 @@ func ApplyRegion(_ context.Context, root *yaml.Node, plan RegionPlan) error {
 	if plan.Mode != "region" && plan.Mode != "all" {
 		return errors.New("invalid region mode")
 	}
-	p, err := PreviewRegion(root, plan.Selector, plan.Assignments)
+	p, err := PreviewRegionWithProviders(root, plan.Selector, plan.Assignments, plan.ResolvedProviders)
 	if err != nil || !p.Eligible {
 		return errors.New("region plan unavailable")
 	}
@@ -205,61 +326,135 @@ func ApplyRegion(_ context.Context, root *yaml.Node, plan RegionPlan) error {
 	}
 	newGroups := []*yaml.Node{}
 	newNames := []string{}
+	providerNode := map[string]bool{}
+	for _, names := range plan.ResolvedProviders {
+		for _, name := range names {
+			providerNode[name] = true
+		}
+	}
 	if plan.Mode == "all" {
-		members := sortedKeys(p.Nodes)
-		if len(members) < 2 {
+		members := []string{}
+		for node := range p.Nodes {
+			if !providerNode[node] {
+				members = append(members, node)
+			}
+		}
+		sort.Strings(members)
+		if len(p.Nodes) < 2 {
 			return errors.New("at least two nodes required")
 		}
 		name := base + " 全部"
 		if used[name] {
 			return errors.New("generated group name collision")
 		}
-		newGroups = append(newGroups, smartGroup(name, members))
+		newGroups = append(newGroups, smartGroup(name, members, providerGroups(root, plan, p.Nodes, "")))
 		newNames = append(newNames, name)
 	} else {
 		for _, region := range []string{"香港", "台湾", "日本", "新加坡", "美国", "韩国", "英国", "德国", "未知"} {
 			members := []string{}
 			for node, code := range p.Nodes {
-				if code == region {
+				if code == region && !providerNode[node] {
 					members = append(members, node)
 				}
 			}
 			sort.Strings(members)
-			if len(members) == 0 {
+			uses := providerGroups(root, plan, p.Nodes, region)
+			if len(members) == 0 && len(uses) == 0 {
 				continue
 			}
 			name := base + " " + region
 			if used[name] {
 				return errors.New("generated group name collision")
 			}
-			newGroups = append(newGroups, smartGroup(name, members))
+			newGroups = append(newGroups, smartGroup(name, members, uses))
 			newNames = append(newNames, name)
 		}
 	}
-	// The old Selector remains a manual fallback option; no existing member list
-	// or manual choice is changed. Generated Smart groups fail closed when empty.
-	newNames = append(newNames, plan.Selector)
+	// The new entry sits inside the original Selector. Existing rules and the
+	// original ordered choices are untouched; the new group never points back.
 	top := &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
 	set(top, "name", scalar(base))
 	set(top, "type", scalar("select"))
 	set(top, "proxies", sequence(newNames...))
 	groups.Content = append(groups.Content, newGroups...)
 	groups.Content = append(groups.Content, top)
-	if plan.Enable {
-		return rewriteRuleTargets(root, plan.Selector, base)
+	for _, group := range groups.Content {
+		if field(group, "name").Value != plan.Selector {
+			continue
+		}
+		members := field(group, "proxies")
+		if members == nil {
+			members = sequence()
+			set(group, "proxies", members)
+		}
+		if members.Kind != yaml.SequenceNode {
+			return errors.New("invalid selector members")
+		}
+		members.Content = append(members.Content, scalar(base))
+		return nil
 	}
-	return nil
+	return errors.New("original selector missing")
 }
 
-func smartGroup(name string, members []string) *yaml.Node {
+func smartGroup(name string, members []string, providers map[string][]string) *yaml.Node {
 	g := &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
 	set(g, "name", scalar(name))
 	set(g, "type", scalar("smart"))
 	set(g, "proxies", sequence(members...))
+	if len(providers) > 0 {
+		uses, names := []string{}, []string{}
+		for provider, selected := range providers {
+			uses = append(uses, provider)
+			names = append(names, selected...)
+		}
+		sort.Strings(uses)
+		sort.Strings(names)
+		names = uniqueStrings(names)
+		quoted := make([]string, 0, len(names))
+		for _, n := range names {
+			quoted = append(quoted, regexp.QuoteMeta(n))
+		}
+		set(g, "use", sequence(uses...))
+		set(g, "filter", scalar("^(?:"+strings.Join(quoted, "|")+")$"))
+	}
 	set(g, "uselightgbm", &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!bool", Value: "true"})
 	set(g, "collectdata", &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!bool", Value: "false"})
 	set(g, "empty-fallback", scalar("REJECT"))
 	return g
+}
+
+func providerGroups(root *yaml.Node, plan RegionPlan, nodes map[string]string, region string) map[string][]string {
+	result := map[string][]string{}
+	selected := map[string]bool{}
+	if groups := field(root, "proxy-groups"); groups != nil {
+		for _, group := range groups.Content {
+			if field(group, "name").Value != plan.Selector {
+				continue
+			}
+			if use := field(group, "use"); use != nil {
+				for _, name := range use.Content {
+					selected[name.Value] = true
+				}
+			}
+			if all := field(group, "include-all"); all != nil && all.Value == "true" {
+				for name := range plan.ResolvedProviders {
+					selected[name] = true
+				}
+			}
+			break
+		}
+	}
+	for provider, names := range plan.ResolvedProviders {
+		if !selected[provider] {
+			continue
+		}
+		for _, name := range names {
+			if code, ok := nodes[name]; ok && (region == "" || code == region) {
+				result[provider] = append(result[provider], name)
+			}
+		}
+	}
+	return result
 }
 
 func sortedKeys(m map[string]string) []string {
@@ -269,35 +464,4 @@ func sortedKeys(m map[string]string) []string {
 	}
 	sort.Strings(keys)
 	return keys
-}
-
-func rewriteRuleTargets(root *yaml.Node, old, replacement string) error {
-	lists := []*yaml.Node{field(root, "rules")}
-	if sub := field(root, "sub-rules"); sub != nil {
-		for i := 1; i < len(sub.Content); i += 2 {
-			lists = append(lists, sub.Content[i])
-		}
-	}
-	for _, list := range lists {
-		if list == nil {
-			continue
-		}
-		for _, rule := range list.Content {
-			tp, _, target, _ := RC.ParseRulePayload(rule.Value, true)
-			if tp == "SUB-RULE" || target != old {
-				continue
-			}
-			suffix := ""
-			body := rule.Value
-			if strings.HasSuffix(body, ",no-resolve") {
-				suffix, body = ",no-resolve", strings.TrimSuffix(body, ",no-resolve")
-			}
-			i := strings.LastIndex(body, ",")
-			if i < 0 || strings.TrimSpace(body[i+1:]) != old {
-				return errors.New("rule target cannot be rewritten")
-			}
-			rule.Value = body[:i+1] + replacement + suffix
-		}
-	}
-	return nil
 }

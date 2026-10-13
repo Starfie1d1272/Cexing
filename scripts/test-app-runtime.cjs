@@ -37,7 +37,8 @@ function fixture(recovered = status.Disconnected) {
       checkAndRun: async () => { calls.check++; }
     } },
     './Settings': { Settings: { load: () => settings } },
-    './ProfileTransactions': { ProfileTransactions: { ensureActiveSmartPolicy: async () => {} } },
+    './ProfileTransactions': { ProfileTransactions: { ensureActiveSmartPolicy: async () => {},
+      applyPendingRegionSelection: async () => false } },
     './Logger': { Logger: { warn() {} } }
   };
   const ctx = { exports: {}, require: name => {

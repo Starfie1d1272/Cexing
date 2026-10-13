@@ -42,6 +42,20 @@ func compilePinnedMergeWithSmart(home, original, overlay, overrides string, smar
 
 func compilePinnedMergeWithStrategies(home, original, overlay, overrides string, smartConversion bool,
 	region *configpipeline.RegionPlan) (configpipeline.Result, string, error) {
+	var resolvedRegion *configpipeline.RegionPlan
+	if region != nil && !region.Disabled {
+		root, err := configpipeline.RegionMergedSource([]byte(original), []byte(overlay))
+		if err != nil {
+			return configpipeline.Result{}, "", err
+		}
+		members, err := regionProviderNames(home, root)
+		if err != nil {
+			return configpipeline.Result{}, "", err
+		}
+		copy := *region
+		copy.ResolvedProviders = members
+		resolvedRegion = &copy
+	}
 	project := func(_ context.Context, root *yaml.Node) error {
 		var before, after map[string]any
 		if err := root.Decode(&before); err != nil {
@@ -91,8 +105,8 @@ func compilePinnedMergeWithStrategies(home, original, overlay, overrides string,
 				return err
 			}
 		}
-		if region != nil {
-			return configpipeline.ApplyRegion(ctx, root, *region)
+		if resolvedRegion != nil {
+			return configpipeline.ApplyRegion(ctx, root, *resolvedRegion)
 		}
 		return nil
 	}
@@ -102,12 +116,16 @@ func compilePinnedMergeWithStrategies(home, original, overlay, overrides string,
 	return result, receipt, err
 }
 
-func previewRegion(original, overlay string, plan configpipeline.RegionPlan) (configpipeline.RegionPreview, error) {
+func previewRegion(home, original, overlay string, plan configpipeline.RegionPlan) (configpipeline.RegionPreview, error) {
 	root, err := configpipeline.RegionMergedSource([]byte(original), []byte(overlay))
 	if err != nil {
 		return configpipeline.RegionPreview{}, err
 	}
-	return configpipeline.PreviewRegion(root, plan.Selector, plan.Assignments)
+	providers, err := regionProviderNames(home, root)
+	if err != nil {
+		return configpipeline.PreviewRegion(root, plan.Selector, plan.Assignments)
+	}
+	return configpipeline.PreviewRegionWithProviders(root, plan.Selector, plan.Assignments, providers)
 }
 
 // The running core parses the generated candidate in /configs before applying it.
