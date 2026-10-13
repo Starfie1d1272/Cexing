@@ -93,29 +93,29 @@ process.stdout.write(context.exports.ZashboardSession.bootstrap(fixture.secret,f
             url = f'http://127.0.0.1:9090/ui/versions/{version}/'
             page.goto(url, wait_until='networkidle')
             page.get_by_text('Local test', exact=False).first.wait_for(timeout=20000)
-            page.wait_for_function("window.__OHOS_PANEL_REVOKE__ && !window.__OHOS_PANEL_BOOTSTRAP__")
+            page.wait_for_function("() => window.__OHOS_PANEL_REVOKE__ && !window.__OHOS_PANEL_BOOTSTRAP__")
             assert page.url.startswith(url) and secret not in page.url
             assert secret not in page.locator('body').inner_text(), 'Credential displayed'
             # Locked upstream uses prefers-color-scheme with automatic theme enabled by default.
-            page.wait_for_function("document.documentElement.dataset.theme === 'light'")
+            page.wait_for_function("() => document.documentElement.dataset.theme === 'light'")
             screenshot_dir = os.environ.get('ZASHBOARD_SCREENSHOTS')
             if screenshot_dir:
                 Path(screenshot_dir).mkdir(parents=True, exist_ok=True)
                 page.screenshot(path=str(Path(screenshot_dir) / 'panel-light.png'))
             page.emulate_media(color_scheme='dark')
-            page.wait_for_function("document.documentElement.dataset.theme === 'dark'")
+            page.wait_for_function("() => document.documentElement.dataset.theme === 'dark'")
             if screenshot_dir:
                 page.screenshot(path=str(Path(screenshot_dir) / 'panel-dark.png'))
             page.emulate_media(color_scheme='light')
-            page.wait_for_function("document.documentElement.dataset.theme === 'light'")
+            page.wait_for_function("() => document.documentElement.dataset.theme === 'light'")
             # An explicit panel preference retains upstream priority over automatic media.
             page.evaluate("localStorage.setItem('config/auto-theme', 'false')")
             page.emulate_media(color_scheme='dark')
             page.reload(wait_until='networkidle')
-            page.wait_for_function("document.documentElement.dataset.theme === 'light'")
+            page.wait_for_function("() => document.documentElement.dataset.theme === 'light'")
             page.evaluate("localStorage.removeItem('config/auto-theme')")
             page.reload(wait_until='networkidle')
-            page.wait_for_function("document.documentElement.dataset.theme === 'dark'")
+            page.wait_for_function("() => document.documentElement.dataset.theme === 'dark'")
 
             assert secret not in page.evaluate('JSON.stringify({...localStorage,...sessionStorage})'), 'Credential persisted'
             assert any(request.url.endswith('/version') and request.headers.get('authorization') == 'Bearer ' + secret
@@ -168,7 +168,7 @@ process.stdout.write(context.exports.ZashboardSession.bootstrap(fixture.secret,f
             page.get_by_text('Local test', exact=False).first.wait_for(timeout=20000)
             assert not page.evaluate('!!window.__OHOS_PANEL_BOOTSTRAP__')
             page.emulate_media(color_scheme='dark')
-            page.wait_for_function("document.documentElement.dataset.theme === 'dark'")
+            page.wait_for_function("() => document.documentElement.dataset.theme === 'dark'")
             # Observe genuine Controller loss. ArkWeb absorbs all console messages; Chromium's
             # internal WS diagnostics can include token URLs, so never print raw console/URLs.
             Path(str(ready)+'.stop').touch()
