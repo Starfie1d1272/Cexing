@@ -12,6 +12,10 @@ bash scripts/build-zashboard.sh /tmp/zashboard-source
 
 输出到忽略的 `cexing/entry/src/main/resources/rawfile/zashboard/`。更新 `third_party/zashboard/manifest.json` 和 `ZashboardPin.ets` 后通过 Git diff 审查；未审查的更新不应发行。依赖许可文件、上游纹理 attribution 与字体许可也在清单内。
 
+`third_party/zashboard/dependency-notices.json` 是按 pnpm 锁文件审查的许可证正文语料，范围是**全部锁定包**，包括仅在 macOS、Linux 或其他平台安装的可选构建二进制；每条保留来源、平台约束及正文 SHA-256。打包时先核对语料与锁文件身份、完整包集合、非空正文和摘要，再复制到资源。这样 Linux 与 macOS 使用同一资源字节；若锁更新或有许可正文缺失，构建失败。补充来源时须从相同版本的 npm tarball、其父包许可或对应版本源码/明确 SPDX 声明核对，不能从当前机器安装结果推导完整清单。
+
+少数精确 npm tarball 只声明 SPDX 许可标识而未带版权声明。清单保留标准 SPDX 全文、声明来源及上游未提供完整版权行的说明，不推定作者就是版权人；这不替代发行前的版权归属与对应源码义务审查。实际 macOS/Linux 资源身份由 `Zashboard portability` 工作流在两种 runner 上重新构建并比对锁定 manifest。
+
 按 [构建指南](build.md) 准备内核和 geodata，然后：
 
 ```bash

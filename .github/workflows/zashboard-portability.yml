@@ -1,0 +1,46 @@
+name: Zashboard portability
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/zashboard-portability.yml'
+      - 'scripts/zashboard-assets.py'
+      - 'scripts/zashboard_notices.py'
+      - 'third_party/zashboard/**'
+      - 'cexing/entry/src/main/ets/lib/ZashboardPin.ets'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  assets:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-15]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '26.11.1'
+      - run: npm ci --prefix scripts/ci --ignore-scripts --no-audit --no-fund
+      - name: Build reviewed source and compare complete resource identity
+        run: |
+          source_dir="$RUNNER_TEMP/zashboard-source"
+          mkdir "$source_dir"
+          sha="$(python3 -c 'import json; print(json.load(open("third_party/zashboard/source.json"))["sha"])')"
+          git -C "$source_dir" init --quiet
+          git -C "$source_dir" fetch --depth 1 https://github.com/Zephyruso/zashboard.git "$sha"
+          git -C "$source_dir" checkout --quiet --detach FETCH_HEAD
+          export PATH="$PWD/scripts/ci/node_modules/.bin:$PATH"
+          bash scripts/build-zashboard.sh "$source_dir"
+          python3 scripts/test-zashboard-notices.py
+          python3 scripts/zashboard-assets.py verify
+          git diff --exit-code -- third_party/zashboard/manifest.json cexing/entry/src/main/ets/lib/ZashboardPin.ets
+          python3 - <<'PYCODE'
+          import hashlib, pathlib
+          raw = pathlib.Path('cexing/entry/src/main/resources/rawfile/zashboard/dependency-notices.json')
+          print('PASS: complete locked notices SHA-256', hashlib.sha256(raw.read_bytes()).hexdigest())
+          PYCODE
