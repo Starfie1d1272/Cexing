@@ -2,7 +2,7 @@
 # Source checkout must already be fetched. --offline uses an already populated pnpm store.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-SOURCE="${1:?usage: build-zashboard.sh /path/to/zashboard-checkout [--offline]}"
+SOURCE="${1:?usage: build-zashboard.sh /path/to/zashboard-checkout [--offline|--reviewed]}"
 SOURCE="$(cd "$SOURCE" && pwd)"
 PIN="$ROOT/third_party/zashboard"
 EXPECTED="$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["sha"])' "$PIN/source.json")"
@@ -27,7 +27,13 @@ trap 'rm -f "${TMPDIR:-/tmp}/zashboard-host-diff-$$"' EXIT
 cmp "${TMPDIR:-/tmp}/zashboard-host-diff-$$" "$PIN/host.patch"
 cd "$SOURCE"
 ARGS=(install --frozen-lockfile)
-if [ "${2:-}" = '--offline' ]; then ARGS+=(--offline); fi
+PREPARE_ARGS=()
+case "${2:-}" in
+  --offline) ARGS+=(--offline) ;;
+  --reviewed) PREPARE_ARGS+=(--reviewed) ;;
+  '') ;;
+  *) echo 'Unknown Zashboard build option' >&2; exit 1 ;;
+esac
 pnpm "${ARGS[@]}"
 FONT=firasans pnpm run build
-python3 "$ROOT/scripts/zashboard-assets.py" prepare "$SOURCE"
+python3 "$ROOT/scripts/zashboard-assets.py" prepare "$SOURCE" "${PREPARE_ARGS[@]}"

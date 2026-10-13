@@ -9,7 +9,8 @@ python3 "$REPO_ROOT/scripts/prepare-smart-model.py" --verify
   exit 1
 }
 cd "$PROJECT_ROOT"
-hvigorw clean --no-daemon
+# This entry owns the single required clean for both direct builds and Full.
+python3 "$REPO_ROOT/scripts/ci/timed.py" hvigor-clean hvigorw clean --no-daemon
 MODE="${1:-debug}"
 if [ "$MODE" = "release" ]; then
   hvigorw assembleHap -p buildMode=release --no-daemon

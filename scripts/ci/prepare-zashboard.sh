@@ -22,7 +22,6 @@ mkdir "$CHECKOUT"
 git -C "$CHECKOUT" init --quiet
 git -C "$CHECKOUT" fetch --depth 1 "$REPOSITORY" "$SHA"
 git -C "$CHECKOUT" checkout --quiet --detach FETCH_HEAD
-bash scripts/build-zashboard.sh "$CHECKOUT"
-# Generated identity must equal reviewed input; reject rather than accept a new bundle pin.
-git diff --exit-code -- third_party/zashboard/manifest.json cexing/entry/src/main/ets/lib/ZashboardPin.ets
+# The production prepare validates reviewed manifest/pin in staging before committing RAW.
+bash scripts/build-zashboard.sh "$CHECKOUT" --reviewed
 python3 scripts/zashboard-assets.py verify

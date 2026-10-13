@@ -3,6 +3,8 @@
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 python3 scripts/test-zashboard-cache.py
+python3 scripts/test-zashboard-prepare.py
+python3 scripts/test-hap-clean.py
 node scripts/ci/source-check.cjs
 while IFS= read -r script; do bash -n "$script"; done < <(git ls-files 'scripts/*.sh' 'scripts/ci/*.sh')
 git diff --check
