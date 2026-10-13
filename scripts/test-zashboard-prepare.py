@@ -121,6 +121,22 @@ with tempfile.TemporaryDirectory(prefix='real-zashboard-prepare-') as temporary:
                 else:
                     raise AssertionError('backup failure was swallowed')
             assert failed and snapshot(host) == original, target
+        mkdtemp = tempfile.mkdtemp
+        for parent in [raw.parent, pin, ets.parent]:
+            failed = []
+            def fail_backup_directory(*args, **kwargs):
+                if kwargs.get('prefix') == '.zashboard-backup-' and kwargs.get('dir') == parent and not failed:
+                    failed.append(True)
+                    raise OSError('synthetic backup directory write failure')
+                return mkdtemp(*args, **kwargs)
+            with patch.object(tempfile, 'mkdtemp', fail_backup_directory):
+                try:
+                    assets.prepare(source)
+                except OSError:
+                    pass
+                else:
+                    raise AssertionError('backup directory failure was swallowed')
+            assert failed and snapshot(host) == original, parent
         assert not list(host.rglob('.zashboard-backup-*'))
         assert not list(host.rglob('.zashboard-prepare-*'))
         assets.prepare(source)

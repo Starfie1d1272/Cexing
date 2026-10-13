@@ -67,7 +67,8 @@ def commit_prepared(changes):
         # If rollback itself fails, retain the backup bytes for recovery.
         if complete:
             for directory in temporary:
-                shutil.rmtree(directory)
+                # Backup disposal is housekeeping after commit/rollback, never a failed commit.
+                shutil.rmtree(directory, ignore_errors=True)
 
 
 def prepare(source, reviewed=False):
