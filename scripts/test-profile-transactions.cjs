@@ -26,15 +26,22 @@ let smartAutoConvert = true;
 let smartCurrent = false;
 let pendingRegionSelector = '';
 let previousRegionChoice = '';
+let previousRegionObserved = '';
 let currentProxyChoice = 'Original';
 let selectAccepted = true;
+let reloadFallbackChoice = '';
 const controller = { VpnStatus: { Disconnected: 0, Connected: 2 }, VpnController: { status: 2 } };
 const core = { CoreApi: {
   isAlive: async () => true,
   getProxies: async () => ({ Main: { now: currentProxyChoice,
-    all: ['Original', 'Other', 'Cexing Smart Main'] } }),
+    all: ['Original', 'Other', 'Manual', 'Cexing Smart Main'] } }),
   selectProxy: async (_, name) => { if (selectAccepted) currentProxyChoice = name; return selectAccepted; },
-  applyConfigText: async () => { applies++; return pending ? await new Promise(resolve => { resolveApply = resolve; }) : response; }
+  applyConfigText: async () => {
+    applies++;
+    const result = pending ? await new Promise(resolve => { resolveApply = resolve; }) : response;
+    if (result === 'applied' && reloadFallbackChoice !== '') { currentProxyChoice = reloadFallbackChoice; }
+    return result;
+  }
 } };
 const versions = { EffectiveVersions: {
   read: () => state,
@@ -65,8 +72,10 @@ const store = { ProfileStore: {
   setPendingRegionSelection: (_, __, selector) => { pendingRegionSelector = selector; },
   clearPendingRegionSelection: () => { pendingRegionSelector = ''; },
   previousRegionSelection: () => previousRegionChoice,
-  setPreviousRegionSelection: (_, __, name) => { previousRegionChoice = name; },
-  clearPreviousRegionSelection: () => { previousRegionChoice = ''; },
+  previousRegionObservation: () => previousRegionObserved,
+  setPreviousRegionSelection: (_, __, name) => { previousRegionChoice = name; previousRegionObserved = ''; },
+  setPreviousRegionObservation: (_, __, observed) => { previousRegionObserved = observed; },
+  clearPreviousRegionSelection: () => { previousRegionChoice = ''; previousRegionObserved = ''; },
   isApplyUncertain: () => uncertain,
   markApplyUncertain: () => { uncertain = true; },
   getProfileContent: (_, name) => originals[name] ?? null,
@@ -167,6 +176,7 @@ const tx = context.exports.ProfileTransactions;
   previousRegionChoice = 'Original';
   pendingRegionSelector = 'Main';
   selectAccepted = false;
+  reloadFallbackChoice = 'Other';
   const beforePartialDisable = state.Current.ID;
   await assert.rejects(tx.setRegionPlan({}, 'new.yaml', { ...region, enable: false }),
     /地区策略已关闭，但原选项未恢复/);
@@ -174,17 +184,24 @@ const tx = context.exports.ProfileTransactions;
     'failed Controller restore must not hide a committed disable');
   assert.equal(regionPlans.get(state.Current.ID).enable, false);
   assert.equal(previousRegionChoice, 'Original', 'retain the original choice for reconnect retry');
+  assert.equal(previousRegionObserved, 'Other', 'record the automatic post-reload fallback');
   assert.equal(pendingRegionSelector, '', 'discard the obsolete enable intent after disable');
+  reloadFallbackChoice = '';
   selectAccepted = true;
   assert.equal(await tx.applyPendingRegionSelection({}), true,
     'reconnect retry must restore the original choice');
   assert.equal(currentProxyChoice, 'Original');
   assert.equal(previousRegionChoice, '');
   previousRegionChoice = 'Original';
-  currentProxyChoice = 'Other';
+  previousRegionObserved = 'Other';
+  currentProxyChoice = 'Manual';
   assert.equal(await tx.applyPendingRegionSelection({}), false,
     'reconnect must not overwrite a later manual choice');
-  assert.equal(currentProxyChoice, 'Other');
+  assert.equal(currentProxyChoice, 'Manual');
+  assert.equal(previousRegionChoice, 'Original', 'uncertain user intent must not erase restore evidence');
+  currentProxyChoice = 'Other';
+  assert.equal(await tx.applyPendingRegionSelection({}), true,
+    'the recorded reload fallback can be retried later');
   assert.equal(previousRegionChoice, '');
   currentProxyChoice = 'Original';
   assert.equal(await tx.setRegionPlan({}, 'new.yaml', region), 'applied');
