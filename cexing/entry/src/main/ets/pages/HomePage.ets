@@ -32,9 +32,14 @@ export struct HomePage {
   @State startFailed: boolean = false;
   private lastTrafficAt: number = 0;
   private freshnessTimer: number = -1;
+  private stopRequest: number = 0;
   private watcher: CoreApi.StreamWatcher<TrafficMsg> = new CoreApi.StreamWatcher<TrafficMsg>();
   private visible: boolean = false;
   private listener: (status: VpnStatus) => void = (status: VpnStatus) => {
+    if ((status === VpnStatus.Connecting || status === VpnStatus.Connected) &&
+      (this.status === VpnStatus.Disconnected || this.status === VpnStatus.Disconnecting)) {
+      this.stopRequest++;
+    }
     this.status = status;
     if (this.visible) {
       this.refreshTraffic();
@@ -67,6 +72,7 @@ export struct HomePage {
 
   aboutToDisappear(): void {
     this.visible = false;
+    this.stopRequest++;
     VpnController.offChanged(this.listener);
     this.watcher.stop();
     clearInterval(this.freshnessTimer);
@@ -78,10 +84,12 @@ export struct HomePage {
   }
 
   private onRootVisible(): void {
+    if (!this.rootVisible) { this.stopRequest++; }
     this.refreshTraffic();
   }
 
   private onTabVisible(): void {
+    if (this.currentVisibleTab !== 0) { this.stopRequest++; }
     if (this.currentVisibleTab === 0) {
       this.refreshProfile();
     }
@@ -118,10 +126,22 @@ export struct HomePage {
     }
   }
 
+  private async stopVpn(ctx: common.UIAbilityContext): Promise<void> {
+    const request = ++this.stopRequest;
+    let completed = false;
+    try { completed = await VpnController.stop(ctx); }
+    catch (_) {}
+    if (!completed && request === this.stopRequest && this.visible && this.rootVisible &&
+      this.currentVisibleTab === 0) {
+      promptAction.showToast({ message: '停止结果未知，请检查系统 VPN 状态后重试', duration: 3000 });
+    }
+  }
+
   private toggle(): void {
     AppRuntime.cancelRestore();
     const ctx = getContext(this) as common.UIAbilityContext;
     if (this.status === VpnStatus.Disconnected) {
+      this.stopRequest++;
       if (ProfileStore.getActiveFile(ctx).length === 0) {
         this.tabJump = 1;
         return;
@@ -129,9 +149,9 @@ export struct HomePage {
       this.startFailed = false;
       VpnController.start(ctx);
     } else if (this.status === VpnStatus.Connecting) {
-      VpnController.stop(ctx);
+      this.stopVpn(ctx);
     } else if (this.status === VpnStatus.Connected) {
-      VpnController.stop(ctx);
+      this.stopVpn(ctx);
     }
   }
 
