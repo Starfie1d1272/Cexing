@@ -98,11 +98,11 @@ export struct ZashboardPage {
         }.width('100%').layoutWeight(1)
       } else {
         if (this.error !== '') {
-          Row({ space: 12 }) {
-            Text(this.error).fontSize(14).fontColor(UI.error).layoutWeight(1)
-            Button('重试').height(48).backgroundColor(UI.soft).fontColor(UI.accentText)
+          Column({ space: 12 }) {
+            Text(this.error).fontSize(14).fontColor(UI.error).width('100%')
+            Button('重试').width('100%').height(48).backgroundColor(UI.soft).fontColor(UI.accentText)
               .onClick(() => this.reopen())
-          }.width('100%')
+          }.width('100%').alignItems(HorizontalAlign.Start)
         }
         if (this.open) {
           Web({ src: `${this.url}versions/${this.version}/`, controller: this.controller })

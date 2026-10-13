@@ -19,20 +19,24 @@ function load(name, modules, extra = {}) {
   const sandbox = { exports: {}, getContext: () => ({}), Date, Promise,
     require: key => { assert.ok(key in modules, `Missing mock ${key}`); return modules[key]; }, ...extra };
   vm.runInNewContext(code, sandbox);
-  return sandbox.exports[name];
+  const component = sandbox.exports[name];
+  component.moduleExports = sandbox.exports;
+  return component;
 }
 const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 };
 (async () => {
-  let now = 1000, stream, tick, dialog, stop = 0, timerCleared = 0;
+  let now = 1000, stream, tick, dialog, stop = 0, start = 0, cancelRestore = 0, timerCleared = 0;
+  const toasts = [];
+  let stopResult = async () => true;
   let activeHomeFile = 'fixture.yaml';
   const listeners = new Set();
   function emit(next) { controller.status = next; for (const listener of listeners) listener(next); }
   let pendingFailure = '';
   const controller = { status: status.Connected, onChanged(fn) { listeners.add(fn); }, offChanged(fn) { listeners.delete(fn); },
     consumeLastStartError: () => { const value = pendingFailure; pendingFailure = ''; return value; },
-    getLastStartFailure: () => null, stop: () => stop++, start() {} };
+    getLastStartFailure: () => null, stop: () => { stop++; return stopResult(); }, start: () => start++ };
   const common = {
-    '@kit.AbilityKit': {}, '@kit.ArkUI': { promptAction: { showToast() {} } },
+    '@kit.AbilityKit': {}, '@kit.ArkUI': { promptAction: { showToast(value) { toasts.push(value.message); } } },
     '@kit.BasicServicesKit': {}, '../lib/ConnectionFailure': { ConnectionFailures: {} },
     '../lib/VpnController': { VpnController: controller, VpnStatus: status },
     './NativeTheme': { NativeTheme: {} }, '../lib/Logger': { Logger: { warn() {} } }
@@ -42,7 +46,8 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
       getConfigs: async () => null }, formatRate: n => `${n} B/s` },
     '../lib/ProfileStore': { ProfileStore: { getActiveFile: () => activeHomeFile } },
     '../lib/Settings': { Settings: { load: () => ({ mode: 'rule' }) } },
-    '../lib/AppRuntime': { AppRuntime: { cancelRestore() {} } }
+    '../lib/AppRuntime': { AppRuntime: { cancelRestore: () => cancelRestore++ } },
+    './ProfilePage': { ProfileDetailBus: { current: '' } }
   }, { Date: { now: () => now }, setInterval: cb => { tick = cb; return 1; },
     clearInterval: () => timerCleared++, AlertDialog: { show: value => { dialog = value; } } });
   const home = new Home();
@@ -78,31 +83,42 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   home.currentVisibleTab = 0; home.onTabVisible(); assert.ok(stream);
   home.rootVisible = false; home.onRootVisible(); assert.equal(stream, null, 'secondary navigation releases stream');
   home.rootVisible = true; home.onRootVisible();
-  home.toggle(); assert.equal(stop, 0, 'disconnect requires confirmation');
-  dialog.primaryButton.action(); dialog.secondaryButton.action();
-  assert.equal(stop, 0, 'cancelled confirmation must stay invalid');
-  home.toggle(); const oldSessionConfirm = dialog.secondaryButton.action;
-  emit(status.Disconnected); emit(status.Connecting); emit(status.Connected);
-  oldSessionConfirm(); assert.equal(stop, 0, 'old dialog must not stop a reconnected session');
-  home.toggle(); const oldTabConfirm = dialog.secondaryButton.action;
-  home.currentVisibleTab = 1; home.onTabVisible(); home.currentVisibleTab = 0; home.onTabVisible();
-  oldTabConfirm(); assert.equal(stop, 0, 'tab leave/return invalidates old dialog');
-  home.toggle(); const oldNavigationConfirm = dialog.secondaryButton.action;
-  home.rootVisible = false; home.onRootVisible(); home.rootVisible = true; home.onRootVisible();
-  oldNavigationConfirm(); assert.equal(stop, 0, 'secondary navigation invalidates old dialog');
-  home.toggle(); const oldPageConfirm = dialog.secondaryButton.action;
-  home.aboutToDisappear(); oldPageConfirm(); assert.equal(stop, 0, 'destroyed page cannot confirm');
+  home.toggle(); assert.equal(stop, 1, 'one tap disconnects immediately');
+  assert.equal(cancelRestore, 1, 'explicit stop cancels pending restore');
+  assert.equal(dialog, undefined, 'disconnect must not show a confirmation');
+  emit(status.Disconnecting); home.toggle(); assert.equal(stop, 1, 'disconnecting ignores another tap');
+  emit(status.Disconnected); home.toggle(); assert.equal(start, 1, 'reconnect starts normally');
+  emit(status.Connecting); home.toggle(); assert.equal(stop, 2, 'connecting can be cancelled');
+  emit(status.Disconnecting); emit(status.Disconnected); emit(status.Connecting); emit(status.Connected);
+  assert.equal(stop, 2, 'old stop did not trigger a new stop after reconnect');
+  home.aboutToDisappear(); assert.equal(stop, 2, 'page destruction must not stop VPN');
   assert.equal(timerCleared, 1);
-  home.aboutToAppear(); oldPageConfirm(); assert.equal(stop, 0, 'recreated page cannot revive old dialog');
-  home.toggle(); dialog.secondaryButton.action(); dialog.secondaryButton.action();
-  assert.equal(stop, 1, 'fresh confirmation works exactly once');
-  home.aboutToDisappear(); assert.equal(stop, 1, 'page destruction must not stop VPN');
+  home.aboutToAppear(); assert.equal(stop, 2, 'recreated page cannot revive a stop action');
+  home.aboutToDisappear();
 
   activeHomeFile = '未导入.yaml'; home.refreshProfile();
   assert.equal(home.profileName, '未导入'); assert.equal(home.hasProfile, true, 'display sentinel is a valid filename');
   activeHomeFile = '未导入.yml'; home.refreshProfile(); assert.equal(home.hasProfile, true);
   activeHomeFile = ''; home.refreshProfile(); assert.equal(home.hasProfile, false, 'empty selection has separate existence state');
-  console.log('PASS: review reproductions: old-session/hidden-page confirmation invalidation and sentinel-named profiles');
+  activeHomeFile = 'fixture.yaml'; home.refreshProfile(); home.aboutToAppear();
+  stopResult = async () => false;
+  home.toggle(); emit(status.Disconnecting); emit(status.Disconnected);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.ok(toasts.includes('停止结果未知，请检查系统 VPN 状态后重试'),
+    'false stop must be visible despite Disconnected status');
+  toasts.length = 0;
+  let finishStop;
+  stopResult = () => new Promise(resolve => { finishStop = resolve; });
+  emit(status.Connected); home.toggle(); emit(status.Disconnecting); emit(status.Disconnected);
+  home.toggle(); finishStop(false);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(toasts.length, 0, 'old stop result cannot toast after a newer start');
+  stopResult = async () => { throw Error('synthetic stop failure'); };
+  emit(status.Connected); home.toggle(); emit(status.Disconnecting); emit(status.Disconnected);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.ok(toasts.includes('停止结果未知，请检查系统 VPN 状态后重试'), 'rejected stop must be visible');
+  home.aboutToDisappear();
+  console.log('PASS: one-tap stop, cancel/reconnect, stale traffic and sentinel-named profiles');
 
   let resolveProbe;
   const Diagnostics = load('DiagnosticsPage', { ...common,
@@ -110,7 +126,7 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   }, { setTimeout: () => 1, clearTimeout() {} });
   const diagnostics = new Diagnostics(); diagnostics.aboutToAppear();
   const pending = diagnostics.check(); diagnostics.aboutToDisappear(); resolveProbe(true); await pending;
-  assert.equal(diagnostics.control, '尚未检查', 'late probe must not update destroyed page');
+  assert.equal(diagnostics.control, '尚未检查本机服务', 'late probe must not update destroyed page');
   let expireProbe;
   const TimedDiagnostics = load('DiagnosticsPage', { ...common,
     '../lib/CoreApi': { CoreApi: { isAlive: () => new Promise(() => {}) } }
@@ -128,12 +144,14 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   override.mixedPort = '7891'; override.persist(); assert.equal(saved, 1); assert.equal(value.mixedPort, 7891);
 
   let active = 'fixture.yaml', deleted = 0, rejectImport = true;
-  const profiles = [{ file: 'fixture.yaml', name: 'Fixture', active: true }];
+  let activateResult = async () => 'applied';
+  const profiles = [{ file: 'fixture.yaml', name: 'Fixture', active: true },
+    { file: 'candidate.yaml', name: 'Candidate', active: false }];
   const Profile = load('ProfilePage', { ...common,
     '@kit.CoreFileKit': {}, '@kit.ArkTS': {}, '@kit.BasicServicesKit': {}, './ProfileEditPage': {},
     '../lib/CoreApi': { CoreApi: {} },
     '../lib/ProfileTransactions': { ProfileTransactions: {
-      remove: async () => { deleted++; }, activate: async () => 'applied',
+      remove: async () => { deleted++; }, activate: (...args) => activateResult(...args),
       update: async () => 'applied', rename: () => 'fixture.yaml'
     } },
     '../lib/ProfileStore': { ProfileStore: { list: () => profiles, getMeta: () => ({}),
@@ -147,6 +165,68 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   rejectImport = false; await profile.importUrl();
   assert.equal(active, 'fixture.yaml', 'import confirmation must not silently change active selection');
   assert.equal(profile.importedFile, 'candidate.yaml'); assert.equal(profile.showSheet, true);
+
+  function activationPage(paths = [], detailFile = '') {
+    const page = new Profile();
+    let popped = 0;
+    page.detailFile = detailFile; page.tabJump = -1; page.profileRevision = 0;
+    page.currentVisibleTab = detailFile ? 0 : 1;
+    page.navStack = { getAllPathName: () => paths.slice(), pop: () => { popped++; paths.pop(); } };
+    page.aboutToAppear();
+    return { page, pops: () => popped };
+  }
+  controller.status = status.Connected;
+  const success = activationPage();
+  await success.page.activate(profiles[1]);
+  assert.equal(success.page.tabJump, 0, 'definite success returns to Connect');
+  activateResult = async () => { throw Error('切换被拒绝'); };
+  const failed = activationPage();
+  await failed.page.activate(profiles[1]);
+  assert.equal(failed.page.tabJump, -1, 'rejected or unconfirmed reload stays on profile page');
+  activateResult = async () => { throw Error('切换结果未知'); };
+  const unknown = activationPage();
+  await unknown.page.activate(profiles[1]);
+  assert.equal(unknown.page.tabJump, -1, 'unconfirmed local service does not navigate');
+  let finishActivation;
+  activateResult = () => new Promise(resolve => { finishActivation = resolve; });
+  async function waitForActivation() {
+    for (let i = 0; i < 8 && !finishActivation; i++) { await Promise.resolve(); }
+    assert.equal(typeof finishActivation, 'function', 'activation reached transaction mock');
+  }
+  const timedOut = activationPage();
+  const timeout = timedOut.page.activate(profiles[1]);
+  await waitForActivation(); finishActivation('unknown'); await timeout;
+  assert.equal(timedOut.page.tabJump, -1, 'timeout or unknown reload cannot navigate');
+  finishActivation = undefined;
+  const left = activationPage();
+  const late = left.page.activate(profiles[1]);
+  await waitForActivation();
+  left.page.aboutToDisappear(); finishActivation('applied'); await late;
+  assert.equal(left.page.tabJump, -1, 'completion after page leave cannot navigate');
+  finishActivation = undefined;
+  const switchedTab = activationPage();
+  const pendingTab = switchedTab.page.activate(profiles[1]);
+  await waitForActivation();
+  switchedTab.page.currentVisibleTab = 2; switchedTab.page.onTabVisible();
+  switchedTab.page.currentVisibleTab = 1; switchedTab.page.onTabVisible();
+  finishActivation('saved'); await pendingTab;
+  assert.equal(switchedTab.page.tabJump, -1, 'leaving and returning to the tab cannot revive an old request');
+  const paths = ['profileDetail'];
+  Profile.moduleExports.ProfileDetailBus.current = 'candidate.yaml';
+  const newerRoute = activationPage(paths, 'candidate.yaml');
+  finishActivation = undefined;
+  const pendingRoute = newerRoute.page.activate(profiles[1]);
+  await waitForActivation();
+  paths.push('profileEdit'); finishActivation('applied'); await pendingRoute;
+  assert.equal(newerRoute.pops(), 0, 'completion cannot pop a newer destination');
+  assert.equal(newerRoute.page.tabJump, -1, 'completion cannot jump over a newer destination');
+  const detail = activationPage(['profileDetail'], 'candidate.yaml');
+  finishActivation = undefined;
+  const completedDetail = detail.page.activate(profiles[1]);
+  await waitForActivation(); finishActivation('saved'); await completedDetail;
+  assert.equal(detail.pops(), 1, 'current detail pops exactly once after definite success');
+  assert.equal(detail.page.tabJump, 0, 'current detail returns to Connect');
+  active = 'fixture.yaml';
   controller.status = status.Connected; profile.confirmDelete(profiles[0]); dialog.secondaryButton.action();
   assert.equal(deleted, 0, 'running active profile must be protected');
   controller.status = status.Disconnected; await dialog.secondaryButton.action(); await new Promise(resolve => setImmediate(resolve)); assert.equal(deleted, 1);
@@ -158,5 +238,5 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   const editor = new Edit(); editor.persistDraft('synthetic');
   assert.equal(editor.dirty, true); assert.equal(editor.draftPersisted, false, 'failed draft write cannot claim recovery');
   failDraft = false; editor.persistDraft('synthetic'); assert.equal(editor.draftPersisted, true);
-  console.log('PASS: native page stale traffic/navigation ownership, disconnect confirmation, stale diagnosis, invalid port, import retry/confirmation and active-delete guard');
+  console.log('PASS: native page traffic, one-tap stop, bounded diagnosis, transaction activation/navigation identity, import retry, draft persistence and active-delete guard');
 })().catch(error => { console.error(error); process.exit(1); });

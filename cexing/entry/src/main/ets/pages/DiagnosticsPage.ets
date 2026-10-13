@@ -10,13 +10,14 @@ import { bundleManager } from '@kit.AbilityKit';
 export struct DiagnosticsPage {
   @Consume('nav') navStack: NavPathStack;
   @State status: VpnStatus = VpnController.status;
-  @State control: string = '尚未检查';
+  @State control: string = '尚未检查本机服务';
   @State busy: boolean = false;
+  @State detailsOpen: boolean = false;
   private visible: boolean = false;
   private generation: number = 0;
   private listener: (status: VpnStatus) => void = (status: VpnStatus) => {
     this.status = status;
-    this.control = '尚未检查';
+    this.control = '尚未检查本机服务';
     this.generation++;
     this.busy = false;
   };
@@ -45,14 +46,14 @@ export struct DiagnosticsPage {
     if (timeoutId >= 0) { clearTimeout(timeoutId); }
     if (!this.visible || attempt !== this.generation) { return; }
     this.control = result === 'reachable' ? '本机服务可达' :
-      result === 'timeout' ? '检查超时' : '检查失败';
+      result === 'timeout' ? '检查超时' : '本机服务无响应，请确认连接后重试';
     this.busy = false;
   }
 
-  private kernel(): string {
-    if (this.status === VpnStatus.Connected) { return '宿主报告已就绪'; }
-    if (this.status === VpnStatus.Connecting) { return '启动中'; }
-    if (this.status === VpnStatus.Disconnecting) { return '停止中'; }
+  private connection(): string {
+    if (this.status === VpnStatus.Connected) { return '应用报告已连接'; }
+    if (this.status === VpnStatus.Connecting) { return '正在连接'; }
+    if (this.status === VpnStatus.Disconnecting) { return '正在断开'; }
     return '未连接';
   }
 
@@ -61,7 +62,7 @@ export struct DiagnosticsPage {
     const states = ['disconnected', 'connecting', 'connected', 'disconnecting'];
     const control = this.control === '本机服务可达' ? 'reachable' :
       this.control === '检查超时' ? 'timeout' :
-      this.control === '检查失败' ? 'failed' : 'not-run';
+      this.control === '本机服务无响应，请确认连接后重试' ? 'failed' : 'not-run';
     try {
       const bundle = await bundleManager.getBundleInfoForSelf(bundleManager.BundleFlag.GET_BUNDLE_INFO_DEFAULT);
       if (!this.visible || attempt !== this.generation) { return; }
@@ -93,24 +94,34 @@ export struct DiagnosticsPage {
     Column({ space: 20 }) {
       Scroll() {
         Column({ space: 16 }) {
+          Text('连接检查').fontSize(26).fontWeight(FontWeight.Bold).fontColor(UI.ink).width('100%')
           Column() {
-            this.Fact('系统会话', '需设备确认')
+            this.Fact('连接状态', this.connection())
             Divider().color(UI.line).margin({ left: 18, right: 18 })
-            this.Fact('内核', this.kernel())
-            Divider().color(UI.line).margin({ left: 18, right: 18 })
-            this.Fact('控制面', this.control)
-            Divider().color(UI.line).margin({ left: 18, right: 18 })
-            this.Fact('真实转发', '需设备验证')
+            this.Fact('本机服务', this.control)
           }.width('100%').borderRadius(24).backgroundColor(UI.surface)
-          Text('就绪与控制面可达不代表流量已通过系统隧道。')
-            .fontSize(13).fontColor(UI.muted).width('100%')
+          Text('这项检查只查看应用状态和本机服务。要确认网站能否打开，请在连接后用设备访问网页。')
+            .fontSize(14).fontColor(UI.muted).width('100%')
           if (VpnController.getLastStartFailure() !== null) {
             Text(`最近启动失败：${ConnectionFailures.label(VpnController.getLastStartFailure()!)}`)
               .fontSize(14).fontColor(UI.error).width('100%')
           }
+          Button(this.detailsOpen ? '收起技术详情' : '查看技术详情').height(48)
+            .backgroundColor(UI.surface).fontColor(UI.accentText).onClick(() => { this.detailsOpen = !this.detailsOpen; })
+          if (this.detailsOpen) {
+            Column() {
+              this.Fact('VPN 系统会话', '此页无法独立确认')
+              Divider().color(UI.line).margin({ left: 18, right: 18 })
+              this.Fact('内核就绪', VpnController.getKernelReadyReported() ? '扩展报告已就绪' : '尚未报告就绪')
+              Divider().color(UI.line).margin({ left: 18, right: 18 })
+              this.Fact('Controller', this.control)
+              Divider().color(UI.line).margin({ left: 18, right: 18 })
+              this.Fact('真实转发', '此页未测试')
+            }.width('100%').borderRadius(24).backgroundColor(UI.surface)
+          }
         }.width('100%')
       }.width('100%').layoutWeight(1)
-      Button(this.busy ? '检查中…' : '检查控制面').width('100%').height(56)
+      Button(this.busy ? '检查中…' : '检查本机服务').width('100%').height(56)
         .backgroundColor(UI.action).fontColor(UI.onAccent).enabled(!this.busy).onClick(() => this.check())
       Button('复制脱敏摘要').width('100%').height(48)
         .backgroundColor(UI.soft).fontColor(UI.accentText).onClick(() => this.copySummary())
