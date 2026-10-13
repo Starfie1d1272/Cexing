@@ -1,6 +1,6 @@
 # CI 与构建身份
 
-Quick 在 GitHub 托管 Ubuntu runner 上执行；Full 只由人工调度到可信的、可销毁的官方 SDK runner。两者均不签名、不安装设备、不发布或自动合并。仓库、应用名称和 bundleName 保持源声明。
+Quick 在 GitHub 托管 Ubuntu runner 上执行；Full 只由人工调度到可信的、可销毁的官方 SDK runner。两者均不签名、不安装设备、不发布到商店或自动合并。Full 完成校验后保存该次 CI 构建的未签名测试包。仓库、应用名称和 bundleName 保持源声明。
 
 ## Quick
 
@@ -56,6 +56,8 @@ Quick 在 PR、main/本 CI 分支 push 和人工调度运行，只授予 `conten
 
 Full workflow 只有 `workflow_dispatch`，必须明确选择官方 SDK 授权已接受；runner 标签为 `self-hosted, linux, x64, harmonyos-ci`。仓库管理员应把 runner 限制到本仓库、每次使用干净临时机器，并给 `harmonyos-ci` environment 配置审批及受信分支限制。环境名称本身不会自动创建审批规则；调度前审查要执行的 commit。不要将此 runner 接到 PR 或 `pull_request_target`，不要执行未审查的 PR 内容。
 
-Actions 仅上传两份 JSON 证据，7 天后过期；不上传 SDK、工具、HAP、native 库、完整配置或签名材料。GeoIP 数据源 notices 和分发义务仍需发行负责人核查。若 runner/官方工具缺失，Full 不会在托管 runner 上伪装成功；Quick 可独立运行。签名仍遵循 [设备指南](device.md)，不属于 CI。
+Full 成功完成所有检查后，将该次 CI 构建的未签名 HAP、build-identity.json、module-notices.json、Hokit 说明和 SHA256SUMS 保存为 Actions artifact，7 天后过期。暂存前要求报告 commit 与 GITHUB_SHA 相同、signed=false，并核对 HAP 字节摘要与已验证产物一致；不以本地旧包替代 CI 输出。artifact 名包含完整源码 SHA、run ID 和 attempt；没有宣称与其他构建逐字节相同。
+
+下载方式：进入该次 Full run，在 Artifacts 下载 unsigned-test-hap 包并解压，核对 SHA256SUMS，然后用用户本地 Hokit 一键签名安装。HAP 包内包含所需原生库；不单独上传 SDK、工具、签名材料或用户配置。Quick 不生成 HAP。若 Full 排队等待 runner 或 environment 授权，尚无测试包，不能把 Quick 成功当成包已生成。GeoIP 数据源 notices 和分发义务仍需发行负责人核查。若 runner/官方工具缺失，Full 不会在托管 runner 上伪装成功；Quick 可独立运行。签名仍遵循 [设备指南](device.md)，不属于 CI。
 
 机制参考：[Go overlay/trimpath](https://pkg.go.dev/cmd/go)、[GitHub Actions runner 与依赖固定](https://docs.github.com/en/actions/security-for-github-actions/security-guides/security-hardening-for-github-actions)。
