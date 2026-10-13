@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/metacubex/mihomo/config"
@@ -53,45 +54,12 @@ func coreDiagnosticAction(home, input string) string {
 		// No arbitrary error message/object/exception crosses this API. Platform and
 		// network business errors expose numeric/fixed codes; kernel causes collected
 		// in the kernel process use the separately bounded redactor.
-		if a.Code != "" {
-			e.Error = &diagnosticError{Kind: "host_code", Code: diagnosticLabel(a.Code), Message: "host operation failed"}
-		}
+		e.Error = s.hostCode(a.Code)
 		e.Details = map[string]any{}
-		for _, key := range []string{"appVersion", "versionCode", "sdkVersion", "osVersion", "deviceType", "abi", "networkType"} {
-			if v, ok := a.Environment[key]; ok {
-				switch value := v.(type) {
-				case string:
-					if len(value) <= 100 {
-						e.Details[key] = value
-					}
-				case float64:
-					e.Details[key] = value
-				}
-			}
-		}
-		for _, key := range []string{"vpnState", "tunCreateObserved", "kernelReadyReported", "stopOutcome", "failureCategory", "substageCoverage"} {
-			if v, ok := a.Observations[key]; ok {
-				switch value := v.(type) {
-				case bool:
-					e.Details[key] = value
-				case string:
-					if len(value) <= 100 {
-						e.Details[key] = diagnosticLabel(value)
-					}
-				}
-			}
-		}
+		s.environment(e.Details, a.Environment)
+		s.observations(e.Details, a.Observations)
 		settings := map[string]any{}
-		for _, key := range []string{"keepAlive", "ipv6", "allowLan", "logToFile", "smartAutoConvert", "autoUpdate", "autoRestore", "mixedPort", "autoUpdateIntervalHours", "accessMode", "mode", "logLevel"} {
-			if v, ok := a.Settings[key]; ok {
-				switch value := v.(type) {
-				case bool, float64:
-					settings[key] = value
-				case string:
-					settings[key] = diagnosticLabel(value)
-				}
-			}
-		}
+		s.settings(settings, a.Settings)
 		if len(settings) > 0 {
 			e.Details["hostSettings"] = settings
 			e.Details["settingsSource"] = "host_preferences_not_runtime_confirmation"
@@ -113,6 +81,7 @@ func diagnosticConfigSnapshot(home, text, overrides string) map[string]any {
 	if err != nil {
 		return map[string]any{"status": "storage_unavailable"}
 	}
+	text = sanitizeConfigJson(text)
 	input := map[string]any{}
 	if yaml.Unmarshal([]byte(text), &input) != nil {
 		return map[string]any{"status": "config_unparseable"}
@@ -124,6 +93,7 @@ func diagnosticConfigSnapshot(home, text, overrides string) map[string]any {
 	}
 	ov := map[string]any{}
 	_ = json.Unmarshal([]byte(overrides), &ov)
+	s.registerPrivateConfig(ov)
 	applyOverrides(final, overrides)
 	projectPlatformConfig(final)
 	raw := config.DefaultRawConfig()
@@ -131,7 +101,7 @@ func diagnosticConfigSnapshot(home, text, overrides string) map[string]any {
 	if err := yaml.Unmarshal(data, raw); err != nil {
 		return map[string]any{"status": "invalid_projected_field_types", "error": s.failure(err, 0)}
 	}
-	out := map[string]any{"status": "projected_input", "coreVersion": constant.Version, "mode": raw.Mode.String(), "mixed-port": raw.MixedPort, "allow-lan": raw.AllowLan, "log-level": raw.LogLevel.String(), "dns": map[string]any{"enable": raw.DNS.Enable, "listen": s.text(raw.DNS.Listen), "enhanced-mode": raw.DNS.EnhancedMode.String(), "ipv6": raw.DNS.IPv6}}
+	out := map[string]any{"status": "projected_input", "coreVersion": constant.Version, "mode": raw.Mode.String(), "mixed-port": raw.MixedPort, "allow-lan": raw.AllowLan, "log-level": raw.LogLevel.String(), "dns": map[string]any{"enable": raw.DNS.Enable, "listen": s.object(raw.DNS.Listen), "listenEndpoint": s.endpoint("tcp://" + raw.DNS.Listen), "enhanced-mode": raw.DNS.EnhancedMode.String(), "ipv6": raw.DNS.IPv6}}
 	origins := map[string]string{}
 	for key, setting := range map[string]string{"mode": "mode", "mixed-port": "mixedPort", "allow-lan": "allowLan", "log-level": "logLevel"} {
 		source := "core_default"
@@ -183,7 +153,7 @@ func diagnosticConfigSnapshot(home, text, overrides string) map[string]any {
 				}
 			}
 			if v, ok := m["type"].(string); ok {
-				row["type"] = diagnosticLabel(v)
+				s.enumField(row, "type", v, diagnosticProxyTypes)
 			}
 			for _, key := range []string{"proxies", "use"} {
 				if refs, ok := m[key].([]any); ok {
@@ -271,7 +241,7 @@ func diagnosticReadVersion(home string) map[string]any {
 	result["smartConversion"] = source.SmartConversion
 	if source.RegionPlan != nil {
 		result["regionEnabled"] = source.RegionPlan.Enable
-		result["regionMode"] = diagnosticLabel(source.RegionPlan.Mode)
+		s.enumField(result, "regionMode", source.RegionPlan.Mode, "region all")
 	}
 	return result
 }
@@ -286,7 +256,7 @@ func (s *diagnosticStore) endpoint(value string) map[string]any {
 		out["status"] = "unparsed"
 		return out
 	}
-	out["protocol"] = diagnosticLabel(u.Scheme)
+	s.enumField(out, "protocol", u.Scheme, "udp tcp tls https http h3 quic dhcp system")
 	out["host"] = s.object(u.Hostname())
 	port := u.Port()
 	if port == "" {
@@ -299,7 +269,16 @@ func (s *diagnosticStore) endpoint(value string) map[string]any {
 			port = "53"
 		}
 	}
-	out["port"] = diagnosticLabel(port)
+	if code, ok := diagnosticCodeValue(port); ok {
+		n, e := strconv.Atoi(code)
+		if e == nil && n >= 1 && n <= 65535 {
+			out["port"] = code
+		} else {
+			out["port"] = "unknown"
+		}
+	} else {
+		out["port"] = "unknown"
+	}
 	if net.ParseIP(u.Hostname()) != nil {
 		out["addressKind"] = "ip"
 	} else {
