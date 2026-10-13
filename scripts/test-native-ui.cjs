@@ -40,7 +40,9 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
     getLastStartFailure: () => null, stop: () => { stop++; return stopResult(); },
     start: () => { start++; emit(status.Connecting); } };
   const common = {
-    '@kit.AbilityKit': {}, '@kit.ArkUI': { promptAction: { showToast(value) { toasts.push(value.message); } } },
+    '@kit.AbilityKit': {}, '@kit.CoreFileKit': {}, '@kit.ShareKit': {}, '@kit.ArkData': {},
+    '../lib/DiagnosticsBundleView': { DiagnosticsBundleView: { result: r => r.reason === 'page_check_timeout' ? '检查超时' : r.stage === 'controller_authorization' ? '连接认证失败，请断开后重新连接' : '本机服务可达', title: () => '本机服务' } },
+    '@kit.ArkUI': { promptAction: { showToast(value) { toasts.push(value.message); } } },
     '@kit.BasicServicesKit': {}, '../lib/ConnectionFailure': { ConnectionFailures: {} },
     '../lib/VpnController': { VpnController: controller, VpnStatus: status },
     './NativeTheme': { NativeTheme: {} }, '../lib/Logger': { Logger: { warn() {} } }
@@ -164,14 +166,14 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
 
   let resolveProbe;
   const Diagnostics = load('DiagnosticsPage', { ...common,
-    '../lib/CoreApi': { CoreApi: { checkController: () => new Promise(resolve => { resolveProbe = resolve; }) } }
+    '../lib/CoreApi': { CoreApi: {} }, '../lib/DiagnosticsService': { DiagnosticsService: { record: async () => true, check: () => new Promise(resolve => { resolveProbe = () => resolve({ kind: 'controller', stage: 'controller_version', outcome: 'success', at: '2026-10-13T00:00:00Z', durationMs: 1 }); }) } }
   }, { setTimeout: () => 1, clearTimeout() {} });
   const diagnostics = new Diagnostics(); diagnostics.aboutToAppear();
   const pending = diagnostics.check(); assert.equal(diagnostics.busy, true);
   assert.equal(diagnostics.control, '正在检查…'); diagnostics.aboutToDisappear(); resolveProbe('reachable'); await pending;
   assert.equal(diagnostics.control, '尚未检查本机服务', 'late probe must not update destroyed page');
   const ResultDiagnostics = load('DiagnosticsPage', { ...common,
-    '../lib/CoreApi': { CoreApi: { checkController: async () => 'authorization' } }
+    '../lib/CoreApi': { CoreApi: {} }, '../lib/DiagnosticsService': { DiagnosticsService: { record: async () => true, check: async () => ({ kind: 'controller', stage: 'controller_authorization', outcome: 'failed', at: '2026-10-13T00:00:00Z', durationMs: 1 }) } }
   }, { setTimeout: () => 1, clearTimeout() {} });
   const resultDiagnostics = new ResultDiagnostics(); resultDiagnostics.aboutToAppear();
   await resultDiagnostics.check();
@@ -182,7 +184,7 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   await resultDiagnostics.check(); assert.equal(resultDiagnostics.busy, false, 'returning can run another check');
   let expireProbe;
   const TimedDiagnostics = load('DiagnosticsPage', { ...common,
-    '../lib/CoreApi': { CoreApi: { checkController: () => new Promise(() => {}) } }
+    '../lib/CoreApi': { CoreApi: {} }, '../lib/DiagnosticsService': { DiagnosticsService: { record: async () => true, check: () => new Promise(() => {}) } }
   }, { setTimeout: fn => { expireProbe = fn; return 1; }, clearTimeout() {} });
   const timedDiagnostics = new TimedDiagnostics(); timedDiagnostics.aboutToAppear();
   const timedProbe = timedDiagnostics.check(); expireProbe(); await timedProbe;
