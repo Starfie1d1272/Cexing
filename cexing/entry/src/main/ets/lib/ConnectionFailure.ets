@@ -82,13 +82,16 @@ export namespace ConnectionFailures {
   }
 
   export function summary(status: string, control: string, failure: ConnectionFailure | null,
-    version: string = 'unknown'): string {
+    version: string = 'unknown', tunCreateObserved: boolean = false,
+    kernelReadyReported: boolean = false): string {
     const allowedStatus = ['disconnected', 'connecting', 'connected', 'disconnecting'];
     const allowedControl = ['not-run', 'reachable', 'failed', 'timeout'];
     const safeStatus = allowedStatus.indexOf(status) >= 0 ? status : 'disconnected';
     const safeControl = allowedControl.indexOf(control) >= 0 ? control : 'not-run';
     const safeVersion = /^[0-9A-Za-z.+-]{1,48}$/.test(version) ? version : 'unknown';
-    const lines = ['Cexing connection summary v1', `app_version=${safeVersion}`, `vpn_state=${safeStatus}`,
+    const lines = ['Cexing connection summary v2', `app_version=${safeVersion}`, `vpn_state=${safeStatus}`,
+      `system_session=${tunCreateObserved ? 'tun-create-resolved' : 'not-observed'}`,
+      `kernel_readiness=${kernelReadyReported ? 'extension-reported' : 'not-reported'}`,
       `controller=${safeControl}`, 'request_forwarding=unverified'];
     if (failure !== null) {
       const safe = decode(JSON.stringify(failure));

@@ -101,6 +101,9 @@ export namespace VpnController {
   /** 最近一次内核启动失败原因（空串=正常）。UI 读取后调用 consumeLastStartError 清空。 */
   export let lastStartError: string = '';
   export let lastStartFailure: ConnectionFailure | null = null;
+  // Independent observations from this start attempt, not claims of live forwarding.
+  let tunCreateObserved: boolean = false;
+  let kernelReadyReported: boolean = false;
   let serviceId: number = 0;
   const listeners: StatusListener[] = [];
   let startAttempt = 0;
@@ -128,6 +131,14 @@ export namespace VpnController {
 
   export function getLastStartFailure(): ConnectionFailure | null {
     return lastStartFailure;
+  }
+
+  export function getTunCreateObserved(): boolean {
+    return tunCreateObserved;
+  }
+
+  export function getKernelReadyReported(): boolean {
+    return kernelReadyReported;
   }
 
   function recordFailure(failure: ConnectionFailure): void {
@@ -187,6 +198,8 @@ export namespace VpnController {
     cancelRecovery();
     lastStartError = '';
     lastStartFailure = null;
+    tunCreateObserved = false;
+    kernelReadyReported = false;
     CoreApi.bindContext(context);
     setStatus(VpnStatus.Connecting);
     const attempt = ++startAttempt;
@@ -303,9 +316,13 @@ export namespace VpnController {
         }
         ready = result.reply.readBoolean();
         error = result.reply.readString();
-        if (result.reply.readString() !== startSession) {
+        const remoteSession = result.reply.readString();
+        const remoteTunCreated = result.reply.readBoolean();
+        if (remoteSession !== startSession) {
           error = 'service session mismatch';
           ready = false;
+        } else if (remoteTunCreated) {
+          tunCreateObserved = true;
         }
       } catch (e) {
         error = (e as Error).message ?? '启动状态读取失败';
@@ -317,6 +334,7 @@ export namespace VpnController {
         return;
       }
       if (ready) {
+        kernelReadyReported = true;
         lastStartError = '';
         lastStartFailure = null;
         setStatus(VpnStatus.Connected);

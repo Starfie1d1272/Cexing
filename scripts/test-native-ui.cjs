@@ -111,6 +111,13 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   const diagnostics = new Diagnostics(); diagnostics.aboutToAppear();
   const pending = diagnostics.check(); diagnostics.aboutToDisappear(); resolveProbe(true); await pending;
   assert.equal(diagnostics.control, '尚未检查', 'late probe must not update destroyed page');
+  let expireProbe;
+  const TimedDiagnostics = load('DiagnosticsPage', { ...common,
+    '../lib/CoreApi': { CoreApi: { isAlive: () => new Promise(() => {}) } }
+  }, { setTimeout: fn => { expireProbe = fn; return 1; }, clearTimeout() {} });
+  const timedDiagnostics = new TimedDiagnostics(); timedDiagnostics.aboutToAppear();
+  const timedProbe = timedDiagnostics.check(); expireProbe(); await timedProbe;
+  assert.equal(timedDiagnostics.control, '检查超时', 'bounded probe timeout must be distinguishable from failure');
 
   let saved = 0, value;
   const Override = load('OverridePage', { ...common,

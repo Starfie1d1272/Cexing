@@ -69,12 +69,15 @@ class CoreStatusRemote extends rpc.RemoteObject {
   private isReady: () => boolean;
   private getError: () => string;
   private getSession: () => string;
+  private wasTunCreated: () => boolean;
 
-  constructor(isReady: () => boolean, getError: () => string, getSession: () => string) {
+  constructor(isReady: () => boolean, getError: () => string, getSession: () => string,
+    wasTunCreated: () => boolean) {
     super('CEXING_VPN_ABILITY');
     this.isReady = isReady;
     this.getError = getError;
     this.getSession = getSession;
+    this.wasTunCreated = wasTunCreated;
   }
 
   onRemoteMessageRequest(code: number, data: rpc.MessageSequence, reply: rpc.MessageSequence,
@@ -85,6 +88,7 @@ class CoreStatusRemote extends rpc.RemoteObject {
     reply.writeBoolean(this.isReady());
     reply.writeString(this.getError());
     reply.writeString(this.getSession());
+    reply.writeBoolean(this.wasTunCreated());
     return true;
   }
 }
@@ -98,6 +102,7 @@ export default class CexingVpnAbility extends VpnExtensionAbility {
   private stopping = false;
   private startupPhase: string = 'vpn';
   private startupSession: string = '';
+  private tunCreateObserved: boolean = false;
 
   /** 记录启动失败原因到 filesDir，主进程（首页）断开回调时读取并提示用户 */
   private writeLastError(msg: string): void {
@@ -124,19 +129,22 @@ export default class CexingVpnAbility extends VpnExtensionAbility {
   onConnect(want: Want): rpc.RemoteObject {
     Logger.info(TAG, 'CexingVpnAbility.onConnect');
     if (this.stopping && this.starting !== null) {
-      return new CoreStatusRemote(() => false, () => 'VPN 正在停止，请稍后重试', () => this.startupSession);
+      return new CoreStatusRemote(() => false, () => 'VPN 正在停止，请稍后重试',
+        () => this.startupSession, () => this.tunCreateObserved);
     }
     if (this.starting !== null) {
       return new CoreStatusRemote(() => this.coreStarted && !this.stopping, () => this.startupError,
-        () => this.startupSession);
+        () => this.startupSession, () => this.tunCreateObserved);
     }
     this.clearLastError();
     this.startupError = '';
     this.startupPhase = 'vpn';
     this.startupSession = want.parameters?.['SESSION_ID'] as string ?? '';
+    this.tunCreateObserved = false;
     this.stopping = false;
     this.starting = this.startCore(want);
-    return new CoreStatusRemote(() => this.coreStarted, () => this.startupError, () => this.startupSession);
+    return new CoreStatusRemote(() => this.coreStarted, () => this.startupError,
+      () => this.startupSession, () => this.tunCreateObserved);
   }
 
   private async startCore(want: Want): Promise<void> {
@@ -144,6 +152,7 @@ export default class CexingVpnAbility extends VpnExtensionAbility {
     try {
       const config = want.parameters?.['VPN_CONFIG'] as vpnExtension.VpnConfig;
       fd = await this.connection.create(config);
+      this.tunCreateObserved = true;
       Logger.info(TAG, `tun fd acquired: ${fd}`);
       this.startupPhase = 'protect';
       await this.connection.protectProcessNet();

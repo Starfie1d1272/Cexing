@@ -15,13 +15,18 @@ vm.runInNewContext(failureCode, failureModule);
 const failures = failureModule.exports.ConnectionFailures;
 const secret = 'https://private.example/token?secret=abc';
 const bounded = failures.classify('core-start', `dial ${secret}: errno=111`);
-const summary = failures.summary('connected', 'failed', bounded, '0.1.0+1');
+const summary = failures.summary('disconnected', 'failed', bounded, '0.1.0+1', true, false);
 assert.equal(bounded.category, 'network');
 assert.equal(bounded.code, 0, 'Numeric fields from raw text must never be exported as system status');
 assert.equal(failures.systemCode('service', 111).code, 111);
 assert.ok(!summary.includes('private.example') && !summary.includes('secret=abc'));
 assert.ok(summary.includes('request_forwarding=unverified'));
 assert.ok(summary.includes('app_version=0.1.0+1'));
+assert.ok(summary.includes('system_session=tun-create-resolved'));
+assert.ok(summary.includes('kernel_readiness=not-reported'));
+const missing = failures.summary('connected', 'not-run', null);
+assert.ok(missing.includes('system_session=not-observed'));
+assert.ok(missing.includes('kernel_readiness=not-reported'), 'Connected must not infer core readiness');
 assert.equal(failures.decode(JSON.stringify({ phase: 'core-start', category: secret, code: 3 })), null);
 function load(relative, modules, timers = []) {
   const source = fs.readFileSync(path.join(__dirname, '../cexing/entry/src/main/ets', relative), 'utf8');
@@ -55,8 +60,10 @@ async function testClient(mode) {
   const { VpnController: controller, VpnStatus } = load('lib/VpnController.ets', modules, timers);
   const remote = { sendMessageRequest: async () => {
     let strings = 0;
+    let booleans = 0;
     return { errCode: 0, reply: {
-      readBoolean: () => ready, readString: () => ++strings === 1 ? error : session
+      readBoolean: () => ++booleans === 1 ? ready : true,
+      readString: () => ++strings === 1 ? error : session
     } };
   } };
   let notifications = 0;
@@ -74,12 +81,15 @@ async function testClient(mode) {
   callbacks.onConnect({}, remote);
   await flush();
   assert.equal(controller.status, VpnStatus.Connecting, 'Service connection must not claim kernel readiness');
+  assert.equal(controller.getTunCreateObserved(), true);
+  assert.equal(controller.getKernelReadyReported(), false);
   assert.equal(settings.vpnWasConnected, false);
   if (mode === 'ready') {
     ready = true;
     timers.shift()();
     await flush();
     assert.equal(controller.status, VpnStatus.Connected);
+    assert.equal(controller.getKernelReadyReported(), true);
     assert.equal(settings.vpnWasConnected, true);
   } else if (mode === 'error') {
     error = failures.encode(session, failures.classify('core-start', 'synthetic config error: secret.example'));
@@ -137,9 +147,11 @@ async function testExtension() {
   await flush();
   let reportedReady;
   const reportedStrings = [];
-  remote.onRemoteMessageRequest(1, {}, { writeBoolean: value => { reportedReady = value; },
+  const reportedBooleans = [];
+  remote.onRemoteMessageRequest(1, {}, { writeBoolean: value => { reportedReady = value; reportedBooleans.push(value); },
     writeString: value => reportedStrings.push(value) }, {});
-  assert.equal(reportedReady, false);
+  assert.equal(reportedBooleans[0], false);
+  assert.equal(reportedBooleans[1], true, 'TUN create is observed separately from core readiness');
   assert.equal(reportedStrings[1], 'fixture-1');
   extension.onDisconnect();
   await flush();
