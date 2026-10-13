@@ -3,6 +3,7 @@ import { common } from '@kit.AbilityKit';
 import { CoreApi, ConfigApplyResult } from './CoreApi';
 import { ProfileStore } from './ProfileStore';
 import { VpnController, VpnStatus } from './VpnController';
+import { CoreValidator } from './CoreValidator';
 
 export type ProfileApplyState = 'applied' | 'saved';
 
@@ -54,9 +55,13 @@ export namespace ProfileTransactions {
       const candidate = ProfileStore.getProfileContent(context, file);
       if (candidate === null) { throw new Error('目标配置不存在或读取失败'); }
       ProfileStore.prepareContent(candidate);
+      const receipt = await CoreValidator.validate(context, candidate);
       const oldFile = ProfileStore.getActiveFile(context);
       const live = await running(context);
       const previous = live ? ProfileStore.getActiveContent(context) : null;
+      if (receipt.length > 0 && await CoreValidator.validate(context, candidate) !== receipt) {
+        throw new Error('provider 缓存已变化，请重试');
+      }
       if (live) { await apply(context, candidate); }
       if (oldFile === file) { return live ? 'applied' : 'saved'; }
       try { ProfileStore.setActive(context, file); } catch (e) {
@@ -71,9 +76,13 @@ export namespace ProfileTransactions {
     enter(context);
     try {
       const candidate = ProfileStore.prepareContent(content);
+      const receipt = await CoreValidator.validate(context, candidate);
       const active = ProfileStore.getActiveFile(context) === file;
       const live = active ? await running(context) : false;
       const previous = live ? ProfileStore.getProfileContent(context, file) : null;
+      if (receipt.length > 0 && await CoreValidator.validate(context, candidate) !== receipt) {
+        throw new Error('provider 缓存已变化，请重试');
+      }
       if (live) { await apply(context, candidate); }
       try { ProfileStore.updateProfileContent(context, file, candidate); } catch (e) {
         if ((e as Error).message === 'PROFILE_ROLLBACK_FAILED') { markUnknown(context); }
@@ -89,10 +98,14 @@ export namespace ProfileTransactions {
     enter(context);
     try {
       const downloaded = await ProfileStore.downloadFromOrigin(context, file);
+      const receipt = await CoreValidator.validate(context, downloaded.content);
       if (isCurrent !== undefined && !isCurrent()) { throw new Error('更新已取消'); }
       const active = ProfileStore.getActiveFile(context) === file;
       const live = active ? await running(context) : false;
       const previous = live ? ProfileStore.getProfileContent(context, file) : null;
+      if (receipt.length > 0 && await CoreValidator.validate(context, downloaded.content) !== receipt) {
+        throw new Error('provider 缓存已变化，请重试');
+      }
       if (live) { await apply(context, downloaded.content); }
       try { ProfileStore.commitDownloaded(context, file, downloaded); } catch (e) {
         if ((e as Error).message === 'PROFILE_ROLLBACK_FAILED') { markUnknown(context); }

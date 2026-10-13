@@ -282,7 +282,11 @@ func validateProviderPath(path string) error {
 }
 
 func preparePlatformConfig(text, overrides string) (*config.Config, error) {
-	if controllerSecret == "" {
+	return parsePlatformConfig(text, overrides, true)
+}
+
+func parsePlatformConfig(text, overrides string, runtime bool) (*config.Config, error) {
+	if runtime && controllerSecret == "" {
 		return nil, errors.New("controller: credential unavailable")
 	}
 	if len(text) > maxConfigBytes {
@@ -304,7 +308,11 @@ func preparePlatformConfig(text, overrides string) (*config.Config, error) {
 		}
 	}
 	applyOverrides(overlay, overrides)
-	enforcePlatformSecurity(overlay)
+	if runtime {
+		enforcePlatformSecurity(overlay)
+	} else {
+		projectPlatformConfig(overlay)
+	}
 	buf, err := yaml.Marshal(overlay)
 	if err != nil {
 		return nil, errors.New("configuration cannot be encoded")
