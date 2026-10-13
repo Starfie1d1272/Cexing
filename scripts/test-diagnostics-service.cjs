@@ -69,6 +69,7 @@ const { DiagnosticsService: service } = sandbox.exports;
   assert.equal(files.get(exported.path), exported.json); assert.equal(files.size, 1, 'exports reuse one local cache artifact');
   workerFailed = true;
   assert.equal(await service.record(context, { operation: 'vpn', stage: 'test', outcome: 'failed' }), false);
+  result = await service.check(context, 'dns'); assert.equal(result.details.rcode, 3); assert.equal(result.details.evidencePersisted, false);
   result = await service.check(context, 'bandwidth'); assert.equal(result.details.evidencePersisted, false);
   await assert.rejects(service.exportBundle(context));
   assert.equal(destroyed, requests.length, 'all HTTP resources released');

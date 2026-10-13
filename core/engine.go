@@ -128,6 +128,7 @@ func coreInit(home string) (result error) {
 		logFileBytes = 0
 	}
 	homeDir = home
+	diagnosticKernelHome.Store(home)
 	_, _ = getDiagnosticStore(home, "kernel")
 	logFileMu.Unlock()
 	constant.SetHomeDir(home)

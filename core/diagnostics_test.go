@@ -381,3 +381,45 @@ func TestDiagnosticExportSaltingAndSymlinkExclusion(t *testing.T) {
 		t.Fatal("unrelated symlink exported", bundle)
 	}
 }
+
+func TestDiagnosticInvalidProjectionAndJoinedCausesStayExplicit(t *testing.T) {
+	home := t.TempDir()
+	summary := diagnosticConfigSnapshot(home, "mixed-port: not-a-port\n", "")
+	if summary["status"] != "invalid_projected_field_types" {
+		t.Fatal("invalid input silently replaced by defaults", summary)
+	}
+	s, err := newDiagnosticStore(t.TempDir(), "kernel")
+	if err != nil {
+		t.Fatal(err)
+	}
+	joined := s.failure(errors.Join(syscall.ECONNREFUSED, context.DeadlineExceeded), 0)
+	if len(joined.Causes) != 2 || joined.Causes[0].Code != "errno:111" || joined.Causes[1].Code != "deadline_exceeded" {
+		t.Fatal("joined causes collapsed", joined)
+	}
+	many := s.failure(errors.Join(syscall.ECONNREFUSED, syscall.EIO, syscall.EPERM, syscall.ENOENT, syscall.EPIPE), 0)
+	if len(many.Causes) != 4 || !many.CausesTruncated {
+		t.Fatal("joined cause limit unmarked", many)
+	}
+}
+
+func TestDiagnosticShortSecretsCannotDefeatURLRedactionOrOpaqueIdentity(t *testing.T) {
+	s, err := newDiagnosticStore(t.TempDir(), "kernel")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, secret := range []string{"/", "a", "https", "object-deadbeefdeadbeef"} {
+		s.registerPrivateConfig(map[string]any{"password": secret, "name": "SyntheticNode"})
+		text := s.text("dial SyntheticNode: https://user:pass@private.test/path-with-private-credential?hidden=private-query-value; credential " + secret)
+		if strings.HasPrefix(secret, "object-") && strings.Contains(text, secret) {
+			t.Fatal("opaque-looking credential persisted", text)
+		}
+		for _, private := range []string{"private.test", "path-with-private-credential", "private-query-value"} {
+			if strings.Contains(text, private) {
+				t.Fatal("short secret defeated URL masking", secret, text)
+			}
+		}
+		if !strings.Contains(text, s.object("SyntheticNode")) {
+			t.Fatal("short secret rewrote object identity", secret, text)
+		}
+	}
+}

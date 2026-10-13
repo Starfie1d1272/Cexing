@@ -141,6 +141,7 @@ func getDiagnosticCheck(w MHTTP.ResponseWriter, req *MHTTP.Request) {
 	ctx, cancel := context.WithTimeout(req.Context(), 8*time.Second)
 	defer cancel()
 	runLock.Lock()
+	home := homeDir
 	r := resolver.DefaultResolver
 	var p C.Proxy
 	if input.Proxy != "" {
@@ -164,13 +165,13 @@ func getDiagnosticCheck(w MHTTP.ResponseWriter, req *MHTTP.Request) {
 		result.Outcome = "success"
 		if err != nil {
 			result.Outcome = "failed"
-			if s, e := getDiagnosticStore(homeDir, "kernel"); e == nil {
+			if s, e := getDiagnosticStore(home, "kernel"); e == nil {
 				result.Error = s.failure(err, 0)
 			}
 		}
 	}
 	result.DurationMS = time.Since(started).Milliseconds()
-	if s, err := getDiagnosticStore(homeDir, "kernel"); err == nil {
+	if s, err := getDiagnosticStore(home, "kernel"); err == nil {
 		if err = s.record(diagnosticEvent{Operation: "check_" + input.Kind, Stage: result.Stage, Outcome: result.Outcome, Object: input.Proxy, DurationMS: result.DurationMS, Reason: result.Reason, Error: result.Error, Details: result.Details}); err != nil {
 			if result.Details == nil {
 				result.Details = map[string]any{}
