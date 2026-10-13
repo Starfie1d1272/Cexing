@@ -22,11 +22,10 @@ bash scripts/build-zashboard.sh /tmp/zashboard-source
 source scripts/env.sh
 node scripts/test-zashboard-assets.cjs
 python3 scripts/test-zashboard-source.py /tmp/zashboard-source
-(cd cexing && hvigorw clean --no-daemon)
 bash scripts/build-hap.sh
 ```
 
-HAP 脚本在构建前验证 rawfile 全集，构建后检查 ZIP CRC、包内全集及逐项摘要。构建不包含运行时联网下载。实际铺盘由宿主调用 [宿主接口](../reference/zashboard-host.md)，不由页面启动 VPN。资源使用固定私有 ui 根和 versions 子目录，原子替换 ui/index.html 切换或回退版本。第一次使用失败时返回无目录的可恢复错误；有已校验版本则回退。文件锁竞争直接返回可重试错误，调用方应保留现有 UI 配置并继续 VPN 流程。
+HAP 脚本在构建前检查 rawfile 缓存；缓存缺失或过期时，从当前声明的源码重新构建资源。首次准备或刷新缓存需要网络和 `scripts/ci` 中的构建依赖，可先执行 `npm ci --prefix scripts/ci --ignore-scripts --no-audit --no-fund`。有效缓存直接复用；刷新在 staging 完成内容、许可证和 reviewed manifest/Pin 校验后提交，失败保留原缓存与身份文件。资源准备完成后由 HAP 入口统一执行一次 Hvigor clean，再打包。构建后检查 ZIP CRC、包内全集及逐项摘要。构建不包含运行时联网下载。实际铺盘由宿主调用 [宿主接口](../reference/zashboard-host.md)，不由页面启动 VPN。资源使用固定私有 ui 根和 versions 子目录，原子替换 ui/index.html 切换或回退版本。第一次使用失败时返回无目录的可恢复错误；有已校验版本则回退。文件锁竞争直接返回可重试错误，调用方应保留现有 UI 配置并继续 VPN 流程。
 
 连接页已有 Zashboard 入口，会话检查通过后才创建 WebView；断开、无认证或缺少当前固定资源时显示可恢复提示。内存凭据和 WS 适配的行为见宿主接口，ProxyPage 文件保留到 ArkWeb 真机验收完成。上游 PWA 文件保留入包，但不自动注册；历史 service worker 缓存迁移需要真机单独验证。
 

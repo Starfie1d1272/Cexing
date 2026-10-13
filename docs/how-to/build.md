@@ -25,11 +25,10 @@ source scripts/env.sh
 bash scripts/build-core.sh
 bash scripts/prepare-geodata.sh
 python3 scripts/prepare-smart-model.py
-(cd cexing && hvigorw clean --no-daemon)
 bash scripts/build-hap.sh
 ```
 
-内核生成到 `cexing/entry/libs/arm64-v8a/`；未签名包位于 `cexing/entry/build/default/outputs/default/entry-default-unsigned.hap`。这些文件不入 Git。只改 ArkTS 时可复用同一模块图的内核；依赖变化须重建内核并核对模块元数据。资源或原生库变化必须 clean，避免 Hvigor 打包旧缓存。
+内核生成到 `cexing/entry/libs/arm64-v8a/`；未签名包位于 `cexing/entry/build/default/outputs/default/entry-default-unsigned.hap`。这些文件不入 Git。只改 ArkTS 时可复用同一模块图的内核；依赖变化须重建内核并核对模块元数据。`build-hap.sh` 在资源准备完成后统一执行一次 Hvigor clean；直接构建与 Full 共用此入口，避免打包旧缓存。
 
 `build-core.sh` 使用 OHOS clang，以 `GOOS=android GOARCH=arm64` 和 `netgo ohos cmfa with_gvisor` 构建 c-shared。脚本每次重建 Android 日志 stub，并自动使用构建专用临时模块缓存应用固定 gVisor 的 Fstat 补丁；不修改开发者共享缓存。原理与升级检查见 [平台参考](../reference/platform.md)。
 

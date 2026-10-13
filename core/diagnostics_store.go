@@ -18,6 +18,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 )
@@ -77,6 +78,7 @@ type diagnosticStore struct {
 	journal       diagnosticJournal
 }
 
+var diagnosticKernelHome atomic.Value
 var diagnosticStoresMu sync.Mutex
 var diagnosticStores = map[string]*diagnosticStore{}
 
@@ -175,20 +177,38 @@ var diagnosticCredentials = regexp.MustCompile(`(?i)(authorization|proxy-authori
 var diagnosticHost = regexp.MustCompile(`(?i)(?:[a-z0-9_-]+\.)+[a-z][a-z0-9-]*|(?:\d{1,3}\.){3}\d{1,3}|\[[a-f0-9:]+\]`)
 var diagnosticPath = regexp.MustCompile(`(?:[A-Za-z]:[\\/]|/)[^\s,;()]+`)
 var diagnosticHex = regexp.MustCompile(`(?i)\b[0-9a-f]{32,}\b`)
+var diagnosticOpaque = regexp.MustCompile(`object-[0-9a-f]{16}`)
 var diagnosticBearer = regexp.MustCompile(`(?i)\bBearer\s+[^\s,;]+`)
 
 func (s *diagnosticStore) text(input string) string {
 	// Raw URLs (including userinfo/path/query/fragment) are removed before any
 	// truncation. No credential can survive at a clipped boundary.
-	s.privacyMu.RLock()
-	if s.privateValues != nil {
-		input = s.privateValues.Replace(input)
-	}
-	s.privacyMu.RUnlock()
 	input = redactControllerSecret(input)
-	input = diagnosticURL.ReplaceAllStringFunc(input, func(v string) string { return "url-" + s.object(v) })
+	protected := map[string]bool{}
+	input = diagnosticURL.ReplaceAllStringFunc(input, func(v string) string { id := s.object(v); protected[id] = true; return "url-" + id })
 	input = diagnosticBearer.ReplaceAllString(input, "Bearer [redacted]")
 	input = diagnosticCredentials.ReplaceAllString(input, "credential=[redacted]")
+	s.privacyMu.RLock()
+	if s.privateValues != nil {
+		// Do not let a short credential or node label rewrite generated opaque
+		// IDs or URL delimiters before the whole URL has been removed.
+		parts := diagnosticOpaque.FindAllStringIndex(input, -1)
+		last := 0
+		var safe strings.Builder
+		for _, part := range parts {
+			safe.WriteString(s.privateValues.Replace(input[last:part[0]]))
+			opaque := input[part[0]:part[1]]
+			if protected[opaque] {
+				safe.WriteString(opaque)
+			} else {
+				safe.WriteString(s.privateValues.Replace(opaque))
+			}
+			last = part[1]
+		}
+		safe.WriteString(s.privateValues.Replace(input[last:]))
+		input = safe.String()
+	}
+	s.privacyMu.RUnlock()
 	input = diagnosticHex.ReplaceAllString(input, "[redacted-id]")
 	input = diagnosticHost.ReplaceAllStringFunc(input, s.object)
 	input = diagnosticPath.ReplaceAllStringFunc(input, func(v string) string { return "path-" + s.object(v) })
@@ -214,12 +234,18 @@ func (s *diagnosticStore) failure(err error, depth int) *diagnosticError {
 	if errors.Is(err, os.ErrDeadlineExceeded) || errors.Is(err, context.DeadlineExceeded) {
 		out.Code = "deadline_exceeded"
 	}
-	if depth == 4 && errors.Unwrap(err) != nil {
-		out.CausesTruncated = true
+	causes := []error{}
+	if joined, ok := err.(interface{ Unwrap() []error }); ok {
+		causes = joined.Unwrap()
+	} else if cause := errors.Unwrap(err); cause != nil {
+		causes = []error{cause}
 	}
+	out.CausesTruncated = len(causes) > 4 || (depth >= 4 && len(causes) > 0)
 	if depth < 4 {
-		if cause := errors.Unwrap(err); cause != nil {
-			out.Causes = []diagnosticError{*s.failure(cause, depth+1)}
+		for _, cause := range causes[:min(len(causes), 4)] {
+			if cause != nil {
+				out.Causes = append(out.Causes, *s.failure(cause, depth+1))
+			}
 		}
 	}
 	return out
@@ -396,7 +422,7 @@ func diagnosticBundleForContext(home string, contextCollected *bool) (string, er
 	return text, nil
 }
 func kernelDiagnostic(stage, outcome string, err error, details map[string]any) {
-	s, e := getDiagnosticStore(homeDir, "kernel")
+	s, e := getDiagnosticStore(diagnosticKernelDirectory(), "kernel")
 	if e != nil {
 		return
 	}
@@ -410,7 +436,7 @@ func kernelDiagnosticLog(level, payload string) {
 	if !eligible || (level != "warning" && level != "error") {
 		return
 	}
-	s, err := getDiagnosticStore(homeDir, "kernel")
+	s, err := getDiagnosticStore(diagnosticKernelDirectory(), "kernel")
 	if err != nil {
 		return
 	}
@@ -497,3 +523,5 @@ func diagnosticCheckCoverage(sources []diagnosticSource) map[string]any {
 	}
 	return coverage
 }
+
+func diagnosticKernelDirectory() string { home, _ := diagnosticKernelHome.Load().(string); return home }
