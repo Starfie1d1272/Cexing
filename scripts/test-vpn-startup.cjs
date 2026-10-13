@@ -77,6 +77,7 @@ async function testExtension() {
   let stopCount = 0;
   let destroyCount = 0;
   let prepared = 0;
+  let modelPrepared = 0;
   const pending = new Promise(resolve => { complete = resolve; });
   const connection = { create: async () => 32, protectProcessNet: async () => {},
     destroy: async () => { destroyCount++; } };
@@ -85,10 +86,11 @@ async function testExtension() {
     '@kit.IPCKit': { rpc: { RemoteObject: class {} } },
     '@kit.CoreFileKit': { fileIo: { accessSync: () => false, openSync: () => ({ fd: 1 }),
       writeSync() {}, closeSync() {}, renameSync() {}, OpenMode: {} } },
-    'libentry.so': { __esModule: true, default: { initCore: async () => { assert.ok(prepared > 0, 'Prepare static assets before Controller initialization'); return ''; }, startTun: () => pending,
+    'libentry.so': { __esModule: true, default: { initCore: async () => { assert.ok(prepared > 0, 'Prepare static assets before Controller initialization'); assert.ok(modelPrepared > 0, 'Prepare verified model before core initialization'); return ''; }, startTun: () => pending,
       stopCore: async () => { stopCount++; } } },
     '../lib/CoreApi': { CoreApi: { bindContext() {} } },
     '../lib/ZashboardAssets': { ZashboardAssets: { prepare: async () => { prepared++; return { directory: '', error: 'synthetic missing panel' }; } } },
+    '../lib/SmartModelAssets': { SmartModelAssets: { prepare: async () => { modelPrepared++; return { state: 'missing', message: 'synthetic model absent' }; } } },
     '../lib/Logger': logger,
     '../lib/ProfileStore': { ProfileStore: { getActiveContent: () => 'proxies: []' } },
     '../lib/Settings': { Settings: { load: () => ({}) } }, '@kit.ArkTS': { util: {} }

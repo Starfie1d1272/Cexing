@@ -10,7 +10,7 @@
 
 无模型即可使用 `type: smart` 的统计策略。将订阅中的一个现有组改成 Smart，引用至少两个已有可用节点，让规则引用该组；最小片段及参数见 [Smart 契约](../reference/smart-beta.md)。
 
-需要 LightGBM 时，在「设置 → Smart → 获取官方 Model.bin」打开 [官方 Release](https://github.com/vernesong/mihomo/releases/tag/LightGBM-Model)，下载 **Model.bin** 到手机（不要选择 middle/large）。然后点「选择模型文件并导入」。固定大小 9,345,218 字节，SHA-256 为 `23633022a815fb34e510befe1c176ba50af3ced48f08b172454f4cd6b8327788`；服务端校验摘要及解析后原子安装。HAP 不打包模型，也不自动下载。
+HAP 已内置 [官方 Release](https://github.com/vernesong/mihomo/releases/tag/LightGBM-Model) 的 **Model.bin**，首次离线安装无需手机再下载。固定大小 9,345,218 字节，SHA-256 为 `23633022a815fb34e510befe1c176ba50af3ced48f08b172454f4cd6b8327788`；Extension 在 Go 首次加载前核对并铺盘。原有「获取官方模型」「导入模型」保留作损坏恢复与手动替换入口，服务端仍校验摘要及解析。
 
 导入提示需要重启时，使用「重启应用使模型生效」：会断开 VPN 并重启整个应用，包括持有 Go runtime 的 VPN Extension。重新打开后手动连接。随后在订阅编辑页把目标 Smart 组的 `uselightgbm` 改为 `true` 并重新连接；`collectdata: false`、`prefer-asn: false`、`lgbm-auto-update: false` 适用于首测。只刷新页面或停止/启动 VPN 不能清除模型首次失败的进程缓存。
 

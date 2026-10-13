@@ -33,11 +33,11 @@ lgbm-auto-update: false
 
 `model` 字段：`state` 为 `not-requested/loading/missing/invalid/loaded`；`sha256` 是支持的模型身份；`predictions` 是当前进程实际 `PredictSingle` 返回有限正数的累计次数；`networkDownload` 固定 false；`restartRequired` 表示加载失败后导入需重启进程。计数是所有 Smart 组的进程累计观测，不是单组指标，也不证明当前目标请求采用了模型。`loaded` 与 `predictions:0` 必须分别展示“模型已加载”和“尚无模型参与证据”。Controller 暂不可达不能显示为 Smart 已启用。
 
-上游真实模型为 [LightGBM-Model release](https://github.com/vernesong/mihomo/releases/tag/LightGBM-Model)，9,345,218 B，SHA-256 `23633022a815fb34e510befe1c176ba50af3ced48f08b172454f4cd6b8327788`。不打包模型、不代理下载、不上传数据。导入拒绝超长、损坏和其他版本，坏原文件备份为 `Model.bin.previous`；已有备份时不覆盖。缺失/损坏模型仍提供统计 Smart 和明确消息。模型首次加载失败由上游 `sync.Once` 缓存，导入后须结束应用进程再启动；只停止/启动 VPN 不能重置，绝不通过 `dlclose` 重置 Go runtime。
+上游真实模型为 [LightGBM-Model release](https://github.com/vernesong/mihomo/releases/tag/LightGBM-Model)，9,345,218 B，SHA-256 `23633022a815fb34e510befe1c176ba50af3ced48f08b172454f4cd6b8327788`。构建从该固定公开资产下载并校验，随 HAP 离线打包；VPN Extension 在第一次 Go 初始化前校验并安装到 HomeDir 的 `Model.bin`。项目标签 GPL 来源、全文和对应源码边界见 [Smart notices](../../core/patches/NOTICE.md)。损坏文件在不覆盖既有备份的前提下另存并由内置模型恢复；资源或文件失败时使用统计 Smart。手动导入仍拒绝超长、损坏和其他版本。模型首次加载失败由上游 `sync.Once` 缓存，导入后须结束应用进程再启动；只停止/启动 VPN 不能重置，绝不通过 `dlclose` 重置 Go runtime。
 
 ## 验证与手机边界
 
-按 [构建指南](../how-to/build.md) 使用官方工具链。`scripts/test-smart.sh` 在专用缓存运行实际模型、parser/router 与配置回归；设置 `SMART_REAL_MODEL=/合法取得的/Model.bin` 才运行真实预测/转发检查，没有该文件时明确 skip。模型从不复制到 rawfile 或 HAP。CI Quick/Full 均调用这个检查，CI 无模型不能冒称模型验收。
+按 [构建指南](../how-to/build.md) 使用官方工具链。`scripts/test-smart.sh` 在专用缓存运行实际模型、parser/router 与配置回归；构建 Full 将校验后的公开模型作为 `SMART_REAL_MODEL` 测试真实预测/转发，并核对包内模型及 GPL 文本。Quick 无模型时明确 skip，不能冒称模型验收。实际手机的预测链与资源成本仍须单独测试。
 
 Linux 检查通过实际回环 HTTP 节点、mixed listener、规则和 Smart 统计回调证明模型参与；`scripts/test-smart-loader.sh` 用真实 bridge.cpp 与宿主链接拦截验证缺符号/完整 ABI 路径，其日志桩不证明 OHOS TLS。
 
