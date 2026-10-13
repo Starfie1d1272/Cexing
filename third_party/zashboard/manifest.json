@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "version": "e91b122ae0c2fa3882e22ab02775cb79b87a12a2f48dad8b9a94f35f053f2128",
+  "version": "0d64cd55fca2fa23fccf2528367638e11aacec10b418d2bbfd92904478adbd83",
   "sourceSha": "50717b02dac68425cdc5b80cb754bea768ee4fc9",
   "files": [
     {
@@ -170,8 +170,8 @@
     },
     {
       "path": "dependency-notices.json",
-      "size": 1250184,
-      "sha256": "7ef7992b488189677aac63c0ea289200b70e59df184efac3596c2b5781e3a624"
+      "size": 2918908,
+      "sha256": "e59f57387675bf3d1603a1e97ac1f6783b936c1f1f0d75d21d7802940c8340df"
     },
     {
       "path": "favicon-dark.svg",
