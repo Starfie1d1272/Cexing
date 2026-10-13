@@ -214,7 +214,7 @@ export namespace ProfileStore {
     try {
       const names = fileIo.listFileSync(d);
       for (const name of names) {
-        if (name === ACTIVE_FILE || (!name.endsWith('.yaml') && !name.endsWith('.yml'))) {
+        if (name === ACTIVE_FILE || !/\.(yaml|yml)$/i.test(name)) {
           continue;
         }
         try {
@@ -223,7 +223,7 @@ export namespace ProfileStore {
             `${context.filesDir}/profile-versions/${version.ID}/original.yaml`);
           out.push({
             file: name,
-            name: name.replace(/\.(yaml|yml)$/, ''),
+            name: name.replace(/\.(yaml|yml)$/i, ''),
             size: st.size,
             mtime: st.mtime,
             active: name === active
@@ -423,7 +423,7 @@ export namespace ProfileStore {
     if (target.includes('/') || target.includes('\\')) {
       throw new Error('名称不能包含路径分隔符');
     }
-    if (!target.endsWith('.yaml') && !target.endsWith('.yml')) {
+    if (!/\.(yaml|yml)$/i.test(target)) {
       target = `${target}.yaml`;
     }
     if (target === oldFile) {
