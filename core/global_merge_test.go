@@ -12,6 +12,17 @@ import (
 
 func TestGlobalMergeAtomicScopeOrderAndSource(t *testing.T) {
 	home := t.TempDir()
+	// Full supplies the verified public model. Smart's process-wide once cache
+	// must not first load a missing-model fixture before real forwarding tests.
+	if modelPath := os.Getenv("SMART_REAL_MODEL"); modelPath != "" {
+		model, err := os.ReadFile(modelPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(home, "Model.bin"), model, 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
 	if err := os.WriteFile(filepath.Join(home, "geoip.metadb"), []byte("synthetic"), 0600); err != nil {
 		t.Fatal(err)
 	}
