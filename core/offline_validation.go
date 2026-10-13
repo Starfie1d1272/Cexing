@@ -29,7 +29,7 @@ func coreValidateOffline(home, text, overrides string) error {
 func coreValidateOfflineWithReceipt(home, text, overrides string) (string, error) {
 	runLock.Lock()
 	defer runLock.Unlock()
-	if initialized || tunListener != nil {
+	if tunListener != nil {
 		return "", errors.New("VALIDATOR_BUSY")
 	}
 	if home == "" || !filepath.IsAbs(home) {
