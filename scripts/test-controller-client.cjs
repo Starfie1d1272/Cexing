@@ -15,6 +15,9 @@ const sockets = [];
 const timers = new Map();
 let nextTimer = 1;
 let destroys = 0;
+let totals = null;
+let versionCode = 200;
+
 const modules = {
   '@kit.AbilityKit': { application: { getApplicationContext: () => ({ createModuleContext: () => ({ filesDir: '/private/entry/files' }) }) } },
   '@kit.CoreFileKit': { fileIo: { readTextSync: file => {
@@ -28,7 +31,8 @@ const modules = {
     http: { RequestMethod: { GET: 'GET', PUT: 'PUT' }, createHttp: () => ({
       request: async (url, options) => {
         requests.push({ url, options });
-        if (url.endsWith('/version')) return { responseCode: 200, result: '{"version":"test"}' };
+        if (url.endsWith('/version')) return { responseCode: versionCode, result: '{"version":"test"}' };
+        if (url.endsWith('/connections')) return { responseCode: 200, result: JSON.stringify(totals) };
         // An exception can contain the sensitive header. Client must not log it.
         throw new Error(`transport failed Authorization: ${options.header.Authorization}`);
       }, destroy: () => { destroys++; }
@@ -69,7 +73,7 @@ function fireTimer() { const [id, fn] = timers.entries().next().value; timers.de
   assert.equal(sockets.length, 1);
   assert.equal(sockets[0].url, 'ws://127.0.0.1:9090/traffic');
   assert.equal(sockets[0].options.header.Authorization, `Bearer ${secret}`);
-  sockets[0].events.message({}, JSON.stringify({ up: 1, arbitrary: secret }));
+  sockets[0].events.message({}, JSON.stringify({ up: 1, down: 0, arbitrary: secret }));
   assert.equal(received, 1);
   const staleError = sockets[0].events.error;
   staleError(new Error(secret));
@@ -80,7 +84,7 @@ function fireTimer() { const [id, fn] = timers.entries().next().value; timers.de
   assert.equal(sockets.length, 2);
   assert.equal(sockets[1].options.header.Authorization, `Bearer ${stored}`, 'Reconnect must reread shared credential');
   staleError(new Error(secret));
-  assert.equal(timers.size, 0, 'Stale socket event must not reconnect a newer socket');
+  assert.equal(timers.size, 1, 'New socket retains its no-data deadline');
   sockets[1].events.close();
   const staleTimer = timers.values().next().value;
   watcher.stop();
@@ -91,6 +95,26 @@ function fireTimer() { const [id, fn] = timers.entries().next().value; timers.de
   watcher.stop();
   watcher.start('/traffic?token=secret', () => {});
   assert.equal(sockets.length, 3, 'Caller-supplied credential URLs must be rejected');
+  assert.equal(await CoreApi.checkController(), 'reachable');
+  versionCode = 401; assert.equal(await CoreApi.checkController(), 'authorization');
+  stored = null; assert.equal(await CoreApi.checkController(), 'credentials'); stored = secret;
+  totals = { uploadTotal: 0 }; assert.equal(await CoreApi.getTraffic(), null);
+  totals = { uploadTotal: -1, downloadTotal: 0 }; assert.equal(await CoreApi.getTraffic(), null);
+  totals = { uploadTotal: 0, downloadTotal: 0 };
+  assert.equal((await CoreApi.getTraffic()).up, 0);
+  const validated = new CoreApi.StreamWatcher();
+  let validSamples = 0;
+  validated.start('/traffic', () => validSamples++);
+  const validSocket = sockets.at(-1);
+  validSocket.events.message({}, '{"up":0}'); assert.equal(validSamples, 0);
+  validSocket.events.message({}, '{"up":-1,"down":0}'); assert.equal(validSamples, 0);
+  validSocket.events.message({}, '{"up":0,"down":0}'); assert.equal(validSamples, 1, 'real zero is valid');
+  const lateMessage = validSocket.events.message; validated.stop();
+  lateMessage({}, '{"up":9,"down":9}'); assert.equal(validSamples, 1);
+  const stalled = new CoreApi.StreamWatcher(); stalled.start('/traffic', () => {});
+  const silentSocket = sockets.at(-1); fireTimer();
+  assert.equal(silentSocket.closed, true, 'handshake/no-data timeout releases silent socket');
+  assert.equal(timers.size, 1, 'bounded silent stream schedules retry'); stalled.stop();
   assert.ok(!JSON.stringify(logs).includes(secret));
   assert.ok(!JSON.stringify(logs).includes(stored));
   console.log('PASS: shared REST/WS authentication, fail-closed reads, redacted logs, reconnect and stale-session cleanup');
