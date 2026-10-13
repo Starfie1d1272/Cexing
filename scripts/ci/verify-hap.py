@@ -124,7 +124,15 @@ with zipfile.ZipFile(hap) as archive, tempfile.TemporaryDirectory() as directory
     digest = sha(archive.read('resources/rawfile/geodata/geoip.metadb'))
     require(digest == geodata['expectedSha256'] == geodata['downloadedSha256'], 'GeoIP upstream/actual/package identity')
     require(bool(archive.read('resources/rawfile/override.yaml')), 'nonempty default configuration')
-    require(not any(pathlib.PurePosixPath(n).name.casefold() == 'model.bin' for n in names), 'unlicensed bundled Model.bin')
+    model_pin = json.loads((root / 'third_party/smart-model/source.json').read_text())
+    model_path = 'resources/rawfile/smart/Model.bin'
+    notice_path = 'resources/rawfile/smart/LICENSE'
+    require({n for n in names if pathlib.PurePosixPath(n).name.casefold() == 'model.bin'} == {model_path},
+            'unreviewed bundled Model.bin path')
+    require(len(archive.read(model_path)) == model_pin['assetSize'] and
+            sha(archive.read(model_path)) == model_pin['assetSha256'], 'bundled Smart model digest')
+    require(sha(archive.read(notice_path)) == model_pin['licenseSha256'] ==
+            sha((root / 'third_party/smart-model/LICENSE').read_bytes()), 'bundled Smart model GPL notice')
 report.mkdir(parents=True, exist_ok=True)
 identity = {
     'schemaVersion': 1,
@@ -139,6 +147,7 @@ identity = {
     'core': source,
     'smartSource': smart_record,
     'geodata': geodata,
+    'smartModel': model_pin,
     'inputs': {file: sha((root / file).read_bytes()) for file in [
         'core/go.mod', 'core/go.sum', 'core/patches/smart-offline.patch', 'scripts/ci/patch-smart.py', 'scripts/build-core.sh', 'scripts/ci/patch-gvisor.py',
         'core/patches/inbound-policy-race.patch', 'scripts/ci/patch-inbound-race.py',
