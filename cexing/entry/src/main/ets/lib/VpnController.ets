@@ -398,6 +398,9 @@ export namespace VpnController {
     startAttempt++;
     const session = startSession;
     const connectedService = serviceId > 0;
+    // A recovered Connected status can have no service binding in this UI process.
+    // Only a pre-binding Connecting cancellation proves native startup was never entered.
+    const nativeNotEntered = status === VpnStatus.Connecting && !connectedService;
     const stoppingServiceId = serviceId;
     // 用户主动停止：清除「会话曾连接」标记（冷启动不再自动恢复）
     let saved = true;
@@ -417,7 +420,7 @@ export namespace VpnController {
     setStatus(VpnStatus.Disconnecting);
     const want: Want = { bundleName: context.applicationInfo.name, abilityName: VPN_ABILITY_NAME };
     return (async (): Promise<boolean> => {
-      let extensionCompleted = !connectedService;
+      let extensionCompleted = nativeNotEntered;
       if (connectedService) {
         try {
           await context.disconnectServiceExtensionAbility(stoppingServiceId);

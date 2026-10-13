@@ -83,6 +83,8 @@ function load() {
     await flush();
     assert.equal(vc.status, VpnStatus.Connected, 'A fresh valid recovery should still commit');
     assert.equal(result, true);
+    assert.equal(await vc.stop(context), false,
+      'Recovered Connected without a service binding cannot prove native stop completion');
   }
   console.log('PASS: late recovery after start/cancel, newer intent, disconnected stop, explicit cancellation and fresh recovery');
 })().catch(error => { console.error(error); process.exitCode = 1; });
