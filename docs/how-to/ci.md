@@ -82,4 +82,4 @@ Full 成功完成所有检查后，将该次 CI 构建的未签名 HAP、build-i
 
 Dependabot 每周一上海时间 09:00 检查 npm 工具依赖和 Actions。`toolchain-updates.yml` 同时查询 Go 官方稳定版、Node 正式发行版、Adoptium JDK、ErBWs SDK 镜像及 npm pnpm，提出更高的 Go/Node/JDK 版本并同步 workflow 声明；SDK/pnpm 候选写入 PR 供配套兼容验证，镜像落后时不降级。pnpm 涉及供应商 wrapper 与 Zashboard 资源清单，不能由通用 npm bot 单独替换。SDK/Hvigor/ohpm 的配套版本由下载归档验证后一起更新，不能凭 SDK Release tag 猜测。
 
-升级 PR 必须执行 Quick 和经审查 SHA 的人工 Full。升级失败不自动合并，main 继续使用已经验证的组合。没有自动合并配置。Dependabot/定时工作流在本 PR 合并 main 后才开始生效；自建更新 workflow 使用仅本仓库 `contents: write` 和 `pull-requests: write` 的内置 GITHUB_TOKEN，仓库还需允许 Actions 创建 PR。未获此设置权限时如实失败，不要求个人 PAT。API 故障也会失败，不伪造“已升级”。
+升级 PR 必须执行 Quick 和经审查 SHA 的人工 Full；自建 bot 显式调度 Quick，Full 不自动调度。升级失败不自动合并，main 继续使用已经验证的组合。没有自动合并配置。Dependabot/定时工作流在本 PR 合并 main 后才开始生效；自建更新 workflow 使用仅本仓库 `contents: write`、`pull-requests: write` 和 `actions: write`（显式调度 Quick，避免内置 Token 创建的 PR 不触发检查） 的内置 GITHUB_TOKEN，仓库还需允许 Actions 创建 PR。未获此设置权限时如实失败，不要求个人 PAT。API 故障也会失败，不伪造“已升级”。

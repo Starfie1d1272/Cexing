@@ -6,6 +6,7 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  actions: write # Dispatch Quick explicitly: GITHUB_TOKEN-created PRs do not trigger it.
 concurrency:
   group: stable-toolchain-updates
   cancel-in-progress: false
@@ -44,3 +45,4 @@ jobs:
           Before merge, review the exact SHA and run Quick plus manual Full on this branch. A failed proposal leaves main's verified build combination unchanged. Upstream release metadata is an update signal, not build-success evidence.
           BODY
           gh pr create --base main --head "$branch" --title 'ci: propose latest stable toolchain updates' --body-file "$RUNNER_TEMP/upgrade-body.md"
+          gh workflow run quick.yml --ref "$branch"
