@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Real upstream model is opt-in and never copied to application resources.
+# Quick may run without a model; Full supplies the verified bundled model path.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 bash scripts/test-smart-loader.sh
