@@ -34,7 +34,7 @@ function load(relative, modules, timers = [], clock = Date) {
   const context = { exports: {}, require: name => {
     assert.ok(name in modules, `Missing mock: ${name}`);
     return modules[name];
-  }, setTimeout: fn => { timers.push(fn); }, Date: clock, Promise, Uint8Array, Object, JSON };
+  }, setTimeout: fn => { timers.push(fn); }, clearTimeout() {}, Date: clock, Promise, Uint8Array, Object, JSON };
   vm.runInNewContext(output, context);
   return context.exports;
 }
@@ -51,7 +51,7 @@ async function testClient(mode) {
   const context = {
     filesDir: '/private', applicationInfo: { name: 'test.bundle' },
     connectServiceExtensionAbility: (want, value) => {
-      callbacks = value; session = want.parameters.SESSION_ID; activeSession = session; return 1;
+      callbacks = value; session = want.parameters.SESSION_ID; activeSession = session; return mode === 'zero' ? 0 : 1;
     },
     disconnectServiceExtensionAbility: async () => {
       stopReceipt = JSON.stringify({ session: mode === 'stale-receipt' ? 'old-session' : activeSession,
@@ -66,12 +66,14 @@ async function testClient(mode) {
     './ConnectionFailure': failureModule.exports,
     './CoreApi': { CoreApi: { bindContext() {} } }, './Settings': { Settings: { load: () => settings, save() {} } },
     './ProfileStore': { ProfileStore: { clearApplyUncertain: () => { cleared++; } } },
-    '@kit.IPCKit': { rpc: { MessageSequence: { create: () => ({ reclaim() {} }) }, MessageOption: class {} } }
+    '@kit.IPCKit': { rpc: { MessageSequence: { create: () => ({values:[],writeString(value){this.values.push(value);},reclaim() {} }) }, MessageOption: class {} } }
   };
   let clockTick = 0;
   const clock = mode === 'stale-receipt' ? { now: () => (clockTick += 20000) } : Date;
   const { VpnController: controller, VpnStatus } = load('lib/VpnController.ets', modules, timers, clock);
-  const remote = { sendMessageRequest: async () => {
+  const remote = { sendMessageRequest: async (code, data) => {
+    if (code === 2) return {errCode:0,reply:{readString:()=>mode === 'stale-receipt' ? 'old-request' : data.values[1],
+      readBoolean:()=>mode !== 'cleanup-failed' && data.values[0] === session}};
     let strings = 0;
     let booleans = 0;
     return { errCode: 0, reply: {
@@ -132,7 +134,9 @@ async function testClient(mode) {
   }
   assert.equal(notifications, 1, 'Detached page must not receive late status changes');
 }
-async function testExtension(failStop = false) {
+async function testExtension(failStop = false, lateCreate = false) {
+  let failNative = failStop;
+  let completeCreate;
   let complete;
   let stopCount = 0;
   let destroyCount = 0;
@@ -141,7 +145,7 @@ async function testExtension(failStop = false) {
   let modelPrepared = 0;
   const files = new Map();
   const pending = new Promise(resolve => { complete = resolve; });
-  const connection = { create: async () => 32, protectProcessNet: async () => {},
+  const connection = { create: () => lateCreate ? new Promise(resolve => { completeCreate = resolve; }) : Promise.resolve(32), protectProcessNet: async () => {},
     destroy: async () => { destroyCount++; } };
   const modules = {
     '@kit.NetworkKit': { VpnExtensionAbility: class {}, vpnExtension: { createVpnConnection: () => connection } },
@@ -150,7 +154,7 @@ async function testExtension(failStop = false) {
       writeSync: (fd, value) => files.set(fd, value), closeSync() {},
       renameSync: (from, to) => files.set(to, files.get(from)), OpenMode: {} } },
     'libentry.so': { __esModule: true, default: { initCore: async () => { assert.ok(prepared > 0, 'Prepare static assets before Controller initialization'); assert.ok(modelPrepared > 0, 'Prepare verified model before core initialization'); return ''; }, startTun: () => pending,
-      stopCore: async () => { stopCount++; if (failStop) throw Error('synthetic native stop failure'); } } },
+      stopCore: async () => { stopCount++; if (failNative) throw Error('synthetic native stop failure'); } } },
     '../lib/CoreApi': { CoreApi: { bindContext() {} } },
     '../lib/ZashboardAssets': { ZashboardAssets: { prepare: async () => { prepared++; return { directory: '', error: 'synthetic missing panel' }; } } },
     '../lib/SmartModelAssets': { SmartModelAssets: { prepare: async () => { modelPrepared++; return { state: 'missing', message: 'synthetic model absent' }; } } },
@@ -166,6 +170,17 @@ async function testExtension(failStop = false) {
   const extension = new Extension();
   extension.context = { filesDir: '/private', resourceManager: { getRawFileContent: async () => new Uint8Array(16) } };
   extension.onCreate();
+  const observed = extension.onConnect({ parameters: { RECOVER_ONLY: true } });
+  observed.onRemoteMessageRequest(1, {}, { writeBoolean: value => assert.equal(value, false), writeString() {} }, {});
+  assert.equal(destroyCount, 0);
+  assert.equal(prepared, 0, 'recovery bind never enters native initialization');
+  let emptyAck;
+  const emptyData = ['', 'empty-stop'];
+  await observed.onRemoteMessageRequest(2, {readString:()=>emptyData.shift()},
+    {writeString:value=>assert.equal(value,'empty-stop'),writeBoolean:value=>emptyAck=value}, {});
+  assert.equal(emptyAck,true,'read-only empty session confirms its actual no-resource cleanup through IPC');
+  assert.equal(destroyCount,0);assert.equal(stopCount,0);
+
   const remote = extension.onConnect({ parameters: { VPN_CONFIG: {}, SESSION_ID: 'fixture-1' } });
   assert.ok(remote && typeof remote.then !== 'function', 'onConnect must return synchronously');
   await flush();
@@ -175,19 +190,35 @@ async function testExtension(failStop = false) {
   remote.onRemoteMessageRequest(1, {}, { writeBoolean: value => { reportedReady = value; reportedBooleans.push(value); },
     writeString: value => reportedStrings.push(value) }, {});
   assert.equal(reportedBooleans[0], false);
-  assert.equal(reportedBooleans[1], true, 'TUN create is observed separately from core readiness');
+  assert.equal(reportedBooleans[1], !lateCreate, 'TUN create is observed separately from core readiness');
   assert.equal(reportedStrings[1], 'fixture-1');
   extension.onDisconnect();
   await flush();
   assert.equal(destroyCount, 1, 'Stop must remove system VPN while initialization is pending');
+  if (lateCreate) { completeCreate(32); await flush(); }
   complete('');
   await flush();
+  if (lateCreate) assert.equal(destroyCount,2,'late TUN creation is destroyed again after pending startup settles');
   assert.equal(stopCount, 1, 'Stop must clean up a late kernel startup');
   assert.equal(JSON.parse(files.get('/private/last_stop_result.json')).completed, !failStop,
     'Extension receipt must reflect the awaited native stop result');
-  if (failStop) return;
+  if (failStop) {
+    assert.equal(extension.coreInitialized,true,'failed native stop retains the cleanup obligation');
+    failNative=false;let ack;
+    const retryData=['fixture-1','retry-stop'];
+    await remote.onRemoteMessageRequest(2,{readString:()=>retryData.shift()},
+      {writeString:v=>assert.equal(v,'retry-stop'),writeBoolean:v=>ack=v},{});
+    assert.equal(ack,true);assert.equal(stopCount,2,'explicit retry awaits native cleanup instead of forgetting it');
+    return;
+  }
+  let mismatchAck;
+  const mismatchData=['wrong-session','wrong-stop'];
+  await remote.onRemoteMessageRequest(2,{readString:()=>mismatchData.shift()},
+    {writeString(){},writeBoolean:v=>mismatchAck=v},{});
+  assert.equal(mismatchAck,false,'wrong process session cannot authorize cleanup');
   const restarted = extension.onConnect({ parameters: { VPN_CONFIG: {} } });
   await flush();
+  if (lateCreate) { completeCreate(32); await flush(); }
   restarted.onRemoteMessageRequest(1, {}, { writeBoolean: value => { reportedReady = value; }, writeString() {} }, {});
   assert.equal(reportedReady, true, 'The same extension must allow restart after cleanup despite unavailable panel resources');
   assert.equal(prepared, 2);
@@ -200,10 +231,12 @@ async function testExtension(failStop = false) {
   await testClient('error');
   await testClient('stale');
   await testClient('cancel');
+  await testClient('zero');
   await testClient('stop-failed');
   await testClient('cleanup-failed');
   await testClient('stale-receipt');
   await testExtension();
   await testExtension(true);
+  await testExtension(false, true);
   console.log('PASS: readiness, error propagation, cancellation and extension lifecycle scenarios');
 })().catch(error => { console.error(error); process.exitCode = 1; });

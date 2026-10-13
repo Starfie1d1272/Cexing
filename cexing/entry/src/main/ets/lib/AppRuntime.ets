@@ -6,6 +6,7 @@ import { AutoUpdater } from './AutoUpdater';
 import { Settings } from './Settings';
 import { Logger } from './Logger';
 import { ProfileTransactions } from './ProfileTransactions';
+import { ConnectionCards } from './ConnectionCards';
 
 export namespace AppRuntime {
   let context: common.UIAbilityContext | null = null;
@@ -13,11 +14,15 @@ export namespace AppRuntime {
   let restoreTimer: number = -1;
   let servicesStarted: boolean = false;
   let restoreGeneration: number = 0;
+  let recoveryGeneration: number = -1;
+  let healthTimer: number = -1;
+  let checking: boolean = false;
   let lastStatus: VpnStatus = VpnController.status;
 
   export function initialize(ctx: common.UIAbilityContext, onReady?: () => void): void {
     cancelRestore();
     const generation = restoreGeneration;
+    recoveryGeneration = generation;
     context = ctx;
     LiveViewKeeper.rebindContext(ctx);
     AutoUpdater.rebindContext(ctx);
@@ -29,6 +34,7 @@ export namespace AppRuntime {
       if (generation !== restoreGeneration) {
         return;
       }
+      recoveryGeneration = -1;
       sync(VpnController.status);
       if (onReady !== undefined) { onReady(); }
       if (generation !== restoreGeneration) { return; }
@@ -53,12 +59,12 @@ export namespace AppRuntime {
           }
         }, 1200);
       }
-    });
+    }, ctx);
   }
 
   function sync(status: VpnStatus): void {
     if (status !== lastStatus) {
-      cancelRestore();
+      if (status !== VpnStatus.Connected || recoveryGeneration !== restoreGeneration) { cancelRestore(); }
       lastStatus = status;
     }
     const ctx = context;
@@ -67,6 +73,7 @@ export namespace AppRuntime {
     }
     if (status === VpnStatus.Connected && !servicesStarted) {
       servicesStarted = true;
+      healthTimer = setInterval(() => { checkSession(); }, 5000);
       ProfileTransactions.applyPendingRegionSelection(ctx)
         .catch(() => Logger.warn('runtime', 'explicit region selection pending'));
       LiveViewKeeper.start(ctx).catch(() => Logger.warn('runtime', 'background task start failed'));
@@ -74,14 +81,29 @@ export namespace AppRuntime {
       AutoUpdater.checkAndRun(ctx).catch(() => Logger.warn('runtime', 'subscription check failed'));
     } else if (status === VpnStatus.Disconnected && servicesStarted) {
       servicesStarted = false;
+      clearInterval(healthTimer);
+      healthTimer = -1;
       LiveViewKeeper.stop(ctx).catch(() => Logger.warn('runtime', 'background task stop failed'));
       AutoUpdater.stop();
     }
   }
 
+  async function checkSession(): Promise<void> {
+    const ctx = context;
+    if (ctx === null || checking || VpnController.status !== VpnStatus.Connected) { return; }
+    checking = true;
+    try {
+      await VpnController.verify(ctx);
+      if (context === ctx && VpnController.status === VpnStatus.Connected) {
+        ConnectionCards.publish(ctx, '已连接', false);
+      }
+    } finally { checking = false; }
+  }
+
   export function foreground(): void {
     if (context !== null) {
       LiveViewKeeper.ensure(context);
+      checkSession();
     }
   }
 
