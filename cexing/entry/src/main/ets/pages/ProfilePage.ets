@@ -233,7 +233,11 @@ export struct ProfilePage {
       this.changed();
       this.toast(saved.enable ? '已恢复原订阅策略，地区入口可重新启用' :
         '地区入口已创建，待连接后选择');
-    } catch (e) { this.toast((e as Error).message ?? '地区策略切换失败'); }
+    } catch (e) {
+      // A committed disable may still report a failed Controller selection restore.
+      this.changed();
+      this.toast((e as Error).message ?? '地区策略切换失败');
+    }
   }
 
   private confirmDelete(p: ProfileMeta): void {

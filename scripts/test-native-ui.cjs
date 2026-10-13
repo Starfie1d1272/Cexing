@@ -301,6 +301,29 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   const pendingRegion = leftRegion.saveRegion(true);
   leftRegion.aboutToDisappear(); finishRegion('saved'); await pendingRegion;
   assert.equal(leftRegion.tabJump, -1, 'late create and enable cannot navigate after leaving');
+  let regionLists = 0;
+  const PartialDisable = load('ProfilePage', { ...common,
+    '@kit.CoreFileKit': {}, '@kit.ArkTS': {}, '@kit.BasicServicesKit': {}, './ProfileEditPage': {},
+    '../lib/CoreApi': { CoreApi: {} },
+    '../lib/EffectiveVersions': { EffectiveVersions: {
+      read: () => ({ Profiles: { 'candidate.yaml': {} } }),
+      regionPlan: () => ({ mode: 'region', selector: 'Main', assignments: {}, enable: true })
+    } },
+    '../lib/ProfileTransactions': { ProfileTransactions: {
+      setRegionPlan: async () => { throw Error('地区策略已关闭，但原选项未恢复'); }
+    } },
+    '../lib/ProfileStore': { ProfileStore: {
+      list: () => { regionLists++; return profiles; }, getMeta: () => ({}), getActiveFile: () => active
+    } }
+  });
+  const partialDisable = new PartialDisable();
+  partialDisable.profileRevision = 0;
+  partialDisable.navStack = { getAllPathName: () => [], pop() {} };
+  partialDisable.aboutToAppear();
+  const beforeDisable = regionLists;
+  await partialDisable.toggleRegion('candidate.yaml');
+  assert.ok(regionLists > beforeDisable, 'partial committed disable must refresh the displayed strategy');
+  assert.ok(toasts.includes('地区策略已关闭，但原选项未恢复'));
   active = 'fixture.yaml';
   controller.status = status.Connected; profile.confirmDelete(profiles[0]); dialog.secondaryButton.action();
   assert.equal(deleted, 0, 'running active profile must be protected');
