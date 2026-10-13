@@ -25,6 +25,8 @@
     "abilities": [
       {
         "name": "EntryAbility",
+        "launchType": "singleton",
+        "metadata": [{ "name": "ohos.ability.shortcuts", "resource": "$profile:shortcuts" }],
         "srcEntry": "./ets/entryability/EntryAbility.ets",
         "description": "$string:EntryAbility_desc",
         "backgroundModes": ["dataTransfer"],
@@ -46,6 +48,13 @@
       }
     ],
     "extensionAbilities": [
+      {
+        "name": "ConnectionFormAbility",
+        "srcEntry": "./ets/connectionform/ConnectionFormAbility.ets",
+        "type": "form",
+        "exported": true,
+        "metadata": [{ "name": "ohos.extension.form", "resource": "$profile:connection_form" }]
+      },
       {
         "name": "CexingVpnAbility",
         "srcEntry": "./ets/vpnability/CexingVpnAbility.ets",

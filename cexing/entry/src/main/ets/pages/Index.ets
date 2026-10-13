@@ -10,10 +10,13 @@ import { ZashboardPage } from './ZashboardPage';
 import { NetworkSettingsPage } from './NetworkSettingsPage';
 import { OverridePage } from './OverridePage';
 import { ProfileEditPage } from './ProfileEditPage';
+import { ConnectionEntryPage } from './ConnectionEntryPage';
+import { ConnectionEntry } from '../lib/ConnectionEntry';
 
 @Entry
 @Component
 struct Index {
+  @StorageLink('connectionEntryRequest') @Watch('openConnectionEntry') entryRequest: number = 0;
   @Provide('nav') navStack: NavPathStack = new NavPathStack();
   @Provide('profileRevision') profileRevision: number = 0;
   @Provide('rootVisible') rootVisible: boolean = true;
@@ -23,6 +26,16 @@ struct Index {
   @State windowWidth: number = 390;
   @State private smartVisible: boolean = false;
   @State private zashboardVisible: boolean = false;
+
+  aboutToAppear(): void { this.openConnectionEntry(); }
+
+  private openConnectionEntry(): void {
+    if (!ConnectionEntry.takeNavigation()) { return; }
+    const names = this.navStack.getAllPathName();
+    if (names[names.length - 1] !== 'connectionEntry') {
+      this.navStack.pushPath({ name: 'connectionEntry' });
+    }
+  }
 
   private onTabJump(): void {
     if (this.tabJump >= 0) {
@@ -34,7 +47,9 @@ struct Index {
 
   @Builder
   PageMap(name: string) {
-    if (name === 'proxies') {
+    if (name === 'connectionEntry') {
+      NavDestination() { ConnectionEntryPage() }.title('连接快捷入口')
+    } else if (name === 'proxies') {
       NavDestination() { ProxyPage() }.title('代理组')
     } else if (name === 'zashboard') {
       NavDestination() { ZashboardPage({ visible: this.zashboardVisible }) }.title('Zashboard')

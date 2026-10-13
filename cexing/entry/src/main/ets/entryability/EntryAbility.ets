@@ -1,11 +1,18 @@
-import { UIAbility } from '@kit.AbilityKit';
+import { UIAbility, Want } from '@kit.AbilityKit';
 import { window } from '@kit.ArkUI';
 import { AppRuntime } from '../lib/AppRuntime';
 import { Logger } from '../lib/Logger';
+import { ConnectionEntry } from '../lib/ConnectionEntry';
 
 export default class EntryAbility extends UIAbility {
-  onCreate(): void {
-    AppRuntime.initialize(this.context);
+  onCreate(want: Want): void {
+    ConnectionEntry.bind(this.context);
+    AppRuntime.initialize(this.context, () => ConnectionEntry.recovered(this.context));
+    ConnectionEntry.receive(want);
+  }
+
+  onNewWant(want: Want): void {
+    ConnectionEntry.receive(want);
   }
 
   onForeground(): void {
@@ -21,6 +28,7 @@ export default class EntryAbility extends UIAbility {
   }
 
   onDestroy(): void {
+    ConnectionEntry.destroyed(this.context);
     AppRuntime.abilityDestroyed(this.context);
   }
 }

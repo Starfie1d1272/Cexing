@@ -14,6 +14,8 @@ export namespace ProfileTransactions {
   let busy = false;
   let uncertain = false;
 
+  export function isBusy(): boolean { return busy; }
+
   function enter(context: common.Context): void {
     if (busy) { throw new Error('已有配置操作正在进行，请稍后重试'); }
     if (ProfileStore.isApplyUncertain(context)) { uncertain = true; }
