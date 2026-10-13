@@ -131,7 +131,7 @@ export namespace EffectiveVersions {
   export async function previewRegion(context: common.Context, original: string,
     overlay: string, plan: RegionPlan): Promise<RegionPreview> {
     const result = await call(context, { op: 'region-preview', original: original,
-      overlay: overlay, regionPlan: plan });
+      overlay: overlay, regionPlan: plan, expected: read(context)?.Current?.ID ?? '' });
     const preview = result['regionPreview'] as RegionPreview;
     if (preview === undefined || !Array.isArray(preview.selectors)) {
       throw new Error('地区策略预览失败');
