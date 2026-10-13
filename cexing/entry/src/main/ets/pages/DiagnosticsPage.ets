@@ -99,7 +99,7 @@ export struct DiagnosticsPage {
       DiagnosticsService.record(context, { operation: `check_${kind}`, stage: 'host_deadline', outcome: 'unknown',
         reason: 'page_check_timeout', durationMs: 15000 }).catch(() => {});
     }
-    if (!this.visible || attempt !== this.generation) { return; }
+    if (!this.visible || attempt !== this.generation || !this.ownsOperation(operation)) { return; }
     const label = DiagnosticsBundleView.result(result);
     if (kind === 'controller') { this.control = label; this.checkedAt = result.at; }
     this.results = this.results.filter((item: DiagnosticCheckResult) => item.kind !== kind).concat([result]);
@@ -115,7 +115,7 @@ export struct DiagnosticsPage {
     const attempt = this.generation;
     const operation = this.beginOperation();
     const proxies = await CoreApi.getProxies().catch(() => null);
-    if (!this.visible || attempt !== this.generation) { return; }
+    if (!this.visible || attempt !== this.generation || !this.ownsOperation(operation)) { return; }
     this.proxyNames = proxies === null ? [] : Object.keys(proxies);
     this.finishOperation(operation);
     if (this.proxyNames.length === 0) { this.exportMessage = '测试代理列表未读取到，请连接后重试'; }
@@ -132,7 +132,7 @@ export struct DiagnosticsPage {
     let handedToShare = false;
     try {
       const bundle = await DiagnosticsService.exportBundle(context);
-      if (!this.visible || epoch !== this.exportEpoch || action !== this.exportAction) { return; }
+      if (!this.visible || epoch !== this.exportEpoch || action !== this.exportAction || !this.ownsOperation(operation)) { return; }
       const facts = DiagnosticsBundleView.facts(bundle.json);
       // Snapshot the returned JSON, not bundle.path: another service export can
       // replace that cache even before the picker or share callback resolves.
@@ -274,7 +274,7 @@ export struct DiagnosticsPage {
             Text(VpnController.getKernelReadyReported() ? '内核已报告就绪' : '等待内核报告就绪')
               .fontSize(14).fontColor(UI.muted).width('100%')
           }
-      Button(this.busy ? '检查中…' : '检查本机服务').width('100%').height(56)
+      Button(this.busy ? '处理中…' : '检查本机服务').width('100%').height(56)
         .backgroundColor(UI.action).fontColor(UI.onAccent).enabled(!this.busy).onClick(() => this.check())
       Button('保存诊断支持包').width('100%').height(48).enabled(!this.busy)
         .backgroundColor(UI.soft).fontColor(UI.accentText).onClick(() => this.exportSupport(false))
