@@ -19,7 +19,7 @@ function load(options = {}) {
   } };
   const modules = {
     '@kit.NetworkKit': { vpnExtension: { startVpnExtensionAbility: () => { calls.start++; if (options.throwStart) throw Error('synthetic authorization failure'); return auth; },
-      stopVpnExtensionAbility: async () => { calls.stop++; if (options.failFirstStop && calls.stop === 1) throw Error('synthetic early stop failure'); } } },
+      stopVpnExtensionAbility: async () => { calls.stop++; if (options.receiptOnSystemStop) receipt = JSON.stringify({session,completed:true}); if (options.failFirstStop && calls.stop === 1) throw Error('synthetic early stop failure'); } } },
     '@kit.CoreFileKit': { fileIo: { accessSync: () => receipt.length > 0, readTextSync: () => receipt } },
     './Logger': { Logger: { info() {}, warn() {}, error() {} } },
     './CoreApi': { CoreApi: { bindContext() {}, isAlive: () => new Promise(resolve => probes.push(resolve)) } },
@@ -93,9 +93,10 @@ async function recover(f) {
   earlyFailure.resolveAuth();assert.equal(await reclaim,true);assert.equal(earlyFailure.calls.stop,2);
   const syncFailure=load({throwStart:true});syncFailure.VpnController.start(syncFailure.context);
   assert.equal(syncFailure.VpnController.status,syncFailure.VpnStatus.Disconnected,'synchronous authorization failure can retry');
-  const lost=load();await recover(lost);
+  const lost=load({receiptOnSystemStop:true});await recover(lost);
   lost.lost();assert.equal(lost.VpnController.status,lost.VpnStatus.Disconnected);
   assert.equal(lost.VpnController.getLastStopCompleted(),false,'service loss is not a confirmed stop');
+  assert.equal(await lost.VpnController.stop(lost.context),true,'explicit disconnect retries system stop after binding loss and awaits the retained identity');
   const mismatch=load();await recover(mismatch);mismatch.set({session:'different-process'});
   const checking=mismatch.VpnController.verify(mismatch.context);await flush();await checking;
   assert.equal(mismatch.VpnController.status,mismatch.VpnStatus.Disconnected,'health rejects a new process session');

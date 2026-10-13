@@ -520,7 +520,7 @@ export namespace VpnController {
   export function stop(context: common.UIAbilityContext, preserveFailure: boolean = false): Promise<boolean> {
     cancelRecovery();
     if (stopPending !== null) { return stopPending; }
-    if (status !== VpnStatus.Connected && status !== VpnStatus.Connecting && serviceId < 0) {
+    if (status !== VpnStatus.Connected && status !== VpnStatus.Connecting && serviceId < 0 && lastStopCompleted !== false) {
       Logger.warn(TAG, `stop ignored, status=${VpnStatus[status]}`);
       return Promise.resolve(false);
     }
@@ -529,8 +529,8 @@ export namespace VpnController {
     const pendingAuthorization = authorization;
     const pendingBinding = recoveryBinding;
     const connectedService = serviceId >= 0;
-    // A recovered Connected status can have no service binding in this UI process.
     // Only a pre-binding Connecting cancellation proves native startup was never entered.
+    // Lost bindings still require system stop and the retained session cleanup receipt.
     const nativeNotEntered = status === VpnStatus.Connecting && !connectedService;
     const stoppingServiceId = serviceId;
     const stoppingContext = serviceContext ?? context;
@@ -583,6 +583,9 @@ export namespace VpnController {
           systemStopped = false;
           Logger.error(TAG, 'late VPN Extension stop failed');
         }
+      }
+      if (!connectedService && !nativeNotEntered && systemStopped && session.length > 0) {
+        extensionCompleted = await waitForStopResult(context, session);
       }
       serviceId = -1;
       serviceContext = null;
