@@ -2,15 +2,15 @@
 
 `DiagnosticsService` 通过既有 `versionAction` NAPI 单 worker 调用 Go 存储，不增加内核 C ABI，不上传。页面用 `check(context, kind, proxy?)` 执行检查，用 `exportBundle(context)` 获取 `{json, path, fileName}`；结果文件在 cacheDir，保存位置选择和分享由页面拥有。导出不执行网络检查，重复导出覆盖同一个缓存文件。
 
-运行时在恢复前调用 `initialize(context)`，并拥有 `observe(context)` 返回的释放函数。观察器只订阅 `VpnController.onChanged/offChanged`，读取脱敏故障、TUN 创建、内核就绪和停止结果 getters，不消费错误、不改变启停。缺少细分阶段时标明覆盖缺口。更精确的业务动作由拥有该动作的模块调用 `record(context, {operation, stage, outcome, object?, reason?, code?, durationMs?})`；只传固定阶段和数字/固定码，禁止传原始异常、Want、URL、配置或凭据。`record` 返回落盘是否成功，不应改变 VPN 控制结果。
+运行时在恢复前调用 `initialize(context)`，并拥有 `observe(context)` 返回的释放函数。观察器只订阅 `VpnController.onChanged/offChanged`，读取脱敏故障、TUN 创建、内核就绪和停止结果 getters，不消费错误、不改变启停。缺少细分阶段时标明覆盖缺口。更精确的业务动作由拥有该动作的模块调用 `record(context, {operation, stage, outcome, object?, reason?, code?, durationMs?})`；只传固定阶段和数字/固定码，禁止传原始异常、Want、URL、配置或凭据。字段词表在 `core/diagnostics_fields.go`；未列入词表的阶段、原因、枚举或错误码记为 unknown，并保存包内关联 identity，不允许通过“符合标识符格式”传任意明文。新增调用者的固定阶段必须补入词表。数值错误码按 32 位范围保存，errno 和定义内 DNS rcode 保留其结构。`record` 返回落盘是否成功，不应改变 VPN 控制结果。
 
 ## 内容与证据解释
 
-JSON schema 为 `cexing-support-bundle/1`。host 和 kernel 两条证据流分开写，避免两个进程互相覆盖。每条记录有会话、递增序号、UTC 时间、动作、阶段、结果和可用的耗时。内核启动明确区分配置解析、Controller 监听、配置应用与 TUN 启动；内核退出仅说明内核清理完成，系统 VPN 停止仍以控制器结果为准。
+JSON schema 为 `cexing-support-bundle/1`。journal 新记录为内部 schema 2。旧 schema 1 可能包含修复前的自由文本，导出时保留时间、阶段、数值/固定码与原因结构，并显式省略自由消息及未批准详情，标记 legacySanitized；不删除或重写原始旧证据。host 和 kernel 两条证据流分开写，避免两个进程互相覆盖。每条记录有会话、递增序号、UTC 时间、动作、阶段、结果和可用的耗时。内核启动明确区分配置解析、Controller 监听、配置应用与 TUN 启动；内核退出仅说明内核清理完成，系统 VPN 停止仍以控制器结果为准。
 
 host 快照保存应用/系统/SDK/ABI 及允许的偏好值，标明“偏好，不是运行时确认”。内核快照是启动/重载的最终平台投影输入，保留有限 DNS 端点协议/端口、同对象关联、节点/组引用、节点类型、安全选项、provider/规则数量和来源层级；不导出 YAML、订阅来源、provider URL、请求正文、访问名单、节点凭据、控制令牌。生成版本的 profile/版本身份、覆写存在、Smart/地区策略元数据单独标记，未读取到元数据则为 unknown。投影输入不证明配置应用或真实转发成功。
 
-额外日志只采集 wrapper 的 warning/error 以及明确的失败拨号、DNS 失败事件；成功流量和一般 Mihomo 浏览日志不采集。原有 `mihomo.log`、系统 hilog、订阅侧车文件不作为附件读取。错误结构保留 Go 类型、可提取的原始 errno、有限原因链和脱敏技术错误；纯文本错误没有可证明的数字码时不猜码。日志正文、URL、地址、路径、已知节点名及凭据在持久化前脱敏；名称/端点用私有安装密钥 HMAC 关联，导出再随机加盐，同包保持关联，不导出任何密钥。原因链和消息裁剪有标记。
+额外日志只采集 wrapper 的 warning/error 以及明确的失败拨号、DNS 失败事件；成功流量和一般 Mihomo 浏览日志不采集。原有 `mihomo.log`、系统 hilog、订阅侧车文件不作为附件读取。错误结构保留 Go 类型、可提取的原始 errno、有限原因链和脱敏技术错误；纯文本错误没有可证明的数字码时不猜码。日志正文、URL、地址、路径、已知节点名及凭据在持久化前脱敏；名称/端点用私有安装密钥 HMAC 关联，导出再随机加盐，同包保持关联，不导出任何密钥。原因链和消息裁剪有标记。内存脱敏表在进程内单调合并运行配置、全部候选及历史配置的值，失败候选不会移除当前值，成功更换后的旧事件仍受保护；日志读取与表更新同步。最多保留 16384 个值或 8 MiB 映射，不为腾空间淘汰旧值，满额后明确省略自由消息正文；阶段、错误类型、实际 errno、原因链及固定错误条件仍保留。表和候选正文均不落盘。环境、偏好、观察值、配置类型和 DNS 协议采用字段专用白名单/数值范围，未知值只保存关联 identity。
 
 `checkCoverage` 标明已保留的检查证据；没有保留结果意味着 unknown，不能断言从未执行。host/kernel 会话互相独立，时间与对象关联不能单独证明是同一系统 TUN。当前 getters 尚不能提供授权、服务绑定、保护及资源铺盘的全部子阶段，观察器明确标出缺口。
 
