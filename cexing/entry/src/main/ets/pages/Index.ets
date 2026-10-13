@@ -10,8 +10,6 @@ import { ZashboardPage } from './ZashboardPage';
 import { NetworkSettingsPage } from './NetworkSettingsPage';
 import { OverridePage } from './OverridePage';
 import { ProfileEditPage } from './ProfileEditPage';
-import { ConnectionEntryPage } from './ConnectionEntryPage';
-import { ConnectionEntry } from '../lib/ConnectionEntry';
 
 @Entry
 @Component
@@ -27,14 +25,10 @@ struct Index {
   @State private smartVisible: boolean = false;
   @State private zashboardVisible: boolean = false;
 
-  aboutToAppear(): void { this.openConnectionEntry(); }
-
   private openConnectionEntry(): void {
-    if (!ConnectionEntry.takeNavigation()) { return; }
-    const names = this.navStack.getAllPathName();
-    if (names[names.length - 1] !== 'connectionEntry') {
-      this.navStack.pushPath({ name: 'connectionEntry' });
-    }
+    this.navStack.clear();
+    this.currentTab = 0;
+    this.currentVisibleTab = 0;
   }
 
   private onTabJump(): void {
@@ -47,9 +41,7 @@ struct Index {
 
   @Builder
   PageMap(name: string) {
-    if (name === 'connectionEntry') {
-      NavDestination() { ConnectionEntryPage() }.title('连接快捷入口')
-    } else if (name === 'proxies') {
+    if (name === 'proxies') {
       NavDestination() { ProxyPage() }.title('代理组')
     } else if (name === 'zashboard') {
       NavDestination() { ZashboardPage({ visible: this.zashboardVisible }) }.title('控制面板')

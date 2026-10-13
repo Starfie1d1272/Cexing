@@ -44,6 +44,11 @@ func (s FileStore) Load(ctx context.Context) (Snapshot, error) {
 	if err := json.Unmarshal(data, &state); err != nil {
 		return Snapshot{}, err
 	}
+	if state.GlobalMerge != "" {
+		if err := persistableYAML([]byte(state.GlobalMerge)); err != nil {
+			return Snapshot{}, err
+		}
+	}
 	if !s.valid(state.Current) || !s.valid(state.Previous) {
 		return Snapshot{}, errors.New("invalid version path")
 	}
@@ -74,6 +79,11 @@ func (s FileStore) Stage(ctx context.Context, r Result) (Version, error) {
 			return Version{}, err
 		}
 	}
+	if r.GlobalMerge != "" {
+		if err := persistableYAML([]byte(r.GlobalMerge)); err != nil {
+			return Version{}, err
+		}
+	}
 	if err := os.MkdirAll(s.Root, 0700); err != nil {
 		return Version{}, err
 	}
@@ -95,7 +105,8 @@ func (s FileStore) Stage(ctx context.Context, r Result) (Version, error) {
 		Metadata        string
 		SmartConversion bool
 		RegionPlan      *RegionPlan
-	}{r.Original, r.Overlays, r.Digest, r.ProfileID, r.Metadata, r.SmartConversion, r.RegionPlan})
+		GlobalMerge     string
+	}{r.Original, r.Overlays, r.Digest, r.ProfileID, r.Metadata, r.SmartConversion, r.RegionPlan, r.GlobalMerge})
 	if err != nil {
 		return Version{}, err
 	}
@@ -132,6 +143,11 @@ func (s FileStore) Commit(ctx context.Context, state Snapshot) error {
 func (s FileStore) Publish(ctx context.Context, state Snapshot) error {
 	if err := ctx.Err(); err != nil {
 		return err
+	}
+	if state.GlobalMerge != "" {
+		if err := persistableYAML([]byte(state.GlobalMerge)); err != nil {
+			return err
+		}
 	}
 	if !s.valid(state.Current) || !s.valid(state.Previous) {
 		return errors.New("invalid version")

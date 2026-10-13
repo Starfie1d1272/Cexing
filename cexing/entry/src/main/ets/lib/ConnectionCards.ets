@@ -6,6 +6,7 @@ import { Logger } from './Logger';
 export interface ConnectionReport {
   label: string;
   reportedAt: string;
+  verifiedAt: number;
   stopUnknown: boolean;
 }
 
@@ -25,9 +26,12 @@ export namespace ConnectionCards {
     try {
       const value = JSON.parse(fileIo.readTextSync(`${ctx.filesDir}/${REPORT}`)) as ConnectionReport;
       if (typeof value.label === 'string' && typeof value.reportedAt === 'string' &&
-        typeof value.stopUnknown === 'boolean') { return value; }
+        typeof value.stopUnknown === 'boolean') {
+        // Cached data is historical. Only a runtime publish may claim current state.
+        return { label: '状态待核对', reportedAt: value.reportedAt, verifiedAt: 0, stopUnknown: value.stopUnknown };
+      }
     } catch (_) {}
-    return { label: '状态待确认', reportedAt: '打开应用核对', stopUnknown: false };
+    return { label: '状态待核对', reportedAt: '打开应用核对', verifiedAt: 0, stopUnknown: false };
   }
 
   function ids(ctx: common.Context): string[] {
@@ -52,16 +56,16 @@ export namespace ConnectionCards {
     catch (_) { Logger.warn('card', 'form removal unavailable'); }
   }
 
-  export function update(ctx: common.Context, id: string): void {
-    formProvider.updateForm(id, formBindingData.createFormBindingData(read(ctx)))
+  export function update(ctx: common.Context, id: string, report?: ConnectionReport): void {
+    formProvider.updateForm(id, formBindingData.createFormBindingData(report ?? read(ctx)))
       .catch(() => Logger.warn('card', 'form update unavailable'));
   }
 
   export function publish(ctx: common.Context, label: string, stopUnknown: boolean): void {
-    const report: ConnectionReport = { label, reportedAt: new Date().toLocaleString(), stopUnknown };
+    const report: ConnectionReport = { label, reportedAt: new Date().toLocaleString(), verifiedAt: Date.now(), stopUnknown };
     try {
       write(ctx, REPORT, JSON.stringify(report));
-      for (const id of ids(ctx)) { update(ctx, id); }
+      for (const id of ids(ctx)) { update(ctx, id, report); }
     } catch (_) { Logger.warn('card', 'connection report unavailable'); }
   }
 }

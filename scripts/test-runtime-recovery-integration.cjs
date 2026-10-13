@@ -14,7 +14,7 @@ function load(name, modules, timers) {
   } }).outputText;
   let id = 0;
   const sandbox = { exports: {}, require: key => { assert.ok(key in modules, `Missing mock ${key}`); return modules[key]; },
-    setTimeout: fn => { timers.set(++id, fn); return id; }, clearTimeout: key => timers.delete(key), Promise, Date, JSON };
+    setTimeout: fn => { timers.set(++id, fn); return id; }, clearTimeout: key => timers.delete(key), setInterval: () => -1, clearInterval() {}, Promise, Date, JSON };
   vm.runInNewContext(code, sandbox);
   return sandbox.exports;
 }
@@ -25,13 +25,14 @@ function fixture() {
   const logger = { Logger: { info() {}, warn() {}, error() {} } };
   const failure = load('ConnectionFailure', {}, timers);
   const controller = load('VpnController', {
-    '@kit.NetworkKit': { vpnExtension: {} }, '@kit.CoreFileKit': { fileIo: {} }, '@kit.IPCKit': { rpc: {} },
-    './CoreApi': { CoreApi: { isAlive: () => new Promise(resolve => probes.push(resolve)) } },
+    '@kit.NetworkKit': { vpnExtension: {} }, '@kit.CoreFileKit': { fileIo: {} }, '@kit.IPCKit': { rpc: { MessageSequence: { create: () => ({ reclaim() {} }) }, MessageOption: class {} } },
+    './CoreApi': { CoreApi: { bindContext() {}, isAlive: () => new Promise(resolve => probes.push(resolve)) } },
     './Settings': { Settings: { load: () => settings } }, './Logger': logger,
     './ConnectionFailure': failure,
     './ProfileStore': { ProfileStore: { clearApplyUncertain() {} } }
   }, timers);
   const runtime = load('AppRuntime', {
+    './ConnectionCards': { ConnectionCards: { publish() {} } },
     './VpnController': controller, './Settings': { Settings: { load: () => settings } }, './Logger': logger,
     './ProfileTransactions': { ProfileTransactions: { ensureActiveSmartPolicy: async () => {},
       applyPendingRegionSelection: async () => false } },
@@ -40,11 +41,20 @@ function fixture() {
     './AutoUpdater': { AutoUpdater: { rebindContext() {}, checkAndRun: async () => {},
       start: () => { calls.updatesStart++; }, stop: () => { calls.updatesStop++; } } }
   }, timers).AppRuntime;
-  return { runtime, ...controller, timers, probes, calls };
+  const context = { applicationInfo: { name: 'test.bundle' },
+    connectServiceExtensionAbility: (_want, options) => {
+      Promise.resolve().then(() => options.onConnect({}, { sendMessageRequest: async () => {
+        let strings = 0, booleans = 0;
+        return { errCode: 0, reply: { readBoolean: () => { booleans++; return true; },
+          readString: () => ++strings === 1 ? '' : 'running-fixture' } };
+      } }));
+      return 0;
+    } };
+  return { runtime, ...controller, timers, probes, calls, context };
 }
 (async () => {
   for (const cancel of ['explicit', 'currentAbility']) {
-    const f = fixture(), context = {};
+    const f = fixture(), context = f.context;
     f.runtime.initialize(context);
     if (cancel === 'explicit') f.runtime.cancelRestore();
     else f.runtime.abilityDestroyed(context);
@@ -56,9 +66,10 @@ function fixture() {
     assert.equal(f.timers.size, 0, `${cancel}: old completion must not schedule restore`);
   }
   {
-    const f = fixture(), old = {}, fresh = {};
+    const f = fixture(), old = { ...f.context }, fresh = { ...f.context };
     f.runtime.initialize(old);
-    f.runtime.initialize(fresh);
+    let ready = 0;
+    f.runtime.initialize(fresh, () => ready++);
     f.runtime.abilityDestroyed(old);
     f.probes[0](true);
     await flush();
@@ -66,6 +77,7 @@ function fixture() {
     f.probes[1](true);
     await flush();
     assert.equal(f.VpnController.status, f.VpnStatus.Connected, 'Old Ability destruction must preserve fresh probe');
+    assert.equal(ready, 1, 'Connected recovery must still complete runtime initialization');
     assert.equal(f.calls.backgroundStart, 1);
     assert.equal(f.calls.updatesStart, 1);
     f.runtime.abilityDestroyed(fresh);

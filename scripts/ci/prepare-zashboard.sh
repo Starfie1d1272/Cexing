@@ -7,9 +7,10 @@ export PATH="$ROOT/scripts/ci/node_modules/.bin:$PATH"
 PIN="$ROOT/third_party/zashboard/source.json"
 RAW="$ROOT/cexing/entry/src/main/resources/rawfile/zashboard"
 if [ -d "$RAW" ]; then
-  # A cache hit must match the complete reviewed resource set and every digest.
-  python3 scripts/zashboard-assets.py verify
-  exit 0
+  if python3 scripts/zashboard-assets.py verify; then
+    exit 0
+  fi
+  echo 'Refreshing stale Zashboard cache from the declared source'
 fi
 SOURCE="$(mktemp -d)"
 export XDG_DATA_HOME="$SOURCE/data" XDG_CACHE_HOME="$SOURCE/cache" XDG_CONFIG_HOME="$SOURCE/config"
@@ -21,7 +22,6 @@ mkdir "$CHECKOUT"
 git -C "$CHECKOUT" init --quiet
 git -C "$CHECKOUT" fetch --depth 1 "$REPOSITORY" "$SHA"
 git -C "$CHECKOUT" checkout --quiet --detach FETCH_HEAD
-bash scripts/build-zashboard.sh "$CHECKOUT"
-# Generated identity must equal reviewed input; reject rather than accept a new bundle pin.
-git diff --exit-code -- third_party/zashboard/manifest.json cexing/entry/src/main/ets/lib/ZashboardPin.ets
+# The production prepare validates reviewed manifest/pin in staging before committing RAW.
+bash scripts/build-zashboard.sh "$CHECKOUT" --reviewed
 python3 scripts/zashboard-assets.py verify

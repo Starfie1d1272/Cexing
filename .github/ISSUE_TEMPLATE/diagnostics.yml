@@ -1,0 +1,22 @@
+name: 连接问题反馈
+description: 提供脱敏检查结果和复现步骤
+title: "[连接问题] "
+body:
+  - type: markdown
+    attributes:
+      value: 请先在应用“诊断”页检查本机服务并复制脱敏摘要。不要上传订阅 URL、密钥、节点凭据、原始配置或完整网络日志。
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤与实际结果
+      description: 说明做了什么、期望结果和实际结果。
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: 脱敏诊断摘要
+      description: 粘贴复制的摘要，提交前检查内容。
+      render: text
+    validations:
+      required: true

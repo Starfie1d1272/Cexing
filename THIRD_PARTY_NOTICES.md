@@ -9,7 +9,7 @@
 | [MetaCubeX/meta-rules-dat](https://github.com/MetaCubeX/meta-rules-dat) | 构建时准备的 GeoIP 快照 | 根项目 GPL-3.0；分发前核查数据源 notices，二进制不入源码仓库 |
 | [vernesong/mihomo](https://github.com/vernesong/mihomo) | 固定 Smart 测试版内核及官方 LightGBM 模型 | 项目 GPL-3.0；上游标签的许可声明、固定模型身份、对应源码与训练来源边界见 [Smart notices](core/patches/NOTICE.md)；完整 GPL 正文随包，发行仍须核查对应源码提供义务 |
 | [DB-IP City Lite](https://db-ip.com/db/download/ip-to-city-lite) | 用户主动下载的 2026-10 城市库；公网 IP 仅在本机查询 | CC BY 4.0；保留 DB-IP.com 来源链接及许可，数据不随默认 HAP 内置，固定身份见 [城市库来源](third_party/city-geoip/source.json) |
-| [Zashboard](https://github.com/Zephyruso/zashboard) | 锁定源码构建的离线面板资源，认证接入尚未启用 | MIT；锁定身份、宿主补丁和许可证见 [third_party/zashboard](third_party/zashboard/source.json)。HAP 内携带上游 LICENSE、依赖 notices；本地 Fira Sans 为 SIL OFL 1.1，地球贴图保留上游 CC BY 4.0 attribution。未分发许可未完整核实的上游旗帜字体，改用系统 emoji |
+| [Zashboard](https://github.com/Zephyruso/zashboard) | 锁定源码构建的离线面板资源，经宿主认证通道接入 Controller REST/WS | MIT；锁定身份、宿主补丁和许可证见 [third_party/zashboard](third_party/zashboard/source.json)。HAP 内携带上游 LICENSE、依赖 notices；本地 Fira Sans 为 SIL OFL 1.1，地球贴图保留上游 CC BY 4.0 attribution。未分发许可未完整核实的上游旗帜字体，改用系统 emoji |
 
 TunBox、Clash Mi、Bettbox、FlClash-ohos、Paws 是设计调查参考，见来源快照；不因参考就声称复制了它们的代码。尤其 TunBox 的项目许可未明确时，不复制其自有实现。Huawei SDK/NDK 与工具链由开发者按供应商授权取得，不随本仓库分发。
 

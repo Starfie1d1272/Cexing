@@ -12,6 +12,7 @@ type Version struct{ ID, Path, ProfileID string }
 type Snapshot struct {
 	Current, Previous *Version
 	Profiles          map[string]Version
+	GlobalMerge       string `json:",omitempty"`
 }
 
 // Store must leave its last successful snapshot untouched on any error.

@@ -24,6 +24,6 @@ HAP 已内置 [官方 Release](https://github.com/vernesong/mihomo/releases/tag/
 - 首次授权、启动中取消、正常断开/重连、错误配置；迟到操作不能影响新会话。
 - 面板 REST/流量 WS 可用，返回、隐藏、失联/重连不停止 VPN，离线资源/CSP/ArkWeb 缓存和导航行为正常。
 - 首次离线安装后不导入文件，使用自动转换后的 Smart 测试组并重新连接，确认「模型已加载」及实际有效预测；若文件损坏，确认备份与内置模型恢复。手动导入后按提示重启应用，确认 VPN Extension 进程换代；失败提示保留且可重试。
-- 手机浏览器真实 TUN 请求、TLS/REALITY、DNS/UDP、IPv6、Wi-Fi/蜂窝切换；低流量、息屏 15/30 分钟、关窗和回前台。
+- 手机浏览器真实 TUN 请求、TLS/REALITY、DNS/UDP、IPv6、Wi-Fi/蜂窝切换；按日常使用场景检查低流量、应用切换、关窗及回前台后的会话与实际转发。
 
 记录源码 SHA、HAP 摘要、系统版本及脱敏结果。源码审查、Linux 转发、SDK 构建与手机验收是不同证据；Connected 或 `/version` 不能单独证明真实转发。公共反馈不要上传订阅 URL、节点凭据或原始配置。
