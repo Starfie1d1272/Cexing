@@ -22,6 +22,7 @@ interface VersionRequest {
   versionId?: string;
   active?: boolean;
   newProfileId?: string;
+  smartConversion?: boolean;
 }
 
 export namespace EffectiveVersions {
@@ -71,6 +72,14 @@ export namespace EffectiveVersions {
     return fileIo.accessSync(p) ? fileIo.readTextSync(p) : '';
   }
 
+  /** Older versions lack this field and represent the unconverted source. */
+  export function smartConversion(context: common.Context, version: EffectiveVersion): boolean {
+    check(context, version);
+    const source = JSON.parse(fileIo.readTextSync(
+      `${context.filesDir}/profile-versions/${version.ID}/source.json`)) as Record<string, Object>;
+    return source['SmartConversion'] === true;
+  }
+
   async function call(context: common.Context, action: VersionRequest): Promise<Record<string, Object>> {
     const result = await core.versionAction(context.filesDir, JSON.stringify(action));
     try {
@@ -86,7 +95,8 @@ export namespace EffectiveVersions {
     const overrides = JSON.stringify({ mixedPort: s.mixedPort, logLevel: s.logLevel,
       allowLan: s.allowLan, mode: s.mode, logToFile: s.logToFile });
     const result = await call(context, { op: 'stage', profileId: profileId, original: original,
-      overlay: overlay, metadata: metadata, expected: expected, overrides: overrides });
+      overlay: overlay, metadata: metadata, expected: expected, overrides: overrides,
+      smartConversion: s.smartAutoConvert });
     const version = result['version'] as EffectiveVersion;
     if (version === undefined) { throw new Error('暂存配置失败'); }
     check(context, version);

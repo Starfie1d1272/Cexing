@@ -99,6 +99,7 @@ func executeVersionAction(home string, action versionAction) (versionResponse, e
 		}
 		result.ProfileID = action.ProfileID
 		result.Metadata = action.Metadata
+		result.SmartConversion = action.SmartConversion
 		version, err := store.Stage(ctx, result)
 		if err != nil {
 			return versionResponse{}, errors.New("VERSION_STAGE_FAILED")

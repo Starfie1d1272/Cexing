@@ -32,6 +32,8 @@ export class AppSettings {
   vpnWasConnected: boolean = false;
   /** 内核日志是否写入应用沙箱 mihomo.log（默认开；关闭后仅进系统 hilog，下次启动内核生效） */
   logToFile: boolean = true;
+  /** Convert only url-test/load-balance groups in generated runtime versions. */
+  smartAutoConvert: boolean = true;
 }
 
 export namespace Settings {
@@ -62,6 +64,7 @@ export namespace Settings {
       s.autoRestore = p.getSync('autoRestore', true) as boolean;
       s.vpnWasConnected = p.getSync('vpnWasConnected', false) as boolean;
       s.logToFile = p.getSync('logToFile', true) as boolean;
+      s.smartAutoConvert = p.getSync('smartAutoConvert', true) as boolean;
     } catch (e) {
       Logger.error(TAG, `load failed: ${JSON.stringify(e)}`);
     }
@@ -85,9 +88,17 @@ export namespace Settings {
       p.putSync('autoRestore', s.autoRestore);
       p.putSync('vpnWasConnected', s.vpnWasConnected);
       p.putSync('logToFile', s.logToFile);
+      p.putSync('smartAutoConvert', s.smartAutoConvert);
       p.flush();
     } catch (e) {
       Logger.error(TAG, `save failed: ${JSON.stringify(e)}`);
     }
+  }
+
+  /** Transaction callers need a visible persistence failure to avoid a false toggle result. */
+  export function setSmartAutoConvert(context: common.Context, enabled: boolean): void {
+    const p = getStore(context);
+    p.putSync('smartAutoConvert', enabled);
+    p.flushSync();
   }
 }

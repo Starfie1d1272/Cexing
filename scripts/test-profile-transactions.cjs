@@ -21,6 +21,8 @@ let uncertain = false;
 let applies = 0;
 let failCommit = false;
 let lostAck = false;
+let smartAutoConvert = true;
+let smartCurrent = false;
 const controller = { VpnStatus: { Disconnected: 0, Connected: 2 }, VpnController: { status: 2 } };
 const core = { CoreApi: {
   isAlive: async () => true,
@@ -28,6 +30,7 @@ const core = { CoreApi: {
 } };
 const versions = { EffectiveVersions: {
   read: () => state,
+  smartConversion: () => smartCurrent,
   stage: async (_, name, original, overlay, metadata, expected) => {
     assert.equal(expected, state.Current?.ID ?? '');
     const version = { ID: `version-${++id}`, Path: `/versions/${id}`, ProfileID: name };
@@ -42,6 +45,7 @@ const versions = { EffectiveVersions: {
     originals[version.ProfileID] = entry.original;
     state.Profiles[version.ProfileID] = version;
     if (active) { state.Previous = state.Current; state.Current = version; }
+    if (active) smartCurrent = smartAutoConvert;
     if (lostAck) throw Error('synthetic lost acknowledgement');
   },
   discard: async (_, version) => { staged.delete(version.Path); }
@@ -59,6 +63,10 @@ const store = { ProfileStore: {
   saveMergeDraft: (_, name, value) => { originals[name + '.merge'] = value; },
   setMergeEnabled: (_, name, value) => { originals[name + '.merge'] = value; }
 } };
+const settings = { Settings: {
+  load: () => ({ smartAutoConvert }),
+  setSmartAutoConvert: (_, enabled) => { smartAutoConvert = enabled; }
+} };
 const context = { exports: {}, require: name => {
   if (name === '@kit.CoreFileKit') return { fileIo: { readTextSync: name => {
     const entry = staged.get(name);
@@ -66,6 +74,7 @@ const context = { exports: {}, require: name => {
   } } };
   if (name.endsWith('CoreApi')) return core;
   if (name.endsWith('ProfileStore')) return store;
+  if (name.endsWith('Settings')) return settings;
   if (name.endsWith('EffectiveVersions')) return versions;
   if (name.endsWith('VpnController')) return controller;
   if (name.endsWith('CoreValidator')) return { CoreValidator: {
@@ -122,5 +131,23 @@ const tx = context.exports.ProfileTransactions;
   assert.equal(await tx.edit({}, 'new.yaml', 'proxies: [ack-lost]'), 'applied');
   assert.equal(applies, beforeLostAck + 1, 'committed version must not trigger a false rollback');
   lostAck = false;
+  response = 'rejected';
+  const beforeToggle = state.Current.ID;
+  await assert.rejects(tx.setSmartAutoConvert({}, false), /拒绝/);
+  assert.equal(smartAutoConvert, true, 'failed toggle must restore the saved preference');
+  assert.equal(state.Current.ID, beforeToggle, 'failed toggle must preserve the effective version');
+  response = 'applied';
+  assert.equal(await tx.setSmartAutoConvert({}, false), 'applied');
+  assert.equal(smartAutoConvert, false);
+  assert.equal(await tx.setSmartAutoConvert({}, true), 'applied');
+  assert.equal(smartAutoConvert, true);
+  controller.VpnController.status = 0;
+  const beforeEnsure = state.Current.ID;
+  await tx.ensureActiveSmartPolicy({});
+  assert.equal(state.Current.ID, beforeEnsure, 'matching generated policy must not restage');
+  smartCurrent = false; // version staged before the default-on feature
+  await tx.ensureActiveSmartPolicy({});
+  assert.notEqual(state.Current.ID, beforeEnsure, 'legacy generated version must migrate through transaction');
+  assert.equal(smartCurrent, true);
   console.log('PASS: rejected, unknown, staged pointer, merge reapply and concurrent profile transactions');
 })().catch(error => { console.error(error); process.exitCode = 1; });

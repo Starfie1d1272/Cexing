@@ -42,6 +42,7 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
       getConfigs: async () => null }, formatRate: n => `${n} B/s` },
     '../lib/ProfileStore': { ProfileStore: { getActiveFile: () => activeHomeFile } },
     '../lib/Settings': { Settings: { load: () => ({ mode: 'rule' }) } },
+    '../lib/ProfileTransactions': { ProfileTransactions: { ensureActiveSmartPolicy: async () => {} } },
     '../lib/AppRuntime': { AppRuntime: { cancelRestore() {} } }
   }, { Date: { now: () => now }, setInterval: cb => { tick = cb; return 1; },
     clearInterval: () => timerCleared++, AlertDialog: { show: value => { dialog = value; } } });

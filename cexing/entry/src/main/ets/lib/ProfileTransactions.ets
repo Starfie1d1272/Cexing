@@ -7,6 +7,7 @@ import { VpnController, VpnStatus } from './VpnController';
 import { CoreValidator } from './CoreValidator';
 import { MergePreview } from './CoreValidator';
 import { EffectiveVersions, EffectiveState } from './EffectiveVersions';
+import { Settings } from './Settings';
 
 export type ProfileApplyState = 'applied' | 'saved';
 
@@ -120,6 +121,25 @@ export namespace ProfileTransactions {
     } finally { busy = false; }
   }
 
+  /** Before a disconnected start, migrate old versions through the same gate. */
+  export async function ensureActiveSmartPolicy(context: common.Context): Promise<void> {
+    enter(context);
+    try {
+      if (VpnController.status !== VpnStatus.Disconnected) { return; }
+      const file = ProfileStore.getActiveFile(context);
+      if (file === '') { return; }
+      const current = EffectiveVersions.read(context)?.Current;
+      if (current !== null && current !== undefined &&
+        EffectiveVersions.smartConversion(context, current) === Settings.load(context).smartAutoConvert) {
+        return;
+      }
+      const original = ProfileStore.getProfileContent(context, file);
+      if (original === null) { throw new Error('当前配置不存在或读取失败'); }
+      await publish(context, file, ProfileStore.prepareContent(original),
+        ProfileStore.getEnabledMerge(context, file), metadata(context, file), true);
+    } finally { busy = false; }
+  }
+
   export async function edit(context: common.Context, file: string, content: string): Promise<ProfileApplyState> {
     enter(context);
     try {
@@ -208,6 +228,26 @@ export namespace ProfileTransactions {
       // The committed version remains authoritative if sidecar metadata cannot be written.
       try { ProfileStore.setMergeEnabled(context, file, overlay); } catch (_) {}
       return result;
+    } finally { busy = false; }
+  }
+
+  /** Recompile the active original and Merge through the normal version gate. */
+  export async function setSmartAutoConvert(context: common.Context,
+    enabled: boolean): Promise<ProfileApplyState> {
+    enter(context);
+    const previous = Settings.load(context).smartAutoConvert;
+    try {
+      Settings.setSmartAutoConvert(context, enabled);
+      const file = ProfileStore.getActiveFile(context);
+      if (file === '') { return 'saved'; }
+      const original = ProfileStore.getProfileContent(context, file);
+      if (original === null) { throw new Error('当前配置不存在或读取失败'); }
+      return await publish(context, file, ProfileStore.prepareContent(original),
+        ProfileStore.getEnabledMerge(context, file), metadata(context, file), true);
+    } catch (e) {
+      try { Settings.setSmartAutoConvert(context, previous); }
+      catch (_) { markUnknown(context); }
+      throw new Error((e as Error).message);
     } finally { busy = false; }
   }
 }
