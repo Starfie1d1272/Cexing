@@ -10,6 +10,7 @@ import (
 )
 
 func TestOfflineValidationUsesCoreWithoutApplying(t *testing.T) {
+	wasInitialized := initialized
 	home := t.TempDir()
 	if err := os.WriteFile(filepath.Join(home, "geoip.metadb"), []byte("synthetic"), 0600); err != nil {
 		t.Fatal(err)
@@ -24,7 +25,7 @@ rules:
 	if err := coreValidateOffline(home, valid, ""); err != nil {
 		t.Fatalf("valid synthetic candidate: %v", err)
 	}
-	if initialized || tunListener != nil {
+	if initialized != wasInitialized || tunListener != nil {
 		t.Fatal("validation started the core")
 	}
 	var requests atomic.Int32
