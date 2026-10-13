@@ -19,7 +19,7 @@ function fixture(recovered = status.Disconnected) {
   const controller = {
     status: status.Disconnected,
     onChanged: cb => listeners.push(cb),
-    cancelRecovery: () => {}, verify: async () => {}, getLastStopCompleted: () => null,
+    cancelRecovery: () => {}, onPhase: ()=>()=>{}, needsStop: ()=>false, verify: async () => {}, getLastStopCompleted: () => null,
     recover: cb => { controller.status = recovered; listeners.forEach(fn => fn(recovered)); cb(); },
     start: () => { calls.start++; }
   };
@@ -40,7 +40,8 @@ function fixture(recovered = status.Disconnected) {
     './ProfileTransactions': { ProfileTransactions: { ensureActiveSmartPolicy: async () => {},
       applyPendingRegionSelection: async () => false } },
     './Logger': { Logger: { warn() {} } },
-    './ConnectionCards': { ConnectionCards: { publish() {} } }
+    './ConnectionCards': { ConnectionCards: { publish() {} } },
+    './DiagnosticsService': { DiagnosticsService: { initialize: async()=>true, observe:()=>()=>{}, record:async()=>true } }
   };
   const ctx = { exports: {}, require: name => {
     assert.ok(name in modules, `Missing mock: ${name}`); return modules[name];

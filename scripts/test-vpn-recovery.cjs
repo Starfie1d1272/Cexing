@@ -12,8 +12,13 @@ function load(options = {}) {
   const auth = options.delayedAuth ? new Promise(r => { resolveAuth = r; }) : Promise.resolve();
   const settings = { accessMode: 'all', accessList: [], ipv6: false };
   const cleanupRequests = [];
+  const nativeRequests = [];
   const remote = { sendMessageRequest: async (code, data) => {
     if (failRead) throw Error('synthetic service loss');
+    if (code === 3) {
+      if (options.delayedNative) return new Promise(resolve=>nativeRequests.push({session,resolve}));
+      return {errCode:0,reply:{readString:()=>JSON.stringify(options.nativeSnapshot ?? {session,events:[],dropped:0})}};
+    }
     if (code === 2) {
       const request = data.values[1];
       if (options.delayedCleanup) return new Promise(resolve => cleanupRequests.push({ request, resolve }));
@@ -24,8 +29,11 @@ function load(options = {}) {
     return { errCode: 0, reply: { readBoolean: () => ++booleans === 1 ? ready : tun,
       readString: () => ++strings === 1 ? '' : session } };
   } };
+  const phaseModule = {exports:{}};
+  vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(__dirname,'../cexing/entry/src/main/ets/lib/VpnPhases.ets'),'utf8')).outputText,phaseModule);
   const modules = {
-    '@kit.NetworkKit': { vpnExtension: { startVpnExtensionAbility: () => { calls.start++; if (options.throwStart) throw Error('synthetic authorization failure'); return auth; },
+    './VpnPhases': phaseModule.exports,
+    '@kit.NetworkKit': { vpnExtension: { startVpnExtensionAbility: () => { calls.start++; if (options.throwStart) throw (typeof options.throwStart === 'object' ? options.throwStart : Error('synthetic authorization failure')); return auth; },
       stopVpnExtensionAbility: async () => { calls.stop++; if (options.receiptOnSystemStop) receipt = JSON.stringify({session,completed:true}); if (options.failFirstStop && calls.stop === 1) throw Error('synthetic early stop failure'); } } },
     '@kit.CoreFileKit': { fileIo: { accessSync: () => receipt.length > 0, readTextSync: () => receipt } },
     './Logger': { Logger: { info() {}, warn() {}, error() {} } },
@@ -54,7 +62,7 @@ function load(options = {}) {
     Date: options.staleReceipt ? { now: () => 20000 * ++host.tick } : Date, tick:0 };
   vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(__dirname,
     '../cexing/entry/src/main/ets/lib/VpnController.ets'),'utf8')).outputText, host);
-  return { ...host.exports, context, probes, calls, timers, resolveAuth, cleanupRequests, options,
+  return { ...host.exports, context, probes, calls, timers, resolveAuth, cleanupRequests, nativeRequests, options,
     connected: () => callbacks.onConnect({}, remote),
     lost: () => callbacks.onDisconnect(),
     set: v => { if ('ready' in v) ready=v.ready; if ('tun' in v) tun=v.tun;

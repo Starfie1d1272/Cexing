@@ -24,15 +24,17 @@ function fixture() {
   const settings = { autoRestore: true, vpnWasConnected: true };
   const logger = { Logger: { info() {}, warn() {}, error() {} } };
   const failure = load('ConnectionFailure', {}, timers);
+  const phases = load('VpnPhases', {}, timers);
   const controller = load('VpnController', {
     '@kit.NetworkKit': { vpnExtension: {} }, '@kit.CoreFileKit': { fileIo: {} }, '@kit.IPCKit': { rpc: { MessageSequence: { create: () => ({ reclaim() {} }) }, MessageOption: class {} } },
     './CoreApi': { CoreApi: { bindContext() {}, isAlive: () => new Promise(resolve => probes.push(resolve)) } },
     './Settings': { Settings: { load: () => settings } }, './Logger': logger,
-    './ConnectionFailure': failure,
+    './ConnectionFailure': failure, './VpnPhases': phases,
     './ProfileStore': { ProfileStore: { clearApplyUncertain() {} } }
   }, timers);
   const runtime = load('AppRuntime', {
     './ConnectionCards': { ConnectionCards: { publish() {} } },
+    './DiagnosticsService': { DiagnosticsService: { initialize: async()=>true, observe:()=>()=>{}, record:async()=>true } },
     './VpnController': controller, './Settings': { Settings: { load: () => settings } }, './Logger': logger,
     './ProfileTransactions': { ProfileTransactions: { ensureActiveSmartPolicy: async () => {},
       applyPendingRegionSelection: async () => false } },

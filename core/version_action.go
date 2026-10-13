@@ -40,6 +40,10 @@ type versionResponse struct {
 }
 
 func coreVersionAction(home, input string) string {
+	var diagnostic diagnosticAction
+	if json.Unmarshal([]byte(input), &diagnostic) == nil && (diagnostic.Op == "diagnostics-record" || diagnostic.Op == "diagnostics-export") {
+		return coreDiagnosticAction(home, input)
+	}
 	var action versionAction
 	if len(input) > maxConfigBytes*4 || json.Unmarshal([]byte(input), &action) != nil ||
 		home == "" || !filepath.IsAbs(home) {
