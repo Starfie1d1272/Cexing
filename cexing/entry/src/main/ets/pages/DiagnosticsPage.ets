@@ -98,7 +98,7 @@ export struct DiagnosticsPage {
     const attempt = this.generation;
     this.busy = true;
     const context = getContext(this) as common.UIAbilityContext;
-    this.exportMessage = '正在准备完整诊断包…';
+    this.exportMessage = '正在准备诊断支持包…';
     try {
       const bundle = await DiagnosticsService.exportBundle(context);
       if (!this.visible || attempt !== this.generation) { return; }
@@ -120,7 +120,7 @@ export struct DiagnosticsPage {
         if (uris.length === 0) { this.exportMessage = '保存已取消，诊断包保留在应用中'; return; }
         const file = fileIo.openSync(uris[0], fileIo.OpenMode.READ_WRITE | fileIo.OpenMode.CREATE | fileIo.OpenMode.TRUNC);
         try { fileIo.copyFileSync(bundle.path, file.fd); } finally { fileIo.closeSync(file); }
-        this.exportMessage = '完整诊断支持包已保存，请审核后提交';
+        this.exportMessage = '诊断支持包已保存，请审核证据范围后提交';
       }
     } catch (_) {
       if (this.visible && attempt === this.generation) { this.exportMessage = '诊断包保存或分享未完成，可重试；历史证据保留'; }
@@ -220,7 +220,7 @@ export struct DiagnosticsPage {
           }
       Button(this.busy ? '检查中…' : '检查本机服务').width('100%').height(56)
         .backgroundColor(UI.action).fontColor(UI.onAccent).enabled(!this.busy).onClick(() => this.check())
-      Button('保存完整诊断包').width('100%').height(48).enabled(!this.busy)
+      Button('保存诊断支持包').width('100%').height(48).enabled(!this.busy)
         .backgroundColor(UI.soft).fontColor(UI.accentText).onClick(() => this.exportSupport(false))
       Button('分享诊断包文件').width('100%').height(48).enabled(!this.busy)
         .backgroundColor(UI.soft).fontColor(UI.accentText).onClick(() => this.exportSupport(true))
@@ -231,7 +231,7 @@ export struct DiagnosticsPage {
       }
       Button('复制简短脱敏摘要').width('100%').height(48)
         .backgroundColor(UI.soft).fontColor(UI.accentText).onClick(() => this.copySummary())
-      Text('保存完整诊断包，在 GitHub 模板中补充复现步骤，审核后提交；简短摘要仅用于快速说明。').fontSize(13).fontColor(UI.muted).width('100%')
+      Text('保存诊断支持包，在 GitHub 模板中补充复现步骤，审核后提交；简短摘要仅用于快速说明。').fontSize(13).fontColor(UI.muted).width('100%')
       Button('打开 GitHub 反馈模板').width('100%').height(48)
         .backgroundColor(UI.soft).fontColor(UI.accentText).onClick(() => this.openFeedback())
       Button('打开控制面板').width('100%').height(48)

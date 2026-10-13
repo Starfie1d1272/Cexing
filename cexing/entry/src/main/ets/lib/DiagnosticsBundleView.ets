@@ -69,7 +69,7 @@ export class DiagnosticsBundleView {
         const pending = DiagnosticsBundleView.count(source.unpersistedEvents);
         const suppressed = DiagnosticsBundleView.count(source.journal?.logSuppressed);
         if (omitted + dropped + failed + pending + suppressed > 0) {
-          facts.push(`${label}：轮转丢弃 ${dropped}，导出省略 ${omitted}，写入失败 ${failed}，未落盘 ${pending}，限流省略 ${suppressed}`);
+          facts.push(`${label}：记录丢弃 ${dropped}，导出省略 ${omitted}，写入失败 ${failed}，未落盘 ${pending}，限流省略 ${suppressed}`);
         }
       }
     }
@@ -83,6 +83,7 @@ export class DiagnosticsBundleView {
         facts.push(`${DiagnosticsBundleView.title(kind)}：没有保留检查结果，不能据此判断是否执行过`);
       }
     }
+    facts.push('每个来源保留当前与两次历史进程会话；更早证据可能已轮转。');
     facts.push('带宽测速需单独主动执行；本页仅提供低流量检查。');
     return facts;
   }

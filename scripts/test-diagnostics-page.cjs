@@ -8,7 +8,7 @@ const sources=[{name:'host-current',status:'available',journal:{events:[{}],drop
  {name:'host-previous',status:'available',journal:{events:[{},{}]}},{name:'kernel-previous',status:'invalid'}];
 const json=JSON.stringify({schema:'cexing-support-bundle/1',sources,exportContextCollected:false,selectedVersion:{effectiveVersion:'unknown'},checkCoverage:{controller:[{}]}, padding:'x'.repeat(250000)});
 const facts=view.DiagnosticsBundleView.facts(json);
-assert.ok(facts.some(s=>s.includes('上一会话：2')));assert.ok(facts.some(s=>s.includes('轮转丢弃 3')));
+assert.ok(facts.some(s=>s.includes('上一会话：2')));assert.ok(facts.some(s=>s.includes('记录丢弃 3')));
 assert.ok(facts.some(s=>s.includes('文件损坏')));assert.ok(facts.some(s=>s.includes('不能据此判断')));
 assert.throws(()=>view.DiagnosticsBundleView.facts('{"schema":"wrong","sources":[]}'));
 let outcome='success',kind='controller',stage='controller_version',listener,copied,opened,shares=[],dest=['file://chosen'],closed=0,files=[],throwsCopy=false,exportCount=0,checks=0;
@@ -33,7 +33,7 @@ vm.runInNewContext(ts.transpileModule(methods).outputText,c);
 (async()=>{
  const page=new c.exports.DiagnosticsPage();page.aboutToAppear();await page.check();assert.equal(page.control,'本机服务可达');listener(2);assert.equal(page.control,'本机服务可达');
  stage='controller_authorization';outcome='failed';await page.check();assert.match(page.control,/认证失败/);
- await page.exportSupport(false);assert.equal(exportCount,1);assert.equal(checks,2,'export never probes');assert.equal(files[0].to,9);assert.equal(closed,1);assert.match(page.exportMessage,/完整诊断支持包已保存/);
+ await page.exportSupport(false);assert.equal(exportCount,1);assert.equal(checks,2,'export never probes');assert.equal(files[0].to,9);assert.equal(closed,1);assert.match(page.exportMessage,/诊断支持包已保存/);
  dest=[];await page.exportSupport(false);assert.equal(closed,1);assert.match(page.exportMessage,/取消/);
  throwsCopy=true;dest=['file://chosen'];await page.exportSupport(false);assert.equal(closed,2,'failed copy closes destination');assert.match(page.exportMessage,/未完成/);
  throwsCopy=false;await page.exportSupport(true);assert.equal(shares.length,1);assert.equal(shares[0].utd,'general.file');assert.equal(shares[0].uri,'file:///cache/cexing-support-share.json');assert.equal(shares[0].content,undefined,'1 MiB JSON is not text IPC');
