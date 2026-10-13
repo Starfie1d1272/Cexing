@@ -39,6 +39,7 @@ export class AppSettings {
 export namespace Settings {
   let store: preferences.Preferences | null = null;
   let lanWriteFailed: boolean = false;
+  let lanRevokeFailed: boolean = false;
 
   function getStore(context: common.Context): preferences.Preferences {
     if (!store) {
@@ -54,8 +55,8 @@ export namespace Settings {
       s.keepAlive = p.getSync('keepAlive', true) as boolean;
       s.ipv6 = p.getSync('ipv6', false) as boolean;
       // Legacy true included the old default; it cannot establish consent.
-      s.allowLan = !lanWriteFailed && p.getSync('allowLanConfirmed', false) === true &&
-        p.getSync('allowLan', false) === true;
+      s.allowLan = lanRevokeFailed || (!lanWriteFailed &&
+        p.getSync('allowLanConfirmed', false) === true && p.getSync('allowLan', false) === true);
       s.logLevel = p.getSync('logLevel', 'info') as string;
       s.mixedPort = p.getSync('mixedPort', 7890) as number;
       s.accessMode = p.getSync('accessMode', 'all') as string;
@@ -107,6 +108,22 @@ export namespace Settings {
   /** Called only after explicit LAN risk confirmation, or to disable sharing. */
   export function setAllowLan(context: common.Context, enabled: boolean): void {
     const p = getStore(context);
+    if (!enabled) {
+      const previouslyAllowed = load(context).allowLan;
+      try {
+        p.putSync('allowLanConfirmed', false);
+        p.putSync('allowLan', false);
+        p.flushSync();
+        lanRevokeFailed = false;
+        lanWriteFailed = false;
+      } catch (_) {
+        // The extension/new process can still read the old durable grant.
+        // Keep the prior authorization visible until a retry durably revokes it.
+        lanRevokeFailed = previouslyAllowed;
+        throw new Error('LAN revocation could not be saved');
+      }
+      return;
+    }
     lanWriteFailed = true;
     try {
       // Revoke first: a partial failure cannot turn a legacy true into consent.
@@ -117,6 +134,7 @@ export namespace Settings {
       p.putSync('allowLanConfirmed', enabled);
       p.flushSync();
       lanWriteFailed = false;
+      lanRevokeFailed = false;
     } catch (_) {
       // putSync changes the Preferences cache before flushSync can fail.
       // Revoke that cached grant too; the process guard covers rollback failure.

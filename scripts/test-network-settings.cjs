@@ -2,51 +2,62 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 const ts = require('./ci/transpile-arkts.cjs');
-const source = fs.readFileSync('cexing/entry/src/main/ets/lib/Settings.ets', 'utf8');
-const kv = new Map();
-let fail = false, failFlush = 0, flushes = 0, failRollbackPut = false;
-const persisted = new Map();
-const p = { getSync: (key, value) => kv.has(key) ? kv.get(key) : value,
- putSync(key, value) { if ((fail && key === 'allowLan') || (failRollbackPut && flushes >= 3 && key === 'allowLanConfirmed' && value === false)) throw Error('synthetic'); kv.set(key,value); },
- flush() {}, flushSync() {
-  if (++flushes === failFlush) throw Error("synthetic flush");
-  persisted.clear(); for (const [key, value] of kv) persisted.set(key, value);
- } };
-const sandbox = {exports: {}, require: key => key === '@kit.ArkData' ?
- {preferences: {getPreferencesSync: () => p}} : key === './Logger' ? {Logger: {error() {}}} : {}};
-vm.runInNewContext(ts.transpileModule(source).outputText, sandbox);
-const Settings = sandbox.exports.Settings;
-assert.equal(Settings.load({}).allowLan,false);
-kv.set('allowLan',true);
-assert.equal(Settings.load({}).allowLan,false,'legacy true is not consent');
-Settings.save({}, Settings.load({}));
-assert.equal(kv.has('allowLanConfirmed'),false,'unrelated save cannot grant consent');
-Settings.setAllowLan({},true);
-assert.equal(Settings.load({}).allowLan,true);
-Settings.save({}, Settings.load({}));
-assert.equal(Settings.load({}).allowLan,true);
-fail = true;
-assert.throws(() => Settings.setAllowLan({},true));
-assert.equal(Settings.load({}).allowLan,false,'partial persistence revokes consent');
-fail = false;
-Settings.setAllowLan({},false);
-assert.equal(Settings.load({}).allowLan,false);
-for (const stage of [1, 2, 3]) {
-  flushes = 0; failFlush = stage;
-  assert.throws(() => Settings.setAllowLan({},true));
-  assert.equal(Settings.load({}).allowLan,false, `flush stage ${stage} must revoke cached consent`);
-  assert.equal(kv.get('allowLanConfirmed'), false);
-  assert.equal(persisted.get('allowLanConfirmed'),false);
-  failFlush = 0; Settings.setAllowLan({},true);
-  assert.equal(Settings.load({}).allowLan,true,'new successful explicit confirmation can recover');
+const code = ts.transpileModule(fs.readFileSync('cexing/entry/src/main/ets/lib/Settings.ets', 'utf8')).outputText;
+function fixture(disk = new Map()) {
+  const cache = new Map(disk);
+  let puts = 0, flushes = 0, policy = {};
+  const p = {
+    getSync: (key, fallback) => cache.has(key) ? cache.get(key) : fallback,
+    putSync(key, value) {
+      puts++;
+      if (puts === policy.put || (policy.persistentPut && puts >= policy.put)) throw Error('put failure');
+      cache.set(key, value);
+    },
+    flushSync() {
+      flushes++;
+      if (flushes === policy.flush || (policy.persistentFlush && flushes >= policy.flush)) throw Error('flush failure');
+      disk.clear(); for (const [key, value] of cache) disk.set(key,value);
+    },
+    flush() { this.flushSync(); }
+  };
+  const sandbox = {exports: {}, require: key => key === '@kit.ArkData' ?
+    {preferences: {getPreferencesSync: () => p}} : key === './Logger' ? {Logger: {error() {}}} : {}};
+  vm.runInNewContext(code, sandbox);
+  return {settings: sandbox.exports.Settings, cache, disk,
+    fail(value) { puts = 0; flushes = 0; policy = value; },
+    cold() { return fixture(disk).settings.load({}).allowLan; }};
 }
-flushes = 0; failFlush = 3; failRollbackPut = true;
-assert.throws(() => Settings.setAllowLan({},true));
-assert.equal(kv.get('allowLanConfirmed'),true,'simulate rollback put also failing');
-assert.equal(Settings.load({}).allowLan,false,'process guard must cover failed cache rollback');
-Settings.save({}, Settings.load({}));
-assert.equal(Settings.load({}).allowLan,false,'unrelated save cannot clear failure guard');
-failFlush = 0; failRollbackPut = false;
-Settings.setAllowLan({},false);
-assert.equal(Settings.load({}).allowLan,false);
-console.log('PASS: fresh/legacy defaults, explicit consent, unrelated save and persistence failure');
+let f = fixture();
+assert.equal(f.settings.load({}).allowLan,false);
+f.cache.set('allowLan',true);
+assert.equal(f.settings.load({}).allowLan,false,'legacy true is not consent');
+f.settings.save({},f.settings.load({}));
+assert.equal(f.cold(),false);
+f.settings.setAllowLan({},true);
+assert.equal(f.cold(),true);
+f.settings.save({},f.settings.load({}));
+assert.equal(f.cold(),true);
+// Every enable write and flush stage, with one-shot and continuing failure.
+for (const kind of ['put','flush']) for (const stage of [1,2,3]) for (const persistent of [false,true]) {
+  f = fixture();
+  f.fail({[kind]:stage, [kind === 'put' ? 'persistentPut' : 'persistentFlush']:persistent});
+  assert.throws(() => f.settings.setAllowLan({},true));
+  assert.equal(f.settings.load({}).allowLan,false, `enable ${kind}/${stage}/${persistent}`);
+  assert.equal(f.cold(),false,'failed enable cannot invent a durable grant in this precommit failure fixture');
+  f.fail({}); f.settings.setAllowLan({},true);
+  assert.equal(f.settings.load({}).allowLan,true);
+  assert.equal(f.cold(),true);
+}
+// Durable previous consent must remain visibly possible after failed revocation.
+// A new VM represents the app or VPN Extension with a distinct Preferences cache.
+for (const kind of ['put','flush']) for (const stage of kind === 'put' ? [1,2] : [1]) for (const persistent of [false,true]) {
+  f = fixture(); f.settings.setAllowLan({},true);
+  f.fail({[kind]:stage, [kind === 'put' ? 'persistentPut' : 'persistentFlush']:persistent});
+  assert.throws(() => f.settings.setAllowLan({},false));
+  assert.equal(f.settings.load({}).allowLan,true, `failed revoke ${kind}/${stage}/${persistent} must show prior consent`);
+  assert.equal(f.cold(),true,'extension/new process still sees old durable consent');
+  f.fail({}); f.settings.setAllowLan({},false);
+  assert.equal(f.settings.load({}).allowLan,false);
+  assert.equal(f.cold(),false,'successful retry revokes across processes');
+}
+console.log('PASS: separate cache/disk and process VMs; every enable/revoke put/flush stage, continuing failure, prior-consent warning and durable retry');

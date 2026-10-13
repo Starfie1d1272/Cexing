@@ -204,6 +204,16 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   override.changeAllowLan(true); override.aboutToDisappear(); dialog.secondaryButton.action();
   assert.equal(value.allowLan, false, 'late confirmation cannot enable sharing after leave');
 
+  const FailedRevoke = load('OverridePage', { ...common,
+    '../lib/Settings': {Settings: {load: () => ({allowLan:true}),
+      setAllowLan: () => {throw Error('synthetic persistence failure');} }}
+  });
+  const failedRevoke = new FailedRevoke(); failedRevoke.allowLan = true;
+  failedRevoke.saveAllowLan(false);
+  assert.equal(failedRevoke.allowLan,true,'failed revocation keeps prior authorization visible');
+  assert.match(failedRevoke.lanError,/原授权仍可能有效/);
+  assert.match(failedRevoke.lanError,/重试/);
+
   let active = 'fixture.yaml', deleted = 0, rejectImport = true;
   let activateResult = async () => 'applied';
   let regionResult = async () => 'saved';

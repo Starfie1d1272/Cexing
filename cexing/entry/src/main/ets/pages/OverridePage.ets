@@ -18,6 +18,7 @@ export struct OverridePage {
   @State logLevel: string = 'info';
   @State allowLan: boolean = false;
   @State portError: string = '';
+  @State lanError: string = '';
   private lanDialogGeneration: number = 0;
 
   aboutToAppear(): void {
@@ -52,10 +53,13 @@ export struct OverridePage {
     try {
       Settings.setAllowLan(context, enabled);
       this.allowLan = enabled;
+      this.lanError = '';
       promptAction.showToast({ message: '已保存，下次启动 VPN 生效', duration: 1500 });
     } catch (_) {
       this.allowLan = Settings.load(context).allowLan;
-      promptAction.showToast({ message: '保存失败，请重试', duration: 1500 });
+      this.lanError = enabled ? '开启保存失败，请重试' :
+        '撤销保存失败，原授权仍可能有效，请再次关闭重试；当前共享不会自动停止';
+      promptAction.showToast({ message: this.lanError, duration: 4000 });
     }
   }
 
@@ -149,6 +153,9 @@ export struct OverridePage {
             .fontSize(13).fontColor(UI.muted).width('100%')
           if (this.portError.length > 0) {
             Text(this.portError).fontSize(14).fontColor(UI.error).width('100%')
+          }
+          if (this.lanError.length > 0) {
+            Text(this.lanError).fontSize(14).fontColor(UI.error).width('100%')
           }
         }.width('100%')
       }.layoutWeight(1).width('100%').scrollBar(BarState.Off)
