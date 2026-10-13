@@ -17,6 +17,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 	"unicode/utf8"
 
 	"github.com/metacubex/mihomo/constant"
@@ -103,7 +104,8 @@ func defaultTunExt() tunExt {
 	}
 }
 
-func coreInit(home string) error {
+func coreInit(home string) (result error) {
+	defer func() { diagnosticStartResult("core_init", result) }()
 	runLock.Lock()
 	defer runLock.Unlock()
 	if tunListener != nil {
@@ -126,6 +128,7 @@ func coreInit(home string) error {
 		logFileBytes = 0
 	}
 	homeDir = home
+	_, _ = getDiagnosticStore(home, "kernel")
 	logFileMu.Unlock()
 	constant.SetHomeDir(home)
 	log.SetLevel(log.INFO)
@@ -155,6 +158,7 @@ func startLogRelay() {
 		for e := range logSub {
 			line := fmt.Sprintf("[%s] %s", e.LogLevel.String(), redactControllerSecret(e.Payload))
 			hilogPrint(int(e.LogLevel), "mihomo", line)
+			kernelDiagnosticLog(e.Type(), e.Payload)
 			writeLogLine(line)
 		}
 	}()
@@ -208,7 +212,16 @@ func setLogToFile(enabled bool) {
 	}
 }
 
-func coreStartTun(fd int, configJson string, overridesJson string) error {
+func coreStartTun(fd int, configJson string, overridesJson string) (result error) {
+	stage := "precondition"
+	started := time.Now()
+	defer func() {
+		outcome := "success"
+		if result != nil {
+			outcome = "failed"
+		}
+		kernelDiagnostic(stage, outcome, result, map[string]any{"startupElapsedMs": time.Since(started).Milliseconds()})
+	}()
 	runLock.Lock()
 	defer runLock.Unlock()
 
@@ -223,17 +236,24 @@ func coreStartTun(fd int, configJson string, overridesJson string) error {
 	}
 
 	// 启动与 REST 热重载使用同一个最终约束与解析入口。
+	stage = "config_parse"
+	diagnosticRecordConfig(configJson, overridesJson)
 	cfg, err := preparePlatformConfig(configJson, overridesJson)
 	if err != nil {
 		return err
 	}
+	kernelDiagnostic("config_parse", "success", nil, nil)
 	ext := defaultTunExt() // 系统地址、MTU、DNS 劫持不能由订阅覆盖
+	stage = "controller_listen"
 	if err := startController(); err != nil {
 		return err
 	}
+	kernelDiagnostic("controller_listen", "success", nil, nil)
+	stage = "config_apply"
 	executor.ApplyConfig(cfg, true)
 	applyLogOverride(overridesJson)
 	activeOverrides = overridesJson
+	kernelDiagnostic("config_apply", "completed", nil, nil)
 
 	// 6. 用系统 tun fd 起 gVisor 入站
 	stack, ok := constant.StackTypeMapping[strings.ToLower(ext.stack)]
@@ -258,11 +278,14 @@ func coreStartTun(fd int, configJson string, overridesJson string) error {
 		MTU:                 ext.mtu,
 		FileDescriptor:      fd,
 	}
+	stage = "tun_start"
+	kernelDiagnostic("tun_start", "started", nil, nil)
 	l, err := sing_tun.New(opts, tunnel.Tunnel)
 	if err != nil {
 		return fmt.Errorf("mihomoStartTun: start tun: %w", err)
 	}
 	tunListener = l
+	stage = "core_ready"
 	log.Infoln("[OHOS] TUN started fd=%d stack=%s address=%s mtu=%d hijack=%v", fd, stack.String(), ext.address, ext.mtu, ext.dnsHijack)
 	return nil
 }
@@ -317,6 +340,7 @@ func applyLogOverride(overridesJson string) {
 }
 
 func coreStop() {
+	kernelDiagnostic("core_stop", "started", nil, nil)
 	runLock.Lock()
 	defer runLock.Unlock()
 
@@ -339,6 +363,7 @@ func coreStop() {
 	MDNS.ReCreateServer("", nil, nil)
 	stopController()
 	activeOverrides = ""
+	kernelDiagnostic("core_stop", "completed", nil, nil)
 	log.Infoln("[OHOS] mihomo core stopped")
 }
 
