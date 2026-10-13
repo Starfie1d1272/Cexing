@@ -10,7 +10,8 @@ const failureModule = { exports: {} };
 vm.runInNewContext(compile(fs.readFileSync('cexing/entry/src/main/ets/lib/ConnectionFailure.ets', 'utf8')), failureModule);
 const source = fs.readFileSync('cexing/entry/src/main/ets/pages/DiagnosticsPage.ets', 'utf8');
 const methods = (source.slice(0, source.indexOf('  build()')) + '\n}')
-  .replace(/@\w+(?:\([^\n)]*\))?\s*/g, '').replace('export struct ', 'export class ');
+  .split('\n').map(line => line.trimStart().startsWith('@') ?
+    line.replace(/@\w+(?:\([^\n)]*\))?\s*/g, '') : line).join('\n').replace('export struct ', 'export class ');
 let result = 'reachable', listener, copied, opened, timeout;
 const toasts = [];
 const controller = { status: 2, onChanged: fn => { listener = fn; }, offChanged() {},
