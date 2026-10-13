@@ -111,11 +111,11 @@ export struct OverridePage {
           }
         }.width('100%')
       }.layoutWeight(1).width('100%').scrollBar(BarState.Off)
-      Button('保存').width('100%').height(56).backgroundColor(UI.accent).onClick(() => this.persist())
+      Button('保存').width('100%').height(56).backgroundColor(UI.action).fontColor(UI.onAccent).onClick(() => this.persist())
     }
     .width('100%')
     .height('100%')
     .padding({ left: 24, right: 24, top: 16, bottom: 16 })
-    .backgroundColor(UI.paper)
+    .backgroundColor(UI.paper).constraintSize({ maxWidth: 760 }).alignSelf(ItemAlign.Center)
   }
 }

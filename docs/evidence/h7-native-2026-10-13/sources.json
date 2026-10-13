@@ -1,0 +1,77 @@
+{
+  "checked_date": "2026-10-13",
+  "primary_evidence": [
+    {
+      "file": "arkts-apis-uimaterial.md",
+      "sha256": "3d8c1096d160cbb5c7c8113e044fbda86a3eb58b2c14d4aae9dfa6373ba5e640",
+      "official_source": "https://github.com/openharmony/docs/blob/f41b9345badd47c7ab0c263344cd7f4b5a549afb/zh-cn/application-dev/reference/apis-arkui/arkts-apis-uimaterial.md"
+    },
+    {
+      "file": "ts-basic-components-navigation.md",
+      "sha256": "39ce63aaa56623c648bb114e413ce9b5602be97622ee38baa46efcb17cda915f",
+      "official_source": "https://github.com/openharmony/docs/blob/f41b9345badd47c7ab0c263344cd7f4b5a549afb/zh-cn/application-dev/reference/apis-arkui/arkui-ts/ts-basic-components-navigation.md"
+    },
+    {
+      "file": "ts-container-tabs.md",
+      "sha256": "213798a4391e7bfdfba1b8d1cdcc98128e735d4225d1e21b6e48f563e8e7e2e3",
+      "official_source": "https://github.com/openharmony/docs/blob/f41b9345badd47c7ab0c263344cd7f4b5a549afb/zh-cn/application-dev/reference/apis-arkui/arkui-ts/ts-container-tabs.md"
+    },
+    {
+      "file": "ts-universal-attributes-background.md",
+      "sha256": "55b30b245cfcf0677a460453d0409888c4d5c1f3743a81aefe8fccd90288a1f2",
+      "official_source": "https://github.com/openharmony/docs/blob/f41b9345badd47c7ab0c263344cd7f4b5a549afb/zh-cn/application-dev/reference/apis-arkui/arkui-ts/ts-universal-attributes-background.md"
+    },
+    {
+      "file": "ts-universal-attributes-image-effect.md",
+      "sha256": "053a66e7bca8f228bf0c3c3267b9b1736c306d379d7cad064849ad7320ac5156",
+      "official_source": "https://github.com/openharmony/docs/blob/f41b9345badd47c7ab0c263344cd7f4b5a549afb/zh-cn/application-dev/reference/apis-arkui/arkui-ts/ts-universal-attributes-image-effect.md"
+    },
+    {
+      "file": "ts-universal-attributes-sheet-transition.md",
+      "sha256": "bf23c3906d65711e1b4e06d6d4463315899a763f0e10b277d82257422283de9e",
+      "official_source": "https://github.com/openharmony/docs/blob/f41b9345badd47c7ab0c263344cd7f4b5a549afb/zh-cn/application-dev/reference/apis-arkui/arkui-ts/ts-universal-attributes-sheet-transition.md"
+    },
+    {
+      "file": "openharmony/ets/api/@ohos.arkui.uiMaterial.d.ts",
+      "sha256": "d609002869f80307090bc11803b91049e86ff301f46e472e72430d954a40fd30",
+      "source": "official CLT 26.0.0.851 SDK declarations; not redistributed"
+    },
+    {
+      "file": "openharmony/ets/component/tabs.d.ts",
+      "sha256": "9eb145220f1d761035dae0fda491739998c75a8c884afe70af6f884865d957b6",
+      "source": "official CLT 26.0.0.851 SDK declarations; not redistributed"
+    },
+    {
+      "file": "openharmony/ets/component/common.d.ts",
+      "sha256": "2662a40432b2fa6efcfe387c3bc4bdc79ac9a993de1e415042b37a78d6315614",
+      "source": "official CLT 26.0.0.851 SDK declarations; not redistributed"
+    },
+    {
+      "file": "openharmony/ets/component/navigation.d.ts",
+      "sha256": "de92a1e637e3e73eab032de9b4ccabf9c91ee1249fd78c50ce5a5ae24a3433e0",
+      "source": "official CLT 26.0.0.851 SDK declarations; not redistributed"
+    },
+    {
+      "file": "hms/ets/api/@hms.hds.hdsMaterial.d.ets",
+      "sha256": "d030d0b94a65843aba20fdedd1c0f895e959634e79401b375ca0b585ca270be8",
+      "source": "official CLT 26.0.0.851 SDK declarations; not redistributed"
+    },
+    {
+      "file": "hms/ets/api/@hms.hds.hdsBaseComponent.d.ets",
+      "sha256": "d639864237167f06b69454dda91b7f37d993450bda30e1071e6a21aa414498b2",
+      "source": "official CLT 26.0.0.851 SDK declarations; not redistributed"
+    },
+    {
+      "file": "openharmony/ets/component/text.d.ts",
+      "sha256": "615bccc040f649664b22e110716eb984a913bde4472a64ab0db50896a9425026",
+      "source": "official CLT 26.0.0.851 SDK declarations; not redistributed"
+    }
+  ],
+  "limitations": [
+    "Huawei guide/FAQ pages timed out or returned empty SPA content; not claimed read in full",
+    "API/region claims verified from official Huawei indexed Navigation documentation, SDK declarations and official OpenHarmony API docs",
+    "no native screenshot/device performance evidence"
+  ],
+  "official_openharmony_docs_ref_at_fetch": "f41b9345badd47c7ab0c263344cd7f4b5a549afb",
+  "official_snapshot_hashes_verified": true
+}

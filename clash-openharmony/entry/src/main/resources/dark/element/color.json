@@ -1,0 +1,48 @@
+{
+  "color": [
+    {
+      "name": "ui_paper",
+      "value": "#12181C"
+    },
+    {
+      "name": "ui_surface",
+      "value": "#1E292F"
+    },
+    {
+      "name": "ui_ink",
+      "value": "#ECF1F4"
+    },
+    {
+      "name": "ui_muted",
+      "value": "#AFBFC8"
+    },
+    {
+      "name": "ui_line",
+      "value": "#37464E"
+    },
+    {
+      "name": "ui_accent",
+      "value": "#61CEDF"
+    },
+    {
+      "name": "ui_soft",
+      "value": "#203B43"
+    },
+    {
+      "name": "ui_error",
+      "value": "#F0AC99"
+    },
+    {
+      "name": "ui_on_accent",
+      "value": "#202B31"
+    },
+    {
+      "name": "ui_action",
+      "value": "#61CEDF"
+    },
+    {
+      "name": "ui_accent_text",
+      "value": "#61CEDF"
+    }
+  ]
+}

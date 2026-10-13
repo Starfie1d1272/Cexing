@@ -1,4 +1,5 @@
 import { NativeTheme as UI } from './NativeTheme';
+import { NativeMaterial, NativeTabStyle } from './NativeMaterial';
 import { SmartPage } from './SmartPage';
 import { DiagnosticsPage } from './DiagnosticsPage';
 import { HomePage } from './HomePage';
@@ -19,6 +20,7 @@ struct Index {
   @Provide('tab') currentVisibleTab: number = 0;
   @Provide('tabJump') @Watch('onTabJump') tabJump: number = -1;
   @State currentTab: number = 0;
+  @State windowWidth: number = 390;
   @State private smartVisible: boolean = false;
   @State private zashboardVisible: boolean = false;
 
@@ -59,26 +61,33 @@ struct Index {
   TabItem(label: string, symbol: Resource, index: number) {
     Column({ space: 5 }) {
       SymbolGlyph(symbol).fontSize(20)
-        .fontColor([this.currentTab === index ? UI.accent : UI.muted])
+        .fontColor([this.currentTab === index ? UI.accentText : UI.muted])
       Text(label).fontSize(12).fontWeight(FontWeight.Medium)
-        .fontColor(this.currentTab === index ? UI.accent : UI.muted)
+        .fontColor(this.currentTab === index ? UI.accentText : UI.muted)
     }.width('100%').height(60).justifyContent(FlexAlign.Center)
-      .backgroundColor(this.currentTab === index ? UI.soft : UI.surface).borderRadius(24)
-      .accessibilityText(label).accessibilityDescription(this.currentTab === index ? '已选中' : '')
+      .backgroundColor(this.currentTab === index ? UI.soft : Color.Transparent).borderRadius(24)
+      .accessibilityGroup(true).accessibilityText(label).accessibilityDescription(this.currentTab === index ? '已选中' : '')
   }
 
   build() {
     Navigation(this.navStack) {
       Tabs({ barPosition: BarPosition.End, index: this.currentTab }) {
-        TabContent() { HomePage() }.tabBar(this.TabItem('连接', $r('sys.symbol.power'), 0))
-        TabContent() { ProfilePage() }.tabBar(this.TabItem('订阅', $r('sys.symbol.doc'), 1))
-        TabContent() { SettingsPage() }.tabBar(this.TabItem('设置', $r('sys.symbol.slider_horizontal_2'), 2))
+        TabContent() {
+          Column() { HomePage() }.width('100%').height('100%').padding({ bottom: NativeMaterial.contentInset() })
+        }.tabBar(this.TabItem('连接', $r('sys.symbol.power'), 0))
+        TabContent() {
+          Column() { ProfilePage() }.width('100%').height('100%').padding({ bottom: NativeMaterial.contentInset() })
+        }.tabBar(this.TabItem('订阅', $r('sys.symbol.doc'), 1))
+        TabContent() {
+          Column() { SettingsPage() }.width('100%').height('100%').padding({ bottom: NativeMaterial.contentInset() })
+        }.tabBar(this.TabItem('设置', $r('sys.symbol.slider_horizontal_2'), 2))
       }
       .width('100%')
       .height('100%')
       .scrollable(false)
-      .barHeight(76)
-      .barBackgroundColor(UI.surface)
+      .animationDuration(0)
+      .attributeModifier(new NativeTabStyle(this.windowWidth))
+      .onAreaChange((_old: Area, area: Area) => { this.windowWidth = Number(area.width); })
       .backgroundColor(UI.paper)
       .onChange((index: number) => {
         this.currentTab = index;
@@ -86,6 +95,7 @@ struct Index {
       })
     }
     .hideTitleBar(true)
+    .backgroundColor(UI.paper)
     .onNavBarStateChange((visible: boolean) => { this.rootVisible = visible; })
     .navDestination(this.PageMap)
   }

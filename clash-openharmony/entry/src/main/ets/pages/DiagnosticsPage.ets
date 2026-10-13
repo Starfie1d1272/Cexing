@@ -72,7 +72,7 @@ export struct DiagnosticsPage {
         }.width('100%')
       }.width('100%').layoutWeight(1)
       Button(this.busy ? '检查中…' : '检查控制面').width('100%').height(56)
-        .backgroundColor(UI.accent).enabled(!this.busy).onClick(() => this.check())
-    }.width('100%').height('100%').padding(24).backgroundColor(UI.paper)
+        .backgroundColor(UI.action).fontColor(UI.onAccent).enabled(!this.busy).onClick(() => this.check())
+    }.width('100%').height('100%').padding(24).backgroundColor(UI.paper).constraintSize({ maxWidth: 760 }).alignSelf(ItemAlign.Center)
   }
 }

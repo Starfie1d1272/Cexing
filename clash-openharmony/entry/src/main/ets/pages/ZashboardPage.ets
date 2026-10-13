@@ -1,3 +1,4 @@
+import { NativeTheme as UI } from './NativeTheme';
 import { webview } from '@kit.ArkWeb';
 import { ZashboardPolicy } from '../lib/ZashboardPolicy';
 import { common } from '@kit.AbilityKit';
@@ -84,12 +85,25 @@ export struct ZashboardPage {
 
   build() {
     Column({ space: 12 }) {
-      Text(`Zashboard · ${this.version.substring(0, 12)}`).fontSize(14)
-      Button('重新打开面板').onClick(() => this.reopen())
       if (!this.validSession()) {
-        Text(this.error || '正在验证本机面板会话…').fontSize(16)
+        Scroll() {
+          Column({ space: 20 }) {
+            Text('面板暂未打开').fontSize(24).fontWeight(600, { enableVariableFontWeight: true }).fontColor(UI.ink)
+            Text(this.error || '正在验证本机面板会话…').fontSize(16).fontColor(UI.muted)
+            Button('重新打开面板').width('100%').height(56).backgroundColor(UI.action).fontColor(UI.onAccent)
+              .onClick(() => this.reopen())
+            Text('返回连接页不会断开 VPN。').fontSize(13).fontColor(UI.muted)
+          }.padding(24).width('100%').constraintSize({ maxWidth: 760 })
+            .borderRadius(24).backgroundColor(UI.surface).alignItems(HorizontalAlign.Start)
+        }.width('100%').layoutWeight(1)
       } else {
-        if (this.error !== '') { Text(this.error).fontColor(Color.Red) }
+        if (this.error !== '') {
+          Row({ space: 12 }) {
+            Text(this.error).fontSize(14).fontColor(UI.error).layoutWeight(1)
+            Button('重试').height(48).backgroundColor(UI.soft).fontColor(UI.accentText)
+              .onClick(() => this.reopen())
+          }.width('100%')
+        }
         if (this.open) {
           Web({ src: `${this.url}versions/${this.version}/`, controller: this.controller })
             .javaScriptAccess(true)
@@ -130,6 +144,6 @@ export struct ZashboardPage {
             .layoutWeight(1)
         }
       }
-    }.width('100%').height('100%').padding(12)
+    }.width('100%').height('100%').padding(12).backgroundColor(UI.paper)
   }
 }
