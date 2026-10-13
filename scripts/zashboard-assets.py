@@ -6,6 +6,7 @@ import shutil
 import sys
 import zipfile
 from pathlib import Path
+import zashboard_notices
 
 ROOT = Path(__file__).resolve().parent.parent
 PIN = ROOT / 'third_party/zashboard'
@@ -47,21 +48,9 @@ def prepare(source):
     shutil.copytree(source / 'dist', stage, symlinks=True)
     shutil.copyfile(PIN / 'LICENSE', stage / 'LICENSE')
     shutil.copyfile(source / 'node_modules/@fontsource/fira-sans/LICENSE', stage / 'FiraSans-LICENSE')
-    # Preserve dependency notices, including bundled/transitive code and build tools.
-    notices = []
-    for node_modules in sorted((source / 'node_modules/.pnpm').glob('*/node_modules')):
-        packages = list(node_modules.glob('*')) + list(node_modules.glob('@*/*'))
-        for package in packages:
-            if package.is_symlink() or not (package / 'package.json').is_file():
-                continue
-            meta = json.loads((package / 'package.json').read_text())
-            texts = []
-            for doc in sorted(package.iterdir()):
-                if doc.is_file() and doc.name.lower().startswith(('license', 'licence', 'notice', 'copyright')):
-                    texts.append({'file': doc.name, 'text': doc.read_text(errors='replace')})
-            notices.append({'name': meta.get('name'), 'version': meta.get('version'),
-                            'license': meta.get('license'), 'notices': texts})
-    (stage / 'dependency-notices.json').write_text(json.dumps(notices, ensure_ascii=False, indent=2) + '\n')
+    # The reviewed lock corpus includes optional packages on every platform.
+    # Never depend on which native build tools pnpm happened to install here.
+    (stage / 'dependency-notices.json').write_bytes(zashboard_notices.reviewed_notices())
     if list(stage.glob('registerSW*')) or not list(stage.rglob('*.woff2')):
         raise ValueError('expected local fonts and no SW auto-registration')
     for p in list(stage.rglob('*.css')) + [stage / 'index.html']:
