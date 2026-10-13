@@ -11,7 +11,7 @@ bash scripts/ci/quick.sh
 
 使用 `scripts/ci/toolchain.json` 中的 Go/Node 组合；Actions 按完整 commit 固定。检查受 Git 跟踪的 JSON/JSON5/YAML、默认配置、ARM64 构建声明、空签名配置、shell 语法、敏感文件/常见密钥模式和来源声明。扫描发现风险只输出文件名，不打印匹配值；模式扫描不能证明所有秘密都已发现，也不能替代完整许可证审查。
 
-四个现有回归脚本通过固定 TypeScript 运行真实 `.ets` 中可在宿主执行的逻辑，系统 API 使用既有 mocks。`arkts-mocks.cjs` 只替换编译器导入，**这不是 ArkTS 编译或 SDK/API 验证**。Full 使用 SDK 内的编译器重跑这些回归并编译工程。
+宿主回归通过固定 TypeScript 7 CLI 转译真实 `.ets` 中可在宿主执行的逻辑，系统 API 使用既有 mocks。`transpile-arkts.cjs` 用官方命令行接口转译，**这不是 ArkTS 编译或 SDK/API 验证**。Full 重跑相同回归，并由官方 SDK 编译工程。
 
 Go 在独立临时模块/构建缓存执行 `go mod download`、`go mod verify` 和 `go test ./...`，强制 `-mod=readonly`、`GOTOOLCHAIN=local`。基线根 Go 包没有测试文件，此步骤首先提供宿主编译检查；后续独立模块的真实测试可由相同入口运行。已下载的选定模块许可证/NOTICE 的相对路径及 SHA-256 形成清单，完全缺少声明时失败；只有子目录声明的模块和未下载的扩展模块图依赖单列待审查；清单不代表 GPL 或数据源分发义务已完成。
 
@@ -26,6 +26,8 @@ SDK 不进入公开 Actions Cache。公共仓库缓存可被 PR 工作流读取�
 经审查的组合保存在 `scripts/ci/toolchain.json`：CLT 26.0.0.851、SDK/NDK 26.0.0.105/API 26、Hvigor/plugin 6.26.8、ohpm 26.0.0.630、wrapper pnpm 10.28.2、Go 1.27.2、Node 26.11.1、JDK 27。不同组合需独立验证并更新该文件及 Actions 声明。构建前校验声明，构建后校验实际 wrapper pnpm。全新环境用独立 integrity lock 安装固定 wrapper pnpm 至隔离 Hvigor home，不修改官方 SDK；版本不符仍明确失败。
 
 Runner 提供以下环境：
+
+选用自托管 runner 时先核对 Actions Runner 至少为 `v2.327.1`：Full 使用的 setup-java v6、cache v6 和 upload-artifact v7 基于 Node 24。GitHub 托管 runner 由平台维护。
 
 - `HARMONYOS_CLT_ROOT`：官方 CLT 根目录；默认使用忽略的 `command-line-tools/`。
 - `JAVA_HOME`/`DEVECO_JDK_HOME` 和 PATH：选择 JDK 27。
