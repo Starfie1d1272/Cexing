@@ -30,8 +30,6 @@ jobs:
     timeout-minutes: 60
     env:
       AUTHORIZED_SDK: ${{ inputs.authorized_sdk }}
-      CI_GO_DOWNLOAD_CACHE: ${{ runner.temp }}/public-go-downloads
-      CI_TIMINGS_FILE: ${{ runner.temp }}/build-timings.jsonl
     steps:
       - name: Require reviewed commit and SDK authorization
         env:
@@ -47,6 +45,10 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0
+      - name: Set disposable public cache and timing paths
+        run: |
+          echo "CI_GO_DOWNLOAD_CACHE=$RUNNER_TEMP/public-go-downloads" >> "$GITHUB_ENV"
+          echo "CI_TIMINGS_FILE=$RUNNER_TEMP/build-timings.jsonl" >> "$GITHUB_ENV"
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version: '1.27.2'
