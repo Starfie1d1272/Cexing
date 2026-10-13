@@ -78,3 +78,9 @@ func TestVersionActionPublishesPerProfileAndKeepsPrevious(t *testing.T) {
 		t.Fatal("missing provenance accepted after restart")
 	}
 }
+
+func TestVersionActionAcceptsExistingUppercaseYAMLExtension(t *testing.T) {
+	if !profileIDPattern.MatchString("Imported.YAML") || !profileIDPattern.MatchString("Imported.YML") {
+		t.Fatal("existing import extension rejected")
+	}
+}

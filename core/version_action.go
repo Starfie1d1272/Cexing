@@ -11,7 +11,7 @@ import (
 	"core/configpipeline"
 )
 
-var profileIDPattern = regexp.MustCompile(`^[^/\\\x00-\x1f]{1,128}\.ya?ml$`)
+var profileIDPattern = regexp.MustCompile(`(?i)^[^/\\\x00-\x1f]{1,128}\.ya?ml$`)
 
 type versionAction struct {
 	Op           string `json:"op"`

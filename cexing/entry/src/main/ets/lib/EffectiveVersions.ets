@@ -29,7 +29,7 @@ export namespace EffectiveVersions {
 
   function check(context: common.Context, version: EffectiveVersion): void {
     if (!/^version-[A-Za-z0-9_-]+$/.test(version.ID) ||
-      !/^[^/\\\u0000-\u001f]{1,128}\.ya?ml$/.test(version.ProfileID) ||
+      !/^[^/\\\u0000-\u001f]{1,128}\.ya?ml$/i.test(version.ProfileID) ||
       version.Path !== `${context.filesDir}/profile-versions/${version.ID}/config.yaml` ||
       !fileIo.accessSync(version.Path) ||
       !fileIo.accessSync(`${context.filesDir}/profile-versions/${version.ID}/original.yaml`) ||
