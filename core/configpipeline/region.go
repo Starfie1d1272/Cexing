@@ -137,12 +137,21 @@ func PreviewRegionWithProviders(root *yaml.Node, selector string, assignments ma
 		return p, nil
 	}
 	providerNames := []string{}
+	all := field(selected, "include-all")
+	allProxies := all != nil && all.Value == "true"
+	allProviders := allProxies
+	if flag := field(selected, "include-all-proxies"); flag != nil && flag.Value == "true" {
+		allProxies = true
+	}
+	if flag := field(selected, "include-all-providers"); flag != nil && flag.Value == "true" {
+		allProviders = true
+	}
 	if use := field(selected, "use"); use != nil {
 		for _, ref := range use.Content {
 			providerNames = append(providerNames, ref.Value)
 		}
 	}
-	if all := field(selected, "include-all"); all != nil && all.Value == "true" {
+	if allProviders {
 		if providers := field(root, "proxy-providers"); providers != nil {
 			for i := 0; i < len(providers.Content); i += 2 {
 				providerNames = append(providerNames, providers.Content[i].Value)
@@ -151,6 +160,14 @@ func PreviewRegionWithProviders(root *yaml.Node, selector string, assignments ma
 	}
 	sort.Strings(providerNames)
 	providerNames = uniqueStrings(providerNames)
+	filters, err := compileProviderFilters(field(selected, "filter"))
+	if err != nil {
+		return p, err
+	}
+	excludes, err := compileProviderFilters(field(selected, "exclude-filter"))
+	if err != nil {
+		return p, err
+	}
 	if members := field(selected, "proxies"); members != nil {
 		for _, n := range members.Content {
 			if !proxyNames[n.Value] {
@@ -170,9 +187,20 @@ func PreviewRegionWithProviders(root *yaml.Node, selector string, assignments ma
 			}
 		}
 	}
-	if all := field(selected, "include-all"); all != nil && all.Value == "true" {
+	if allProxies {
 		for name := range proxyNames {
 			if _, already := p.Nodes[name]; already {
+				continue
+			}
+			include, err := matchesProviderFilters(filters, name)
+			if err != nil {
+				return p, err
+			}
+			exclude, err := matchesProviderFilters(excludes, name)
+			if err != nil {
+				return p, err
+			}
+			if (len(filters) > 0 && !include) || (len(excludes) > 0 && exclude) {
 				continue
 			}
 			region := guessRegion(name)
@@ -188,14 +216,6 @@ func PreviewRegionWithProviders(root *yaml.Node, selector string, assignments ma
 				p.Unknown++
 			}
 		}
-	}
-	filters, err := compileProviderFilters(field(selected, "filter"))
-	if err != nil {
-		return p, err
-	}
-	excludes, err := compileProviderFilters(field(selected, "exclude-filter"))
-	if err != nil {
-		return p, err
 	}
 	for _, provider := range providerNames {
 		names, ok := resolved[provider]
@@ -436,7 +456,9 @@ func providerGroups(root *yaml.Node, plan RegionPlan, nodes map[string]string, r
 					selected[name.Value] = true
 				}
 			}
-			if all := field(group, "include-all"); all != nil && all.Value == "true" {
+			all := field(group, "include-all")
+			providers := field(group, "include-all-providers")
+			if (all != nil && all.Value == "true") || (providers != nil && providers.Value == "true") {
 				for name := range plan.ResolvedProviders {
 					selected[name] = true
 				}

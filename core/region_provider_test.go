@@ -64,10 +64,11 @@ rules: ["MATCH,Main"]
 	}
 	includeAll := `proxies:
   - {name: "SG explicit", type: direct}
+  - {name: "US auto", type: direct}
 proxy-providers:
   inline: {type: inline, payload: [{name: "HK inline", type: direct}, {name: "JP inline", type: direct}]}
 proxy-groups:
-  - {name: Main, type: select, include-all: true, filter: "HK"}
+  - {name: Main, type: select, proxies: ["SG explicit"], include-all: true, filter: "HK"}
 rules: ["MATCH,Main"]
 `
 	allRoot, err := configpipeline.RegionMergedSource([]byte(includeAll), nil)
