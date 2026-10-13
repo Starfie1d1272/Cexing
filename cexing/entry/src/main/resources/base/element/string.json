@@ -15,6 +15,22 @@
     {
       "name": "pasteboard_reason",
       "value": "用于从剪贴板导入订阅配置"
+    },
+    {
+      "name": "shortcut_connect",
+      "value": "连接 VPN"
+    },
+    {
+      "name": "shortcut_disconnect",
+      "value": "断开 / 取消连接"
+    },
+    {
+      "name": "connection_card_name",
+      "value": "策星连接"
+    },
+    {
+      "name": "connection_card_description",
+      "value": "查看应用最近报告，打开应用确认连接或断开"
     }
   ]
 }

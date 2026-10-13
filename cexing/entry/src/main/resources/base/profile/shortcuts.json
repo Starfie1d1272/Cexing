@@ -1,0 +1,34 @@
+{
+  "shortcuts": [
+    {
+      "shortcutId": "connect",
+      "label": "$string:shortcut_connect",
+      "icon": "$media:app_icon",
+      "wants": [
+        {
+          "bundleName": "com.starfie1d.cexing",
+          "moduleName": "entry",
+          "abilityName": "EntryAbility",
+          "parameters": {
+            "cexingConnectionAction": "connect"
+          }
+        }
+      ]
+    },
+    {
+      "shortcutId": "disconnect",
+      "label": "$string:shortcut_disconnect",
+      "icon": "$media:app_icon",
+      "wants": [
+        {
+          "bundleName": "com.starfie1d.cexing",
+          "moduleName": "entry",
+          "abilityName": "EntryAbility",
+          "parameters": {
+            "cexingConnectionAction": "disconnect"
+          }
+        }
+      ]
+    }
+  ]
+}

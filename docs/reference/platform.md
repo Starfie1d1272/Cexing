@@ -28,3 +28,11 @@ IPv6 开关与默认路由不等于完整双栈实现；系统和 Go 的 IPv6 �
 Mihomo `/restart` 使用进程 exec 语义，不适合鸿蒙扩展宿主；原生客户端不调用该端点，Web 面板接入时也须限制。需要重启应经原生 VPN 生命周期；配置应用遵循 [配置契约](configuration.md)。
 
 不要通过 HDC 写应用沙箱或以平台权限假设替代验证。`/version` 可能是上游默认值，发行身份需由模块元数据、源码及包内库摘要共同确认，正式发行再实现版本注入。
+
+## 桌面连接入口
+
+`ConnectionFormAbility` 通过公开 `FormExtensionAbility` 的创建、更新、移除回调登记卡片 ID，使用 `formProvider.updateForm` 同步应用最近报告。卡片扩展不持有 VPN、后台任务或恢复定时器；闲置回收后仍能从应用沙箱读取报告。卡片标注报告时间，不把历史状态或 Controller 探活当作当前系统隧道与转发证明。未确认停止继续显示结果未知，冷进程不自动清除此保护。
+
+卡片的 `postCardAction(router)` 和图标的 `ohos.ability.shortcuts` 都进入 singleton `EntryAbility`。前者的 JSON 数据位于 `Want.parameters.params`，后者直接位于 `Want.parameters`；冷启动由 `onCreate` 接收，已有实例由 `onNewWant` 接收。`ConnectionEntry` 仅接受显式 connect/disconnect 请求并打开前台确认页。恢复完成后核对最新请求、状态代次、上下文、配置事务占用及未知标记；重复确认只提交一次。连接和断开仍由 `VpnController` 执行，连接保留系统正常授权流程。可分别移除 form 扩展注册或 shortcuts metadata 停用对应桌面入口。
+
+注册依据 [华为模块配置](https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/module-configuration-file)、[卡片配置](https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/arkts-ui-widget-configuration)、[router 事件](https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/arkts-ui-widget-event-router)与官方 SDK 的 `modulecheck/forms.json`、`shortcuts.json`、`FormExtensionAbility`/`UIAbility`/`postCardAction` 声明。上游公开的[模块配置](https://github.com/openharmony/docs/blob/master/zh-cn/application-dev/quick-start/module-configuration-file.md)和[router 事件](https://github.com/openharmony/docs/blob/master/zh-cn/application-dev/form/arkts-ui-widget-event-router.md)说明同一注册与 Want 数据契约。普通应用不依赖系统专用的 `onChangeFormVisibility` 回调，也不注册控制中心 tile。

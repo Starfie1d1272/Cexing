@@ -14,7 +14,7 @@ export namespace AppRuntime {
   let restoreGeneration: number = 0;
   let lastStatus: VpnStatus = VpnController.status;
 
-  export function initialize(ctx: common.UIAbilityContext): void {
+  export function initialize(ctx: common.UIAbilityContext, onReady?: () => void): void {
     cancelRestore();
     const generation = restoreGeneration;
     context = ctx;
@@ -29,6 +29,8 @@ export namespace AppRuntime {
         return;
       }
       sync(VpnController.status);
+      if (onReady !== undefined) { onReady(); }
+      if (generation !== restoreGeneration) { return; }
       const settings = Settings.load(ctx);
       if (settings.autoRestore && settings.vpnWasConnected &&
         VpnController.status === VpnStatus.Disconnected) {

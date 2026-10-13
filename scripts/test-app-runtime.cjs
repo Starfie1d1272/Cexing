@@ -77,6 +77,11 @@ async function testOwnership() {
   assert.equal(f.calls.updatesStart, 2);
 }
 function testRestore() {
+  const entry = fixture();
+  entry.settings.autoRestore = true;
+  entry.settings.vpnWasConnected = true;
+  entry.runtime.initialize({}, () => entry.runtime.cancelRestore());
+  assert.equal(entry.timers.size, 0, 'Foreground entry after recovery must suppress implicit auto-restore');
   const f = fixture();
   f.settings.autoRestore = true;
   f.settings.vpnWasConnected = true;

@@ -1,0 +1,21 @@
+{
+  "forms": [
+    {
+      "name": "ConnectionCard",
+      "displayName": "$string:connection_card_name",
+      "description": "$string:connection_card_description",
+      "src": "./ets/connectionform/ConnectionCard.ets",
+      "uiSyntax": "arkts",
+      "isDynamic": true,
+      "isDefault": true,
+      "colorMode": "light",
+      "supportDimensions": [
+        "2*4"
+      ],
+      "defaultDimension": "2*4",
+      "updateEnabled": true,
+      "updateDuration": 1,
+      "formVisibleNotify": false
+    }
+  ]
+}
