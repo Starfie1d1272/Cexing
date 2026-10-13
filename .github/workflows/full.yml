@@ -3,10 +3,19 @@ on:
   workflow_dispatch:
     inputs:
       authorized_sdk:
-        description: 'Official SDK license accepted on a trusted disposable runner'
+        description: 'HarmonyOS SDK license accepted for this build environment'
         type: boolean
         required: true
         default: false
+      reviewed_sha:
+        description: 'Full 40-character SHA reviewed for this manual build'
+        type: string
+        required: true
+      runner:
+        description: 'GitHub-hosted by default; preinstalled authorized SDK is optional'
+        type: choice
+        options: [github-hosted, self-hosted]
+        default: github-hosted
 permissions:
   contents: read
 concurrency:
@@ -14,16 +23,32 @@ concurrency:
   cancel-in-progress: false
 jobs:
   full:
-    if: inputs.authorized_sdk && github.repository == 'Starfie1d1272/clash-OpenHarmony'
+    if: github.repository == 'Starfie1d1272/clash-OpenHarmony' && github.event_name == 'workflow_dispatch' && startsWith(github.ref, 'refs/heads/')
     # Never attach this runner to pull_request / pull_request_target events.
-    runs-on: [self-hosted, linux, x64, harmonyos-ci]
+    runs-on: ${{ inputs.runner == 'self-hosted' && fromJSON('["self-hosted", "linux", "x64", "harmonyos-ci"]') || 'ubuntu-24.04' }}
     environment: harmonyos-ci
-    timeout-minutes: 45
+    timeout-minutes: 60
+    env:
+      AUTHORIZED_SDK: ${{ inputs.authorized_sdk }}
     steps:
+      - name: Require reviewed commit and SDK authorization
+        env:
+          REVIEWED_SHA: ${{ inputs.reviewed_sha }}
+        run: |
+          [[ "$REVIEWED_SHA" =~ ^[0-9a-f]{40}$ ]] && [[ "$REVIEWED_SHA" == "$GITHUB_SHA" ]] || {
+            echo '::error::Dispatch must name the full reviewed SHA of the selected branch'; exit 1;
+          }
+          [[ "$AUTHORIZED_SDK" == true ]] || {
+            echo '::error::Accept the SDK license for this environment before dispatch'; exit 1;
+          }
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
           fetch-depth: 0
+      - name: Set disposable public cache and timing paths
+        run: |
+          echo "CI_GO_DOWNLOAD_CACHE=$RUNNER_TEMP/public-go-downloads" >> "$GITHUB_ENV"
+          echo "CI_TIMINGS_FILE=$RUNNER_TEMP/build-timings.jsonl" >> "$GITHUB_ENV"
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version: '1.27.2'
@@ -31,10 +56,41 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '26.11.1'
-      # Runner provisions JDK 27, CLT and optional public wrapper/tools seed.
-      # No SDK downloads, signing secrets, private configuration, or device access.
+      - name: Set selected Node home
+        run: |
+          selected_node_home="$(dirname "$(dirname "$(command -v node)")")"
+          echo "NODE_HOME=$selected_node_home" >> "$GITHUB_ENV"
+          echo "DEVECO_NODE_HOME=$selected_node_home" >> "$GITHUB_ENV"
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
+        if: inputs.runner != 'self-hosted'
+        with:
+          distribution: temurin
+          java-version: '27'
+      - name: Install Linux SDK runtime dependencies
+        if: inputs.runner != 'self-hosted'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends unzip libgl1 libegl1 libgles2 libglib2.0-0t64 libx11-6 libxext6 libxrender1 libxi6 libxrandr2 libgbm1 fontconfig
+      - name: Prepare pinned HarmonyOS CLI and SDK
+        if: inputs.runner != 'self-hosted'
+        env:
+          HARMONYOS_CLT_URL: ${{ secrets.HARMONYOS_CLT_URL }}
+        run: python3 scripts/ci/timed.py sdk-prepare python3 scripts/ci/setup-clt.py
+      # Only public Go download archives and fully hash-verified panel resources.
+      # Never cache the SDK, credentials, extracted modules, Go build cache or HAPs.
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ${{ runner.temp }}/public-go-downloads
+          key: public-go-downloads-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('core/go.sum', 'scripts/ci/toolchain.json') }}
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: clash-openharmony/entry/src/main/resources/rawfile/zashboard
+          key: verified-zashboard-${{ runner.os }}-${{ hashFiles('third_party/zashboard/**', 'scripts/build-zashboard.sh', 'scripts/zashboard-assets.py', 'scripts/ci/package-lock.json') }}
       - run: npm ci --prefix scripts/ci --ignore-scripts --no-audit --no-fund
-      - run: bash scripts/ci/full.sh
+      - name: Fresh Go, NAPI, ArkTS and verified unsigned HAP
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/ci/timed.py full bash scripts/ci/full.sh
       - name: Prepare verified unsigned test package
         run: |
           python3 - <<'PYCODE'
@@ -49,12 +105,22 @@ jobs:
           if sha(hap) != identity['hapSha256']:
               raise SystemExit('Artifact HAP differs from the verified CI output')
           shutil.copyfile(hap, report / 'entry-default-unsigned.hap')
-          source = f'https://github.com/{os.environ["GITHUB_REPOSITORY"]}/blob/{os.environ["GITHUB_SHA"]}/docs/'
-          guide = pathlib.Path('docs/how-to/device.md').read_text()
-          guide = guide.replace('../reference/smart-beta.md', source + 'reference/smart-beta.md')
-          guide = guide.replace('../evidence/native-ui/DEVICE-CHECKLIST.md', source + 'evidence/native-ui/DEVICE-CHECKLIST.md')
+          source = f'https://github.com/{os.environ["GITHUB_REPOSITORY"]}/blob/{os.environ["GITHUB_SHA"]}'
+          guide = f"""# HoKit 安装提示
+
+          本包是本次提交 `{os.environ['GITHUB_SHA']}` 的未签名测试 HAP，CI 未签名、未安装或做真机验证。
+
+          1. 解压 Artifact，在同一目录执行 `sha256sum -c SHA256SUMS`（macOS 可用 `shasum -a 256 -c SHA256SUMS`）。
+          2. 在用户自己的本地 HoKit 中选择 `entry-default-unsigned.hap`，按 HoKit 提示完成授权、签名及安装。
+          3. 个人签名材料和设备授权只在用户本地处理，不能上传到本仓库或 Actions。
+
+          完整要求见 [设备指南]({source}/docs/how-to/device.md)。安装成功不证明 VPN 或后台运行通过验收。
+          """
           (report / 'HOKIT-QUICKSTART.md').write_text(guide)
-          files = ['entry-default-unsigned.hap', 'build-identity.json', 'module-notices.json', 'HOKIT-QUICKSTART.md']
+          shutil.copyfile('THIRD_PARTY_NOTICES.md', report / 'THIRD_PARTY_NOTICES.md')
+          shutil.copyfile('LICENSE', report / 'LICENSE')
+          shutil.copyfile('core/patches/NOTICE.md', report / 'SMART-NOTICE.md')
+          files = ['entry-default-unsigned.hap', 'build-identity.json', 'module-notices.json', 'GO-NOTICES.txt', 'HOKIT-QUICKSTART.md', 'THIRD_PARTY_NOTICES.md', 'LICENSE', 'SMART-NOTICE.md']
           (report / 'SHA256SUMS').write_text(''.join(sha(report / name) + '  ' + name + '\n' for name in files))
           PYCODE
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -64,8 +130,20 @@ jobs:
             clash-openharmony/dist/ci/entry-default-unsigned.hap
             clash-openharmony/dist/ci/build-identity.json
             clash-openharmony/dist/ci/module-notices.json
+            clash-openharmony/dist/ci/GO-NOTICES.txt
             clash-openharmony/dist/ci/HOKIT-QUICKSTART.md
             clash-openharmony/dist/ci/SHA256SUMS
+            clash-openharmony/dist/ci/THIRD_PARTY_NOTICES.md
+            clash-openharmony/dist/ci/LICENSE
+            clash-openharmony/dist/ci/SMART-NOTICE.md
           compression-level: 0
           if-no-files-found: error
+          retention-days: 7
+      - name: Upload phase timings (also on failure)
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: build-timings-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/build-timings.jsonl
+          if-no-files-found: ignore
           retention-days: 7

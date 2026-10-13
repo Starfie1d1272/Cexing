@@ -92,7 +92,10 @@ fi
 PRIVATE_MODCACHE="$(mktemp -d)"
 trap 'SMART_BUILD_EXIT=$?; if [ "$SMART_BUILD_EXIT" -ne 0 ]; then rm -f "$OUT_DIR/smart-build.json" "$OUT_DIR/smart-build.pending.json"; fi; chmod -R u+w "$PRIVATE_MODCACHE"; rm -rf "$PRIVATE_MODCACHE"' EXIT
 export GOMODCACHE="$PRIVATE_MODCACHE"
+source "$SCRIPT_DIR/ci/go-download-cache.sh"
+ci_seed_go_download_cache
 (cd "$CORE_DIR" && go mod download && go mod verify)
+ci_save_go_download_cache
 (cd "$CORE_DIR" && python3 "$SCRIPT_DIR/ci/patch-gvisor.py" "$PRIVATE_MODCACHE")
 (cd "$CORE_DIR" && python3 "$SCRIPT_DIR/ci/patch-smart.py" "$PRIVATE_MODCACHE")
 
