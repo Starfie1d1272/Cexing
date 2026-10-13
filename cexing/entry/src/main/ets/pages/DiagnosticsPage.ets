@@ -5,6 +5,12 @@ import { ConnectionFailures } from '../lib/ConnectionFailure';
 import { pasteboard, deviceInfo } from '@kit.BasicServicesKit';
 import { promptAction } from '@kit.ArkUI';
 import { bundleManager, common } from '@kit.AbilityKit';
+import { fileIo, fileUri, picker } from '@kit.CoreFileKit';
+import { systemShare } from '@kit.ShareKit';
+import { uniformTypeDescriptor } from '@kit.ArkData';
+import { DiagnosticsService, DiagnosticCheckKind, DiagnosticCheckResult } from '../lib/DiagnosticsService';
+import { DiagnosticExportSnapshots, DiagnosticExportSnapshot } from '../lib/DiagnosticExportSnapshots';
+import { DiagnosticsBundleView } from '../lib/DiagnosticsBundleView';
 
 @Component
 export struct DiagnosticsPage {
@@ -14,15 +20,25 @@ export struct DiagnosticsPage {
   @State checkedAt: string = '';
   @State busy: boolean = false;
   @State detailsOpen: boolean = false;
+  @State checkLines: string[] = [];
+  @State bundleFacts: string[] = [];
+  @State exportMessage: string = '';
+  @State proxyNames: string[] = [];
+  @State proxyName: string = '';
+  private results: DiagnosticCheckResult[] = [];
   private visible: boolean = false;
   private generation: number = 0;
+  private exportEpoch: number = 0;
+  private exportAction: number = 0;
+  private operationSequence: number = 0;
+  private activeOperation: number = 0;
   private listener: (status: VpnStatus) => void = (status: VpnStatus) => {
     if (this.status === status) { return; }
     this.status = status;
     this.checkedAt = '';
     this.control = '尚未检查本机服务';
     this.generation++;
-    this.busy = false;
+    this.cancelOperation();
   };
 
   aboutToAppear(): void {
@@ -33,34 +49,138 @@ export struct DiagnosticsPage {
 
   aboutToDisappear(): void {
     this.visible = false;
+    this.exportEpoch++;
     this.generation++;
-    this.busy = false;
+    this.cancelOperation();
     this.control = '尚未检查本机服务';
     this.checkedAt = '';
     VpnController.offChanged(this.listener);
   }
 
-  private async check(): Promise<void> {
-    if (this.busy) { return; }
-    const attempt = ++this.generation;
+  private beginOperation(): number {
+    const operation = ++this.operationSequence;
+    this.activeOperation = operation;
     this.busy = true;
-    this.checkedAt = '';
-    this.control = '正在检查…';
+    return operation;
+  }
+
+  private ownsOperation(operation: number): boolean {
+    return this.activeOperation === operation;
+  }
+
+  private finishOperation(operation: number): void {
+    if (!this.ownsOperation(operation)) { return; }
+    this.activeOperation = 0;
+    this.busy = false;
+  }
+
+  private cancelOperation(): void {
+    this.activeOperation = 0;
+    this.busy = false;
+  }
+
+  private async check(kind: DiagnosticCheckKind = 'controller'): Promise<void> {
+    if (this.busy || !this.visible) { return; }
+    const attempt = ++this.generation;
+    const operation = this.beginOperation();
+    if (kind === 'controller') { this.checkedAt = ''; this.control = '正在检查…'; }
+    const context = getContext(this) as common.UIAbilityContext;
     let timeoutId: number = -1;
-    const result = await Promise.race<string>([
-      CoreApi.checkController().catch(() => 'failed'),
-      new Promise<string>((resolve) => { timeoutId = setTimeout(() => resolve('timeout'), 5000); })
+    const fallback: DiagnosticCheckResult = { kind: kind, stage: 'host_deadline', outcome: 'unknown',
+      at: new Date().toISOString(), durationMs: 15000, reason: 'page_check_timeout' };
+    const result = await Promise.race<DiagnosticCheckResult>([
+      DiagnosticsService.check(context, kind, this.proxyName).catch(() => {
+        return { kind: kind, stage: 'host_check', outcome: 'failed', at: new Date().toISOString(), durationMs: 0 } as DiagnosticCheckResult;
+      }),
+      new Promise<DiagnosticCheckResult>((resolve) => { timeoutId = setTimeout(() => resolve(fallback), 15000); })
     ]);
     if (timeoutId >= 0) { clearTimeout(timeoutId); }
-    if (!this.visible || attempt !== this.generation) { return; }
-    this.control = result === 'reachable' ? '本机服务可达' :
-      result === 'timeout' ? '检查超时' :
-      result === 'credentials' ? '连接信息不可用，请重新连接' :
-      result === 'authorization' ? '连接认证失败，请断开后重新连接' :
-      '本机服务无响应，请确认连接后重试';
-    this.checkedAt = new Date().toISOString();
-    this.busy = false;
-    promptAction.showToast({ message: result === 'reachable' ? '检查完成，本机服务响应正常' : this.control });
+    if (result.reason === 'page_check_timeout') {
+      DiagnosticsService.record(context, { operation: `check_${kind}`, stage: 'host_deadline', outcome: 'unknown',
+        reason: 'page_check_timeout', durationMs: 15000 }).catch(() => {});
+    }
+    if (!this.visible || attempt !== this.generation || !this.ownsOperation(operation)) { return; }
+    const label = DiagnosticsBundleView.result(result);
+    if (kind === 'controller') { this.control = label; this.checkedAt = result.at; }
+    this.results = this.results.filter((item: DiagnosticCheckResult) => item.kind !== kind).concat([result]);
+    this.checkLines = this.results.map((item: DiagnosticCheckResult) =>
+      `${DiagnosticsBundleView.title(item.kind)}：${DiagnosticsBundleView.result(item)} · ${item.at} · ${item.durationMs} ms`);
+    if (result.details?.['evidencePersisted'] === false) { this.exportMessage = '本次检查证据未保存成功，请重试导出'; }
+    this.finishOperation(operation);
+    promptAction.showToast({ message: label });
+  }
+
+  private async chooseProxy(): Promise<void> {
+    if (this.busy || !this.visible) { return; }
+    const attempt = this.generation;
+    const operation = this.beginOperation();
+    const proxies = await CoreApi.getProxies().catch(() => null);
+    if (!this.visible || attempt !== this.generation || !this.ownsOperation(operation)) { return; }
+    this.proxyNames = proxies === null ? [] : Object.keys(proxies);
+    this.finishOperation(operation);
+    if (this.proxyNames.length === 0) { this.exportMessage = '测试代理列表未读取到，请连接后重试'; }
+  }
+
+  private async exportSupport(share: boolean): Promise<void> {
+    if (this.busy || !this.visible) { return; }
+    const epoch = this.exportEpoch;
+    const action = ++this.exportAction;
+    const operation = this.beginOperation();
+    const context = getContext(this) as common.UIAbilityContext;
+    this.exportMessage = '正在准备诊断支持包…';
+    let snapshot: DiagnosticExportSnapshot | null = null;
+    let handedToShare = false;
+    try {
+      const bundle = await DiagnosticsService.exportBundle(context);
+      if (!this.visible || epoch !== this.exportEpoch || action !== this.exportAction || !this.ownsOperation(operation)) { return; }
+      const facts = DiagnosticsBundleView.facts(bundle.json);
+      // Snapshot the returned JSON, not bundle.path: another service export can
+      // replace that cache even before the picker or share callback resolves.
+      snapshot = DiagnosticExportSnapshots.create(context, bundle.json, share);
+      this.bundleFacts = facts;
+      if (share) {
+        const captured = snapshot;
+        const data = new systemShare.SharedData({ utd: uniformTypeDescriptor.UniformDataType.FILE,
+          uri: fileUri.getUriFromPath(captured.path), title: '策星诊断支持包', label: 'FILE' });
+        const controller = new systemShare.ShareController(data);
+        const dismiss = (): void => {
+          DiagnosticExportSnapshots.release(captured, true);
+          try { controller.off('dismiss', dismiss); } catch (_) {}
+        };
+        controller.on('dismiss', dismiss);
+        handedToShare = true;
+        try { await controller.show(context, {}); }
+        catch (error) {
+          DiagnosticExportSnapshots.release(captured, true);
+          try { controller.off('dismiss', dismiss); } catch (_) {}
+          throw error as Error;
+        }
+        if (this.visible && epoch === this.exportEpoch && action === this.exportAction && this.ownsOperation(operation)) {
+          this.exportMessage = '已打开系统分享面板，请审核内容后选择接收应用';
+        }
+      } else {
+        const uris = await new picker.DocumentViewPicker(context).save({
+          newFileNames: [bundle.fileName], fileSuffixChoices: ['诊断支持包|.json']
+        });
+        if (!this.visible || epoch !== this.exportEpoch) { return; }
+        if (uris.length === 0) {
+          if (action === this.exportAction && this.ownsOperation(operation)) { this.exportMessage = '保存已取消，诊断包保留在应用中'; }
+          return;
+        }
+        const file = fileIo.openSync(uris[0], fileIo.OpenMode.READ_WRITE | fileIo.OpenMode.CREATE | fileIo.OpenMode.TRUNC);
+        try { fileIo.copyFileSync(snapshot.path, file.fd); } finally { fileIo.closeSync(file); }
+        if (action === this.exportAction && this.ownsOperation(operation)) { this.exportMessage = '诊断支持包已保存，请审核证据范围后提交'; }
+      }
+    } catch (error) {
+      if (this.visible && epoch === this.exportEpoch && action === this.exportAction && this.ownsOperation(operation)) {
+        this.exportMessage = (error as Error).message === 'snapshot_capacity' ?
+          '已有诊断文件仍在等待或保留，请先完成保存/分享或稍后重试' :
+          '诊断包保存或分享未完成，可重试；历史证据保留';
+      }
+    } finally {
+      if (snapshot !== null && !handedToShare) { DiagnosticExportSnapshots.release(snapshot, false); }
+      this.finishOperation(operation);
+    }
   }
 
   private connection(): string {
@@ -136,16 +256,38 @@ export struct DiagnosticsPage {
           Button(this.detailsOpen ? '收起技术详情' : '查看技术详情').height(48)
             .backgroundColor(UI.surface).fontColor(UI.accentText).onClick(() => { this.detailsOpen = !this.detailsOpen; })
           if (this.detailsOpen) {
+            Text('这些检查分别验证本机 API、配置的 DNS 和所选代理；网站访问与系统隧道转发仍需单独确认。')
+              .fontSize(14).fontColor(UI.muted).width('100%')
+            Button('检查 DNS').height(48).enabled(!this.busy).onClick(() => this.check('dns'))
+            Button('读取测试代理列表').height(48).enabled(!this.busy).onClick(() => this.chooseProxy())
+            if (this.proxyNames.length > 0) {
+              Select(this.proxyNames.map((name: string): SelectOption => ({ value: name })))
+                .selected(this.proxyNames.indexOf(this.proxyName)).value(this.proxyName || '请选择测试代理')
+                .onSelect((index: number) => { this.proxyName = this.proxyNames[index]; })
+            }
+            Button('检查代理连接').height(48).enabled(!this.busy).onClick(() => this.check('connection'))
+            Button('检查代理延迟').height(48).enabled(!this.busy).onClick(() => this.check('delay'))
+            ForEach(this.checkLines, (line: string) => { Text(line).fontSize(13).fontColor(UI.muted).width('100%') })
+            Text('带宽测速在本页未执行。').fontSize(13).fontColor(UI.muted).width('100%')
             Text('本机服务响应正常后，请打开网站确认网络访问；访问异常时可在控制面板查看日志。')
               .fontSize(14).fontColor(UI.muted).width('100%')
             Text(VpnController.getKernelReadyReported() ? '内核已报告就绪' : '等待内核报告就绪')
               .fontSize(14).fontColor(UI.muted).width('100%')
           }
-      Button(this.busy ? '检查中…' : '检查本机服务').width('100%').height(56)
+      Button(this.busy ? '处理中…' : '检查本机服务').width('100%').height(56)
         .backgroundColor(UI.action).fontColor(UI.onAccent).enabled(!this.busy).onClick(() => this.check())
-      Button('复制脱敏摘要').width('100%').height(48)
+      Button('保存诊断支持包').width('100%').height(48).enabled(!this.busy)
+        .backgroundColor(UI.soft).fontColor(UI.accentText).onClick(() => this.exportSupport(false))
+      Button('分享诊断包文件').width('100%').height(48).enabled(!this.busy)
+        .backgroundColor(UI.soft).fontColor(UI.accentText).onClick(() => this.exportSupport(true))
+      if (this.exportMessage !== '') { Text(this.exportMessage).fontSize(14).fontColor(UI.muted).width('100%') }
+      if (this.bundleFacts.length > 0) {
+        Text('本次诊断包的证据范围').fontSize(16).fontColor(UI.ink).width('100%')
+        ForEach(this.bundleFacts, (fact: string) => { Text(fact).fontSize(13).fontColor(UI.muted).width('100%') })
+      }
+      Button('复制简短脱敏摘要').width('100%').height(48)
         .backgroundColor(UI.soft).fontColor(UI.accentText).onClick(() => this.copySummary())
-      Text('复制摘要后，在 GitHub 模板中补充复现步骤，审核后提交。').fontSize(13).fontColor(UI.muted).width('100%')
+      Text('保存诊断支持包，在 GitHub 模板中补充复现步骤，审核后提交；简短摘要仅用于快速说明。').fontSize(13).fontColor(UI.muted).width('100%')
       Button('打开 GitHub 反馈模板').width('100%').height(48)
         .backgroundColor(UI.soft).fontColor(UI.accentText).onClick(() => this.openFeedback())
       Button('打开控制面板').width('100%').height(48)
