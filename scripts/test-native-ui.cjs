@@ -35,7 +35,7 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   let pendingFailure = '';
   let lastStopCompleted = null;
   const controller = { status: status.Connected, onChanged(fn) { listeners.add(fn); }, offChanged(fn) { listeners.delete(fn); },
-    getLastStopCompleted: () => lastStopCompleted,
+    getLastStopCompleted: () => lastStopCompleted, needsStop: () => lastStopCompleted === false,
     consumeLastStartError: () => { const value = pendingFailure; pendingFailure = ''; return value; },
     getLastStartFailure: () => null, stop: () => { stop++; return stopResult(); },
     start: () => { start++; emit(status.Connecting); } };
@@ -112,40 +112,40 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   assert.ok(toasts.includes('停止结果未知，请检查系统 VPN 状态后重试'),
     'false stop must be visible despite Disconnected status');
   assert.equal(home.label(), '停止结果未知', 'the card must retain an unconfirmed stop after the toast');
-  assert.ok(home.stateLine().includes('检查系统 VPN'));
-  smartPrepare = async () => { throw Error('synthetic Smart preparation failure'); };
+  assert.ok(home.stateLine().includes('重试断开'));
+  const beforeRetryStart = start;
+  let retryPreparation = 0;
+  smartPrepare = async () => { retryPreparation++; };
+  const beforeRetryStop = stop;
+  lastStopCompleted = false;
   await home.toggle();
-  assert.equal(home.stopUnknown, true, 'failed preparation must preserve an unconfirmed stop');
-  assert.equal(start, 1, 'failed preparation must not start VPN');
+  assert.equal(start, beforeRetryStart, 'unknown stop must never authorize a new start');
+  assert.equal(retryPreparation, 0, 'unknown stop must not prepare a new config');
+  assert.equal(stop, beforeRetryStop + 1, 'the primary action explicitly retries stop');
+  lastStopCompleted = true; stopResult = async () => true;
+  await home.toggle(); // Finish the visible unknown-stop retry.
+  home.stopUnknown = false;
+  await home.toggle();
+  assert.equal(start, beforeRetryStart + 1, 'confirmed cleanup allows the next explicit connect');
   let finishPreparation;
+  emit(status.Disconnected);
   smartPrepare = () => new Promise(resolve => { finishPreparation = resolve; });
-  const stalePreparation = home.toggle();
-  home.currentVisibleTab = 1; home.onTabVisible();
-  finishPreparation(); await stalePreparation;
-  assert.equal(home.stopUnknown, true, 'late preparation must preserve the stop warning');
-  assert.equal(start, 1, 'late preparation after leaving the tab must not start VPN');
-  smartPrepare = async () => {};
-  home.currentVisibleTab = 0; home.onTabVisible();
-  toasts.length = 0;
-  let finishStop;
-  stopResult = () => new Promise(resolve => { finishStop = resolve; });
-  emit(status.Connected); home.toggle(); emit(status.Disconnecting); emit(status.Disconnected);
-  await home.toggle(); assert.equal(home.stopUnknown, false, 'a new start clears the old stop warning');
-  finishStop(false);
-  await new Promise(resolve => setImmediate(resolve));
-  assert.equal(toasts.length, 0, 'old stop result cannot toast after a newer start');
+  const interrupted = home.toggle();
+  lastStopCompleted = false; emit(status.Disconnected);
+  finishPreparation(); await interrupted;
+  assert.equal(start, beforeRetryStart + 1, 'late prepared start must recheck the controller stop gate');
+  assert.equal(home.stopUnknown, true);
   stopResult = async () => { throw Error('synthetic stop failure'); };
-  emit(status.Connected); home.toggle(); emit(status.Disconnecting); emit(status.Disconnected);
-  await new Promise(resolve => setImmediate(resolve));
-  assert.ok(toasts.includes('停止结果未知，请检查系统 VPN 状态后重试'), 'rejected stop must be visible');
-  assert.equal(home.label(), '停止结果未知');
+  const beforeFailedRetry = start;
+  await home.toggle();
+  assert.equal(start, beforeFailedRetry);
   home.aboutToDisappear();
   lastStopCompleted = false;
   const rebuiltHome = new Home();
   rebuiltHome.rootVisible = true; rebuiltHome.currentVisibleTab = 0;
   rebuiltHome.aboutToAppear();
   assert.equal(rebuiltHome.label(), '停止结果未知', 'page recreation must restore the controller stop outcome');
-  assert.ok(rebuiltHome.stateLine().includes('检查系统 VPN'));
+  assert.ok(rebuiltHome.stateLine().includes('重试断开'));
   rebuiltHome.aboutToDisappear();
   emit(status.Connected);
   const connectedHome = new Home();
@@ -160,6 +160,32 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   confirmedHome.aboutToAppear();
   assert.equal(confirmedHome.stopUnknown, false, 'a confirmed stop must not restore an old warning');
   confirmedHome.aboutToDisappear();
+  const { load: actualController, recover: recoverActual } = require('./test-vpn-recovery.cjs');
+  for (const observation of [{ready:false}, {tun:false}, {session:''}, {lost:true}]) {
+    const real = actualController({receiptOnSystemStop:true});
+    let preparations = 0;
+    const ActualHome = load('HomePage', { ...common,
+      '../lib/VpnController': { VpnController: real.VpnController, VpnStatus: real.VpnStatus },
+      '../lib/CoreApi': { CoreApi: { StreamWatcher: class { start() {} stop() {} }, getConfigs: async()=>null }, formatRate: String },
+      '../lib/ProfileStore': { ProfileStore: { getActiveFile: ()=>'fixture.yaml' } },
+      '../lib/Settings': { Settings: { load: ()=>({mode:'rule'}) } },
+      '../lib/AppRuntime': { AppRuntime: { cancelRestore() {} } },
+      '../lib/ProfileTransactions': { ProfileTransactions: { ensureActiveSmartPolicy: async()=>{preparations++;} } },
+      './ProfilePage': { ProfileDetailBus: { current:'' } }
+    }, { getContext: ()=>real.context, setInterval:()=>1, clearInterval() {} });
+    const actualHome = new ActualHome();actualHome.rootVisible=true;actualHome.currentVisibleTab=0;
+    actualHome.aboutToAppear();
+    real.set(observation);await recoverActual(real);
+    if (observation.lost) { real.lost(); real.options.autoBind=true; }
+    assert.equal(actualHome.stopUnknown,true,'actual controller notifies Home even when failed recovery remains Disconnected');
+    const priorStart=real.calls.start;
+    assert.equal(real.VpnController.start(real.context),false,'direct controller callers cannot bypass unknown-stop gate');
+    await actualHome.toggle();
+    assert.equal(real.calls.start,priorStart,'Home retry never enters authorization');
+    assert.equal(preparations,0);assert.equal(actualHome.label(),'未连接');
+    await actualHome.toggle();assert.equal(real.calls.start,priorStart+1);
+    actualHome.aboutToDisappear();
+  }
   console.log('PASS: one-tap stop, cancel/reconnect, stale traffic and sentinel-named profiles');
 
   let resolveProbe;

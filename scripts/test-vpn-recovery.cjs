@@ -11,8 +11,15 @@ function load(options = {}) {
   let resolveAuth;
   const auth = options.delayedAuth ? new Promise(r => { resolveAuth = r; }) : Promise.resolve();
   const settings = { accessMode: 'all', accessList: [], ipv6: false };
-  const remote = { sendMessageRequest: async () => {
+  const cleanupRequests = [];
+  const remote = { sendMessageRequest: async (code, data) => {
     if (failRead) throw Error('synthetic service loss');
+    if (code === 2) {
+      const request = data.values[1];
+      if (options.delayedCleanup) return new Promise(resolve => cleanupRequests.push({ request, resolve }));
+      return { errCode: 0, reply: { readString: () => options.staleReceipt ? 'old-request' : request,
+        readBoolean: () => !options.cleanupFailed && data.values[0] === session } };
+    }
     let strings = 0, booleans = 0;
     return { errCode: 0, reply: { readBoolean: () => ++booleans === 1 ? ready : tun,
       readString: () => ++strings === 1 ? '' : session } };
@@ -24,14 +31,17 @@ function load(options = {}) {
     './Logger': { Logger: { info() {}, warn() {}, error() {} } },
     './CoreApi': { CoreApi: { bindContext() {}, isAlive: () => new Promise(resolve => probes.push(resolve)) } },
     './Settings': { Settings: { load: () => settings, save() {} } },
-    '@kit.IPCKit': { rpc: { MessageSequence: { create: () => ({ reclaim() {} }) }, MessageOption: class {} } },
+    '@kit.IPCKit': { rpc: { MessageSequence: { create: () => ({values:[], writeString(value){this.values.push(value);}, reclaim() {} }) }, MessageOption: class {} } },
     './ConnectionFailure': { ConnectionFailures: { classify: () => ({phase:'service'}), label: () => '连接服务不可用，请重试' } },
     './ProfileStore': { ProfileStore: { clearApplyUncertain() {} } }
   };
   const context = { filesDir: '/synthetic', applicationInfo: { name: 'test.bundle' },
     connectServiceExtensionAbility: (want, value) => {
       calls.bind++; if (options.throwBind) throw Error('synthetic binding failure'); callbacks = value;
-      if (want.parameters.RECOVER_ONLY) assert.equal(want.parameters.VPN_CONFIG, undefined);
+      if (want.parameters.RECOVER_ONLY) {
+        assert.equal(want.parameters.VPN_CONFIG, undefined);
+        if (options.autoBind) Promise.resolve().then(()=>value.onConnect({},remote));
+      }
       else session = want.parameters.SESSION_ID;
       return options.id ?? 0;
     },
@@ -44,7 +54,7 @@ function load(options = {}) {
     Date: options.staleReceipt ? { now: () => 20000 * ++host.tick } : Date, tick:0 };
   vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(__dirname,
     '../cexing/entry/src/main/ets/lib/VpnController.ets'),'utf8')).outputText, host);
-  return { ...host.exports, context, probes, calls, timers, resolveAuth,
+  return { ...host.exports, context, probes, calls, timers, resolveAuth, cleanupRequests, options,
     connected: () => callbacks.onConnect({}, remote),
     lost: () => callbacks.onDisconnect(),
     set: v => { if ('ready' in v) ready=v.ready; if ('tun' in v) tun=v.tun;
@@ -56,6 +66,8 @@ async function recover(f) {
   f.probes.shift()(true); await flush(); f.connected(); await flush();
   return result;
 }
+module.exports = { load, recover };
+if (require.main === module) {
 (async () => {
   const f=load();
   assert.equal(await recover(f), true);
@@ -73,7 +85,26 @@ async function recover(f) {
     const invalid=load();invalid.set(fields);assert.equal(await recover(invalid),false);
     assert.equal(invalid.VpnController.status,invalid.VpnStatus.Disconnected);
     assert.equal(invalid.VpnController.getLastStopCompleted(),false);
+    assert.equal(invalid.VpnController.needsStop(),true);
+    assert.equal(invalid.VpnController.start(invalid.context),false);
+    assert.equal(invalid.calls.start,0,'unconfirmed recovered binding never authorizes a new session');
+    assert.equal(await invalid.VpnController.stop(invalid.context),true,'partial/empty recovered identity stops via current IPC ACK');
+    assert.equal(invalid.VpnController.needsStop(),false);
+    invalid.VpnController.start(invalid.context);await flush();
+    assert.equal(invalid.calls.start,1,'only confirmed cleanup permits a new explicit start');
   }
+  const lateAck = load({delayedCleanup:true});await recover(lateAck);
+  const stopping = lateAck.VpnController.stop(lateAck.context);await flush();
+  assert.equal(lateAck.VpnController.stop(lateAck.context),stopping,'stop reentry shares the request');
+  lateAck.timers.at(-1)();assert.equal(await stopping,false);
+  lateAck.cleanupRequests[0].resolve({errCode:0,reply:{readString:()=>lateAck.cleanupRequests[0].request,readBoolean:()=>true}});
+  await flush();assert.equal(lateAck.VpnController.needsStop(),true,'late ACK does not clear an already unknown stop');
+  assert.equal(lateAck.VpnController.start(lateAck.context),false);
+  lateAck.options.autoBind=true;
+  const retried = lateAck.VpnController.stop(lateAck.context);await flush();
+  assert.notEqual(lateAck.cleanupRequests[0].request,lateAck.cleanupRequests[1].request);
+  lateAck.cleanupRequests[1].resolve({errCode:0,reply:{readString:()=>lateAck.cleanupRequests[1].request,readBoolean:()=>true}});
+  assert.equal(await retried,true,'fresh explicit stop can confirm a previously late cleanup');
   const retryOptions = {throwBind:true}, retry = load(retryOptions);
   let firstResult;
   retry.VpnController.recover(v=>firstResult=v,retry.context);retry.probes.shift()(true);await flush();
@@ -99,12 +130,15 @@ async function recover(f) {
   earlyFailure.resolveAuth();assert.equal(await reclaim,true);assert.equal(earlyFailure.calls.stop,2);
   const syncFailure=load({throwStart:true});syncFailure.VpnController.start(syncFailure.context);
   assert.equal(syncFailure.VpnController.status,syncFailure.VpnStatus.Disconnected,'synchronous authorization failure can retry');
-  const lost=load({receiptOnSystemStop:true});await recover(lost);
+  const lost=load({receiptOnSystemStop:true});await recover(lost);lost.options.autoBind=true;
   lost.lost();assert.equal(lost.VpnController.status,lost.VpnStatus.Disconnected);
   assert.equal(lost.VpnController.getLastStopCompleted(),false,'service loss is not a confirmed stop');
+  assert.equal(lost.VpnController.start(lost.context),false);assert.equal(lost.calls.start,0);
   assert.equal(await lost.VpnController.stop(lost.context),true,'explicit disconnect retries system stop after binding loss and awaits the retained identity');
   const mismatch=load();await recover(mismatch);mismatch.set({session:'different-process'});
   const checking=mismatch.VpnController.verify(mismatch.context);await flush();await checking;
   assert.equal(mismatch.VpnController.status,mismatch.VpnStatus.Disconnected,'health rejects a new process session');
   console.log('PASS: cold binding, legal ID zero, session identity, repeated recovery, cancellation, stale receipts and runtime loss');
 })().catch(e=>{console.error(e);process.exitCode=1;});
+
+}
