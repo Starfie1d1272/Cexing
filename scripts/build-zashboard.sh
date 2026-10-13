@@ -27,7 +27,7 @@ trap 'rm -f "${TMPDIR:-/tmp}/zashboard-host-diff-$$"' EXIT
 cmp "${TMPDIR:-/tmp}/zashboard-host-diff-$$" "$PIN/host.patch"
 cd "$SOURCE"
 ARGS=(install --frozen-lockfile)
-PREPARE_ARGS=()
+PREPARE_ARGS=(prepare "$SOURCE")
 case "${2:-}" in
   --offline) ARGS+=(--offline) ;;
   --reviewed) PREPARE_ARGS+=(--reviewed) ;;
@@ -36,4 +36,4 @@ case "${2:-}" in
 esac
 pnpm "${ARGS[@]}"
 FONT=firasans pnpm run build
-python3 "$ROOT/scripts/zashboard-assets.py" prepare "$SOURCE" "${PREPARE_ARGS[@]}"
+python3 "$ROOT/scripts/zashboard-assets.py" "${PREPARE_ARGS[@]}"
