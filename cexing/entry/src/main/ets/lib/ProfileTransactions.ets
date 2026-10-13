@@ -327,6 +327,15 @@ export namespace ProfileTransactions {
       if (previous === '') { return false; }
       const group = (await CoreApi.getProxies())?.[plan.selector];
       if (group === undefined || !group.all.includes(previous)) { return false; }
+      if (group.now === previous) {
+        ProfileStore.clearPreviousRegionSelection(context, file);
+        return true;
+      }
+      if (group.now !== '' && group.now !== `Cexing Smart ${plan.selector}`) {
+        // A later manual choice takes precedence over the earlier restore request.
+        ProfileStore.clearPreviousRegionSelection(context, file);
+        return false;
+      }
       const restored = await CoreApi.selectProxy(plan.selector, previous);
       if (restored) { ProfileStore.clearPreviousRegionSelection(context, file); }
       return restored;

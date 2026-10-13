@@ -32,7 +32,7 @@ const controller = { VpnStatus: { Disconnected: 0, Connected: 2 }, VpnController
 const core = { CoreApi: {
   isAlive: async () => true,
   getProxies: async () => ({ Main: { now: currentProxyChoice,
-    all: ['Original', 'Cexing Smart Main'] } }),
+    all: ['Original', 'Other', 'Cexing Smart Main'] } }),
   selectProxy: async (_, name) => { if (selectAccepted) currentProxyChoice = name; return selectAccepted; },
   applyConfigText: async () => { applies++; return pending ? await new Promise(resolve => { resolveApply = resolve; }) : response; }
 } };
@@ -180,6 +180,13 @@ const tx = context.exports.ProfileTransactions;
     'reconnect retry must restore the original choice');
   assert.equal(currentProxyChoice, 'Original');
   assert.equal(previousRegionChoice, '');
+  previousRegionChoice = 'Original';
+  currentProxyChoice = 'Other';
+  assert.equal(await tx.applyPendingRegionSelection({}), false,
+    'reconnect must not overwrite a later manual choice');
+  assert.equal(currentProxyChoice, 'Other');
+  assert.equal(previousRegionChoice, '');
+  currentProxyChoice = 'Original';
   assert.equal(await tx.setRegionPlan({}, 'new.yaml', region), 'applied');
   response = 'rejected';
   const beforeRegionFailure = state.Current.ID;
