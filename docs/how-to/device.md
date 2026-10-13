@@ -10,7 +10,7 @@
 
 无模型即可使用 `type: smart` 的统计策略。将订阅中的一个现有组改成 Smart，引用至少两个已有可用节点，让规则引用该组；最小片段及参数见 [Smart 契约](../reference/smart-beta.md)。
 
-需要 LightGBM 时，在「设置 → Smart → 获取官方 Model.bin」打开 [官方 Release](https://github.com/vernesong/mihomo/releases/tag/LightGBM-Model)，下载 **Model.bin** 到手机（不要选择 middle/large）。然后点「选择模型文件并导入」。固定大小 9,345,218 字节，SHA-256 为 `23633022a815fb34e510befe1c176ba50af3ced48f08b172454f4cd6b8327788`；服务端校验摘要及解析后原子安装。HAP 不打包模型，也不自动下载。
+HAP 已内置 [官方 Release](https://github.com/vernesong/mihomo/releases/tag/LightGBM-Model) 的 **Model.bin**，首次离线安装无需手机再下载。固定大小 9,345,218 字节，SHA-256 为 `23633022a815fb34e510befe1c176ba50af3ced48f08b172454f4cd6b8327788`；Extension 在 Go 首次加载前核对并铺盘。「查看官方模型来源」「手动导入模型（恢复用）」保留作损坏恢复与手动替换入口，服务端仍校验摘要及解析。
 
 导入提示需要重启时，使用「重启应用使模型生效」：会断开 VPN 并重启整个应用，包括持有 Go runtime 的 VPN Extension。重新打开后手动连接。随后在订阅编辑页把目标 Smart 组的 `uselightgbm` 改为 `true` 并重新连接；`collectdata: false`、`prefer-asn: false`、`lgbm-auto-update: false` 适用于首测。只刷新页面或停止/启动 VPN 不能清除模型首次失败的进程缓存。
 
@@ -21,7 +21,7 @@
 - 原有订阅、节点名与选择恢复；URL/文件/粘贴、更新、重命名、编辑和启用后首页同步。
 - 首次授权、启动中取消、正常断开/重连、错误配置；迟到操作不能影响新会话。
 - 面板 REST/流量 WS 可用，返回、隐藏、失联/重连不停止 VPN，离线资源/CSP/ArkWeb 缓存和导航行为正常。
-- 导入模型后应用重启，确认 VPN Extension 进程换代；重新连接产生「模型已加载」及实际有效预测。失败提示保留且可重试。
+- 首次离线安装后不导入文件，启用已确认的 Smart 测试组并重新连接，确认「模型已加载」及实际有效预测；若文件损坏，确认备份与内置模型恢复。手动导入后按提示重启应用，确认 VPN Extension 进程换代；失败提示保留且可重试。
 - 手机浏览器真实 TUN 请求、TLS/REALITY、DNS/UDP、IPv6、Wi-Fi/蜂窝切换；低流量、息屏 15/30 分钟、关窗和回前台。
 
 记录源码 SHA、HAP 摘要、系统版本及脱敏结果。源码审查、Linux 转发、SDK 构建与手机验收是不同证据；Connected 或 `/version` 不能单独证明真实转发。公共反馈不要上传订阅 URL、节点凭据或原始配置。
