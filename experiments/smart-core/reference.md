@@ -10,7 +10,7 @@
 | [lux5am/mihomo-smart](https://github.com/lux5am/mihomo-smart/tree/8d4c8c70faedc27fda176ee18742ab86b5835a83) | `8d4c8c70faedc27fda176ee18742ab86b5835a83` | 对照 2026-07-11 提交，Smart YAML 与 API 路由；未在本实验编译 |
 | [TunBox](https://github.com/xiaoli8571/TunBox/blob/930accb2ba6a5d5356f47b456cdd376a649a0f8c/MIHOMO_SMART_KERNEL_SWAP.md) | `930accb2ba6a5d5356f47b456cdd376a649a0f8c` | 阅读完整换核记录，仅参考，不复制自有桥接或补丁 |
 
-选择 vernesong 是减少相对项目 [P0](../../docs/evidence/2026-10-12-p0.md) 的未知差异，并使用仍有当日源码活动的固定候选，不代表已验证长期维护、稳定或真机适用。两个 Smart 来源保持 `github.com/metacubex/mihomo` 模块路径；不能只改 import，也不能复制 TunBox 的九个 `Ssrvpn*` ABI 库到本项目。
+选择 vernesong 是减少相对项目 [P0](https://github.com/Starfie1d1272/Cexing/blob/df757138/docs/evidence/2026-10-12-p0.md) 的未知差异，并使用仍有当日源码活动的固定候选，不代表已验证长期维护、稳定或真机适用。两个 Smart 来源保持 `github.com/metacubex/mihomo` 模块路径；不能只改 import，也不能复制 TunBox 的九个 `Ssrvpn*` ABI 库到本项目。
 
 本目录 `go.mod` / `go.sum` 是从宿主模块图替换 Mihomo 后 tidy 的独立锁；保留宿主已锁定的较新传递依赖。因此不等于 TunBox 的 2026-07 原始模块图：实际 gVisor 是 `v0.0.0-20260922041103-e2cbcd6e7400`，不是它记录的 `261ec1326fe8`。构建先验证所有模块完整性，再只在实验缓存施加仓库 Fstat 补丁；重复构建仅允许从模块 ZIP 恢复原文或准确的已知补丁，其他修改立即失败。
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# ClashOH 环境变量 — 用法: source scripts/env.sh
+# Cexing 环境变量 — 用法: source scripts/env.sh
 #
 # 路径全部自动推导，克隆到任何机器都无需修改本文件：
 #   REPO_ROOT     由本脚本所在位置推导
@@ -7,10 +7,10 @@
 #                 先 export HARMONYOS_CLT_ROOT=/你的路径/command-line-tools 再 source
 # 完整环境准备步骤见 docs/how-to/build.md。
 
-_CLASHOH_ENV_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-export REPO_ROOT="$(cd "$_CLASHOH_ENV_DIR/.." && pwd)"
+_CEXING_ENV_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+export REPO_ROOT="$(cd "$_CEXING_ENV_DIR/.." && pwd)"
 export CLT_ROOT="${HARMONYOS_CLT_ROOT:-$REPO_ROOT/command-line-tools}"
-export PROJECT_ROOT="$REPO_ROOT/clash-openharmony"
+export PROJECT_ROOT="$REPO_ROOT/cexing"
 export DEVECO_SDK_HOME=$CLT_ROOT/sdk
 export OHOS_SDK_HOME=$CLT_ROOT/sdk/default/openharmony
 export OHOS_BASE_SDK_HOME=$OHOS_SDK_HOME

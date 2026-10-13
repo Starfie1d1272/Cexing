@@ -25,7 +25,7 @@ Merge 入口固定采用 `clash-verge-merge-2.5.8`，依据 [上游固定 merge.
 
 ## Canonical v3 可移植语义
 
-只移植区域池、服务依赖及规则优先级；私有现场覆写不进入公共项目。来源审查及偏差在 [证据](../../evidence/config-compatibility/2026-10-12.md)。区域名字可保留，节点名、订阅及设备身份均为外部私有输入。
+只移植区域池、服务依赖及规则优先级；私有现场覆写不进入公共项目。来源审查及偏差在 [证据](https://github.com/Starfie1d1272/Cexing/blob/df757138/docs/evidence/config-compatibility/2026-10-12.md)。区域名字可保留，节点名、订阅及设备身份均为外部私有输入。
 
 | 层 | 语义 |
 |---|---|

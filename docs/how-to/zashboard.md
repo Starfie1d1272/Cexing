@@ -10,7 +10,7 @@ bash scripts/build-zashboard.sh /tmp/zashboard-source
 
 首次安装需获取锁定依赖；缓存完整后 `bash scripts/build-zashboard.sh /tmp/zashboard-source --offline` 使用冻结锁离线安装与构建。设置 pnpm store 和 XDG 目录时使用自己的可写缓存目录。脚本拒绝错误 SHA、锁变更、任何暂存改动、上游额外修改和未跟踪源码，不清理它们；比较 HEAD 到工作区的完整差异，只允许固定宿主补丁。仅构建本地字体变体，禁用 service worker 自动注册与内核 restart，使用系统 emoji。
 
-输出到忽略的 `clash-openharmony/entry/src/main/resources/rawfile/zashboard/`。更新 `third_party/zashboard/manifest.json` 和 `ZashboardPin.ets` 后通过 Git diff 审查；未审查的更新不应发行。依赖许可文件、上游纹理 attribution 与字体许可也在清单内。
+输出到忽略的 `cexing/entry/src/main/resources/rawfile/zashboard/`。更新 `third_party/zashboard/manifest.json` 和 `ZashboardPin.ets` 后通过 Git diff 审查；未审查的更新不应发行。依赖许可文件、上游纹理 attribution 与字体许可也在清单内。
 
 按 [构建指南](build.md) 准备内核和 geodata，然后：
 
@@ -18,7 +18,7 @@ bash scripts/build-zashboard.sh /tmp/zashboard-source
 source scripts/env.sh
 node scripts/test-zashboard-assets.cjs
 python3 scripts/test-zashboard-source.py /tmp/zashboard-source
-(cd clash-openharmony && hvigorw clean --no-daemon)
+(cd cexing && hvigorw clean --no-daemon)
 bash scripts/build-hap.sh
 ```
 

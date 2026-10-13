@@ -1,5 +1,5 @@
 {
-  "name": "clash-openharmony-ci",
+  "name": "cexing-ci",
   "private": true,
   "version": "1.0.0",
   "description": "Host mock transpilation and source validation only; not an ArkTS SDK",

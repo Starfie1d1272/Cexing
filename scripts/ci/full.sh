@@ -7,8 +7,8 @@ if [ -n "$(git status --porcelain --untracked-files=normal)" ]; then
   exit 1
 fi
 # Clear old success before any toolchain preflight; failure never inherits a HAP.
-rm -rf clash-openharmony/dist/ci
-rm -f clash-openharmony/entry/build/default/outputs/default/entry-default-unsigned.hap
+rm -rf cexing/dist/ci
+rm -f cexing/entry/build/default/outputs/default/entry-default-unsigned.hap
 source scripts/env.sh
 python3 scripts/ci/check-toolchain.py
 node scripts/ci/source-check.cjs
@@ -41,15 +41,15 @@ ci_save_go_download_cache
 python3 scripts/ci/timed.py smart-tests bash scripts/test-smart.sh
 python3 scripts/ci/license-inventory.py "$CI_BUILD_ROOT/GO-NOTICES.txt" > "$CI_BUILD_ROOT/licenses.json"
 for test in scripts/test-*.cjs; do node "$test"; done
-python3 scripts/ci/timed.py ohpm bash -c 'cd clash-openharmony && "$CLT_ROOT/ohpm/bin/ohpm" install'
+python3 scripts/ci/timed.py ohpm bash -c 'cd cexing && "$CLT_ROOT/ohpm/bin/ohpm" install'
 python3 scripts/ci/timed.py mihomo-smart bash scripts/build-core.sh
 (cd core && go mod verify)
 python3 scripts/ci/timed.py geoip bash scripts/prepare-geodata.sh
-python3 scripts/ci/timed.py hvigor-clean bash -c 'cd clash-openharmony && hvigorw clean --no-daemon'
+python3 scripts/ci/timed.py hvigor-clean bash -c 'cd cexing && hvigorw clean --no-daemon'
 python3 scripts/ci/timed.py napi-arkts-hap bash scripts/build-hap.sh
 python3 scripts/ci/check-toolchain.py --after-build
-HAP=clash-openharmony/entry/build/default/outputs/default/entry-default-unsigned.hap
-REPORT=clash-openharmony/dist/ci
+HAP=cexing/entry/build/default/outputs/default/entry-default-unsigned.hap
+REPORT=cexing/dist/ci
 python3 scripts/ci/timed.py hap-validation python3 scripts/ci/verify-hap.py "$HAP" "$REPORT"
 python3 tests/smart/hap_gate.py
 python3 tests/smart/source_gate.py

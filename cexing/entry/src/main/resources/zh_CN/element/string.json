@@ -1,0 +1,12 @@
+{
+  "string": [
+    {
+      "name": "EntryAbility_label",
+      "value": "策星"
+    },
+    {
+      "name": "EntryAbility_desc",
+      "value": "策星原生代理客户端"
+    }
+  ]
+}

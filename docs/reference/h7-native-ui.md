@@ -4,7 +4,7 @@
 
 ## 官方能力使用矩阵
 
-起始版本按实际接口区分，不用“H7”统称所有能力。最低兼容仍为 API 21，目标 API 26。Huawei 文档网站部分指南为动态内容，完整正文未能读取；下表的可执行签名及版本同时核对官方 SDK 声明和官方 OpenHarmony API 文档，来源摘要见 [sources.json](../evidence/h7-native-2026-10-13/sources.json)。不把社区示例当官方限制。
+起始版本按实际接口区分，不用“H7”统称所有能力。最低兼容仍为 API 21，目标 API 26。Huawei 文档网站部分指南为动态内容，完整正文未能读取；下表的可执行签名及版本同时核对官方 SDK 声明和官方 OpenHarmony API 文档，来源摘要见 [sources.json](https://github.com/Starfie1d1272/Cexing/blob/df757138/docs/evidence/h7-native-2026-10-13/sources.json)。不把社区示例当官方限制。
 
 | 能力及官方资料 | 起始 API | 使用条件及当前状态 | 本产品适用性/复杂度 | 兼容与功耗影响 |
 | --- | --- | --- | --- | --- |

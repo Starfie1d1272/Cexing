@@ -60,8 +60,7 @@ for key in ("nameserver-policy", "fallback-filter"):
 assert merge_expected["hosts"] == overlay["hosts"]
 assert merge_expected["dns"]["nameserver"] == merge_base["dns"]["nameserver"]
 assert merge_expected["tun"] == {"mtu": 1500, "stack": "mixed"}
-for doc in [root / "usage.md", root.parent / "spec.md", root.parent / "engine-interface.md",
-            root.parents[2] / "evidence/config-compatibility/2026-10-12.md"]:
+for doc in [root / "usage.md", root.parent / "spec.md", root.parent / "engine-interface.md"]:
     for link in re.findall(r"\]\(([^)]+)\)", doc.read_text(encoding="utf-8")):
         if "://" not in link:
             assert (doc.parent / link.split("#")[0]).exists(), f"broken link: {link}"

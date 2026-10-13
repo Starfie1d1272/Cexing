@@ -15,7 +15,7 @@ from urllib.error import HTTPError
 from playwright.sync_api import sync_playwright
 
 ROOT = Path(__file__).resolve().parent.parent
-ASSETS = ROOT / 'clash-openharmony/entry/src/main/resources/rawfile/zashboard'
+ASSETS = ROOT / 'cexing/entry/src/main/resources/rawfile/zashboard'
 PAYLOAD = '''mixed-port: 0
 mode: rule
 log-level: silent
@@ -68,7 +68,7 @@ with tempfile.TemporaryDirectory(prefix='zashboard-browser-') as temporary:
         node = r"""
 const fs=require('fs'), path=require('path'), vm=require('vm');
 const ts=require(path.join(process.env.OHOS_SDK_HOME,'ets/build-tools/ets-loader/node_modules/typescript'));
-const source=fs.readFileSync('clash-openharmony/entry/src/main/ets/lib/ZashboardSession.ets','utf8');
+const source=fs.readFileSync('cexing/entry/src/main/ets/lib/ZashboardSession.ets','utf8');
 const context={exports:{},require:()=>({})};
 vm.runInNewContext(ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText,context);
 const fixture=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));

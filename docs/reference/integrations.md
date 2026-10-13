@@ -1,6 +1,6 @@
 # Zashboard 与 Smart 接入契约
 
-这是后续集成的技术约束，源码调查和试编译身份见 [来源快照](../evidence/2026-10-12-sources.md)。
+这是后续集成的技术约束，源码调查和试编译身份见 [来源快照](https://github.com/Starfie1d1272/Cexing/blob/df757138/docs/evidence/2026-10-12-sources.md)。
 
 ## Zashboard
 

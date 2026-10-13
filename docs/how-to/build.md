@@ -1,6 +1,6 @@
 # 构建与回归
 
-所有命令从仓库根目录在 Bash 执行。需要 Go、Node.js、JDK、Python 3，以及官方 HarmonyOS Command Line Tools（hvigor、ohpm、SDK/NDK）。SDK 目标以 `clash-openharmony/build-profile.json5` 为准，Go 约束以 `core/go.mod` 为准；具体工具组合的通过记录放在 evidence，避免把一次测试版本当成永久下限。
+所有命令从仓库根目录在 Bash 执行。需要 Go、Node.js、JDK、Python 3，以及官方 HarmonyOS Command Line Tools（hvigor、ohpm、SDK/NDK）。SDK 目标以 `cexing/build-profile.json5` 为准，Go 约束以 `core/go.mod` 为准；具体工具组合的通过记录放在 evidence，避免把一次测试版本当成永久下限。
 
 ## 工具链
 
@@ -21,14 +21,14 @@ command -v hvigorw
 
 ```bash
 source scripts/env.sh
-(cd clash-openharmony && "$CLT_ROOT/ohpm/bin/ohpm" install)
+(cd cexing && "$CLT_ROOT/ohpm/bin/ohpm" install)
 bash scripts/build-core.sh
 bash scripts/prepare-geodata.sh
-(cd clash-openharmony && hvigorw clean --no-daemon)
+(cd cexing && hvigorw clean --no-daemon)
 bash scripts/build-hap.sh
 ```
 
-内核生成到 `clash-openharmony/entry/libs/arm64-v8a/`；未签名包位于 `clash-openharmony/entry/build/default/outputs/default/entry-default-unsigned.hap`。这些文件不入 Git。只改 ArkTS 时可复用同一模块图的内核；依赖变化须重建内核并核对模块元数据。资源或原生库变化必须 clean，避免 Hvigor 打包旧缓存。
+内核生成到 `cexing/entry/libs/arm64-v8a/`；未签名包位于 `cexing/entry/build/default/outputs/default/entry-default-unsigned.hap`。这些文件不入 Git。只改 ArkTS 时可复用同一模块图的内核；依赖变化须重建内核并核对模块元数据。资源或原生库变化必须 clean，避免 Hvigor 打包旧缓存。
 
 `build-core.sh` 使用 OHOS clang，以 `GOOS=android GOARCH=arm64` 和 `netgo ohos cmfa with_gvisor` 构建 c-shared。脚本每次重建 Android 日志 stub，并自动使用构建专用临时模块缓存应用固定 gVisor 的 Fstat 补丁；不修改开发者共享缓存。原理与升级检查见 [平台参考](../reference/platform.md)。
 

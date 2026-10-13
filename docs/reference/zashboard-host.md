@@ -15,13 +15,13 @@
 
 关闭、隐藏导航目的地或重新打开时停止页面会话观察、撤销前端资源并释放 Web 组件；不停止 VPN 或后台任务。异步探活按页面代次过滤，关闭后的迟到结果不能重新授权。每三秒串行探测，失联立即撤销，恢复后重新验证资源并创建新 WebView；Controller 换代也重建页面。页面错误和渲染进程退出可手动重开，提示不打印原始 URL/错误。
 
-Native ProxyPage 文件在首次 ArkWeb 真机验收前保留，连接页的主要入口已切到 Zashboard。不能把 Chromium、SDK 编译或 host mock 当作手机验收；当前证据见 [测试版接入证据](../evidence/2026-10-12-zashboard-session.md)。
+Native ProxyPage 文件在首次 ArkWeb 真机验收前保留，连接页的主要入口已切到 Zashboard。不能把 Chromium、SDK 编译或 host mock 当作手机验收；当前证据见 [测试版接入证据](https://github.com/Starfie1d1272/Cexing/blob/df757138/docs/evidence/2026-10-12-zashboard-session.md)。
 
 ## 资源事务
 
 从锁定源码和 pnpm lock 构建本地 Fira Sans 字体版，携带许可、图标、PWA 资源和逐文件 SHA-256 清单。资源以内容清单摘要命名私有版本目录；进程内串行，并持有文件独占锁防止跨进程并发铺盘。先写服务目录以外的 staging、逐文件验证，再 rename 到 ui/versions，最后原子替换 ui/index.html。损坏或缺失保留上个校验通过的版本并返回可恢复错误。路径必须为受限相对路径，无绝对路径、空段、点段、反斜线或编码转义；磁盘内容禁止 symlink。
 
-`external-ui` 路径只来自宿主，不能接受 WebView 或用户提供的路径。已有版本在每次使用前复验。完整文件集合校验防止额外文件混入。旧版本不自动删除，以免旧 WebView 的资源目录消失。安全线 PR #9 已将危险静态资源降级为 404，保留认证 API/VPN；该依赖的并发重载 race 问题仍须独立解决。凭据失败仍须拒绝匿名运行。实际核查与安全降级约束见 [合流证据](../evidence/2026-10-12-zashboard-security-convergence.md)。
+`external-ui` 路径只来自宿主，不能接受 WebView 或用户提供的路径。已有版本在每次使用前复验。完整文件集合校验防止额外文件混入。旧版本不自动删除，以免旧 WebView 的资源目录消失。安全线 PR #9 已将危险静态资源降级为 404，保留认证 API/VPN；该依赖的并发重载 race 问题仍须独立解决。凭据失败仍须拒绝匿名运行。实际核查与安全降级约束见 [合流证据](https://github.com/Starfie1d1272/Cexing/blob/df757138/docs/evidence/2026-10-12-zashboard-security-convergence.md)。
 
 同一版本的现有目录损坏时，prepare 重新从固定入包资源在服务根外构建并完整校验。只有新副本可用后才把坏目录 rename 到私有 zashboard-quarantine 目录，再发布新目录；发布失败恢复原目录并尝试旧版本。隔离副本不自动删除。平台不支持非空目录交换，因此修复同一路径的两次 rename 之间可能短暂 404，不会暴露半成品；版本选择入口仍为单文件原子替换。此修复不负责安全线的 Controller/VPN 降级。
 

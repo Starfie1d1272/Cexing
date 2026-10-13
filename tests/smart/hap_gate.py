@@ -1,7 +1,7 @@
 from pathlib import Path
 import os,subprocess,sys,tempfile,zipfile,struct
 root=Path.cwd()
-hap=root/'clash-openharmony/entry/build/default/outputs/default/entry-default-unsigned.hap'
+hap=root/'cexing/entry/build/default/outputs/default/entry-default-unsigned.hap'
 with tempfile.TemporaryDirectory(prefix='smart-hap-negative-') as temporary:
  d=Path(temporary)
  cases=['fake112-empty','model','empty-override']

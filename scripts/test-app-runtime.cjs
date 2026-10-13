@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const ts = require(path.join(process.env.OHOS_SDK_HOME, 'ets/build-tools/ets-loader/node_modules/typescript'));
-const source = fs.readFileSync(path.join(__dirname, '../clash-openharmony/entry/src/main/ets/lib/AppRuntime.ets'), 'utf8');
+const source = fs.readFileSync(path.join(__dirname, '../cexing/entry/src/main/ets/lib/AppRuntime.ets'), 'utf8');
 const compiled = ts.transpileModule(source, { compilerOptions: {
   module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020
 } }).outputText;

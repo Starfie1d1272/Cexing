@@ -6,7 +6,7 @@ const vm = require('node:vm');
 const sdk = process.env.OHOS_SDK_HOME;
 assert.ok(sdk, 'Run source scripts/env.sh first');
 const ts = require(path.join(sdk, 'ets/build-tools/ets-loader/node_modules/typescript'));
-const source = fs.readFileSync(path.join(__dirname, '../clash-openharmony/entry/src/main/ets/lib/ProfileName.ets'), 'utf8');
+const source = fs.readFileSync(path.join(__dirname, '../cexing/entry/src/main/ets/lib/ProfileName.ets'), 'utf8');
 const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS } });
 const context = { exports: {} };
 vm.runInNewContext(compiled.outputText, context);

@@ -6,7 +6,7 @@ node scripts/ci/source-check.cjs
 while IFS= read -r script; do bash -n "$script"; done < <(git ls-files 'scripts/*.sh' 'scripts/ci/*.sh')
 git diff --check
 python3 scripts/ci/test-gvisor-patch.py
-export OHOS_SDK_HOME="${TMPDIR:-/tmp}/clash-ci-host-mock"
+export OHOS_SDK_HOME="${TMPDIR:-/tmp}/cexing-ci-host-mock"
 for test in scripts/test-*.cjs; do
   node -r ./scripts/ci/arkts-mocks.cjs "$test"
 done

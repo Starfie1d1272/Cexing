@@ -14,11 +14,11 @@
 #         （鸿蒙沙箱 EPERM），回退到 readv 非 socket 路径
 #
 # 用法: bash scripts/build-core.sh
-# 产物: clash-openharmony/entry/libs/arm64-v8a/libmihomo.so（+ libmihomo.h）
+# 产物: cexing/entry/libs/arm64-v8a/libmihomo.so（+ libmihomo.h）
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-SMART_OUTPUT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)/clash-openharmony/entry/libs/arm64-v8a"
+SMART_OUTPUT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)/cexing/entry/libs/arm64-v8a"
 # Clear before environment/toolchain preflight, so an early failure cannot retain success.
 rm -f "$SMART_OUTPUT_DIR/smart-build.json" "$SMART_OUTPUT_DIR/smart-build.pending.json"
 source "$SCRIPT_DIR/env.sh"

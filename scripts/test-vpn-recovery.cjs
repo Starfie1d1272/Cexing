@@ -8,7 +8,7 @@ const ts = require(path.join(process.env.OHOS_SDK_HOME, 'ets/build-tools/ets-loa
 const flush = () => new Promise(resolve => setImmediate(resolve));
 function load() {
   const probes = [];
-  const source = fs.readFileSync(process.env.VPN_CONTROLLER_SOURCE || path.join(__dirname, '../clash-openharmony/entry/src/main/ets/lib/VpnController.ets'), 'utf8');
+  const source = fs.readFileSync(process.env.VPN_CONTROLLER_SOURCE || path.join(__dirname, '../cexing/entry/src/main/ets/lib/VpnController.ets'), 'utf8');
   const output = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText;
   const settings = { accessMode: 'all', accessList: [], ipv6: false, vpnWasConnected: false };
   const modules = {

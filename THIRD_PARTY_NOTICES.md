@@ -1,6 +1,6 @@
 # 第三方来源与声明
 
-本项目沿用 [GPL-3.0](LICENSE)。脱离 GitHub Fork 关系不改变来源、版权或许可证义务；直接复用文件已有声明应保留。精确历史调查 SHA 见 [来源快照](docs/evidence/2026-10-12-sources.md)，实际构建依赖以 `core/go.mod` / `go.sum` 为准。
+本项目沿用 [GPL-3.0](LICENSE)。脱离 GitHub Fork 关系不改变来源、版权或许可证义务；直接复用文件已有声明应保留。精确历史调查 SHA 见 [来源快照](https://github.com/Starfie1d1272/Cexing/blob/df757138/docs/evidence/2026-10-12-sources.md)，实际构建依赖以 `core/go.mod` / `go.sum` 为准。
 
 | 来源 | 使用范围 | 许可与说明 |
 |---|---|---|

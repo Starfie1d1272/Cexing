@@ -6,7 +6,7 @@ engine=root/'core/engine.go'
 probe=root/'core/review_source_set_probe.go'
 if probe.exists():raise SystemExit('refuse to replace an existing source probe')
 original=engine.read_bytes()
-hap=root/'clash-openharmony/entry/build/default/outputs/default/entry-default-unsigned.hap'
+hap=root/'cexing/entry/build/default/outputs/default/entry-default-unsigned.hap'
 with tempfile.TemporaryDirectory(prefix='smart-source-gate-') as tmp:
  report=Path(tmp)
  for case in ['changed','added']:

@@ -23,7 +23,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   full:
-    if: github.repository == 'Starfie1d1272/clash-OpenHarmony' && github.event_name == 'workflow_dispatch' && startsWith(github.ref, 'refs/heads/')
+    if: github.repository == 'Starfie1d1272/Cexing' && github.event_name == 'workflow_dispatch' && startsWith(github.ref, 'refs/heads/')
     # Never attach this runner to pull_request / pull_request_target events.
     runs-on: ${{ inputs.runner == 'self-hosted' && fromJSON('["self-hosted", "linux", "x64", "harmonyos-ci"]') || 'ubuntu-24.04' }}
     environment: harmonyos-ci
@@ -84,7 +84,7 @@ jobs:
           key: public-go-downloads-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('core/go.sum', 'scripts/ci/toolchain.json') }}
       - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
-          path: clash-openharmony/entry/src/main/resources/rawfile/zashboard
+          path: cexing/entry/src/main/resources/rawfile/zashboard
           key: verified-zashboard-${{ runner.os }}-${{ hashFiles('third_party/zashboard/**', 'scripts/build-zashboard.sh', 'scripts/zashboard-assets.py', 'scripts/ci/package-lock.json') }}
       - run: npm ci --prefix scripts/ci --ignore-scripts --no-audit --no-fund
       - name: Fresh Go, NAPI, ArkTS and verified unsigned HAP
@@ -95,9 +95,9 @@ jobs:
         run: |
           python3 - <<'PYCODE'
           import hashlib, json, os, pathlib, shutil
-          report = pathlib.Path('clash-openharmony/dist/ci')
+          report = pathlib.Path('cexing/dist/ci')
           identity = json.loads((report / 'build-identity.json').read_text())
-          hap = pathlib.Path('clash-openharmony/entry/build/default/outputs/default/entry-default-unsigned.hap')
+          hap = pathlib.Path('cexing/entry/build/default/outputs/default/entry-default-unsigned.hap')
           def sha(path):
               return hashlib.sha256(path.read_bytes()).hexdigest()
           if identity['commit'] != os.environ['GITHUB_SHA'] or identity['signed'] is not False:
@@ -125,17 +125,17 @@ jobs:
           PYCODE
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: unsigned-test-hap-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          name: cexing-unsigned-hap-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
-            clash-openharmony/dist/ci/entry-default-unsigned.hap
-            clash-openharmony/dist/ci/build-identity.json
-            clash-openharmony/dist/ci/module-notices.json
-            clash-openharmony/dist/ci/GO-NOTICES.txt
-            clash-openharmony/dist/ci/HOKIT-QUICKSTART.md
-            clash-openharmony/dist/ci/SHA256SUMS
-            clash-openharmony/dist/ci/THIRD_PARTY_NOTICES.md
-            clash-openharmony/dist/ci/LICENSE
-            clash-openharmony/dist/ci/SMART-NOTICE.md
+            cexing/dist/ci/entry-default-unsigned.hap
+            cexing/dist/ci/build-identity.json
+            cexing/dist/ci/module-notices.json
+            cexing/dist/ci/GO-NOTICES.txt
+            cexing/dist/ci/HOKIT-QUICKSTART.md
+            cexing/dist/ci/SHA256SUMS
+            cexing/dist/ci/THIRD_PARTY_NOTICES.md
+            cexing/dist/ci/LICENSE
+            cexing/dist/ci/SMART-NOTICE.md
           compression-level: 0
           if-no-files-found: error
           retention-days: 7
