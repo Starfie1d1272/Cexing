@@ -1,0 +1,64 @@
+{
+  "baselineSha": "8773a79c573cec2bc7a2f83ad6fa4ff103462a51",
+  "app": {
+    "bundleName": "com.starfie1d.mihomo",
+    "versionCode": 1,
+    "versionName": "0.1.0",
+    "compileSdkVersion": "26.0.0.105"
+  },
+  "unsignedHapSha256": "2b234dfa3dd03d0ca7ecbce00e18f50c15f40364815eff2cc9c138aa884ab5b6",
+  "signedHapSha256": "7e27f3cd9766146f5969a92abfdf0488fdf74e8c06e53f3ae085ce4778d0ae8e",
+  "packagedLibraries": {
+    "libmihomo.so": "ee6f6481fe06275af1361fee4cdca5e36051af86e4de3027a5927ffead16bb44",
+    "libentry.so": "f89248d143ec8cbf1f922b4c1bc418d7b2124898ff8630ef6d73947a3069ffc6",
+    "libc++_shared.so": "965803c3fe53e02452e4c0479ad13c88f166c04207d27e3c531161a7c75a6c17"
+  },
+  "actualToolchain": {
+    "node": "v24.20.0",
+    "go": "go version go1.27.2 darwin/arm64",
+    "sdk": {
+      "ets": "26.0.0.105",
+      "native": "26.0.0.105",
+      "toolchains": "26.0.0.105"
+    },
+    "hvigor": "6.26.8"
+  },
+  "jdkMajor": 27,
+  "ohpm": "26.0.0.630",
+  "commandLineTools": "26.0.0.851",
+  "toolchainArchive": {
+    "archiveName": "commandline-tools-mac-arm64-26.0.0.851.zip",
+    "sha256": "4c7f0eabd5c96a5a54f5e892c1cf8cf580154d6100d0d1fa6be23e189e33b771",
+    "zipCRC": "PASS",
+    "version": "26.0.0.851",
+    "platform": "mac-arm64"
+  },
+  "device": {
+    "model": "Pura 70 Pro (HBN-AL00)",
+    "system": "7.0.0.109(SP8C00E105R5P2)",
+    "api": 26,
+    "screenPixels": [
+      1260,
+      2844
+    ]
+  },
+  "checks": [
+    "CRC",
+    "formal bundle",
+    "ARM64",
+    "four C ABI",
+    "fresh strip byte equality",
+    "all rawfile byte equality",
+    "fresh Smart build inputs",
+    "no bundled model"
+  ],
+  "buildTasks": {
+    "total": 33,
+    "executed": 33,
+    "upToDate": 0
+  },
+  "installedWithReplace": true,
+  "existingProfileHashesPreservedOnInstall": true,
+  "overallFirstRoundPassed": false,
+  "forwardingPassed": false
+}
