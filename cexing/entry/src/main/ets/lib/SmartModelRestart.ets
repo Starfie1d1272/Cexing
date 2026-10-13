@@ -2,43 +2,35 @@ import { common } from '@kit.AbilityKit';
 import { preferences } from '@kit.ArkData';
 import { AppRuntime } from './AppRuntime';
 import { VpnController, VpnStatus } from './VpnController';
-import { CoreApi } from './CoreApi';
 import { AutoUpdater } from './AutoUpdater';
 import { LiveViewKeeper } from './LiveViewKeeper';
 
 const STOP_TIMEOUT_MS = 15000;
-const POLL_INTERVAL_MS = 200;
 
 export namespace SmartModelRestart {
   let restarting: boolean = false;
 
   async function stopVpn(context: common.UIAbilityContext): Promise<void> {
-    VpnController.stop(context);
+    // No VPN session was entered on the first model setup path.
+    if (VpnController.status === VpnStatus.Disconnected) {
+      if (VpnController.getLastStopCompleted() === false) {
+        throw new Error('上次停止 VPN 结果未知，请确认系统状态后重试模型重启');
+      }
+      return;
+    }
     let timer: number = -1;
-    let expired: boolean = false;
-    const deadline = new Promise<void>((_resolve, reject) => {
+    const deadline = new Promise<boolean>((_resolve, reject) => {
       timer = setTimeout(() => {
-        expired = true;
         reject(new Error('停止 VPN 超时，请确认已断开后重试模型重启'));
       }, STOP_TIMEOUT_MS);
     });
-    // 探活在超时之后可能才返回；不再安排下一轮轮询。
-    const stopped = (async (): Promise<void> => {
-      while (!expired) {
-        const alive = await CoreApi.isAlive();
-        if (expired) {
-          return;
-        }
-        if (!alive && VpnController.status === VpnStatus.Disconnected) {
-          return;
-        }
-        await new Promise<void>((resolve) => { setTimeout(resolve, POLL_INTERVAL_MS); });
-      }
-    })();
     try {
-      await Promise.race([stopped, deadline]);
+      // A failed Controller probe can look like a stopped core. The session-
+      // bound extension receipt and system stop result are the completion signal.
+      if (await Promise.race([VpnController.stop(context), deadline]) !== true) {
+        throw new Error('停止 VPN 结果未知，请确认系统状态后重试模型重启');
+      }
     } finally {
-      expired = true;
       clearTimeout(timer);
     }
   }

@@ -15,10 +15,18 @@ function fixture(options = {}) {
   const timers = new Map();
   let timerId = 0;
   const settings = { vpnWasConnected: true, autoRestore: true, keepAlive: true };
-  const controller = { status: status.Connected, stop: () => {
+  let finishStop;
+  const controller = { status: options.initialStatus ?? status.Connected,
+    lastStopCompleted: options.lastStopCompleted ?? null,
+    getLastStopCompleted() { return controller.lastStopCompleted; },
+    stop: () => {
     calls.push('vpn-stop');
     if (options.stopFailure) throw Error('native error');
-    controller.status = options.stuckStatus ? status.Disconnecting : status.Disconnected;
+    if (options.hungStop) return new Promise(() => {});
+    if (options.deferredStop) return new Promise(resolve => { finishStop = resolve; });
+    controller.status = status.Disconnected;
+    controller.lastStopCompleted = options.stopResult ?? true;
+    return Promise.resolve(options.stopResult ?? true);
   } };
   const application = { restartApp: want => {
     calls.push('app-restart');
@@ -42,12 +50,6 @@ function fixture(options = {}) {
       } };
     } } },
     './VpnController': { VpnController: controller, VpnStatus: status },
-    './CoreApi': { CoreApi: { isAlive: async () => {
-      calls.push('probe');
-      if (options.probeFailure) throw Error('probe error');
-      if (options.hungProbe) return new Promise(() => {});
-      return options.alive || false;
-    } } },
     './AutoUpdater': { AutoUpdater: { stop: () => calls.push('updater-stop') } },
     './LiveViewKeeper': { LiveViewKeeper: { stop: async () => {
       calls.push('background-stop');
@@ -59,37 +61,50 @@ function fixture(options = {}) {
   }, setTimeout: (fn, delay) => { timers.set(++timerId, { fn, delay }); return timerId; },
   clearTimeout: id => timers.delete(id) };
   vm.runInNewContext(compiled, sandbox);
-  return { restart: () => sandbox.exports.SmartModelRestart.restart(context), calls, settings, timers };
+  return { restart: () => sandbox.exports.SmartModelRestart.restart(context), calls, settings, timers,
+    finishStop: value => finishStop(value) };
 }
 (async () => {
   const success = fixture();
   await success.restart();
-  assert.deepEqual(success.calls, ['cancel', 'vpn-stop', 'probe', 'save', 'flush', 'updater-stop', 'background-stop', 'app-restart']);
+  assert.deepEqual(success.calls, ['cancel', 'vpn-stop', 'save', 'flush', 'updater-stop', 'background-stop', 'app-restart']);
   assert.deepEqual(success.settings, { vpnWasConnected: false, autoRestore: true, keepAlive: true });
   assert.equal(success.timers.size, 0);
-  for (const options of [{ alive: true }, { stuckStatus: true }, { hungProbe: true }]) {
+  const noSession = fixture({ initialStatus: status.Disconnected });
+  await noSession.restart();
+  assert.ok(!noSession.calls.includes('vpn-stop'), 'First model setup has no VPN session to stop');
+  assert.ok(noSession.calls.includes('app-restart'));
+  const priorFailedStop = fixture({ initialStatus: status.Disconnected, lastStopCompleted: false });
+  await assert.rejects(priorFailedStop.restart(), /停止 VPN/);
+  assert.ok(!priorFailedStop.calls.includes('vpn-stop') && !priorFailedStop.calls.includes('app-restart'));
+  const pendingStop = fixture({ deferredStop: true });
+  const restartAfterStop = pendingStop.restart();
+  await flush();
+  assert.deepEqual(pendingStop.calls, ['cancel', 'vpn-stop'], 'Restart must wait for stop completion');
+  pendingStop.finishStop(true);
+  await restartAfterStop;
+  for (const options of [{ stopResult: false }, { stopFailure: true },
+    { backgroundFailure: true }, { saveFailure: true }]) {
     const f = fixture(options);
-    const pending = assert.rejects(f.restart(), /停止 VPN/);
-    await flush();
-    [...f.timers.values()].find(t => t.delay === 15000).fn();
-    await pending;
-    assert.ok(!f.calls.includes('app-restart'), 'Timeout must not restart');
-    assert.ok(!f.calls.includes('updater-stop'), 'Must wait for VPN shutdown before service cleanup');
-    const polls = [...f.timers.values()];
-    f.timers.clear();
-    polls.forEach(t => t.fn());
-    await flush();
-    assert.equal(f.timers.size, 0, 'Timed-out probe must not keep scheduling');
-  }
-  for (const options of [{ stopFailure: true }, { probeFailure: true }, { backgroundFailure: true }, { saveFailure: true }]) {
-    const f = fixture(options);
-    await assert.rejects(f.restart(), /失败/);
+    await assert.rejects(f.restart(), /失败|未知/);
     assert.ok(!f.calls.includes('app-restart'), 'Failed preparation must not restart');
     assert.equal(f.timers.size, 0);
   }
+  const failedStopAgain = fixture({ stopResult: false });
+  await assert.rejects(failedStopAgain.restart(), /停止 VPN/);
+  await assert.rejects(failedStopAgain.restart(), /停止 VPN/);
+  assert.equal(failedStopAgain.calls.filter(call => call === 'vpn-stop').length, 1,
+    'A false stop cannot become a no-session restart on retry');
+  const timedOut = fixture({ hungStop: true });
+  const timedOutRestart = assert.rejects(timedOut.restart(), /停止 VPN/);
+  await flush();
+  [...timedOut.timers.values()].find(t => t.delay === 15000).fn();
+  await timedOutRestart;
+  assert.ok(!timedOut.calls.includes('app-restart'));
+  assert.equal(timedOut.timers.size, 0);
   const failedRestart = fixture({ restartFailure: true });
   await assert.rejects(failedRestart.restart(), /应用重启失败/);
-  const busy = fixture({ hungProbe: true });
+  const busy = fixture({ hungStop: true });
   const pending = assert.rejects(busy.restart(), /停止 VPN/);
   await assert.rejects(busy.restart(), /正在进行/);
   [...busy.timers.values()].find(t => t.delay === 15000).fn();

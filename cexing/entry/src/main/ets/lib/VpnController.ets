@@ -135,6 +135,9 @@ export namespace VpnController {
   let tunCreateObserved: boolean = false;
   let kernelReadyReported: boolean = false;
   let serviceId: number = 0;
+  // Retain an unconfirmed stop across the Disconnected UI transition in this
+  // process. Disconnected alone does not establish native cleanup.
+  let lastStopCompleted: boolean | null = null;
   const listeners: StatusListener[] = [];
   let startAttempt = 0;
   let startSession: string = '';
@@ -169,6 +172,10 @@ export namespace VpnController {
 
   export function getKernelReadyReported(): boolean {
     return kernelReadyReported;
+  }
+
+  export function getLastStopCompleted(): boolean | null {
+    return lastStopCompleted;
   }
 
   function recordFailure(failure: ConnectionFailure): void {
@@ -226,6 +233,7 @@ export namespace VpnController {
       return;
     }
     cancelRecovery();
+    lastStopCompleted = null;
     lastStartError = '';
     lastStartFailure = null;
     tunCreateObserved = false;
@@ -402,6 +410,7 @@ export namespace VpnController {
     // Only a pre-binding Connecting cancellation proves native startup was never entered.
     const nativeNotEntered = status === VpnStatus.Connecting && !connectedService;
     const stoppingServiceId = serviceId;
+    lastStopCompleted = false;
     // 用户主动停止：清除「会话曾连接」标记（冷启动不再自动恢复）
     let saved = true;
     try {
@@ -437,8 +446,9 @@ export namespace VpnController {
         Logger.error(TAG, 'VPN Extension stop failed');
       }
       serviceId = 0;
+      lastStopCompleted = saved && extensionCompleted && systemStopped;
       setStatus(VpnStatus.Disconnected);
-      return saved && extensionCompleted && systemStopped;
+      return lastStopCompleted;
     })();
   }
 }
