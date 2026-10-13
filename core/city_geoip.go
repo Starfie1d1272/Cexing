@@ -170,9 +170,10 @@ func (s *cityStore) download(w MHTTP.ResponseWriter, req *MHTTP.Request) {
 	s.mu.Unlock()
 	defer cancel()
 	// Reuse Mihomo's existing certificate roots, including its bundled CA set.
-	// Normal TLS hostname checks remain enabled; redirects/environment proxies
-	// cannot broaden the fixed download destination.
-	transport := &HTTP.Transport{TLSClientConfig: &tls.Config{MinVersion: tls.VersionTLS12, RootCAs: ca.GetCertPool()}}
+	// Normal TLS hostname checks remain enabled. The platform environment may
+	// provide a network egress proxy; no request/config parameter controls it.
+	// Redirects cannot broaden the fixed download destination.
+	transport := &HTTP.Transport{Proxy: HTTP.ProxyFromEnvironment, TLSClientConfig: &tls.Config{MinVersion: tls.VersionTLS12, RootCAs: ca.GetCertPool()}}
 	defer transport.CloseIdleConnections()
 	client := &HTTP.Client{Transport: transport, Timeout: 3 * time.Minute, CheckRedirect: func(_ *HTTP.Request, _ []*HTTP.Request) error { return errors.New("redirect_not_allowed") }}
 	err := installCity(ctx, s.path, client, cityURL, func(received int64) { s.mu.Lock(); s.state.Received = received; s.mu.Unlock() })
