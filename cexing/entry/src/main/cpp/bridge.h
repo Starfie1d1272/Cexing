@@ -25,7 +25,7 @@ std::string StartTun(int fd, const std::string &configJson, const std::string &o
 std::string ValidateOffline(const std::string &homeDir, const std::string &configJson, const std::string &overridesJson);
 std::string PreviewMerge(const std::string &homeDir, const std::string &original, const std::string &overlay, const std::string &overridesJson);
 std::string VersionAction(const std::string &homeDir, const std::string &actionJson);
-void Stop();
+std::string Stop();
 Status GetStatus();
 
 } // namespace bridge
