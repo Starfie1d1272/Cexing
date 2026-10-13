@@ -14,10 +14,11 @@ let response = 'applied';
 let resolveApply;
 let pending = false;
 let uncertain = false;
+let applies = 0;
 const controller = { VpnStatus: { Disconnected: 0, Connected: 2 }, VpnController: { status: 2 } };
 const core = { CoreApi: {
   isAlive: async () => true,
-  applyConfigText: async () => pending ? await new Promise(resolve => { resolveApply = resolve; }) : response
+  applyConfigText: async () => { applies++; return pending ? await new Promise(resolve => { resolveApply = resolve; }) : response; }
 } };
 const store = { ProfileStore: {
   isApplyUncertain: () => uncertain,
@@ -55,6 +56,7 @@ const tx = context.exports.ProfileTransactions;
   assert.equal(await tx.activate({}, 'new.yaml'), 'saved');
   assert.equal(active, 'new.yaml');
   controller.VpnController.status = 2;
+  response = 'applied';
   pending = true;
   const first = tx.update({}, 'new.yaml');
   await new Promise(resolve => setTimeout(resolve, 0));
@@ -62,5 +64,9 @@ const tx = context.exports.ProfileTransactions;
   resolveApply('applied');
   assert.equal(await first, 'applied');
   assert.equal(files['new.yaml'], 'proxies: [updated]');
+  pending = false;
+  const before = applies;
+  assert.equal(await tx.activate({}, 'new.yaml'), 'applied');
+  assert.equal(applies, before + 1, 'selecting the current file must confirm runtime application');
   console.log('PASS: rejected, unknown, parse, and concurrent profile transactions');
 })().catch(error => { console.error(error); process.exitCode = 1; });
