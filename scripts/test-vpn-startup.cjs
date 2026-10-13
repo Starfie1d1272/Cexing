@@ -30,7 +30,7 @@ async function testClient(mode) {
   const modules = {
     '@kit.NetworkKit': { vpnExtension: { startVpnExtensionAbility: async () => {}, stopVpnExtensionAbility() {} } },
     '@kit.CoreFileKit': { fileIo: {} }, './Logger': logger,
-    './CoreApi': { CoreApi: { bindContext() {} } }, './Settings': { Settings: { load: () => settings, save() {} } },
+    './CoreApi': { CoreApi: { bindContext() {}, isAlive: async () => false } }, './Settings': { Settings: { load: () => settings, save() {} } },
     './ProfileStore': { ProfileStore: { clearApplyUncertain() {} } },
     '@kit.IPCKit': { rpc: { MessageSequence: { create: () => ({ reclaim() {} }) }, MessageOption: class {} } }
   };
@@ -116,10 +116,34 @@ async function testExtension() {
   assert.equal(reportedReady, true, 'The same extension must allow restart after cleanup despite unavailable panel resources');
   assert.equal(prepared, 2);
 }
+async function testStopKeepsUnknownUntilConfirmed() {
+  for (const fail of [true, false]) {
+    let resolveStop, rejectStop, cleared = 0;
+    const stopped = new Promise((resolve, reject) => { resolveStop = resolve; rejectStop = reject; });
+    const settings = { vpnWasConnected: true };
+    const modules = {
+      '@kit.NetworkKit': { vpnExtension: { stopVpnExtensionAbility: () => stopped } },
+      '@kit.CoreFileKit': { fileIo: {} }, '@kit.IPCKit': { rpc: {} }, './Logger': logger,
+      './CoreApi': { CoreApi: { isAlive: async () => false } },
+      './Settings': { Settings: { load: () => settings, save() {} } },
+      './ProfileStore': { ProfileStore: { clearApplyUncertain: () => { cleared++; } } }
+    };
+    const { VpnController: controller, VpnStatus } = load('lib/VpnController.ets', modules);
+    controller.status = VpnStatus.Connected;
+    controller.stop({ applicationInfo: { name: 'test.bundle' } });
+    await flush();
+    assert.equal(cleared, 0, 'pending system stop cannot clear unknown outcome');
+    if (fail) rejectStop(Error('synthetic stop failure'));
+    else resolveStop();
+    await flush();
+    assert.equal(cleared, fail ? 0 : 1, 'only confirmed stop may clear unknown outcome');
+  }
+}
 (async () => {
   await testClient('ready');
   await testClient('error');
   await testClient('cancel');
   await testExtension();
+  await testStopKeepsUnknownUntilConfirmed();
   console.log('PASS: readiness, error propagation, cancellation and extension lifecycle scenarios');
 })().catch(error => { console.error(error); process.exitCode = 1; });

@@ -314,6 +314,7 @@ export namespace VpnController {
       return;
     }
     startAttempt++;
+    const attempt = startAttempt;
     // 用户主动停止：清除「会话曾连接」标记（冷启动不再自动恢复）
     const s = Settings.load(context);
     s.vpnWasConnected = false;
@@ -322,19 +323,28 @@ export namespace VpnController {
     lastStartError = '';
     setStatus(VpnStatus.Disconnecting);
     const want: Want = { bundleName: context.applicationInfo.name, abilityName: VPN_ABILITY_NAME };
-    if (serviceId > 0) {
-      context.disconnectServiceExtensionAbility(serviceId).catch((e: Object) => {
-        Logger.error(TAG, `disconnectServiceExtensionAbility failed: ${JSON.stringify(e)}`);
-      }).finally(() => {
-        vpnExtension.stopVpnExtensionAbility(want);
-        serviceId = 0;
-        setStatus(VpnStatus.Disconnected);
-        try { ProfileStore.clearApplyUncertain(context); } catch (_) {}
-      });
-    } else {
-      vpnExtension.stopVpnExtensionAbility(want);
+    const id = serviceId;
+    const finish = async (): Promise<void> => {
+      let disconnected = id <= 0;
+      if (id > 0) {
+        try { await context.disconnectServiceExtensionAbility(id); disconnected = true; }
+        catch (e) { Logger.error(TAG, `disconnectServiceExtensionAbility failed: ${JSON.stringify(e)}`); }
+      }
+      let stopped = false;
+      try { await vpnExtension.stopVpnExtensionAbility(want); stopped = true; }
+      catch (e) { Logger.error(TAG, `stopVpnExtensionAbility failed: ${JSON.stringify(e)}`); }
+      if (attempt !== startAttempt || status !== VpnStatus.Disconnecting) { return; }
+      serviceId = 0;
+      // A transport probe alone is not proof. Clear uncertainty only after the
+      // system stop and service disconnect complete, with the old core absent.
+      let coreAbsent = false;
+      if (stopped && disconnected) { coreAbsent = !(await CoreApi.isAlive()); }
+      if (attempt !== startAttempt || status !== VpnStatus.Disconnecting) { return; }
       setStatus(VpnStatus.Disconnected);
-      try { ProfileStore.clearApplyUncertain(context); } catch (_) {}
-    }
+      if (stopped && disconnected && coreAbsent) {
+        try { ProfileStore.clearApplyUncertain(context); } catch (_) {}
+      }
+    };
+    finish().catch((e: Object) => { Logger.error(TAG, `stop completion failed: ${JSON.stringify(e)}`); });
   }
 }
