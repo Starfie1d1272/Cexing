@@ -314,9 +314,11 @@ proxy-providers:
 	if rows[0]["name"] != s.object("SyntheticNode") || group[0]["proxies"].([]string)[0] != rows[0]["name"] {
 		t.Fatal("topology association lost")
 	}
+	logFileMu.Lock()
 	oldHome := homeDir
 	homeDir = home
-	defer func() { homeDir = oldHome }()
+	logFileMu.Unlock()
+	defer func() { logFileMu.Lock(); homeDir = oldHome; logFileMu.Unlock() }()
 	if err := validateProviderPath("diagnostics/correlation-key"); err == nil {
 		t.Fatal("diagnostic key is a provider resource")
 	}

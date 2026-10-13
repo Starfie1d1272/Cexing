@@ -216,11 +216,29 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
 
   let saved = 0, value;
   const Override = load('OverridePage', { ...common,
-    '../lib/Settings': { Settings: { load: () => ({}), save: (_ctx, s) => { saved++; value = s; } } }
-  });
+    '../lib/Settings': { Settings: { load: () => ({allowLan: false}), save: (_ctx, s) => { saved++; value = s; }, setAllowLan: (_ctx, enabled) => { value = {allowLan: enabled}; } } }
+  }, { AlertDialog: { show: value => { dialog = value; } } });
   const override = new Override(); override.mixedPort = '99999'; override.persist();
   assert.equal(saved, 0); assert.ok(override.portError); assert.equal(override.mixedPort, '99999');
   override.mixedPort = '7891'; override.persist(); assert.equal(saved, 1); assert.equal(value.mixedPort, 7891);
+
+  override.changeAllowLan(true); assert.equal(override.allowLan, true);
+  dialog.primaryButton.action(); dialog.secondaryButton.action(); assert.equal(override.allowLan, false);
+  override.changeAllowLan(true); dialog.secondaryButton.action(); assert.equal(override.allowLan, true);
+  assert.equal(value.allowLan, true);
+  override.changeAllowLan(false); assert.equal(value.allowLan, false);
+  override.changeAllowLan(true); override.aboutToDisappear(); dialog.secondaryButton.action();
+  assert.equal(value.allowLan, false, 'late confirmation cannot enable sharing after leave');
+
+  const FailedRevoke = load('OverridePage', { ...common,
+    '../lib/Settings': {Settings: {load: () => ({allowLan:true}),
+      setAllowLan: () => {throw Error('synthetic persistence failure');} }}
+  });
+  const failedRevoke = new FailedRevoke(); failedRevoke.allowLan = true;
+  failedRevoke.saveAllowLan(false);
+  assert.equal(failedRevoke.allowLan,true,'failed revocation keeps prior authorization visible');
+  assert.match(failedRevoke.lanError,/原授权仍可能有效/);
+  assert.match(failedRevoke.lanError,/重试/);
 
   let active = 'fixture.yaml', deleted = 0, rejectImport = true;
   let activateResult = async () => 'applied';

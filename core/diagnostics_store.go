@@ -30,6 +30,9 @@ const diagnosticBundleLimit = 1024 * 1024
 type diagnosticError struct {
 	Kind            string            `json:"kind"`
 	Code            string            `json:"code,omitempty"`
+	CodeIdentity    string            `json:"codeIdentity,omitempty"`
+	Condition       string            `json:"condition,omitempty"`
+	DetailOmitted   bool              `json:"detailOmitted,omitempty"`
 	Message         string            `json:"message"`
 	Causes          []diagnosticError `json:"causes,omitempty"`
 	CausesTruncated bool              `json:"causesTruncated,omitempty"`
@@ -65,17 +68,21 @@ type diagnosticSource struct {
 	ExportOmitted     uint64             `json:"exportOmitted"`
 	LiveWriteFailures uint64             `json:"liveWriteFailures"`
 	UnpersistedEvents uint64             `json:"unpersistedEvents"`
+	LegacySanitized   bool               `json:"legacySanitized,omitempty"`
 }
 type diagnosticStore struct {
-	mu            sync.Mutex
-	privacyMu     sync.RWMutex
-	privateValues *strings.Replacer
-	logWindow     time.Time
-	logCount      int
-	root          string
-	lane          string
-	key           []byte
-	journal       diagnosticJournal
+	mu             sync.Mutex
+	privacyMu      sync.RWMutex
+	privateValues  *strings.Replacer
+	privateSet     map[string]string
+	privateBytes   int
+	privacyLimited bool
+	logWindow      time.Time
+	logCount       int
+	root           string
+	lane           string
+	key            []byte
+	journal        diagnosticJournal
 }
 
 var diagnosticKernelHome atomic.Value
@@ -141,7 +148,7 @@ func newDiagnosticStore(home, lane string) (*diagnosticStore, error) {
 	}
 	now := time.Now().UTC().Format(time.RFC3339Nano)
 	s := &diagnosticStore{root: root, lane: lane, key: key, journal: diagnosticJournal{
-		Schema: 1, Session: hex.EncodeToString(identity), Lane: lane, StartedAt: now, UpdatedAt: now, Events: []diagnosticEvent{}}}
+		Schema: 2, Session: hex.EncodeToString(identity), Lane: lane, StartedAt: now, UpdatedAt: now, Events: []diagnosticEvent{}}}
 	if err := s.persist(); err != nil {
 		return nil, err
 	}
@@ -183,6 +190,12 @@ var diagnosticBearer = regexp.MustCompile(`(?i)\bBearer\s+[^\s,;]+`)
 func (s *diagnosticStore) text(input string) string {
 	// Raw URLs (including userinfo/path/query/fragment) are removed before any
 	// truncation. No credential can survive at a clipped boundary.
+	s.privacyMu.RLock()
+	limited := s.privacyLimited
+	s.privacyMu.RUnlock()
+	if limited {
+		return "DETAIL_OMITTED_REDACTION_CAPACITY"
+	}
 	input = redactControllerSecret(input)
 	protected := map[string]bool{}
 	input = diagnosticURL.ReplaceAllStringFunc(input, func(v string) string { id := s.object(v); protected[id] = true; return "url-" + id })
@@ -224,6 +237,10 @@ func (s *diagnosticStore) failure(err error, depth int) *diagnosticError {
 		return nil
 	}
 	out := &diagnosticError{Kind: fmt.Sprintf("%T", err), Message: s.text(err.Error())}
+	out.DetailOmitted = out.Message == "DETAIL_OMITTED_REDACTION_CAPACITY"
+	if code, known := diagnosticCodeValue(err.Error()); known {
+		out.Code = code
+	}
 	var errno syscall.Errno
 	if errors.As(err, &errno) {
 		out.Code = fmt.Sprintf("errno:%d", int(errno))
@@ -251,14 +268,6 @@ func (s *diagnosticStore) failure(err error, depth int) *diagnosticError {
 	return out
 }
 
-var diagnosticCode = regexp.MustCompile(`^[A-Za-z0-9_.:-]{1,80}$`)
-
-func diagnosticLabel(v string) string {
-	if diagnosticCode.MatchString(v) {
-		return v
-	}
-	return "unknown"
-}
 func (s *diagnosticStore) record(e diagnosticEvent) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -267,12 +276,32 @@ func (s *diagnosticStore) record(e diagnosticEvent) error {
 		e.Sequence = s.journal.Events[n-1].Sequence + 1
 	}
 	e.At = time.Now().UTC().Format(time.RFC3339Nano)
-	e.Operation = diagnosticLabel(e.Operation)
-	e.Stage = diagnosticLabel(e.Stage)
-	e.Outcome = diagnosticLabel(e.Outcome)
-	if e.Reason != "" {
-		e.Reason = diagnosticLabel(e.Reason)
+	if e.Details == nil {
+		e.Details = map[string]any{}
 	}
+	labels := map[string]string{}
+	for key, value := range map[string]string{"operation": e.Operation, "stage": e.Stage, "outcome": e.Outcome, "reason": e.Reason} {
+		if key == "reason" && value == "" {
+			continue
+		}
+		vocabulary := diagnosticOperations
+		switch key {
+		case "stage":
+			vocabulary = diagnosticStages
+		case "outcome":
+			vocabulary = diagnosticOutcomes
+		case "reason":
+			vocabulary = diagnosticReasons
+		}
+		labels[key] = diagnosticEnum(value, vocabulary)
+		if labels[key] == "unknown" && value != "" && value != "unknown" {
+			e.Details[key+"Identity"] = s.object(value)
+		}
+	}
+	e.Operation = labels["operation"]
+	e.Stage = labels["stage"]
+	e.Outcome = labels["outcome"]
+	e.Reason = labels["reason"]
 	e.Object = s.object(e.Object)
 	s.journal.UpdatedAt = e.At
 	s.journal.Events = append(s.journal.Events, e)
@@ -347,10 +376,21 @@ func readDiagnosticSource(root, name string) diagnosticSource {
 		return source
 	}
 	var journal diagnosticJournal
-	if len(data) > diagnosticJournalLimit || json.Unmarshal(data, &journal) != nil || journal.Schema != 1 || len(journal.Events) > diagnosticEventLimit {
+	if len(data) > diagnosticJournalLimit || json.Unmarshal(data, &journal) != nil || (journal.Schema != 1 && journal.Schema != 2) || len(journal.Events) > diagnosticEventLimit {
 		source.Status = "invalid"
 		source.Reason = "journal_invalid_or_oversize"
 		return source
+	}
+	if journal.Schema == 1 {
+		key, e := os.ReadFile(filepath.Join(root, "correlation-key"))
+		if e != nil || len(key) != 32 {
+			source.Status = "invalid"
+			source.Reason = "legacy_redaction_key_unavailable"
+			return source
+		}
+		redactor := &diagnosticStore{key: key}
+		redactor.sanitizeLegacy(&journal)
+		source.LegacySanitized = true
 	}
 	source.Status = "available"
 	source.Reason = ""
@@ -384,8 +424,8 @@ func diagnosticBundleForContext(home string, contextCollected *bool) (string, er
 		}
 	}
 	bundle := map[string]any{"schema": "cexing-support-bundle/1", "exportedAt": time.Now().UTC().Format(time.RFC3339Nano),
-		"limits": map[string]int{"journalBytes": diagnosticJournalLimit, "eventsPerJournal": diagnosticEventLimit, "sessionsPerLane": 3, "bundleBytes": diagnosticBundleLimit},
-		"policy": map[string]any{"upload": false, "rawConfiguration": false, "requestBodies": false, "successfulTrafficHistory": false, "objectIdentity": "installation-keyed-hmac-at-rest; independently-salted-per-export; keys never exported", "retention": "current and two previous process sessions; oldest evicted at next process boot", "missingEvidence": "before first instrumented boot, absent lanes and dropped/write-failed events are unknown; not healthy", "failedLogRateLimit": "8 per second; suppressed counter persisted at next write; last second can be missing after hard kill", "bandwidthTest": "not_executed: requires explicit user action; probes do not measure bandwidth"}, "sources": sources, "exportContextCollected": contextCollected, "selectedVersion": diagnosticReadVersion(home), "checkCoverage": diagnosticCheckCoverage(sources)}
+		"limits": map[string]int{"journalBytes": diagnosticJournalLimit, "eventsPerJournal": diagnosticEventLimit, "sessionsPerLane": 3, "bundleBytes": diagnosticBundleLimit, "redactionValues": 16384, "redactionBytes": 8 * 1024 * 1024},
+		"policy": map[string]any{"redactionHistory": "process-lifetime union of current, previous and candidate config values; exhaustion omits message text, retaining stage/type/errno/conditions", "upload": false, "rawConfiguration": false, "requestBodies": false, "successfulTrafficHistory": false, "objectIdentity": "installation-keyed-hmac-at-rest; independently-salted-per-export; keys never exported", "retention": "current and two previous process sessions; oldest evicted at next process boot", "missingEvidence": "before first instrumented boot, absent lanes and dropped/write-failed events are unknown; not healthy", "failedLogRateLimit": "8 per second; suppressed counter persisted at next write; last second can be missing after hard kill", "bandwidthTest": "not_executed: requires explicit user action; probes do not measure bandwidth"}, "sources": sources, "exportContextCollected": contextCollected, "selectedVersion": diagnosticReadVersion(home), "checkCoverage": diagnosticCheckCoverage(sources)}
 	data, err := json.MarshalIndent(bundle, "", "  ")
 	if err != nil {
 		return "", err
@@ -453,11 +493,14 @@ func kernelDiagnosticLog(level, payload string) {
 	}
 	s.logCount++
 	s.mu.Unlock()
-	_ = s.record(diagnosticEvent{Operation: "core", Stage: "runtime_error", Outcome: level, Error: &diagnosticError{Kind: "core_log", Message: s.text(payload)}})
+	_ = s.record(diagnosticEvent{Operation: "core", Stage: "runtime_error", Outcome: level, Error: s.logFailure(payload)})
 }
 
 // Values from the runtime input are used in memory only to redact bare node
-// labels and credentials in upstream causes. Never persist this mapping.
+// labels and credentials in upstream causes. Keep a process-lifetime union:
+// rejected candidates and late events from earlier configs remain private.
+// At its explicit bound, omit free text rather than evicting a live secret.
+// Never persist this mapping.
 func (s *diagnosticStore) registerPrivateConfig(input map[string]any) {
 	values := map[string]string{}
 	var walk func(any, bool, string)
@@ -466,6 +509,11 @@ func (s *diagnosticStore) registerPrivateConfig(input map[string]any) {
 		case map[string]any:
 			for k, item := range v {
 				lower := strings.ToLower(k)
+				if sensitive || key == "proxy-providers" || key == "rule-providers" || key == "nameserver-policy" || key == "hosts" || key == "assignments" {
+					if values[k] != "[redacted]" {
+						values[k] = s.object(k)
+					}
+				}
 				private := sensitive || strings.Contains(lower, "password") || strings.Contains(lower, "secret") || strings.Contains(lower, "token") || strings.Contains(lower, "uuid") || strings.Contains(lower, "auth") || strings.Contains(lower, "key") || strings.Contains(lower, "headers") || lower == "username" || lower == "private-key"
 				walk(item, private, lower)
 			}
@@ -473,13 +521,17 @@ func (s *diagnosticStore) registerPrivateConfig(input map[string]any) {
 			for _, item := range v {
 				walk(item, sensitive, key)
 			}
+		case int, int64, uint64, float64, bool:
+			if sensitive {
+				values[fmt.Sprint(v)] = "[redacted]"
+			}
 		case string:
 			if len(v) == 0 {
 				return
 			}
 			if sensitive {
 				values[v] = "[redacted]"
-			} else if key == "name" || key == "server" || key == "dialer-proxy" {
+			} else if !diagnosticPublicConfigValue(key, v) {
 				if values[v] != "[redacted]" {
 					values[v] = s.object(v)
 				}
@@ -487,18 +539,35 @@ func (s *diagnosticStore) registerPrivateConfig(input map[string]any) {
 		}
 	}
 	walk(input, false, "")
+	s.privacyMu.Lock()
+	defer s.privacyMu.Unlock()
+	if s.privateSet == nil {
+		s.privateSet = map[string]string{}
+	}
+	for key, value := range values {
+		if old, ok := s.privateSet[key]; ok {
+			if old != "[redacted]" && value == "[redacted]" {
+				s.privateSet[key] = value
+			}
+			continue
+		}
+		if len(s.privateSet) >= 16384 || s.privateBytes+len(key)+len(value) > 8*1024*1024 {
+			s.privacyLimited = true
+			continue
+		}
+		s.privateSet[key] = value
+		s.privateBytes += len(key) + len(value)
+	}
 	keys := []string{}
-	for key := range values {
+	for key := range s.privateSet {
 		keys = append(keys, key)
 	}
 	sort.Slice(keys, func(i, j int) bool { return len(keys[i]) > len(keys[j]) })
 	pairs := []string{}
 	for _, key := range keys {
-		pairs = append(pairs, key, values[key])
+		pairs = append(pairs, key, s.privateSet[key])
 	}
-	s.privacyMu.Lock()
 	s.privateValues = strings.NewReplacer(pairs...)
-	s.privacyMu.Unlock()
 }
 
 func diagnosticCheckCoverage(sources []diagnosticSource) map[string]any {

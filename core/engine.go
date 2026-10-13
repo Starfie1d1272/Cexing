@@ -35,7 +35,7 @@ import (
 const (
 	defaultMixedPort  = 7890
 	defaultController = "127.0.0.1:9090"
-	defaultDNSListen  = "0.0.0.0:1053"
+	defaultDNSListen  = "127.0.0.1:1053"
 )
 
 var (
@@ -298,6 +298,8 @@ func coreStartTun(fd int, configJson string, overridesJson string) (result error
 // 不动内核，因此忽略。logToFile 是 wrapper 专用开关（不属 mihomo 配置），单独消费。
 // overridesJson 为空或解析失败时跳过该层（不影响启动）。
 func applyOverrides(overlay map[string]any, overridesJson string) {
+	// LAN exposure requires the host setting; subscription values are not consent.
+	overlay["allow-lan"] = false
 	if overridesJson == "" {
 		log.Infoln("[OHOS] overrides: empty, skipped")
 		return
@@ -316,6 +318,12 @@ func applyOverrides(overlay map[string]any, overridesJson string) {
 	for src, dst := range keyMap {
 		v, ok := ov[src]
 		if !ok {
+			continue
+		}
+		if src == "allowLan" {
+			if enabled, valid := v.(bool); valid {
+				overlay[dst] = enabled
+			}
 			continue
 		}
 		// 用户未显式选择模式（空串）时跳过，保留订阅配置自带的 mode

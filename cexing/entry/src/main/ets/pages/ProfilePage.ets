@@ -15,6 +15,7 @@ import { VpnController, VpnStatus } from '../lib/VpnController';
 import { CoreApi } from '../lib/CoreApi';
 import { Logger } from '../lib/Logger';
 import { ProfileEditBus } from './ProfileEditPage';
+import { GlobalMergeEditor } from './GlobalMergeEditor';
 
 const TAG = 'profile';
 
@@ -26,11 +27,12 @@ const SHEET_RENAME = 3;
 const SHEET_READY = 4;
 const SHEET_PASTE = 5;
 const SHEET_REGION = 6;
+const SHEET_GLOBAL = 7;
 const REGION_NAMES: string[] = ['香港', '台湾', '日本', '新加坡', '美国', '韩国', '英国', '德国', '未知'];
 
 class RegionSelectOption {
   value: string;
-  constructor(value: string) { this.value = value; }
+  constructor(value: string) { this.value = value === '未知' ? '其他地区' : value; }
 }
 
 export class ProfileDetailBus {
@@ -563,6 +565,14 @@ export struct ProfilePage {
     }
   }
 
+  private regionNames(): string[] {
+    return this.regionPreview?.regions ?? REGION_NAMES;
+  }
+
+  private regionLabel(name: string): string {
+    return name === '未知' ? '其他地区' : name;
+  }
+
   @Builder
   ProfileRow(p: ProfileMeta) {
     Button({ type: ButtonType.Normal }) {
@@ -860,11 +870,11 @@ export struct ProfilePage {
               catch (_) { this.importError = 'provider 尚未就绪'; }
             })
         }
-        Text(`已解析节点 ${Object.keys(this.regionPreview.nodes).length} · 未知 ${this.regionPreview.unknown}`)
+        Text(`已解析节点 ${Object.keys(this.regionPreview.nodes).length} · 其他地区 ${this.regionPreview.unknown}`)
           .fontSize(14).fontColor(UI.ink)
         if (this.regionMode === 'region') {
-          Text(REGION_NAMES.filter((name: string) => (this.regionPreview?.counts[name] ?? 0) > 0)
-            .map((name: string) => `${name} ${this.regionPreview?.counts[name] ?? 0}`).join(' · '))
+          Text(this.regionNames().filter((name: string) => (this.regionPreview?.counts[name] ?? 0) > 0)
+            .map((name: string) => `${this.regionLabel(name)} ${this.regionPreview?.counts[name] ?? 0}`).join(' · '))
             .fontSize(13).fontColor(UI.muted)
         }
         Scroll() {
@@ -873,15 +883,15 @@ export struct ProfilePage {
               Row({ space: 8 }) {
                 Text(node).fontSize(12).fontColor(UI.ink).layoutWeight(1)
                   .maxLines(1).textOverflow({ overflow: TextOverflow.Ellipsis })
-                Select(REGION_NAMES.map((name: string) => new RegionSelectOption(name)))
-                  .selected(REGION_NAMES.indexOf(this.regionPreview?.nodes[node] ?? '未知'))
-                  .value(this.regionPreview?.nodes[node] ?? '未知').width(104)
+                Select(this.regionNames().map((name: string) => new RegionSelectOption(name)))
+                  .selected(this.regionNames().indexOf(this.regionPreview?.nodes[node] ?? '未知'))
+                  .value(this.regionLabel(this.regionPreview?.nodes[node] ?? '未知')).width(104)
                   .onSelect(async (index: number) => {
                     const next: Record<string, string> = {};
                     for (const key of Object.keys(this.regionAssignments)) {
                       next[key] = this.regionAssignments[key];
                     }
-                    next[node] = REGION_NAMES[index];
+                    next[node] = this.regionNames()[index];
                     this.regionAssignments = next;
                     try { await this.refreshRegionPreview(); } catch (_) { this.importError = '预览失败'; }
                   })
@@ -908,6 +918,9 @@ export struct ProfilePage {
     else if (this.sheetMode === SHEET_READY) { this.ReadySheet() }
     else if (this.sheetMode === SHEET_PASTE) { this.PasteSheet() }
     else if (this.sheetMode === SHEET_REGION) { this.RegionSheet() }
+    else if (this.sheetMode === SHEET_GLOBAL) {
+      GlobalMergeEditor({ onClose: () => { this.showSheet = false; this.sheetMode = SHEET_NONE; } })
+    }
   }
 
   build() {
@@ -922,6 +935,13 @@ export struct ProfilePage {
           Button('添加').height(48).fontSize(14).backgroundColor(UI.soft).fontColor(UI.accentText)
             .onClick(() => { this.sheetMode = SHEET_IMPORT; this.importError = ''; this.showSheet = true; })
         }.width('100%').margin({ top: 16, bottom: 12 })
+        Button() {
+          Column({ space: 4 }) {
+            Text('全局覆写').fontSize(16).fontColor(UI.ink)
+            Text('适用于所有订阅 · 本订阅覆写优先').fontSize(12).fontColor(UI.muted)
+          }.alignItems(HorizontalAlign.Start).width('100%')
+        }.width('100%').height(64).backgroundColor(UI.soft).borderRadius(16)
+          .onClick(() => { this.sheetMode = SHEET_GLOBAL; this.showSheet = true; })
         if (this.profiles.length === 0) {
           Column({ space: 20 }) {
             Text('导入订阅').fontSize(32).fontWeight(FontWeight.Bold).fontColor(UI.ink).width('100%')
@@ -943,7 +963,9 @@ export struct ProfilePage {
       }
     }.width('100%').height('100%').padding({ left: 24, right: 24, bottom: 12 })
       .backgroundColor(UI.paper).constraintSize({ maxWidth: 760 }).alignSelf(ItemAlign.Center)
-      .bindSheet($$this.showSheet, this.MainSheet(), { height: SheetSize.FIT_CONTENT,
-        shouldDismiss: (dismiss: SheetDismiss) => { if (!this.importing && !this.regionBusy) { dismiss.dismiss(); } } })
+      .bindSheet($$this.showSheet, this.MainSheet(), { height: this.sheetMode === SHEET_GLOBAL ? SheetSize.LARGE : SheetSize.FIT_CONTENT,
+        shouldDismiss: (dismiss: SheetDismiss) => {
+          if (this.sheetMode !== SHEET_GLOBAL && !this.importing && !this.regionBusy && !ProfileTransactions.isBusy()) { dismiss.dismiss(); }
+        } })
   }
 }
