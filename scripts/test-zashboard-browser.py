@@ -95,6 +95,7 @@ process.stdout.write(context.exports.ZashboardSession.bootstrap(fixture.secret,f
             page.wait_for_url('**/#/overview')
             offline_city = page.get_by_text('City locations are unavailable in this offline panel.', exact=False)
             offline_city.wait_for(timeout=20000)
+            assert not page.locator('.earth-globe-card').get_by_text('Getting...', exact=False).count()
             assert page.get_by_label('Globe style', exact=True).inner_text().strip() == 'Space'
             assert page.evaluate("localStorage.getItem('config/earth-visual-mode')") is None
             assert not page.get_by_text('Checking the local city database', exact=False).count(), 'City check never completed'

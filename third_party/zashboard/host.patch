@@ -244,18 +244,20 @@ index 72a8213..e74ab19 100644
 -}
 +/* Host distribution uses system emoji; only licensed Fira Sans is bundled. */
 diff --git a/src/components/overview/EarthGlobeCard.vue b/src/components/overview/EarthGlobeCard.vue
-index 82b3e9d..5129dcd 100644
+index 82b3e9d..8b8d166 100644
 --- a/src/components/overview/EarthGlobeCard.vue
 +++ b/src/components/overview/EarthGlobeCard.vue
 @@ -268,0 +269 @@
 +            v-if="databaseError !== 'host-offline'"
-@@ -464 +465 @@ const showRetry = computed(
+@@ -444,0 +446 @@ const displayedOriginIP = computed(() => {
++  if (databaseError.value === 'host-offline') return '—'
+@@ -464 +466 @@ const showRetry = computed(
 -  () =>
 +  () => databaseError.value !== 'host-offline' && (
-@@ -469 +470 @@ const showRetry = computed(
+@@ -469 +471 @@ const showRetry = computed(
 -      activeConnections.value.length > 0),
 +      activeConnections.value.length > 0)),
-@@ -760,4 +761,4 @@ const initialize = async () => {
+@@ -760,4 +762,4 @@ const initialize = async () => {
 -  worker = new Worker(new URL('./earth/geoip.worker.ts', import.meta.url), { type: 'module' })
 -  worker.addEventListener('message', handleWorkerMessage)
 -  postWorker({ type: 'init' })
