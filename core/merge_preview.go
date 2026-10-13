@@ -37,6 +37,11 @@ func compilePinnedMerge(home, original, overlay, overrides string) (configpipeli
 }
 
 func compilePinnedMergeWithSmart(home, original, overlay, overrides string, smartConversion bool) (configpipeline.Result, string, error) {
+	return compilePinnedMergeWithStrategies(home, original, overlay, overrides, smartConversion, nil)
+}
+
+func compilePinnedMergeWithStrategies(home, original, overlay, overrides string, smartConversion bool,
+	region *configpipeline.RegionPlan) (configpipeline.Result, string, error) {
 	project := func(_ context.Context, root *yaml.Node) error {
 		var before, after map[string]any
 		if err := root.Decode(&before); err != nil {
@@ -80,13 +85,29 @@ func compilePinnedMergeWithSmart(home, original, overlay, overrides string, smar
 		overlays = [][]byte{[]byte(overlay)}
 	}
 	var strategy configpipeline.Transform
-	if smartConversion {
-		strategy = configpipeline.SmartAuto
+	strategy = func(ctx context.Context, root *yaml.Node) error {
+		if smartConversion {
+			if err := configpipeline.SmartAuto(ctx, root); err != nil {
+				return err
+			}
+		}
+		if region != nil {
+			return configpipeline.ApplyRegion(ctx, root, *region)
+		}
+		return nil
 	}
 	result, err := (configpipeline.Compiler{Platform: project, Validate: validator}).Compile(
 		context.Background(), configpipeline.Request{Original: []byte(original), Overlays: overlays,
 			Strategy: strategy, Previous: []byte(original)})
 	return result, receipt, err
+}
+
+func previewRegion(original, overlay string, plan configpipeline.RegionPlan) (configpipeline.RegionPreview, error) {
+	root, err := configpipeline.RegionMergedSource([]byte(original), []byte(overlay))
+	if err != nil {
+		return configpipeline.RegionPreview{}, err
+	}
+	return configpipeline.PreviewRegion(root, plan.Selector, plan.Assignments)
 }
 
 // The running core parses the generated candidate in /configs before applying it.

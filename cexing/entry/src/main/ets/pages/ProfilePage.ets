@@ -10,6 +10,7 @@ import { promptAction } from '@kit.ArkUI';
 import { pasteboard } from '@kit.BasicServicesKit';
 import { ProfileStore, ProfileMeta, ProfileMetaExt } from '../lib/ProfileStore';
 import { ProfileTransactions } from '../lib/ProfileTransactions';
+import { EffectiveVersions, RegionPlan, RegionPreview } from '../lib/EffectiveVersions';
 import { VpnController, VpnStatus } from '../lib/VpnController';
 import { CoreApi } from '../lib/CoreApi';
 import { Logger } from '../lib/Logger';
@@ -24,6 +25,8 @@ const SHEET_URL = 2;
 const SHEET_RENAME = 3;
 const SHEET_READY = 4;
 const SHEET_PASTE = 5;
+const SHEET_REGION = 6;
+const REGION_NAMES: string[] = ['香港', '台湾', '日本', '新加坡', '美国', '韩国', '英国', '德国', '未知'];
 
 export class ProfileDetailBus {
   static current: string = '';
@@ -49,6 +52,11 @@ export struct ProfilePage {
   @State importedFile: string = '';
   @State inputPaste: string = '';
   @State importError: string = '';
+  @State regionPreview: RegionPreview | null = null;
+  @State regionSelector: string = '';
+  @State regionMode: string = 'region';
+  @State regionAssignments: Record<string, string> = {};
+  @State regionBusy: boolean = false;
 
   private onTabVisible(): void {
     if (this.currentVisibleTab === 1) { this.refresh(); }
@@ -63,8 +71,86 @@ export struct ProfilePage {
     this.changed();
     this.importedFile = file;
     this.importError = '';
+    this.prepareRegionOffer(file);
+  }
+
+  private async prepareRegionOffer(file: string): Promise<void> {
+    const context = getContext(this) as common.UIAbilityContext;
+    try {
+      const probe: RegionPlan = { mode: 'region', selector: '', enable: false, assignments: {} };
+      const first = await ProfileTransactions.previewRegion(context, file, probe);
+      if (first.offerable && first.selectors.length > 0) {
+        this.regionSelector = first.selectors[0];
+        this.regionAssignments = {};
+        this.regionMode = 'region';
+        await this.refreshRegionPreview();
+        this.sheetMode = SHEET_REGION;
+        this.showSheet = true;
+        return;
+      }
+    } catch (_) { /* ordinary import remains available if a preview cannot run */ }
     this.sheetMode = SHEET_READY;
     this.showSheet = true;
+  }
+
+  private async refreshRegionPreview(): Promise<void> {
+    const context = getContext(this) as common.UIAbilityContext;
+    const plan: RegionPlan = { mode: this.regionMode, selector: this.regionSelector,
+      enable: false, assignments: this.regionAssignments };
+    this.regionPreview = await ProfileTransactions.previewRegion(context, this.importedFile, plan);
+  }
+
+  private async saveRegion(enable: boolean): Promise<void> {
+    if (this.regionBusy || this.regionPreview?.eligible !== true) { return; }
+    this.regionBusy = true;
+    try {
+      const context = getContext(this) as common.UIAbilityContext;
+      const plan: RegionPlan = { mode: this.regionMode, selector: this.regionSelector,
+        enable: enable, assignments: this.regionAssignments };
+      await ProfileTransactions.setRegionPlan(context, this.importedFile, plan);
+      this.changed();
+      this.showSheet = false;
+      this.sheetMode = SHEET_NONE;
+      this.toast(enable ? '地区策略已创建并启用' : '地区策略已创建，可稍后启用');
+    } catch (e) { this.importError = (e as Error).message ?? '地区策略未保存'; }
+    finally { this.regionBusy = false; }
+  }
+
+  private savedRegion(file: string): RegionPlan | null {
+    try {
+      const context = getContext(this) as common.UIAbilityContext;
+      const version = EffectiveVersions.read(context)?.Profiles[file];
+      return version !== undefined ? EffectiveVersions.regionPlan(context, version) : null;
+    } catch (_) { return null; }
+  }
+
+  private async editRegion(file: string): Promise<void> {
+    this.importedFile = file;
+    this.importError = '';
+    const existing = this.savedRegion(file);
+    this.regionMode = existing?.mode ?? 'region';
+    this.regionAssignments = existing?.assignments ?? {};
+    this.regionSelector = existing?.selector ?? '';
+    try {
+      const context = getContext(this) as common.UIAbilityContext;
+      if (this.regionSelector === '') {
+        const probe: RegionPlan = { mode: 'region', selector: '', enable: false, assignments: {} };
+        const first = await ProfileTransactions.previewRegion(context, file, probe);
+        this.regionSelector = first.selectors[0] ?? '';
+      }
+      await this.refreshRegionPreview();
+      this.sheetMode = SHEET_REGION;
+      this.showSheet = true;
+    } catch (_) { this.toast('当前订阅无法创建地区策略'); }
+  }
+
+  private async removeRegion(file: string): Promise<void> {
+    try {
+      const context = getContext(this) as common.UIAbilityContext;
+      await ProfileTransactions.setRegionPlan(context, file, null);
+      this.changed();
+      this.toast('已恢复原订阅策略');
+    } catch (e) { this.toast((e as Error).message ?? '恢复失败'); }
   }
 
   private confirmDelete(p: ProfileMeta): void {
@@ -414,6 +500,12 @@ export struct ProfilePage {
             this.navStack.pushPath({ name: 'profileEdit' });
           })
           this.DetailAction('内核参数覆写', () => { this.navStack.pushPath({ name: 'override' }); })
+          if (this.savedRegion(p.file) !== null) {
+            this.DetailAction('修改 Smart 地区策略', () => { this.editRegion(p.file); })
+            this.DetailAction('关闭地区策略并恢复原配置', () => { this.removeRegion(p.file); })
+          } else {
+            this.DetailAction('创建 Smart 地区策略', () => { this.editRegion(p.file); })
+          }
           this.DetailAction('重命名', () => {
             this.renameTarget = p.file;
             this.renameInput = p.name;
@@ -626,12 +718,77 @@ export struct ProfilePage {
   }
 
   @Builder
+  RegionSheet() {
+    Column({ space: 12 }) {
+      Text('为订阅创建 Smart 策略？').fontSize(21).fontWeight(FontWeight.Bold).fontColor(UI.ink)
+      Text('仅按节点名称推测地区。原订阅及原 Selector 保留，可关闭后恢复。')
+        .fontSize(13).fontColor(UI.muted)
+      if (this.regionPreview !== null) {
+        Select(this.regionPreview.selectors.map((name: string) => ({ value: name })))
+          .selected(this.regionPreview.selectors.indexOf(this.regionSelector))
+          .value(this.regionSelector).width('100%')
+          .onSelect(async (index: number) => {
+            this.regionSelector = this.regionPreview?.selectors[index] ?? '';
+            this.regionAssignments = {};
+            try { await this.refreshRegionPreview(); } catch (_) { this.importError = '预览失败'; }
+          })
+        Row({ space: 8 }) {
+          Button('按地区').backgroundColor(this.regionMode === 'region' ? UI.action : UI.soft)
+            .fontColor(this.regionMode === 'region' ? UI.onAccent : UI.accentText)
+            .onClick(() => { this.regionMode = 'region'; })
+          Button('全部节点').backgroundColor(this.regionMode === 'all' ? UI.action : UI.soft)
+            .fontColor(this.regionMode === 'all' ? UI.onAccent : UI.accentText)
+            .onClick(() => { this.regionMode = 'all'; })
+          Button('保持原样').backgroundColor(UI.soft).fontColor(UI.accentText)
+            .onClick(() => { this.showSheet = false; this.sheetMode = SHEET_NONE; })
+        }
+        if (this.regionPreview.providerPending) {
+          Text('该 Selector 含尚未解析的 provider 节点，暂不能生成策略。')
+            .fontSize(13).fontColor(UI.error)
+        }
+        Text(`直接节点 ${Object.keys(this.regionPreview.nodes).length} · 未知 ${this.regionPreview.unknown}`)
+          .fontSize(14).fontColor(UI.ink)
+        if (this.regionMode === 'region') {
+          Text(REGION_NAMES.filter((name: string) => (this.regionPreview?.counts[name] ?? 0) > 0)
+            .map((name: string) => `${name} ${this.regionPreview?.counts[name] ?? 0}`).join(' · '))
+            .fontSize(13).fontColor(UI.muted)
+        }
+        Scroll() {
+          Column({ space: 8 }) {
+            ForEach(Object.keys(this.regionPreview.nodes), (node: string) => {
+              Row({ space: 8 }) {
+                Text(node).fontSize(12).fontColor(UI.ink).layoutWeight(1)
+                  .maxLines(1).textOverflow({ overflow: TextOverflow.Ellipsis })
+                Select(REGION_NAMES.map((name: string) => ({ value: name })))
+                  .selected(REGION_NAMES.indexOf(this.regionPreview?.nodes[node] ?? '未知'))
+                  .value(this.regionPreview?.nodes[node] ?? '未知').width(104)
+                  .onSelect(async (index: number) => {
+                    this.regionAssignments = { ...this.regionAssignments, [node]: REGION_NAMES[index] };
+                    try { await this.refreshRegionPreview(); } catch (_) { this.importError = '预览失败'; }
+                  })
+              }
+            }, (node: string) => node)
+          }
+        }.height(160)
+      }
+      if (this.importError.length > 0) { Text(this.importError).fontSize(13).fontColor(UI.error) }
+      Button('创建并启用').width('100%').height(48).backgroundColor(UI.action).fontColor(UI.onAccent)
+        .enabled(!this.regionBusy && this.regionPreview?.eligible === true)
+        .onClick(() => { this.saveRegion(true); })
+      Button('仅创建').width('100%').height(44).backgroundColor(UI.soft).fontColor(UI.accentText)
+        .enabled(!this.regionBusy && this.regionPreview?.eligible === true)
+        .onClick(() => { this.saveRegion(false); })
+    }.padding(20).width('100%')
+  }
+
+  @Builder
   MainSheet() {
     if (this.sheetMode === SHEET_IMPORT) { this.ImportMenuSheet() }
     else if (this.sheetMode === SHEET_URL) { this.UrlImportDialog() }
     else if (this.sheetMode === SHEET_RENAME) { this.RenameSheet() }
     else if (this.sheetMode === SHEET_READY) { this.ReadySheet() }
     else if (this.sheetMode === SHEET_PASTE) { this.PasteSheet() }
+    else if (this.sheetMode === SHEET_REGION) { this.RegionSheet() }
   }
 
   build() {

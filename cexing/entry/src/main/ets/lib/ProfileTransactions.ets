@@ -6,7 +6,7 @@ import { ProfileStore, ProfileMetaExt } from './ProfileStore';
 import { VpnController, VpnStatus } from './VpnController';
 import { CoreValidator } from './CoreValidator';
 import { MergePreview } from './CoreValidator';
-import { EffectiveVersions, EffectiveState } from './EffectiveVersions';
+import { EffectiveVersions, EffectiveState, RegionPlan, RegionPreview } from './EffectiveVersions';
 import { Settings } from './Settings';
 
 export type ProfileApplyState = 'applied' | 'saved';
@@ -55,13 +55,16 @@ export namespace ProfileTransactions {
 
   async function publish(context: common.Context, file: string, original: string,
     overlay: string, metadata: string, select: boolean,
-    isCurrent?: () => boolean): Promise<ProfileApplyState> {
+    isCurrent?: () => boolean, regionOverride?: RegionPlan | null): Promise<ProfileApplyState> {
     const state = EffectiveVersions.read(context);
     const expected = state?.Current?.ID ?? '';
     const live = select ? await running(context) : false;
     const previous = live ? ProfileStore.getActiveContent(context) : null;
     await CoreValidator.prepareResources(context);
-    const staged = await EffectiveVersions.stage(context, file, original, overlay, metadata, expected);
+    const saved = state?.Profiles[file];
+    const region = regionOverride !== undefined ? regionOverride :
+      (saved !== undefined ? EffectiveVersions.regionPlan(context, saved) : null);
+    const staged = await EffectiveVersions.stage(context, file, original, overlay, metadata, expected, region);
     let applied = false;
     let published = false;
     try {
@@ -248,6 +251,26 @@ export namespace ProfileTransactions {
       try { Settings.setSmartAutoConvert(context, previous); }
       catch (_) { markUnknown(context); }
       throw new Error((e as Error).message);
+    } finally { busy = false; }
+  }
+
+  export async function previewRegion(context: common.Context, file: string,
+    plan: RegionPlan): Promise<RegionPreview> {
+    const original = ProfileStore.getProfileContent(context, file);
+    if (original === null) { throw new Error('原始配置不存在'); }
+    return await EffectiveVersions.previewRegion(context, ProfileStore.prepareContent(original),
+      ProfileStore.getEnabledMerge(context, file), plan);
+  }
+
+  export async function setRegionPlan(context: common.Context, file: string,
+    plan: RegionPlan | null): Promise<ProfileApplyState> {
+    enter(context);
+    try {
+      const original = ProfileStore.getProfileContent(context, file);
+      if (original === null) { throw new Error('原始配置不存在'); }
+      return await publish(context, file, ProfileStore.prepareContent(original),
+        ProfileStore.getEnabledMerge(context, file), metadata(context, file),
+        ProfileStore.getActiveFile(context) === file, undefined, plan);
     } finally { busy = false; }
   }
 }
