@@ -23,6 +23,7 @@ export interface RegionPreview {
   offerable: boolean;
   providerPending: boolean;
   selectors: string[];
+  regions?: string[];
   nodes: Record<string, string>;
   counts: Record<string, number>;
   unknown: number;
