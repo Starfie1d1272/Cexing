@@ -47,7 +47,6 @@ python3 scripts/ci/timed.py ohpm bash -c 'cd cexing && "$CLT_ROOT/ohpm/bin/ohpm"
 python3 scripts/ci/timed.py mihomo-smart bash scripts/build-core.sh
 (cd core && go mod verify)
 python3 scripts/ci/timed.py geoip bash scripts/prepare-geodata.sh
-python3 scripts/ci/timed.py hvigor-clean bash -c 'cd cexing && hvigorw clean --no-daemon'
 python3 scripts/ci/timed.py napi-arkts-hap bash scripts/build-hap.sh
 python3 scripts/ci/check-toolchain.py --after-build
 HAP=cexing/entry/build/default/outputs/default/entry-default-unsigned.hap
