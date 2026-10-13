@@ -27,14 +27,16 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
 (async () => {
   let now = 1000, stream, tick, dialog, stop = 0, start = 0, cancelRestore = 0, timerCleared = 0;
   let activeHomeFile = 'fixture.yaml';
+  const toasts = [];
+  let stopResult = true;
   const listeners = new Set();
   function emit(next) { controller.status = next; for (const listener of listeners) listener(next); }
   let pendingFailure = '';
   const controller = { status: status.Connected, onChanged(fn) { listeners.add(fn); }, offChanged(fn) { listeners.delete(fn); },
     consumeLastStartError: () => { const value = pendingFailure; pendingFailure = ''; return value; },
-    getLastStartFailure: () => null, stop: () => stop++, start: () => start++ };
+    getLastStartFailure: () => null, stop: () => { stop++; return Promise.resolve(stopResult); }, start: () => start++ };
   const common = {
-    '@kit.AbilityKit': {}, '@kit.ArkUI': { promptAction: { showToast() {} } },
+    '@kit.AbilityKit': {}, '@kit.ArkUI': { promptAction: { showToast(value) { toasts.push(value.message); } } },
     '@kit.BasicServicesKit': {}, '../lib/ConnectionFailure': { ConnectionFailures: {} },
     '../lib/VpnController': { VpnController: controller, VpnStatus: status },
     './NativeTheme': { NativeTheme: {} }, '../lib/Logger': { Logger: { warn() {} } }
@@ -92,6 +94,23 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   home.aboutToDisappear(); assert.equal(stop, 2, 'page destruction must not stop VPN');
   assert.equal(timerCleared, 1);
   home.aboutToAppear(); assert.equal(stop, 2, 'recreated page cannot revive a stop action');
+  home.aboutToDisappear();
+
+  home.aboutToAppear(); emit(status.Connected);
+  stopResult = false;
+  home.toggle(); emit(status.Disconnected); await new Promise(resolve => setImmediate(resolve));
+  assert.equal(home.label(), '停止结果未知', 'Disconnected must not claim completed cleanup');
+  assert.ok(home.stateLine().includes('检查系统 VPN'));
+  assert.ok(toasts.some(message => message.includes('停止结果未知')));
+  home.toggle(); assert.equal(home.stopUnknown, false, 'new start clears the displayed old stop outcome');
+  emit(status.Connected);
+  let finishLateStop;
+  controller.stop = () => { stop++; return new Promise(resolve => { finishLateStop = resolve; }); };
+  const toastCount = toasts.length;
+  home.toggle(); emit(status.Disconnected); home.toggle();
+  finishLateStop(false); await new Promise(resolve => setImmediate(resolve));
+  assert.equal(toasts.length, toastCount, 'an old stop cannot report failure on a new intent');
+  assert.equal(home.stopUnknown, false);
   home.aboutToDisappear();
 
   activeHomeFile = '未导入.yaml'; home.refreshProfile();
