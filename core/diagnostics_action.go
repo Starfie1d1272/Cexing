@@ -128,7 +128,9 @@ func diagnosticConfigSnapshot(home, text, overrides string) map[string]any {
 	projectPlatformConfig(final)
 	raw := config.DefaultRawConfig()
 	data, _ := yaml.Marshal(final)
-	_ = yaml.Unmarshal(data, raw)
+	if err := yaml.Unmarshal(data, raw); err != nil {
+		return map[string]any{"status": "invalid_projected_field_types", "error": s.failure(err, 0)}
+	}
 	out := map[string]any{"status": "projected_input", "coreVersion": constant.Version, "mode": raw.Mode.String(), "mixed-port": raw.MixedPort, "allow-lan": raw.AllowLan, "log-level": raw.LogLevel.String(), "dns": map[string]any{"enable": raw.DNS.Enable, "listen": s.text(raw.DNS.Listen), "enhanced-mode": raw.DNS.EnhancedMode.String(), "ipv6": raw.DNS.IPv6}}
 	origins := map[string]string{}
 	for key, setting := range map[string]string{"mode": "mode", "mixed-port": "mixedPort", "allow-lan": "allowLan", "log-level": "logLevel"} {
@@ -210,7 +212,7 @@ func diagnosticConfigSnapshot(home, text, overrides string) map[string]any {
 	return out
 }
 func diagnosticRecordConfig(text, overrides string) {
-	kernelDiagnostic("effective_config", "projected", nil, diagnosticConfigSnapshot(homeDir, text, overrides))
+	kernelDiagnostic("effective_config", "projected", nil, diagnosticConfigSnapshot(diagnosticKernelDirectory(), text, overrides))
 }
 
 // Named operational errors are retained, successful or generic connection
