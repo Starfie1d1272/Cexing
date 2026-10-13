@@ -28,6 +28,11 @@ const SHEET_PASTE = 5;
 const SHEET_REGION = 6;
 const REGION_NAMES: string[] = ['香港', '台湾', '日本', '新加坡', '美国', '韩国', '英国', '德国', '未知'];
 
+class RegionSelectOption {
+  value: string;
+  constructor(value: string) { this.value = value; }
+}
+
 export class ProfileDetailBus {
   static current: string = '';
 }
@@ -119,6 +124,11 @@ export struct ProfilePage {
       this.toast(enable ? '地区策略已创建并启用' : '地区策略已创建，可稍后启用');
     } catch (e) { this.importError = (e as Error).message ?? '地区策略未保存'; }
     finally { this.regionBusy = false; }
+  }
+
+  private regionCanCreate(): boolean {
+    if (this.regionBusy || this.regionPreview?.eligible !== true) { return false; }
+    return this.regionMode !== 'all' || Object.keys(this.regionPreview.nodes).length >= 2;
   }
 
   private savedRegion(file: string): RegionPlan | null {
@@ -733,7 +743,7 @@ export struct ProfilePage {
       Text('仅按节点名称推测地区。原订阅及原 Selector 保留，可关闭后恢复。')
         .fontSize(13).fontColor(UI.muted)
       if (this.regionPreview !== null) {
-        Select(this.regionPreview.selectors.map((name: string) => ({ value: name })))
+        Select(this.regionPreview.selectors.map((name: string) => new RegionSelectOption(name)))
           .selected(this.regionPreview.selectors.indexOf(this.regionSelector))
           .value(this.regionSelector).width('100%')
           .onSelect(async (index: number) => {
@@ -768,11 +778,16 @@ export struct ProfilePage {
               Row({ space: 8 }) {
                 Text(node).fontSize(12).fontColor(UI.ink).layoutWeight(1)
                   .maxLines(1).textOverflow({ overflow: TextOverflow.Ellipsis })
-                Select(REGION_NAMES.map((name: string) => ({ value: name })))
+                Select(REGION_NAMES.map((name: string) => new RegionSelectOption(name)))
                   .selected(REGION_NAMES.indexOf(this.regionPreview?.nodes[node] ?? '未知'))
                   .value(this.regionPreview?.nodes[node] ?? '未知').width(104)
                   .onSelect(async (index: number) => {
-                    this.regionAssignments = { ...this.regionAssignments, [node]: REGION_NAMES[index] };
+                    const next: Record<string, string> = {};
+                    for (const key of Object.keys(this.regionAssignments)) {
+                      next[key] = this.regionAssignments[key];
+                    }
+                    next[node] = REGION_NAMES[index];
+                    this.regionAssignments = next;
                     try { await this.refreshRegionPreview(); } catch (_) { this.importError = '预览失败'; }
                   })
               }
@@ -782,12 +797,10 @@ export struct ProfilePage {
       }
       if (this.importError.length > 0) { Text(this.importError).fontSize(13).fontColor(UI.error) }
       Button('创建并启用').width('100%').height(48).backgroundColor(UI.action).fontColor(UI.onAccent)
-        .enabled(!this.regionBusy && this.regionPreview?.eligible === true &&
-          (this.regionMode !== 'all' || Object.keys(this.regionPreview?.nodes ?? {}).length >= 2))
+        .enabled(this.regionCanCreate())
         .onClick(() => { this.saveRegion(true); })
       Button('仅创建').width('100%').height(44).backgroundColor(UI.soft).fontColor(UI.accentText)
-        .enabled(!this.regionBusy && this.regionPreview?.eligible === true &&
-          (this.regionMode !== 'all' || Object.keys(this.regionPreview?.nodes ?? {}).length >= 2))
+        .enabled(this.regionCanCreate())
         .onClick(() => { this.saveRegion(false); })
     }.padding(20).width('100%')
   }

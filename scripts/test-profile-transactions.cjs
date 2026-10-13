@@ -10,6 +10,7 @@ const js = ts.transpileModule(source, { compilerOptions: {
 } }).outputText;
 const originals = { 'old.yaml': 'proxies: [old]', 'new.yaml': 'proxies: [new]' };
 const staged = new Map();
+const regionPlans = new Map();
 const state = { Current: { ID: 'version-old', Path: '/versions/old', ProfileID: 'old.yaml' },
   Previous: null, Profiles: {} };
 state.Profiles['old.yaml'] = state.Current;
@@ -31,11 +32,11 @@ const core = { CoreApi: {
 const versions = { EffectiveVersions: {
   read: () => state,
   smartConversion: () => smartCurrent,
-  regionPlan: () => null,
-  stage: async (_, name, original, overlay, metadata, expected) => {
+  regionPlan: (_, version) => regionPlans.get(version.ID) ?? null,
+  stage: async (_, name, original, overlay, metadata, expected, regionPlan) => {
     assert.equal(expected, state.Current?.ID ?? '');
     const version = { ID: `version-${++id}`, Path: `/versions/${id}`, ProfileID: name };
-    staged.set(version.Path, { version, original, overlay, metadata });
+    staged.set(version.Path, { version, original, overlay, metadata, regionPlan });
     return { version, receipt: '' };
   },
   verify: async () => '',
@@ -43,6 +44,7 @@ const versions = { EffectiveVersions: {
     if (failCommit) throw Error('synthetic commit failure');
     assert.equal(expected, state.Current?.ID ?? '');
     const entry = staged.get(version.Path);
+    regionPlans.set(version.ID, entry.regionPlan);
     originals[version.ProfileID] = entry.original;
     state.Profiles[version.ProfileID] = version;
     if (active) { state.Previous = state.Current; state.Current = version; }
@@ -142,6 +144,19 @@ const tx = context.exports.ProfileTransactions;
   assert.equal(smartAutoConvert, false);
   assert.equal(await tx.setSmartAutoConvert({}, true), 'applied');
   assert.equal(smartAutoConvert, true);
+  const region = { mode: 'region', selector: 'Main', enable: true, assignments: { unknown: '日本' } };
+  assert.equal(await tx.setRegionPlan({}, 'new.yaml', region), 'applied');
+  assert.equal(regionPlans.get(state.Current.ID).selector, 'Main');
+  await tx.update({}, 'new.yaml');
+  assert.equal(regionPlans.get(state.Current.ID).assignments.unknown, '日本',
+    'subscription updates must reapply the saved region choice');
+  response = 'rejected';
+  const beforeRegionFailure = state.Current.ID;
+  await assert.rejects(tx.setRegionPlan({}, 'new.yaml', null), /拒绝/);
+  assert.equal(state.Current.ID, beforeRegionFailure, 'failed region toggle keeps the old version');
+  response = 'applied';
+  assert.equal(await tx.setRegionPlan({}, 'new.yaml', { ...region, enable: false }), 'applied');
+  assert.equal(regionPlans.get(state.Current.ID).enable, false);
   controller.VpnController.status = 0;
   const beforeEnsure = state.Current.ID;
   await tx.ensureActiveSmartPolicy({});
