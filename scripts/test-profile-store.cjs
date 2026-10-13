@@ -13,6 +13,8 @@ let unlinkResolve;
 let unlinkReject;
 let delayDelete = false;
 let failMetaMove = false;
+let effectiveState = null;
+let invalidPointer = false;
 const io = {
   OpenMode: { READ_WRITE: 2, CREATE: 64, TRUNC: 512 },
   accessSync: name => data.has(name) || name === '/files/profiles',
@@ -38,7 +40,10 @@ const context = { exports: {}, require: name => {
   if (name === '@kit.ArkTS') return { util: {} };
   if (name.endsWith('Logger')) return { Logger: { info() {}, warn() {}, error() {} } };
   if (name.endsWith('ProfileName')) return {};
-  if (name.endsWith('EffectiveVersions')) return { EffectiveVersions: { read: () => null } };
+  if (name.endsWith('EffectiveVersions')) return { EffectiveVersions: {
+    read: () => { if (invalidPointer) throw Error('invalid pointer'); return effectiveState; },
+    original: (_, version) => data.get(`/files/profile-versions/${version.ID}/original.yaml`)
+  } };
   return {};
 } };
 vm.runInNewContext(js, context);
@@ -73,5 +78,17 @@ const ctx = { filesDir: '/files' };
   unlinkResolve();
   await retry;
   assert.equal(data.has('/files/profiles/same.yaml'), false);
-  console.log('PASS: unique imports and awaited deletion success/failure');
+  const version = { ID: 'version-test', Path: '/files/profile-versions/version-test/config.yaml', ProfileID: renamed };
+  const meta = { origin: 'https://synthetic.invalid/feed', sub: {}, updatedAt: 2 };
+  data.set(version.Path, 'proxies: [generated]');
+  data.set('/files/profile-versions/version-test/original.yaml', 'proxies: [committed-original]');
+  data.set('/files/profile-versions/version-test/source.json', JSON.stringify({ Metadata: JSON.stringify(meta) }));
+  effectiveState = { Current: version, Previous: null, Profiles: { [renamed]: version } };
+  assert.equal(store.getActiveFile(ctx), renamed);
+  assert.equal(store.getActiveContent(ctx), 'proxies: [generated]');
+  assert.equal(store.getProfileContent(ctx, renamed), 'proxies: [committed-original]');
+  assert.equal(store.getMeta(ctx)[renamed].origin, meta.origin);
+  invalidPointer = true;
+  assert.throws(() => store.getActiveFile(ctx), /invalid pointer/);
+  console.log('PASS: unique imports, awaited deletion and effective-version precedence');
 })().catch(error => { console.error(error); process.exitCode = 1; });
