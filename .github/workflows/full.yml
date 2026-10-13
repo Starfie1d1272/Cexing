@@ -107,15 +107,22 @@ jobs:
           if sha(hap) != identity['hapSha256']:
               raise SystemExit('Artifact HAP differs from the verified CI output')
           shutil.copyfile(hap, report / 'entry-default-unsigned.hap')
-          source = f'https://github.com/{os.environ["GITHUB_REPOSITORY"]}/blob/{os.environ["GITHUB_SHA"]}/docs/'
-          guide = pathlib.Path('docs/how-to/device.md').read_text()
-          guide = guide.replace('../reference/smart-beta.md', source + 'reference/smart-beta.md')
-          guide = guide.replace('../evidence/native-ui/DEVICE-CHECKLIST.md', source + 'evidence/native-ui/DEVICE-CHECKLIST.md')
+          source = f'https://github.com/{os.environ["GITHUB_REPOSITORY"]}/blob/{os.environ["GITHUB_SHA"]}'
+          guide = f"""# HoKit 安装提示
+
+          本包是本次提交 `{os.environ['GITHUB_SHA']}` 的未签名测试 HAP，CI 未签名、未安装或做真机验证。
+
+          1. 解压 Artifact，在同一目录执行 `sha256sum -c SHA256SUMS`（macOS 可用 `shasum -a 256 -c SHA256SUMS`）。
+          2. 在用户自己的本地 HoKit 中选择 `entry-default-unsigned.hap`，按 HoKit 提示完成授权、签名及安装。
+          3. 个人签名材料和设备授权只在用户本地处理，不能上传到本仓库或 Actions。
+
+          完整要求见 [设备指南]({source}/docs/how-to/device.md)。安装成功不证明 VPN 或后台运行通过验收。
+          """
           (report / 'HOKIT-QUICKSTART.md').write_text(guide)
           shutil.copyfile('THIRD_PARTY_NOTICES.md', report / 'THIRD_PARTY_NOTICES.md')
           shutil.copyfile('LICENSE', report / 'LICENSE')
           shutil.copyfile('core/patches/NOTICE.md', report / 'SMART-NOTICE.md')
-          files = ['entry-default-unsigned.hap', 'build-identity.json', 'module-notices.json', 'HOKIT-QUICKSTART.md', 'THIRD_PARTY_NOTICES.md', 'LICENSE', 'SMART-NOTICE.md']
+          files = ['entry-default-unsigned.hap', 'build-identity.json', 'module-notices.json', 'GO-NOTICES.txt', 'HOKIT-QUICKSTART.md', 'THIRD_PARTY_NOTICES.md', 'LICENSE', 'SMART-NOTICE.md']
           (report / 'SHA256SUMS').write_text(''.join(sha(report / name) + '  ' + name + '\n' for name in files))
           PYCODE
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -125,6 +132,7 @@ jobs:
             clash-openharmony/dist/ci/entry-default-unsigned.hap
             clash-openharmony/dist/ci/build-identity.json
             clash-openharmony/dist/ci/module-notices.json
+            clash-openharmony/dist/ci/GO-NOTICES.txt
             clash-openharmony/dist/ci/HOKIT-QUICKSTART.md
             clash-openharmony/dist/ci/SHA256SUMS
             clash-openharmony/dist/ci/THIRD_PARTY_NOTICES.md

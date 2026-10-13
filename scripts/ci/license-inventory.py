@@ -4,10 +4,12 @@ import hashlib
 import json
 import pathlib
 import subprocess
+import sys
 
 text = subprocess.check_output(['go', 'list', '-m', '-json', 'all'], cwd='core', text=True)
 decoder = json.JSONDecoder()
 modules, missing, not_downloaded, nested_only = [], [], [], []
+notice_texts = []
 while text.strip():
     obj, end = decoder.raw_decode(text.lstrip())
     text = text.lstrip()[end:]
@@ -28,6 +30,8 @@ while text.strip():
     for file in sorted(directory.rglob("*")):
         if file.is_file() and file.name.lower().startswith(('license', 'licence', 'copying', 'notice')):
             notices.append({'name': file.relative_to(directory).as_posix(), 'sha256': hashlib.sha256(file.read_bytes()).hexdigest()})
+            if len(sys.argv) > 1:
+                notice_texts.append(f'\n===== {obj["Path"]}@{obj["Version"]}: {file.relative_to(directory).as_posix()} =====\n' + file.read_text(errors='replace'))
     if not notices:
         missing.append(obj['Path'])
     elif all('/' in n['name'] for n in notices):
@@ -38,3 +42,5 @@ print(json.dumps({'modules': modules, 'missingNotice': missing, 'nestedNoticesOn
                   'distributionApproval': False}, indent=2))
 if missing:
     raise SystemExit('Missing module notices: ' + ', '.join(missing))
+if len(sys.argv) > 1:
+    pathlib.Path(sys.argv[1]).write_text('Available public Go module license/notice texts; inventory exclusions remain in module-notices.json.\n' + '\n'.join(notice_texts))

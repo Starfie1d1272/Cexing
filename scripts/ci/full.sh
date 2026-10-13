@@ -27,11 +27,19 @@ ci_seed_go_download_cache
 if [ -n "${CI_HVIGOR_WRAPPER_TOOLS:-}" ]; then
   mkdir -p "$HVIGOR_USER_HOME/wrapper"
   cp -R "$CI_HVIGOR_WRAPPER_TOOLS" "$HVIGOR_USER_HOME/wrapper/tools"
+else
+  # The vendor wrapper logs its pin but invokes floating `npm install pnpm`.
+  # Seed that public tool with an integrity lock, without modifying the SDK.
+  WRAPPER_PNPM="$(python3 -c 'import json; print(json.load(open("scripts/ci/toolchain.json"))["pnpm"])')"
+  WRAPPER_TOOLS="$HVIGOR_USER_HOME/wrapper/tools/$WRAPPER_PNPM"
+  mkdir -p "$WRAPPER_TOOLS"
+  cp scripts/ci/hvigor-wrapper/package*.json "$WRAPPER_TOOLS/"
+  python3 scripts/ci/timed.py wrapper-pnpm npm ci --prefix "$WRAPPER_TOOLS" --ignore-scripts --no-audit --no-fund
 fi
 python3 scripts/ci/timed.py go-download bash -c 'cd core && go mod download && go mod verify'
 ci_save_go_download_cache
 python3 scripts/ci/timed.py smart-tests bash scripts/test-smart.sh
-python3 scripts/ci/license-inventory.py > "$CI_BUILD_ROOT/licenses.json"
+python3 scripts/ci/license-inventory.py "$CI_BUILD_ROOT/GO-NOTICES.txt" > "$CI_BUILD_ROOT/licenses.json"
 for test in scripts/test-*.cjs; do node "$test"; done
 python3 scripts/ci/timed.py ohpm bash -c 'cd clash-openharmony && "$CLT_ROOT/ohpm/bin/ohpm" install'
 python3 scripts/ci/timed.py mihomo-smart bash scripts/build-core.sh
@@ -46,6 +54,7 @@ python3 scripts/ci/timed.py hap-validation python3 scripts/ci/verify-hap.py "$HA
 python3 tests/smart/hap_gate.py
 python3 tests/smart/source_gate.py
 cp "$CI_BUILD_ROOT/licenses.json" "$REPORT/module-notices.json"
+cp "$CI_BUILD_ROOT/GO-NOTICES.txt" "$REPORT/GO-NOTICES.txt"
 if [ -n "$(git status --porcelain --untracked-files=normal)" ]; then
   echo 'Full changed tracked inputs or generated untracked files; review before accepting identity' >&2
   exit 1

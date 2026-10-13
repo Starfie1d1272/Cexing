@@ -138,7 +138,9 @@ identity = {
     'inputs': {file: sha((root / file).read_bytes()) for file in [
         'core/go.mod', 'core/go.sum', 'core/patches/smart-offline.patch', 'scripts/ci/patch-smart.py', 'scripts/build-core.sh', 'scripts/ci/patch-gvisor.py',
         'scripts/prepare-geodata.sh', 'scripts/build-hap.sh', 'scripts/env.sh',
-        'clash-openharmony/entry/oh-package-lock.json5', 'scripts/ci/package-lock.json', 'scripts/ci/toolchain.json']},
+        'clash-openharmony/entry/oh-package-lock.json5', 'scripts/ci/package-lock.json', 'scripts/ci/toolchain.json',
+        'scripts/ci/sdk-download.json', 'scripts/ci/setup-clt.py', 'scripts/ci/go-download-cache.sh',
+        'scripts/ci/hvigor-wrapper/package-lock.json', '.github/workflows/full.yml']},
     'entries': entries,
     'signed': False,
     'deviceValidated': False,
