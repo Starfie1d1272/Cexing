@@ -173,6 +173,13 @@ func PreviewRegionWithProviders(root *yaml.Node, selector string, assignments ma
 			if !proxyNames[n.Value] {
 				continue
 			}
+			exclude, err := matchesProviderFilters(excludes, n.Value)
+			if err != nil {
+				return p, err
+			}
+			if len(excludes) > 0 && exclude {
+				continue
+			}
 			region := guessRegion(n.Value)
 			if override, ok := assignments[n.Value]; ok {
 				if !validRegion(override) {

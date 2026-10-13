@@ -68,7 +68,7 @@ rules: ["MATCH,Main"]
 proxy-providers:
   inline: {type: inline, payload: [{name: "HK inline", type: direct}, {name: "JP inline", type: direct}]}
 proxy-groups:
-  - {name: Main, type: select, proxies: ["SG explicit"], include-all: true, filter: "HK"}
+  - {name: Main, type: select, proxies: ["SG explicit"], include-all: true, filter: "HK|US", exclude-filter: "US"}
 rules: ["MATCH,Main"]
 `
 	allRoot, err := configpipeline.RegionMergedSource([]byte(includeAll), nil)
