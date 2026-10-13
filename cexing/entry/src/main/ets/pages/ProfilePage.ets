@@ -62,6 +62,7 @@ export struct ProfilePage {
   @State regionMode: string = 'region';
   @State regionAssignments: Record<string, string> = {};
   @State regionBusy: boolean = false;
+  @State regionFromImport: boolean = false;
 
   private onTabVisible(): void {
     if (this.currentVisibleTab === 1) { this.refresh(); }
@@ -91,6 +92,7 @@ export struct ProfilePage {
           this.regionSelector = selector;
           await this.refreshRegionPreview();
           if (this.regionPreview?.eligible === true) {
+            this.regionFromImport = true;
             this.sheetMode = SHEET_REGION;
             this.showSheet = true;
             return;
@@ -117,11 +119,12 @@ export struct ProfilePage {
       const context = getContext(this) as common.UIAbilityContext;
       const plan: RegionPlan = { mode: this.regionMode, selector: this.regionSelector,
         enable: enable, assignments: this.regionAssignments };
-      await ProfileTransactions.setRegionPlan(context, this.importedFile, plan);
+      await ProfileTransactions.setRegionPlan(context, this.importedFile, plan,
+        enable && this.regionFromImport);
       this.changed();
       this.showSheet = false;
       this.sheetMode = SHEET_NONE;
-      this.toast(enable ? '地区策略已创建并启用' : '地区策略已创建，可稍后启用');
+      this.toast(enable ? '地区策略与订阅已启用' : '地区策略已创建，可稍后启用');
     } catch (e) { this.importError = (e as Error).message ?? '地区策略未保存'; }
     finally { this.regionBusy = false; }
   }
@@ -140,6 +143,7 @@ export struct ProfilePage {
   }
 
   private async editRegion(file: string): Promise<void> {
+    this.regionFromImport = false;
     this.importedFile = file;
     this.importError = '';
     const existing = this.savedRegion(file);

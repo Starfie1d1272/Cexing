@@ -165,5 +165,7 @@ const tx = context.exports.ProfileTransactions;
   await tx.ensureActiveSmartPolicy({});
   assert.notEqual(state.Current.ID, beforeEnsure, 'legacy generated version must migrate through transaction');
   assert.equal(smartCurrent, true);
+  assert.equal(await tx.setRegionPlan({}, 'old.yaml', region, true), 'saved');
+  assert.equal(state.Current.ProfileID, 'old.yaml', 'create and enable must select the imported profile');
   console.log('PASS: rejected, unknown, staged pointer, merge reapply and concurrent profile transactions');
 })().catch(error => { console.error(error); process.exitCode = 1; });

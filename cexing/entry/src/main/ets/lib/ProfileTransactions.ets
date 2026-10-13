@@ -263,14 +263,14 @@ export namespace ProfileTransactions {
   }
 
   export async function setRegionPlan(context: common.Context, file: string,
-    plan: RegionPlan | null): Promise<ProfileApplyState> {
+    plan: RegionPlan | null, activate: boolean = false): Promise<ProfileApplyState> {
     enter(context);
     try {
       const original = ProfileStore.getProfileContent(context, file);
       if (original === null) { throw new Error('原始配置不存在'); }
       return await publish(context, file, ProfileStore.prepareContent(original),
         ProfileStore.getEnabledMerge(context, file), metadata(context, file),
-        ProfileStore.getActiveFile(context) === file, undefined, plan);
+        activate || ProfileStore.getActiveFile(context) === file, undefined, plan);
     } finally { busy = false; }
   }
 }
