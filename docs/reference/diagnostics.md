@@ -4,6 +4,10 @@
 
 运行时在恢复前调用 `initialize(context)`，并拥有 `observe(context)` 返回的释放函数。观察器只订阅 `VpnController.onChanged/offChanged`，读取脱敏故障、TUN 创建、内核就绪和停止结果 getters，不消费错误、不改变启停。缺少细分阶段时标明覆盖缺口。更精确的业务动作由拥有该动作的模块调用 `record(context, {operation, stage, outcome, object?, reason?, code?, durationMs?})`；只传固定阶段和数字/固定码，禁止传原始异常、Want、URL、配置或凭据。`record` 返回落盘是否成功，不应改变 VPN 控制结果。
 
+生命周期接入由 `AppRuntime` 初始化并持有状态观察与阶段订阅；Ability 重建先释放旧订阅，迟到的旧 Ability 销毁不能释放新订阅。窗口关闭时 VPN 或未知会话仍存在则继续观察，确认停止后释放。授权、绑定、恢复与停止只提交固定阶段、原始数字码或明确固定码及不透明会话身份；采集异常不能改变控制结果。
+
+`record` 的 host 流只由 UI 进程写入。VPN 扩展的 TUN、进程网络保护、GeoIP、模型、面板资源、配置和内核阶段通过现有私有 IPC 回传有界事件队列，再由 UI 进程提交 `record`，不让两个进程同时写 host journal。队列最多 32 条，截断与 IPC 不可用明确记录 unknown；阶段代码严格白名单，不传异常文本、Want 或配置。记录时间是 UI 接收/落盘时间，耗时来自实际阶段；回传事件是已发生的观察，不证明当前转发。扩展阶段队列不独立持久化，强杀前尚未回传的事件可能缺失；不以重启后的成功补齐缺口。
+
 ## 内容与证据解释
 
 JSON schema 为 `cexing-support-bundle/1`。host 和 kernel 两条证据流分开写，避免两个进程互相覆盖。每条记录有会话、递增序号、UTC 时间、动作、阶段、结果和可用的耗时。内核启动明确区分配置解析、Controller 监听、配置应用与 TUN 启动；内核退出仅说明内核清理完成，系统 VPN 停止仍以控制器结果为准。

@@ -21,6 +21,7 @@ import { EffectiveVersions } from '../lib/EffectiveVersions';
 import { Settings } from '../lib/Settings';
 import { CoreApi } from '../lib/CoreApi';
 import { ConnectionFailures } from '../lib/ConnectionFailure';
+import { NativeVpnPhase, NativeVpnPhases, VpnPhaseOutcome, VpnPhases } from '../lib/VpnPhases';
 
 const TAG = 'vpn';
 // 主进程（首页）读取的最近一次启动失败原因
@@ -80,19 +81,22 @@ class CoreStatusRemote extends rpc.RemoteObject {
   private getSession: () => string;
   private wasTunCreated: () => boolean;
   private stopSession: (session: string) => Promise<boolean>;
+  private getDiagnostics: () => string;
 
   constructor(isReady: () => boolean, getError: () => string, getSession: () => string,
-    wasTunCreated: () => boolean, stopSession: (session: string) => Promise<boolean>) {
+    wasTunCreated: () => boolean, stopSession: (session: string) => Promise<boolean>, getDiagnostics: () => string) {
     super('CEXING_VPN_ABILITY');
     this.isReady = isReady;
     this.getError = getError;
     this.getSession = getSession;
     this.wasTunCreated = wasTunCreated;
     this.stopSession = stopSession;
+    this.getDiagnostics = getDiagnostics;
   }
 
   onRemoteMessageRequest(code: number, data: rpc.MessageSequence, reply: rpc.MessageSequence,
     options: rpc.MessageOption): boolean | Promise<boolean> {
+    if (code === 3) { reply.writeString(this.getDiagnostics()); return true; }
     if (code === 2) {
       const session = data.readString();
       const request = data.readString();
@@ -125,6 +129,28 @@ export default class CexingVpnAbility extends VpnExtensionAbility {
   private startupPhase: string = 'vpn';
   private startupSession: string = '';
   private tunCreateObserved: boolean = false;
+  private diagnosticEvents: NativeVpnPhase[] = [];
+  private diagnosticSequence: number = 0;
+  private diagnosticDropped: number = 0;
+  private diagnosticStarted: Map<string, number> = new Map();
+
+  private diagnostic(stage: string, outcome: VpnPhaseOutcome, code: string = ''): void {
+    try {
+      const now = Date.now();
+      if (outcome === 'started') { this.diagnosticStarted.set(stage, now); }
+      const durationMs = outcome === 'started' ? 0 : Math.max(0, now - (this.diagnosticStarted.get(stage) ?? now));
+      this.diagnosticEvents.push({ sequence: ++this.diagnosticSequence, stage, outcome, code, durationMs });
+      if (this.diagnosticEvents.length > 32) { this.diagnosticEvents.shift(); this.diagnosticDropped++; }
+    } catch (_) {}
+  }
+
+  private diagnosticSnapshot(): string {
+    try {
+      const snapshot: NativeVpnPhases = { session: this.startupSession, dropped: this.diagnosticDropped, events: this.diagnosticEvents };
+      return JSON.stringify(snapshot);
+    }
+    catch (_) { return ''; }
+  }
 
   /** 记录启动失败原因到 filesDir，主进程（首页）断开回调时读取并提示用户 */
   private writeLastError(msg: string): void {
@@ -168,17 +194,18 @@ export default class CexingVpnAbility extends VpnExtensionAbility {
     // A recovery bind only observes this process; it must never create a new TUN.
     if (want.parameters?.['RECOVER_ONLY'] === true) {
       return new CoreStatusRemote(() => this.coreStarted && !this.stopping,
-        () => this.startupError, () => this.startupSession, () => this.tunCreateObserved, (session: string) => this.stopSession(session));
+        () => this.startupError, () => this.startupSession, () => this.tunCreateObserved, (session: string) => this.stopSession(session), () => this.diagnosticSnapshot());
     }
     if (this.stopping && this.starting !== null) {
       return new CoreStatusRemote(() => false, () => 'VPN 正在停止，请稍后重试',
-        () => this.startupSession, () => this.tunCreateObserved, (session: string) => this.stopSession(session));
+        () => this.startupSession, () => this.tunCreateObserved, (session: string) => this.stopSession(session), () => this.diagnosticSnapshot());
     }
     if (this.starting !== null) {
       return new CoreStatusRemote(() => this.coreStarted && !this.stopping, () => this.startupError,
-        () => this.startupSession, () => this.tunCreateObserved, (session: string) => this.stopSession(session));
+        () => this.startupSession, () => this.tunCreateObserved, (session: string) => this.stopSession(session), () => this.diagnosticSnapshot());
     }
     this.cleanupPending = null;
+    this.diagnosticEvents = []; this.diagnosticSequence = 0; this.diagnosticDropped = 0; this.diagnosticStarted.clear();
     this.clearLastError();
     this.startupError = '';
     this.startupPhase = 'vpn';
@@ -187,30 +214,43 @@ export default class CexingVpnAbility extends VpnExtensionAbility {
     this.stopping = false;
     this.starting = this.startCore(want);
     return new CoreStatusRemote(() => this.coreStarted, () => this.startupError,
-      () => this.startupSession, () => this.tunCreateObserved, (session: string) => this.stopSession(session));
+      () => this.startupSession, () => this.tunCreateObserved, (session: string) => this.stopSession(session), () => this.diagnosticSnapshot());
   }
 
   private async startCore(want: Want): Promise<void> {
     let fd = -1;
     try {
       const config = want.parameters?.['VPN_CONFIG'] as vpnExtension.VpnConfig;
+      this.diagnostic('tun_create', 'started');
       fd = await this.connection.create(config);
+      this.diagnostic('tun_create', 'success');
       this.tunCreateObserved = true;
       Logger.info(TAG, `tun fd acquired: ${fd}`);
       this.startupPhase = 'protect';
+      this.diagnostic('protect', 'started');
       await this.connection.protectProcessNet();
+      this.diagnostic('protect', 'success');
       Logger.info(TAG, 'protectProcessNet done, starting mihomo core...');
 
       const filesDir = this.context.filesDir;
       this.startupPhase = 'assets';
+      this.diagnostic('geodata_prepare', 'started');
       await this.seedGeoData(filesDir);
+      this.diagnostic('geodata_prepare', 'success');
       // Install a verified offline model before the Go runtime first attempts to load it.
       // Failure is recoverable: Smart continues with its statistical weights.
+      this.diagnostic('smart_model_prepare', 'started');
       const smartModel = await SmartModelAssets.prepare(this.context);
+      this.diagnostic('smart_model_prepare', smartModel.state === 'ready' ? 'success' : 'skipped',
+        smartModel.state === 'ready' ? '' : 'OPTIONAL_MODEL_UNAVAILABLE');
       if (smartModel.state !== 'ready') { Logger.warn(TAG, smartModel.message); }
       // Static resource failure is recoverable; Controller credentials still fail closed.
-      await ZashboardAssets.prepare(this.context);
+      this.diagnostic('panel_assets_prepare', 'started');
+      const panelAssets = await ZashboardAssets.prepare(this.context);
+      this.diagnostic('panel_assets_prepare', panelAssets.directory.length > 0 ? 'success' : 'skipped',
+        panelAssets.directory.length > 0 ? '' : 'OPTIONAL_PANEL_UNAVAILABLE');
       this.startupPhase = 'core-init';
+      this.diagnostic('core_initialize', 'started');
       const initErr: string = await core.initCore(filesDir);
       if (initErr) {
         Logger.error(TAG, 'initCore failed');
@@ -218,9 +258,12 @@ export default class CexingVpnAbility extends VpnExtensionAbility {
       }
       Logger.info(TAG, `initCore ok, homeDir=${filesDir}`);
       this.coreInitialized = true;
+      this.diagnostic('core_initialize', 'success');
 
       this.startupPhase = 'config';
+      this.diagnostic('configuration_prepare', 'started');
       const cfg: string = await this.buildCoreConfig();
+      this.diagnostic('configuration_prepare', 'success');
       // 用户覆写合并进内核配置：覆写项 > 订阅配置同名键（ipv6 只用于 VpnConfig，不传）
       const s = Settings.load(this.context);
       const overrides: UserOverrides = {
@@ -233,14 +276,29 @@ export default class CexingVpnAbility extends VpnExtensionAbility {
       Logger.info(TAG,
         `user overrides: mixedPort=${s.mixedPort} logLevel=${s.logLevel} allowLan=${s.allowLan} mode=${s.mode} logToFile=${s.logToFile}`);
       this.startupPhase = 'core-start';
+      this.diagnostic('core_start', 'started');
       const startErr: string = await core.startTun(fd, cfg, JSON.stringify(overrides));
       if (startErr) {
         this.startupPhase = startErr.includes('parse configJson') ? 'config' : 'core-start';
         throw new Error(startErr);
       }
       this.coreStarted = true;
+      this.diagnostic('core_start', 'success');
       Logger.info(TAG, 'mihomo core started, TUN handed over');
     } catch (e) {
+      const pending = this.diagnosticEvents[this.diagnosticEvents.length - 1];
+      let stage: string = 'core_start';
+      if (pending?.outcome === 'started') { stage = pending.stage; }
+      else {
+        switch (this.startupPhase) {
+          case 'vpn': stage = 'tun_create'; break;
+          case 'protect': stage = 'protect'; break;
+          case 'assets': stage = 'geodata_prepare'; break;
+          case 'core-init': stage = 'core_initialize'; break;
+          case 'config': stage = 'configuration_prepare'; break;
+        }
+      }
+      this.diagnostic(stage, 'failed', VpnPhases.code(e, `${stage.toUpperCase()}_FAILED`));
       const msg = (e as Error).message ?? JSON.stringify(e);
       this.startupError = ConnectionFailures.encode(this.startupSession,
         ConnectionFailures.classify(this.startupPhase, msg));
@@ -305,22 +363,27 @@ export default class CexingVpnAbility extends VpnExtensionAbility {
     const pendingStartup = this.starting;
     const tunBeforeStop = this.tunCreateObserved;
     if (tunBeforeStop || pendingStartup !== null || this.coreInitialized) {
-      try { await this.connection.destroy(); }
-      catch (_) { completed = false; Logger.error(TAG, 'VPN destroy failed'); }
+      this.diagnostic('tun_destroy', 'started');
+      try { await this.connection.destroy(); this.diagnostic('tun_destroy', 'success'); }
+      catch (e) { this.diagnostic('tun_destroy', 'failed', VpnPhases.code(e, 'TUN_DESTROY_FAILED')); completed = false; Logger.error(TAG, 'VPN destroy failed'); }
     }
     if (pendingStartup !== null) { await pendingStartup; }
     // A create already in flight may finish after the first destroy attempt.
     if (!tunBeforeStop && this.tunCreateObserved) {
-      try { await this.connection.destroy(); completed = true; }
-      catch (_) { completed = false; Logger.error(TAG, 'late VPN destroy failed'); }
+      this.diagnostic('late_tun_destroy', 'started');
+      try { await this.connection.destroy(); completed = true; this.diagnostic('late_tun_destroy', 'success'); }
+      catch (e) { this.diagnostic('late_tun_destroy', 'failed', VpnPhases.code(e, 'TUN_DESTROY_FAILED')); completed = false; Logger.error(TAG, 'late VPN destroy failed'); }
     }
     if (this.coreInitialized) {
       try {
+        this.diagnostic('core_stop', 'started');
         await core.stopCore();
+        this.diagnostic('core_stop', 'success');
         Logger.info(TAG, 'mihomo core stopped');
         this.coreStarted = false;
         this.coreInitialized = false;
       } catch (e) {
+        this.diagnostic('core_stop', 'failed', VpnPhases.code(e, 'CORE_STOP_FAILED'));
         completed = false;
         Logger.error(TAG, 'stopCore failed');
       }
