@@ -23,6 +23,9 @@ const io = {
   writeSync: (name, value) => { data.set(name, value); },
   closeSync: () => {},
   readTextSync: name => data.get(name),
+  listFileSync: dir => [...data.keys()].filter(name => name.startsWith(dir + '/') &&
+    !name.slice(dir.length + 1).includes('/')).map(name => name.slice(dir.length + 1)),
+  statSync: name => ({ size: data.get(name).length, mtime: 1 }),
   moveFileSync: (from, to) => {
     if (failMetaMove && to === '/files/profiles/meta.json') throw Error('synthetic metadata write failure');
     data.set(to, data.get(from)); data.delete(from);
@@ -55,6 +58,13 @@ const ctx = { filesDir: '/files' };
   assert.equal(first, 'same.yaml');
   assert.equal(second, 'same (2).yaml');
   assert.equal(data.get('/files/profiles/same.yaml'), 'proxies: [synthetic]');
+  const upper = store.importContent(ctx, 'UPPER.YAML', 'proxies: [upper]');
+  assert.equal(upper, 'UPPER.YAML');
+  assert.ok(store.list(ctx).some(profile => profile.file === upper && profile.name === 'UPPER'));
+  const upperRenamed = store.renameProfile(ctx, upper, 'MOVED.YML');
+  assert.equal(upperRenamed, 'MOVED.YML');
+  assert.ok(store.list(ctx).some(profile => profile.file === upperRenamed && profile.name === 'MOVED'));
+  assert.equal(data.has('/files/profiles/UPPER.YAML'), false);
   store.saveMergeDraft(ctx, second, 'hosts: {synthetic.example: 192.0.2.1}');
   assert.equal(store.getMergeDraft(ctx, second), 'hosts: {synthetic.example: 192.0.2.1}');
   const renamed = store.renameProfile(ctx, second, 'renamed');
@@ -90,5 +100,5 @@ const ctx = { filesDir: '/files' };
   assert.equal(store.getMeta(ctx)[renamed].origin, meta.origin);
   invalidPointer = true;
   assert.throws(() => store.getActiveFile(ctx), /invalid pointer/);
-  console.log('PASS: unique imports, awaited deletion and effective-version precedence');
+  console.log('PASS: unique imports, uppercase YAML listing/rename, awaited deletion and effective-version precedence');
 })().catch(error => { console.error(error); process.exitCode = 1; });
