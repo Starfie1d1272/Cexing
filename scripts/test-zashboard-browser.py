@@ -98,7 +98,7 @@ process.stdout.write(context.exports.ZashboardSession.bootstrap(fixture.secret,f
             assert page.get_by_label('Globe style', exact=True).inner_text().strip() == 'Space'
             assert page.evaluate("localStorage.getItem('config/earth-visual-mode')") is None
             assert not page.get_by_text('Checking the local city database', exact=False).count(), 'City check never completed'
-            assert page.locator('a[href="#/overview"]').count() > 0, 'Split overview default missing'
+            assert page.get_by_role('button', name='Overview', exact=True).count() > 0, 'Split overview default missing'
             assert page.evaluate("localStorage.getItem('config/split-overview-page')") is None, 'Default overwrote preference'
             screenshot_dir = os.environ.get('ZASHBOARD_SCREENSHOTS')
             if screenshot_dir:
@@ -199,7 +199,7 @@ process.stdout.write(context.exports.ZashboardSession.bootstrap(fixture.secret,f
             assert manual_page.evaluate("localStorage.getItem('config/split-overview-page')") == 'false'
             assert manual_page.evaluate("localStorage.getItem('config/earth-visual-mode')") == 'flat'
             assert manual_page.get_by_label('Globe style', exact=True).inner_text().strip() == 'Flat'
-            assert manual_page.locator('a[href="#/overview"]').count() == 0
+            assert manual_page.get_by_role('button', name='Overview', exact=True).count() == 0
             manual.close()
             Path(str(ready)+'.stop').touch()
             process.wait(timeout=20)

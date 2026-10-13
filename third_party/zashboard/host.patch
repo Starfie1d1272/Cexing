@@ -347,12 +347,15 @@ index 15ec5ec..2213e4d 100644
 @@ -412,0 +413 @@ const zh: LANG_MESSAGE = {
 +  'earthDatabaseError_host-offline': '离线面板暂未提供城市定位，可继续查看连接和策略组。',
 diff --git a/src/router/index.ts b/src/router/index.ts
-index f672873..b11e398 100644
+index f672873..dca7871 100644
 --- a/src/router/index.ts
 +++ b/src/router/index.ts
+@@ -4 +4 @@ import { i18n } from '@/i18n'
+-import { language } from '@/store/settings'
++import { language, splitOverviewPage } from '@/store/settings'
 @@ -56 +56 @@ const router = createRouter({
 -      redirect: ROUTE_NAME.proxies,
-+      redirect: ROUTE_NAME.overview,
++      redirect: () => ({ name: splitOverviewPage.value ? ROUTE_NAME.overview : ROUTE_NAME.proxies }),
 diff --git a/src/store/settings.ts b/src/store/settings.ts
 index fbd4faa..a485870 100644
 --- a/src/store/settings.ts
