@@ -141,7 +141,7 @@ export struct HomePage {
     this.stopUnknown = !completed;
     if (!completed && this.visible && this.rootVisible &&
       this.currentVisibleTab === 0) {
-      promptAction.showToast({ message: '停止结果未知，请检查系统 VPN 状态后重试', duration: 3000 });
+      promptAction.showToast({ message: '断开未确认，请检查系统 VPN 状态后重试', duration: 3000 });
     }
   }
 
@@ -194,7 +194,7 @@ export struct HomePage {
     if (this.status === VpnStatus.Connected) { return '已连接'; }
     if (this.status === VpnStatus.Connecting) { return '连接中'; }
     if (this.status === VpnStatus.Disconnecting) { return '断开中'; }
-    return this.stopUnknown ? '停止结果未知' : (this.startFailed ? '连接失败' : '未连接');
+    return this.stopUnknown ? '断开未确认' : (this.startFailed ? '连接失败' : '未连接');
   }
 
   private stateLine(): string {

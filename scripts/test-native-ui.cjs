@@ -109,9 +109,9 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   stopResult = async () => false;
   home.toggle(); emit(status.Disconnecting); emit(status.Disconnected);
   await new Promise(resolve => setImmediate(resolve));
-  assert.ok(toasts.includes('停止结果未知，请检查系统 VPN 状态后重试'),
+  assert.ok(toasts.includes('断开未确认，请检查系统 VPN 状态后重试'),
     'false stop must be visible despite Disconnected status');
-  assert.equal(home.label(), '停止结果未知', 'the card must retain an unconfirmed stop after the toast');
+  assert.equal(home.label(), '断开未确认', 'the card must retain an unconfirmed stop after the toast');
   assert.ok(home.stateLine().includes('检查系统 VPN'));
   smartPrepare = async () => { throw Error('synthetic Smart preparation failure'); };
   await home.toggle();
@@ -137,14 +137,14 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   stopResult = async () => { throw Error('synthetic stop failure'); };
   emit(status.Connected); home.toggle(); emit(status.Disconnecting); emit(status.Disconnected);
   await new Promise(resolve => setImmediate(resolve));
-  assert.ok(toasts.includes('停止结果未知，请检查系统 VPN 状态后重试'), 'rejected stop must be visible');
-  assert.equal(home.label(), '停止结果未知');
+  assert.ok(toasts.includes('断开未确认，请检查系统 VPN 状态后重试'), 'rejected stop must be visible');
+  assert.equal(home.label(), '断开未确认');
   home.aboutToDisappear();
   lastStopCompleted = false;
   const rebuiltHome = new Home();
   rebuiltHome.rootVisible = true; rebuiltHome.currentVisibleTab = 0;
   rebuiltHome.aboutToAppear();
-  assert.equal(rebuiltHome.label(), '停止结果未知', 'page recreation must restore the controller stop outcome');
+  assert.equal(rebuiltHome.label(), '断开未确认', 'page recreation must restore the controller stop outcome');
   assert.ok(rebuiltHome.stateLine().includes('检查系统 VPN'));
   rebuiltHome.aboutToDisappear();
   emit(status.Connected);
