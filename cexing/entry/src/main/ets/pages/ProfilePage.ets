@@ -88,6 +88,7 @@ export struct ProfilePage {
       if (first.offerable && first.selectors.length > 0) {
         this.regionAssignments = {};
         this.regionMode = 'region';
+        let pendingSelector = '';
         for (const selector of first.selectors) {
           this.regionSelector = selector;
           await this.refreshRegionPreview();
@@ -97,6 +98,17 @@ export struct ProfilePage {
             this.showSheet = true;
             return;
           }
+          if (this.regionPreview?.providerPending === true && pendingSelector === '') {
+            pendingSelector = selector;
+          }
+        }
+        if (pendingSelector !== '') {
+          this.regionSelector = pendingSelector;
+          await this.refreshRegionPreview();
+          this.regionFromImport = true;
+          this.sheetMode = SHEET_REGION;
+          this.showSheet = true;
+          return;
         }
       }
     } catch (_) { /* ordinary import remains available if a preview cannot run */ }
@@ -770,10 +782,15 @@ export struct ProfilePage {
             .onClick(() => { this.showSheet = false; this.sheetMode = SHEET_NONE; })
         }
         if (this.regionPreview.providerPending) {
-          Text('该 Selector 含尚未解析的 provider 节点，暂不能生成策略。')
+          Text('该 Selector 的 provider 节点尚未加载。连接或刷新 provider 后重试预览。')
             .fontSize(13).fontColor(UI.error)
+          Button('刷新预览').backgroundColor(UI.soft).fontColor(UI.accentText)
+            .onClick(async () => {
+              try { await this.refreshRegionPreview(); this.importError = ''; }
+              catch (_) { this.importError = 'provider 尚未就绪'; }
+            })
         }
-        Text(`直接节点 ${Object.keys(this.regionPreview.nodes).length} · 未知 ${this.regionPreview.unknown}`)
+        Text(`已解析节点 ${Object.keys(this.regionPreview.nodes).length} · 未知 ${this.regionPreview.unknown}`)
           .fontSize(14).fontColor(UI.ink)
         if (this.regionMode === 'region') {
           Text(REGION_NAMES.filter((name: string) => (this.regionPreview?.counts[name] ?? 0) > 0)
