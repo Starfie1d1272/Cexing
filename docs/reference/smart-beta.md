@@ -19,7 +19,7 @@ proxy-groups:
 lgbm-auto-update: false
 ```
 
-`uselightgbm: false` 使用真实 Smart 统计策略。用户合法离线模型导入成功后可改为 `true`。训练 CSV 收集默认不开启；Smart 自身的本地统计学习不等于训练 CSV。`prefer-asn` 首测显式关闭，避免额外 ASN 资源需求。不能把组名、权重排名或上游 `ModelPredicted` 字段当成 LightGBM 参与证据。
+`uselightgbm: false` 使用真实 Smart 统计策略。内置模型已校验铺盘后可将测试组改为 `true`。训练 CSV 收集默认不开启；Smart 自身的本地统计学习不等于训练 CSV。`prefer-asn` 首测显式关闭，避免额外 ASN 资源需求。不能把组名、权重排名或上游 `ModelPredicted` 字段当成 LightGBM 参与证据。
 
 ## 最小宿主/UI 接口
 
@@ -41,4 +41,4 @@ lgbm-auto-update: false
 
 Linux 检查通过实际回环 HTTP 节点、mixed listener、规则和 Smart 统计回调证明模型参与；`scripts/test-smart-loader.sh` 用真实 bridge.cpp 与宿主链接拦截验证缺符号/完整 ABI 路径，其日志桩不证明 OHOS TLS。
 
-未签名 OHOS HAP 的模块身份、平台参数、四个动态 ABI、独立 strip 字节、非空资源和禁止模型打包由 `scripts/ci/verify-hap.py` 检查，普通与优化 Python 不能绕过。构建记录还绑定本地生产 Go 源码摘要及文件集合，源码修改/新增不能复用旧核心；构建记录在模块完整性复验通过后才生效，失败不遗留成功记录；记录保护受信工作目录内的构建身份，不是签名供应链证明。生成产物不提交、不签名、不安装、不发布。手机仍须验收真实 TUN、TLS/REALITY、UDP/DNS、IPv6、后台与网络切换；Hokit 签名安装和用户设备操作由本地会话完成。原生文件选择/上传和应用级重启已接入；手机仍需确认重启后 VPN Extension 进程换代。
+未签名 OHOS HAP 的模块身份、平台参数、四个动态 ABI、独立 strip 字节、非空资源及固定模型和 GPL 正文由 `scripts/ci/verify-hap.py` 检查，普通与优化 Python 不能绕过。构建记录还绑定本地生产 Go 源码摘要及文件集合，源码修改/新增不能复用旧核心；构建记录在模块完整性复验通过后才生效，失败不遗留成功记录；记录保护受信工作目录内的构建身份，不是签名供应链证明。生成产物不提交、不签名、不安装、不发布。手机仍须验收真实 TUN、TLS/REALITY、UDP/DNS、IPv6、后台与网络切换；Hokit 签名安装和用户设备操作由本地会话完成。原生文件选择/上传和应用级重启已接入；手机仍需确认重启后 VPN Extension 进程换代。
