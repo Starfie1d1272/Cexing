@@ -6,7 +6,7 @@ import { NativeTheme as UI } from './NativeTheme';
 import { common } from '@kit.AbilityKit';
 import { promptAction } from '@kit.ArkUI';
 import { ProfileStore } from '../lib/ProfileStore';
-import { CoreApi } from '../lib/CoreApi';
+import { ProfileTransactions } from '../lib/ProfileTransactions';
 import { Logger } from '../lib/Logger';
 
 const TAG = 'profileEdit';
@@ -22,9 +22,11 @@ export struct ProfileEditPage {
   @Consume('nav') navStack: NavPathStack;
   @State text: string = '';
   @State dirty: boolean = false;
+  @State draftPersisted: boolean = false;
   @State loadFailed: boolean = false;
   @State showSaveAsSheet: boolean = false;
   @State saveAsInput: string = '';
+  @State saving: boolean = false;
 
   aboutToAppear(): void {
     const context = getContext(this) as common.UIAbilityContext;
@@ -34,8 +36,16 @@ export struct ProfileEditPage {
       return;
     }
     this.loadFailed = false;
-    this.text = content;
-    this.dirty = false;
+    try {
+      const draft = ProfileStore.readDraft(context, ProfileEditBus.current);
+      this.text = draft === null ? content : draft;
+      this.dirty = draft !== null;
+      this.draftPersisted = draft !== null;
+    } catch (_) {
+      this.text = content;
+      this.dirty = false;
+      this.draftPersisted = false;
+    }
   }
 
   private toast(msg: string): void {
@@ -43,6 +53,7 @@ export struct ProfileEditPage {
   }
 
   private async save(): Promise<void> {
+    if (this.saving) { return; }
     if (this.loadFailed) {
       this.toast('配置文件读取失败，无法保存');
       return;
@@ -53,22 +64,46 @@ export struct ProfileEditPage {
       this.toast('目标配置不存在');
       return;
     }
+    const snapshot = this.text;
+    this.saving = true;
     try {
-      ProfileStore.updateProfileContent(context, file, this.text);
-      this.dirty = false;
+      const result = await ProfileTransactions.edit(context, file, snapshot);
+      this.dirty = this.text !== snapshot;
+      if (!this.dirty) { this.draftPersisted = false; }
       this.profileRevision++;
-      this.toast('已保存');
-      // 若编辑的是当前激活配置且内核运行中，热重载立即生效
-      if (ProfileStore.getActiveFile(context) === file && await CoreApi.isAlive()) {
-        const ok = await CoreApi.reloadConfig(ProfileStore.absPath(context, file));
-        if (!ok) {
-          this.toast('保存成功，热重载失败（重启 VPN 生效）');
-        }
+      this.toast(result === 'applied' ? '已保存并应用' : '已保存，启用或启动后生效');
+      if (!this.dirty) {
+        try { ProfileStore.clearDraft(context, file); } catch (_) { /* saved text remains authoritative */ }
       }
     } catch (e) {
       const msg = (e as Error).message ?? JSON.stringify(e);
       Logger.warn(TAG, `save failed: ${msg}`);
       this.toast(`保存失败: ${msg}`);
+    } finally {
+      this.saving = false;
+    }
+  }
+
+  private discardDraft(): void {
+    const context = getContext(this) as common.UIAbilityContext;
+    const content = ProfileStore.getProfileContent(context, ProfileEditBus.current);
+    if (content === null) { this.toast('无法读取已保存配置'); return; }
+    try { ProfileStore.clearDraft(context, ProfileEditBus.current); } catch (_) {
+      this.toast('草稿删除失败'); return;
+    }
+    this.text = content;
+    this.dirty = false;
+    this.draftPersisted = false;
+  }
+
+  private persistDraft(value: string): void {
+    this.dirty = true;
+    try {
+      ProfileStore.writeDraft(getContext(this) as common.UIAbilityContext, ProfileEditBus.current, value);
+      this.draftPersisted = true;
+    } catch (_) {
+      this.draftPersisted = false;
+      this.toast('草稿保存失败，请先保存配置');
     }
   }
 
@@ -153,7 +188,7 @@ export struct ProfileEditPage {
             .maxLines(1)
             .textOverflow({ overflow: TextOverflow.Ellipsis })
           if (this.dirty) {
-            Text('未保存')
+            Text(this.draftPersisted ? '未保存 · 草稿已保留，返回后可继续编辑' : '未保存 · 草稿保留失败，请先保存配置')
               .fontSize(13)
               .fontColor(UI.accentText)
           }
@@ -163,7 +198,7 @@ export struct ProfileEditPage {
         this.HeaderButton('另存为', $r('sys.symbol.doc_filled_on_doc'), UI.muted, !this.loadFailed, () => {
           this.showSaveAsSheet = true;
         })
-        this.HeaderButton('保存', $r('sys.symbol.checkmark'), UI.accent, !this.loadFailed, () => {
+        this.HeaderButton('保存', $r('sys.symbol.checkmark'), UI.accent, !this.loadFailed && !this.saving, () => {
           this.save();
         })
       }
@@ -192,11 +227,15 @@ export struct ProfileEditPage {
           .borderRadius(12)
           .padding(12)
           .onChange((v: string) => {
-            this.dirty = true;
+            this.persistDraft(v);
           })
       }
 
-      Text('保存后立即生效（运行中热重载）')
+      if (this.dirty) {
+        Button('放弃草稿').height(44).backgroundColor(UI.soft).fontColor(UI.error)
+          .onClick(() => this.discardDraft())
+      }
+      Text('保存会校验配置；运行中成功热加载后才覆盖原文件')
         .fontSize(13)
         .fontColor(UI.muted)
         .width('100%')

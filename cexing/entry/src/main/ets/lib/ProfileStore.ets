@@ -8,11 +8,12 @@ import { http } from '@kit.NetworkKit';
 import { common } from '@kit.AbilityKit';
 import { util } from '@kit.ArkTS';
 import { Logger } from './Logger';
-import { suggestProfileName } from './ProfileName';
+import { suggestProfileName, profileNameFromUrl } from './ProfileName';
 
 const TAG = 'profileStore';
 const ACTIVE_FILE = 'active.txt';
 const META_FILE = 'meta.json';
+const UNCERTAIN_FILE = 'apply-uncertain.txt';
 
 export interface ProfileMeta {
   file: string;
@@ -59,6 +60,29 @@ export namespace ProfileStore {
     return `${ensureDir(context)}/${META_FILE}`;
   }
 
+  export function isApplyUncertain(context: common.Context): boolean {
+    return fileIo.accessSync(`${ensureDir(context)}/${UNCERTAIN_FILE}`);
+  }
+
+  export function markApplyUncertain(context: common.Context): void {
+    atomicText(`${ensureDir(context)}/${UNCERTAIN_FILE}`, '1');
+  }
+
+  export function clearApplyUncertain(context: common.Context): void {
+    const p = `${ensureDir(context)}/${UNCERTAIN_FILE}`;
+    if (fileIo.accessSync(p)) { fileIo.unlinkSync(p); }
+  }
+
+  function atomicText(path: string, content: string): void {
+    const temp = `${path}.pending`;
+    const f = fileIo.openSync(temp, fileIo.OpenMode.READ_WRITE | fileIo.OpenMode.CREATE | fileIo.OpenMode.TRUNC);
+    try { fileIo.writeSync(f.fd, content); } finally { fileIo.closeSync(f); }
+    try { fileIo.moveFileSync(temp, path); } catch (e) {
+      try { fileIo.unlinkSync(temp); } catch (_) {}
+      throw new Error('保存配置文件失败');
+    }
+  }
+
   /** 读取侧车 meta.json；文件不存在或解析失败返回 {} */
   export function getMeta(context: common.Context): Record<string, ProfileMetaExt> {
     try {
@@ -78,10 +102,20 @@ export namespace ProfileStore {
   }
 
   function writeMeta(context: common.Context, all: Record<string, ProfileMetaExt>): void {
+    atomicText(metaPath(context), JSON.stringify(all));
+  }
+
+  function readMetaStrict(context: common.Context): Record<string, ProfileMetaExt> {
     const p = metaPath(context);
-    const f = fileIo.openSync(p, fileIo.OpenMode.READ_WRITE | fileIo.OpenMode.CREATE | fileIo.OpenMode.TRUNC);
-    fileIo.writeSync(f.fd, JSON.stringify(all));
-    fileIo.closeSync(f);
+    if (!fileIo.accessSync(p)) { return {}; }
+    const raw = fileIo.readTextSync(p);
+    return raw.trim().length === 0 ? {} : JSON.parse(raw) as Record<string, ProfileMetaExt>;
+  }
+
+  function writeMetaEntryStrict(context: common.Context, file: string, entry: ProfileMetaExt): void {
+    const all = readMetaStrict(context);
+    all[file] = entry;
+    writeMeta(context, all);
   }
 
   /** 写入/覆盖单个 profile 的 meta 条目 */
@@ -206,15 +240,8 @@ export namespace ProfileStore {
   }
 
   export function setActive(context: common.Context, file: string): void {
-    try {
-      const p = activePath(context);
-      const f = fileIo.openSync(p, fileIo.OpenMode.READ_WRITE | fileIo.OpenMode.CREATE | fileIo.OpenMode.TRUNC);
-      fileIo.writeSync(f.fd, file);
-      fileIo.closeSync(f);
-      Logger.info(TAG, `active -> ${file}`);
-    } catch (e) {
-      Logger.error(TAG, `setActive failed: ${JSON.stringify(e)}`);
-    }
+    atomicText(activePath(context), file);
+    Logger.info(TAG, `active -> ${file}`);
   }
 
   /**
@@ -277,9 +304,7 @@ export namespace ProfileStore {
         const raw = fileIo.readTextSync(p);
         const fixed = sanitizeConfigContent(raw);
         if (fixed !== raw) {
-          const f = fileIo.openSync(p, fileIo.OpenMode.READ_WRITE | fileIo.OpenMode.TRUNC);
-          fileIo.writeSync(f.fd, fixed);
-          fileIo.closeSync(f);
+          atomicText(p, fixed);
           Logger.info(TAG, `profile ${file} repaired and written back`);
         }
         return fixed;
@@ -290,25 +315,46 @@ export namespace ProfileStore {
     return null;
   }
 
-  export function deleteProfile(context: common.Context, file: string): void {
-    try {
-      fileIo.unlink(`${dir(context)}/${file}`);
-      deleteMetaEntry(context, file);
-      try {
-        fileIo.unlink(`${dir(context)}/${file}.url`);
-      } catch (e) {
-        // 无来源记录，忽略
-      }
-      if (getActiveFile(context) === file) {
-        setActive(context, '');
-      }
-    } catch (e) {
-      Logger.error(TAG, `delete ${file} failed: ${JSON.stringify(e)}`);
+  export async function deleteProfile(context: common.Context, file: string): Promise<void> {
+    await fileIo.unlink(`${dir(context)}/${file}`);
+    deleteMetaEntry(context, file);
+    const originPath = `${dir(context)}/${file}.url`;
+    if (fileIo.accessSync(originPath)) {
+      try { await fileIo.unlink(originPath); } catch (_) { /* orphan metadata can be retried */ }
     }
+    if (getActiveFile(context) === file) {
+      setActive(context, '');
+    }
+    const backup = `${dir(context)}/${file}.last-good`;
+    if (fileIo.accessSync(backup)) {
+      try { await fileIo.unlink(backup); } catch (_) { /* non-effective backup */ }
+    }
+    try { clearDraft(context, file); } catch (_) { /* non-effective draft */ }
   }
 
   export function absPath(context: common.Context, file: string): string {
     return `${dir(context)}/${file}`;
+  }
+
+  function draftPath(context: common.Context, file: string): string {
+    if (!/^[^/\\]+\.(yaml|yml)$/i.test(file)) { throw new Error('无效的配置文件名'); }
+    const d = `${ensureDir(context)}/drafts`;
+    if (!fileIo.accessSync(d)) { fileIo.mkdirSync(d); }
+    return `${d}/${file}.draft`;
+  }
+
+  export function readDraft(context: common.Context, file: string): string | null {
+    const p = draftPath(context, file);
+    return fileIo.accessSync(p) ? fileIo.readTextSync(p) : null;
+  }
+
+  export function writeDraft(context: common.Context, file: string, content: string): void {
+    atomicText(draftPath(context, file), content);
+  }
+
+  export function clearDraft(context: common.Context, file: string): void {
+    const p = draftPath(context, file);
+    if (fileIo.accessSync(p)) { fileIo.unlinkSync(p); }
   }
 
   /** 重命名配置：自动补 .yaml 后缀，迁移 active/.url/meta 记录；返回新文件名，失败抛错 */
@@ -340,23 +386,35 @@ export namespace ProfileStore {
     } catch (e) {
       throw new Error(`移动文件失败: ${(e as Error).message ?? JSON.stringify(e)}`);
     }
-    // 迁移 URL sidecar（updateFromOrigin 仍从 <file>.url 读来源）
-    const oldUrl = `${oldPath}.url`;
-    if (fileIo.accessSync(oldUrl)) {
-      try {
-        fileIo.moveFileSync(oldUrl, `${newPath}.url`);
-      } catch (e) {
-        Logger.warn(TAG, `move url sidecar failed: ${JSON.stringify(e)}`);
+    const moved: string[][] = [];
+    try {
+      for (const suffix of ['.url', '.last-good']) {
+        const from = `${oldPath}${suffix}`;
+        const to = `${newPath}${suffix}`;
+        if (fileIo.accessSync(from)) {
+          fileIo.moveFileSync(from, to);
+          moved.push([from, to]);
+        }
       }
+      const oldDraft = draftPath(context, oldFile);
+      if (fileIo.accessSync(oldDraft)) {
+        const newDraft = draftPath(context, target);
+        fileIo.moveFileSync(oldDraft, newDraft);
+        moved.push([oldDraft, newDraft]);
+      }
+      if (getActiveFile(context) === oldFile) { setActive(context, target); }
+    } catch (_) {
+      for (let i = moved.length - 1; i >= 0; i--) {
+        try { fileIo.moveFileSync(moved[i][1], moved[i][0]); } catch (_) {}
+      }
+      try { fileIo.moveFileSync(newPath, oldPath); } catch (_) {}
+      throw new Error('重命名附属数据失败，原配置未修改或需要重新检查');
     }
     // 迁移 meta 条目
     const entry = getMeta(context)[oldFile];
     if (entry !== undefined) {
       deleteMetaEntry(context, oldFile);
       setMetaEntry(context, target, entry);
-    }
-    if (getActiveFile(context) === oldFile) {
-      setActive(context, target);
     }
     Logger.info(TAG, `renamed ${oldFile} -> ${target}`);
     return target;
@@ -371,12 +429,6 @@ export namespace ProfileStore {
       }
       const raw = fileIo.readTextSync(p);
       const fixed = sanitizeConfigContent(raw);
-      if (fixed !== raw) {
-        const f = fileIo.openSync(p, fileIo.OpenMode.READ_WRITE | fileIo.OpenMode.TRUNC);
-        fileIo.writeSync(f.fd, fixed);
-        fileIo.closeSync(f);
-        Logger.info(TAG, `profile ${file} repaired and written back`);
-      }
       return fixed;
     } catch (e) {
       Logger.error(TAG, `read profile ${file} failed: ${(e as Error).message ?? JSON.stringify(e)}`);
@@ -384,22 +436,41 @@ export namespace ProfileStore {
     }
   }
 
-  /** 覆盖写配置（编辑页保存）：sanitize + validate，刷新 meta.updatedAt；失败抛错 */
-  export function updateProfileContent(context: common.Context, file: string, content: string): void {
-    const clean = sanitizeConfigContent(content);
-    validateConfig(clean);
+  function replaceProfileContent(context: common.Context, file: string, content: string,
+    entry: ProfileMetaExt): void {
+    const clean = prepareContent(content);
     const p = `${ensureDir(context)}/${file}`;
-    const f = fileIo.openSync(p, fileIo.OpenMode.READ_WRITE | fileIo.OpenMode.CREATE | fileIo.OpenMode.TRUNC);
-    fileIo.writeSync(f.fd, clean);
-    fileIo.closeSync(f);
-    const prev = getMeta(context)[file];
+    if (!fileIo.accessSync(p)) { throw new Error('配置文件不存在'); }
+    const previous = fileIo.readTextSync(p);
+    // Reject malformed metadata before touching the effective source.
+    readMetaStrict(context);
+    atomicText(`${p}.last-good`, previous);
+    try {
+      atomicText(p, clean);
+      writeMetaEntryStrict(context, file, entry);
+    } catch (_) {
+      try { atomicText(p, previous); }
+      catch (_) { throw new Error('PROFILE_ROLLBACK_FAILED'); }
+      throw new Error('保存配置和元数据失败，原配置已恢复');
+    }
+    Logger.info(TAG, `profile ${file} updated (${clean.length} bytes)`);
+  }
+
+  /** 覆盖写配置（编辑页保存）：元数据失败时恢复原文；失败抛错 */
+  export function updateProfileContent(context: common.Context, file: string, content: string): void {
+    const prev = readMetaStrict(context)[file];
     const entry: ProfileMetaExt = {
       origin: prev !== undefined ? prev.origin : '',
       sub: prev !== undefined ? prev.sub : { upload: 0, download: 0, total: 0, expire: 0 },
       updatedAt: Math.floor(Date.now() / 1000)
     };
-    setMetaEntry(context, file, entry);
-    Logger.info(TAG, `profile ${file} updated (${clean.length} bytes)`);
+    replaceProfileContent(context, file, content, entry);
+  }
+
+  export function prepareContent(content: string): string {
+    const clean = sanitizeConfigContent(content);
+    validateConfig(clean);
+    return clean;
   }
 
   /** 订阅来源 URL（用于“更新”），sidecar 文件 <file>.url */
@@ -442,7 +513,8 @@ export namespace ProfileStore {
       const raw = typeof resp.result === 'string' ? resp.result : '';
       const content = sanitizeConfigContent(raw);
       validateConfig(content);
-      const name = suggestProfileName(resp.header as Record<string, Object>, `sub_${Date.now()}`);
+      const name = suggestProfileName(resp.header as Record<string, Object>,
+        profileNameFromUrl(url, '新订阅'));
       const saved = save(context, name, content);
       setOrigin(context, saved, url);
       setMetaEntry(context, saved, metaEntryFromResp(resp, url));
@@ -466,8 +538,13 @@ export namespace ProfileStore {
     return file;
   }
 
-  /** 按来源 URL 重新下载并覆盖原文件 */
-  export async function updateFromOrigin(context: common.Context, file: string): Promise<void> {
+  export interface DownloadedProfile {
+    content: string;
+    meta: ProfileMetaExt;
+  }
+
+  /** Download and check a candidate without touching the effective file. */
+  export async function downloadFromOrigin(context: common.Context, file: string): Promise<DownloadedProfile> {
     const url = getOrigin(context, file);
     if (url.length === 0) {
       throw new Error('该配置无订阅来源（本地导入）');
@@ -486,14 +563,15 @@ export namespace ProfileStore {
       const raw = typeof resp.result === 'string' ? resp.result : '';
       const content = sanitizeConfigContent(raw);
       validateConfig(content);
-      const p = `${ensureDir(context)}/${file}`;
-      const f = fileIo.openSync(p, fileIo.OpenMode.READ_WRITE | fileIo.OpenMode.CREATE | fileIo.OpenMode.TRUNC);
-      fileIo.writeSync(f.fd, content);
-      fileIo.closeSync(f);
-      setMetaEntry(context, file, metaEntryFromResp(resp, url));
+      return { content: content, meta: metaEntryFromResp(resp, url) };
     } finally {
       req.destroy();
     }
+  }
+
+
+  export function commitDownloaded(context: common.Context, file: string, candidate: DownloadedProfile): void {
+    replaceProfileContent(context, file, candidate.content, candidate.meta);
   }
 
   function validateConfig(content: string): void {
@@ -506,10 +584,17 @@ export namespace ProfileStore {
   }
 
   function save(context: common.Context, name: string, content: string): string {
-    let file = name.endsWith('.yaml') ? name : `${name}.yaml`;
+    let file = /\.(yaml|yml)$/i.test(name) ? name : `${name}.yaml`;
     // 避免路径穿越
     file = file.replace(/[\/\\]/g, '_');
-    const p = `${ensureDir(context)}/${file}`;
+    const d = ensureDir(context);
+    const stem = file.replace(/\.(yaml|yml)$/i, '');
+    const ext = file.substring(stem.length);
+    let suffix = 2;
+    while (fileIo.accessSync(`${d}/${file}`)) {
+      file = `${stem} (${suffix++})${ext}`;
+    }
+    const p = `${d}/${file}`;
     const f = fileIo.openSync(p, fileIo.OpenMode.READ_WRITE | fileIo.OpenMode.CREATE | fileIo.OpenMode.TRUNC);
     fileIo.writeSync(f.fd, content);
     fileIo.closeSync(f);

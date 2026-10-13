@@ -9,6 +9,7 @@ import { common } from '@kit.AbilityKit';
 import { Settings } from './Settings';
 import { CoreApi } from './CoreApi';
 import { ProfileStore } from './ProfileStore';
+import { ProfileTransactions } from './ProfileTransactions';
 import { Logger } from './Logger';
 
 const TAG = 'autoUpdater';
@@ -110,20 +111,13 @@ export namespace AutoUpdater {
       return;
     }
     try {
-      await ProfileStore.updateFromOrigin(context, active);
-      if (attempt !== generation || !Settings.load(context).autoUpdate ||
-        ProfileStore.getActiveFile(context) !== active) {
-        return;
-      }
+      await ProfileTransactions.update(context, active, () => attempt === generation &&
+        Settings.load(context).autoUpdate && ProfileStore.getActiveFile(context) === active);
       try {
         p.putSync(KEY_LAST_AUTO_UPDATE, now);
         p.flush();
       } catch (e) {
         Logger.warn(TAG, `write lastAutoUpdateMs failed: ${JSON.stringify(e)}`);
-      }
-      if (await CoreApi.isAlive() && attempt === generation &&
-        Settings.load(context).autoUpdate && ProfileStore.getActiveFile(context) === active) {
-        await CoreApi.reloadConfig(ProfileStore.absPath(context, active));
       }
       Logger.info(TAG, `auto update done: ${active}`);
     } catch (e) {
