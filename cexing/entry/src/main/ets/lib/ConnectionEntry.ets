@@ -111,7 +111,7 @@ export namespace ConnectionEntry {
     AppRuntime.cancelRestore();
     if (action === 'disconnect') {
       if (VpnController.status === VpnStatus.Disconnected && !stopUnknown &&
-        VpnController.getLastStopCompleted() !== false) { return ''; }
+        !VpnController.needsStop()) { return ''; }
       let completed = false;
       try { completed = await VpnController.stop(ctx); } catch (_) {}
       if (context !== ctx || request !== expected) { return ''; }
@@ -125,8 +125,11 @@ export namespace ConnectionEntry {
     }
     if (VpnController.status === VpnStatus.Connected || VpnController.status === VpnStatus.Connecting) { return ''; }
     if (VpnController.status === VpnStatus.Disconnecting) { return '正在断开，请稍后连接'; }
-    if (stopUnknown || VpnController.getLastStopCompleted() === false || ProfileStore.isApplyUncertain(ctx)) {
-      return '请先检查系统 VPN，并确认当前配置';
+    if (stopUnknown || VpnController.needsStop()) {
+      return '请先重试断开，确认当前连接已结束';
+    }
+    if (ProfileStore.isApplyUncertain(ctx)) {
+      return '请先确认当前配置';
     }
     if (ProfileTransactions.isBusy()) { return '配置正在更新，请稍后连接'; }
     const file = ProfileStore.getActiveFile(ctx);
@@ -139,10 +142,11 @@ export namespace ConnectionEntry {
     }
     if (context !== ctx || !ready || request !== expected || revision !== expectedRevision || action !== 'connect' ||
       VpnController.status !== VpnStatus.Disconnected || stopUnknown ||
-      VpnController.getLastStopCompleted() === false || ProfileTransactions.isBusy() ||
+      VpnController.needsStop() || ProfileTransactions.isBusy() ||
       ProfileStore.isApplyUncertain(ctx) || ProfileStore.getActiveFile(ctx) !== file) { return ''; }
-    VpnController.start(ctx);
+    const started = VpnController.start(ctx);
     changed();
+    if (!started) { return '连接未开始，请查看当前状态后重试'; }
     return '';
   }
 }

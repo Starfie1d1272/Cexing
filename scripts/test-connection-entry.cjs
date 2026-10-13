@@ -10,8 +10,8 @@ function fixture(persistedUnknown=false) {
  let stopResult=null,busy=false,uncertain=false,profile='synthetic.yaml',observed=false;
  let prepare=async()=>{};
  const controller={status:0,onChanged:cb=>listeners.push(cb),getLastStopCompleted:()=>stopResult,
- verify:async()=>{},getLastStartFailure:()=>null,getTunCreateObserved:()=>observed,getKernelReadyReported:()=>observed,
- start:()=>{calls.start++;stopResult=null;emit(status.Connecting);},
+ verify:async()=>{},needsStop:()=>stopResult === false,getLastStartFailure:()=>null,getTunCreateObserved:()=>observed,getKernelReadyReported:()=>observed,
+ start:()=>{calls.start++;stopResult=null;emit(status.Connecting);return true;},
  stop:async()=>{calls.stop++;emit(status.Disconnecting);stopResult=true;emit(status.Disconnected);return true;}};
  function emit(s){controller.status=s;listeners.forEach(cb=>cb(s));}
  const modules={
