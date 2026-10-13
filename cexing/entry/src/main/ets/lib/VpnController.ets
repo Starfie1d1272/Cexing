@@ -347,7 +347,12 @@ export namespace VpnController {
     startSession = `${Date.now()}-${attempt}`;
     const want: Want = { bundleName: context.applicationInfo.name, abilityName: VPN_ABILITY_NAME };
     Logger.info(TAG, 'startVpnExtensionAbility...');
-    authorization = vpnExtension.startVpnExtensionAbility(want);
+    try { authorization = vpnExtension.startVpnExtensionAbility(want); }
+    catch (e) {
+      recordFailure(ConnectionFailures.classify('authorization', JSON.stringify(e)));
+      setStatus(VpnStatus.Disconnected);
+      return;
+    }
     authorization.then(() => {
       if (attempt !== startAttempt || status !== VpnStatus.Connecting) { return; }
       connectService(context, want);
@@ -566,14 +571,18 @@ export namespace VpnController {
       let systemStopped = false;
       try {
         await vpnExtension.stopVpnExtensionAbility(want);
-        // Cancellation must also reclaim an Extension launched by a late authorization result.
-        if (pendingAuthorization !== null) {
-          try { await pendingAuthorization; } catch (_) {}
-          if (nativeNotEntered) { await vpnExtension.stopVpnExtensionAbility(want); }
-        }
         systemStopped = true;
-      } catch (_) {
-        Logger.error(TAG, 'VPN Extension stop failed');
+      } catch (_) { Logger.error(TAG, 'VPN Extension stop failed'); }
+      // Even a failed early stop must reclaim a late authorization launch.
+      if (nativeNotEntered && pendingAuthorization !== null) {
+        try { await pendingAuthorization; } catch (_) {}
+        try {
+          await vpnExtension.stopVpnExtensionAbility(want);
+          systemStopped = true;
+        } catch (_) {
+          systemStopped = false;
+          Logger.error(TAG, 'late VPN Extension stop failed');
+        }
       }
       serviceId = -1;
       serviceContext = null;

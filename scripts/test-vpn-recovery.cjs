@@ -18,8 +18,8 @@ function load(options = {}) {
       readString: () => ++strings === 1 ? '' : session } };
   } };
   const modules = {
-    '@kit.NetworkKit': { vpnExtension: { startVpnExtensionAbility: () => { calls.start++; return auth; },
-      stopVpnExtensionAbility: async () => { calls.stop++; } } },
+    '@kit.NetworkKit': { vpnExtension: { startVpnExtensionAbility: () => { calls.start++; if (options.throwStart) throw Error('synthetic authorization failure'); return auth; },
+      stopVpnExtensionAbility: async () => { calls.stop++; if (options.failFirstStop && calls.stop === 1) throw Error('synthetic early stop failure'); } } },
     '@kit.CoreFileKit': { fileIo: { accessSync: () => receipt.length > 0, readTextSync: () => receipt } },
     './Logger': { Logger: { info() {}, warn() {}, error() {} } },
     './CoreApi': { CoreApi: { bindContext() {}, isAlive: () => new Promise(resolve => probes.push(resolve)) } },
@@ -87,6 +87,12 @@ async function recover(f) {
   assert.equal(cancel.VpnController.stop(cancel.context),stop,'repeated stop shares completion');
   cancel.resolveAuth();assert.equal(await stop,true);
   assert.equal(cancel.calls.bind,0);assert.equal(cancel.calls.stop,2,'late authorization is reclaimed before reconnect');
+  const earlyFailure=load({delayedAuth:true,failFirstStop:true});earlyFailure.VpnController.start(earlyFailure.context);
+  const reclaim=earlyFailure.VpnController.stop(earlyFailure.context);await flush();
+  assert.equal(earlyFailure.VpnController.status,earlyFailure.VpnStatus.Disconnecting);
+  earlyFailure.resolveAuth();assert.equal(await reclaim,true);assert.equal(earlyFailure.calls.stop,2);
+  const syncFailure=load({throwStart:true});syncFailure.VpnController.start(syncFailure.context);
+  assert.equal(syncFailure.VpnController.status,syncFailure.VpnStatus.Disconnected,'synchronous authorization failure can retry');
   const lost=load();await recover(lost);
   lost.lost();assert.equal(lost.VpnController.status,lost.VpnStatus.Disconnected);
   assert.equal(lost.VpnController.getLastStopCompleted(),false,'service loss is not a confirmed stop');
