@@ -3,12 +3,14 @@ import { common } from '@kit.AbilityKit';
 import { fileIo } from '@kit.CoreFileKit';
 import core from 'libentry.so';
 import { Settings } from './Settings';
+import { MergePreview } from './CoreValidator';
 
 export interface EffectiveVersion { ID: string; Path: string; ProfileID: string; }
 export interface EffectiveState {
   Current: EffectiveVersion | null;
   Previous: EffectiveVersion | null;
   Profiles: Record<string, EffectiveVersion>;
+  GlobalMerge?: string;
 }
 export interface StagedVersion { version: EffectiveVersion; receipt: string; }
 export interface RegionPlan {
@@ -32,6 +34,8 @@ interface VersionRequest {
   profileId?: string;
   original?: string;
   overlay?: string;
+  globalMerge?: string;
+  updateGlobal?: boolean;
   metadata?: string;
   expected?: string;
   overrides?: string;
@@ -62,6 +66,9 @@ export namespace EffectiveVersions {
     if (!fileIo.accessSync(p)) { return null; }
     try {
       const state = JSON.parse(fileIo.readTextSync(p)) as EffectiveState;
+      if (state.GlobalMerge !== undefined && typeof state.GlobalMerge !== 'string') {
+        throw new Error('invalid global merge');
+      }
       if (state.Current !== null && state.Current !== undefined) { check(context, state.Current); }
       if (state.Previous !== null && state.Previous !== undefined) { check(context, state.Previous); }
       if (state.Profiles === null || typeof state.Profiles !== 'object') { throw new Error('invalid profiles'); }
@@ -87,6 +94,20 @@ export namespace EffectiveVersions {
     check(context, version);
     const p = `${context.filesDir}/profile-versions/${version.ID}/overlay.yaml`;
     return fileIo.accessSync(p) ? fileIo.readTextSync(p) : '';
+  }
+
+  export function globalContent(context: common.Context): string {
+    return read(context)?.GlobalMerge ?? '';
+  }
+
+  /** Legacy versions had no global layer. Never infer it from a local overlay. */
+  export function globalMerge(context: common.Context, version: EffectiveVersion): string {
+    check(context, version);
+    const source = JSON.parse(fileIo.readTextSync(
+      `${context.filesDir}/profile-versions/${version.ID}/source.json`)) as Record<string, Object>;
+    if (source['GlobalMerge'] === undefined) { return ''; }
+    if (typeof source['GlobalMerge'] !== 'string') { throw new Error('全局覆写版本损坏'); }
+    return source['GlobalMerge'] as string;
   }
 
   /** Older versions lack this field and represent the unconverted source. */
@@ -116,17 +137,34 @@ export namespace EffectiveVersions {
 
   export async function stage(context: common.Context, profileId: string, original: string,
     overlay: string, metadata: string, expected: string,
-    regionPlan: RegionPlan | null): Promise<StagedVersion> {
+    regionPlan: RegionPlan | null, globalMerge?: string): Promise<StagedVersion> {
     const s = Settings.load(context);
     const overrides = JSON.stringify({ mixedPort: s.mixedPort, logLevel: s.logLevel,
       allowLan: s.allowLan, mode: s.mode, logToFile: s.logToFile });
     const result = await call(context, { op: 'stage', profileId: profileId, original: original,
       overlay: overlay, metadata: metadata, expected: expected, overrides: overrides,
-      smartConversion: s.smartAutoConvert, regionPlan: regionPlan });
+      smartConversion: s.smartAutoConvert, regionPlan: regionPlan,
+      globalMerge: globalMerge, updateGlobal: globalMerge !== undefined });
     const version = result['version'] as EffectiveVersion;
     if (version === undefined) { throw new Error('暂存配置失败'); }
     check(context, version);
     return { version: version, receipt: result['receipt'] as string ?? '' };
+  }
+
+  export async function previewMerge(context: common.Context, original: string,
+    overlay: string, regionPlan: RegionPlan | null, globalMerge?: string): Promise<MergePreview> {
+    const s = Settings.load(context);
+    const overrides = JSON.stringify({ mixedPort: s.mixedPort, logLevel: s.logLevel,
+      allowLan: s.allowLan, mode: s.mode, logToFile: s.logToFile });
+    const result = await call(context, { op: 'merge-preview', original: original,
+      overlay: overlay, regionPlan: regionPlan, smartConversion: s.smartAutoConvert,
+      expected: read(context)?.Current?.ID ?? '', overrides: overrides,
+      globalMerge: globalMerge, updateGlobal: globalMerge !== undefined });
+    const preview = result['mergePreview'] as MergePreview;
+    if (preview === undefined || typeof preview.digest !== 'string' || !Array.isArray(preview.changes)) {
+      throw new Error('覆写未通过本机校验或资源未解析');
+    }
+    return preview;
   }
 
   export async function previewRegion(context: common.Context, original: string,
@@ -141,19 +179,21 @@ export namespace EffectiveVersions {
   }
 
   export async function verify(context: common.Context, version: EffectiveVersion,
-    expected: string): Promise<string> {
+    expected: string, globalMerge?: string): Promise<string> {
     const s = Settings.load(context);
     const overrides = JSON.stringify({ mixedPort: s.mixedPort, logLevel: s.logLevel,
       allowLan: s.allowLan, mode: s.mode, logToFile: s.logToFile });
     const result = await call(context, { op: 'verify', versionId: version.ID,
-      expected: expected, overrides: overrides });
+      expected: expected, overrides: overrides,
+      globalMerge: globalMerge, updateGlobal: globalMerge !== undefined });
     return result['receipt'] as string ?? '';
   }
 
   export async function commit(context: common.Context, version: EffectiveVersion,
-    expected: string, active: boolean): Promise<void> {
+    expected: string, active: boolean, globalMerge?: string): Promise<void> {
     await call(context, { op: 'commit', versionId: version.ID, profileId: version.ProfileID,
-      expected: expected, active: active });
+      expected: expected, active: active,
+      globalMerge: globalMerge, updateGlobal: globalMerge !== undefined });
   }
 
   export async function discard(context: common.Context, version: EffectiveVersion,

@@ -15,6 +15,7 @@ import { VpnController, VpnStatus } from '../lib/VpnController';
 import { CoreApi } from '../lib/CoreApi';
 import { Logger } from '../lib/Logger';
 import { ProfileEditBus } from './ProfileEditPage';
+import { GlobalMergeEditor } from './GlobalMergeEditor';
 
 const TAG = 'profile';
 
@@ -26,6 +27,7 @@ const SHEET_RENAME = 3;
 const SHEET_READY = 4;
 const SHEET_PASTE = 5;
 const SHEET_REGION = 6;
+const SHEET_GLOBAL = 7;
 const REGION_NAMES: string[] = ['香港', '台湾', '日本', '新加坡', '美国', '韩国', '英国', '德国', '未知'];
 
 class RegionSelectOption {
@@ -908,6 +910,9 @@ export struct ProfilePage {
     else if (this.sheetMode === SHEET_READY) { this.ReadySheet() }
     else if (this.sheetMode === SHEET_PASTE) { this.PasteSheet() }
     else if (this.sheetMode === SHEET_REGION) { this.RegionSheet() }
+    else if (this.sheetMode === SHEET_GLOBAL) {
+      GlobalMergeEditor({ onClose: () => { this.showSheet = false; this.sheetMode = SHEET_NONE; } })
+    }
   }
 
   build() {
@@ -922,6 +927,13 @@ export struct ProfilePage {
           Button('添加').height(48).fontSize(14).backgroundColor(UI.soft).fontColor(UI.accentText)
             .onClick(() => { this.sheetMode = SHEET_IMPORT; this.importError = ''; this.showSheet = true; })
         }.width('100%').margin({ top: 16, bottom: 12 })
+        Button() {
+          Column({ space: 4 }) {
+            Text('全局覆写').fontSize(16).fontColor(UI.ink)
+            Text('适用于所有订阅 · 本订阅覆写优先').fontSize(12).fontColor(UI.muted)
+          }.alignItems(HorizontalAlign.Start).width('100%')
+        }.width('100%').height(64).backgroundColor(UI.soft).borderRadius(16)
+          .onClick(() => { this.sheetMode = SHEET_GLOBAL; this.showSheet = true; })
         if (this.profiles.length === 0) {
           Column({ space: 20 }) {
             Text('导入订阅').fontSize(32).fontWeight(FontWeight.Bold).fontColor(UI.ink).width('100%')
@@ -943,7 +955,9 @@ export struct ProfilePage {
       }
     }.width('100%').height('100%').padding({ left: 24, right: 24, bottom: 12 })
       .backgroundColor(UI.paper).constraintSize({ maxWidth: 760 }).alignSelf(ItemAlign.Center)
-      .bindSheet($$this.showSheet, this.MainSheet(), { height: SheetSize.FIT_CONTENT,
-        shouldDismiss: (dismiss: SheetDismiss) => { if (!this.importing && !this.regionBusy) { dismiss.dismiss(); } } })
+      .bindSheet($$this.showSheet, this.MainSheet(), { height: this.sheetMode === SHEET_GLOBAL ? SheetSize.LARGE : SheetSize.FIT_CONTENT,
+        shouldDismiss: (dismiss: SheetDismiss) => {
+          if (this.sheetMode !== SHEET_GLOBAL && !this.importing && !this.regionBusy && !ProfileTransactions.isBusy()) { dismiss.dismiss(); }
+        } })
   }
 }

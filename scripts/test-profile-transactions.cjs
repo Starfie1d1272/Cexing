@@ -46,6 +46,12 @@ const core = { CoreApi: {
 const versions = { EffectiveVersions: {
   read: () => state,
   smartConversion: () => smartCurrent,
+  globalContent: () => state.GlobalMerge ?? "",
+  globalMerge: () => state.GlobalMerge ?? "",
+  previewMerge: async (_, __, overlay) => {
+    if (overlay.includes("secret:")) throw new Error("protected");
+    return { digest: "synthetic", changes: [{ section: "hosts", before: 0, after: 1 }] };
+  },
   regionPlan: (_, version) => regionPlans.get(version.ID) ?? null,
   stage: async (_, name, original, overlay, metadata, expected, regionPlan) => {
     assert.equal(expected, state.Current?.ID ?? '');
