@@ -166,15 +166,24 @@ export namespace VpnController {
   }
 
   function phase(stage: string, outcome: VpnPhaseOutcome, session: string,
-    code: string = '', durationMs: number = 0, reason: string = ''): void {
+    code: string = '', durationMs: number = 0, reason: string = '', object: string = ''): void {
     const event: VpnPhase = { operation: 'vpn', stage, outcome,
-      object: session.length > 0 ? `vpn-session:${session}` : diagnosticUnknownObject,
+      object: object.length > 0 ? object : (session.length > 0 ? `vpn-session:${session}` : diagnosticUnknownObject),
       code, reason, durationMs: Math.max(0, durationMs) };
     for (const listener of phaseListeners) { try { listener(event); } catch (_) {} }
   }
 
-  function nativePhases(remote: rpc.IRemoteObject, session: string, attempt: number): void {
-    if (phaseListeners.length === 0 || collectingNative) { return; }
+  function nativePhases(remote: rpc.IRemoteObject, session: string, attempt: number,
+    stopSnapshot: boolean = false): void {
+    if (phaseListeners.length === 0) { return; }
+    const object = session.length > 0 ? `vpn-session:${session}` : diagnosticUnknownObject;
+    if (collectingNative) {
+      if (stopSnapshot) {
+        phase('native_evidence', 'unknown', session, 'NATIVE_STOP_SNAPSHOT_PENDING', 0,
+          'stop_snapshot_not_collected', object);
+      }
+      return;
+    }
     collectingNative = true;
     (async (): Promise<void> => {
       let data: rpc.MessageSequence | null = null;
@@ -187,25 +196,37 @@ export namespace VpnController {
         const text = result.reply.readString();
         if (text.length > 16384) { throw new Error('native evidence oversized'); }
         const snapshot = JSON.parse(text) as NativeVpnPhases;
-        if (attempt !== startAttempt || snapshot.session !== session || !Array.isArray(snapshot.events)) { return; }
+        if (attempt !== startAttempt) {
+          phase('native_evidence', 'unknown', session, 'NATIVE_EVIDENCE_SUPERSEDED', 0,
+            'retired_request_not_collected', object);
+          return;
+        }
+        if (snapshot.session !== session || !Array.isArray(snapshot.events)) {
+          phase('native_evidence', 'unknown', session, 'NATIVE_EVIDENCE_SCOPE_MISMATCH', 0,
+            'native_snapshot_not_collected', object);
+          return;
+        }
         if (nativeSession !== session || (session.length === 0 && nativeRemote !== remote)) { nativeSession = session; nativeRemote = remote; nativeSequence = 0; nativeGapReported = false; }
         if ((snapshot.dropped > 0 || snapshot.events.length > 32) && !nativeGapReported) {
           nativeGapReported = true;
-          phase('native_evidence', 'unknown', session, 'NATIVE_EVENTS_TRUNCATED');
+          phase('native_evidence', 'unknown', session, 'NATIVE_EVENTS_TRUNCATED', 0, '', object);
         }
         for (const event of snapshot.events.slice(0, 32)) {
           if (!VpnPhases.valid(event)) {
-            if (!nativeGapReported) { nativeGapReported = true; phase('native_evidence', 'unknown', session, 'NATIVE_EVENT_INVALID'); }
+            if (!nativeGapReported) { nativeGapReported = true; phase('native_evidence', 'unknown', session, 'NATIVE_EVENT_INVALID', 0, '', object); }
             continue;
           }
           if (event.sequence <= nativeSequence) { continue; }
-          phase(event.stage, event.outcome, session, event.code, event.durationMs, 'extension_event_via_ipc');
+          phase(event.stage, event.outcome, session, event.code, event.durationMs, 'extension_event_via_ipc', object);
           nativeSequence = event.sequence;
         }
       } catch (_) {
-        if (attempt === startAttempt && !nativeGapReported) {
+        if (attempt !== startAttempt) {
+          phase('native_evidence', 'unknown', session, 'NATIVE_EVIDENCE_SUPERSEDED', 0,
+            'retired_request_not_collected', object);
+        } else if (!nativeGapReported) {
           nativeGapReported = true;
-          phase('native_evidence', 'unknown', session, 'NATIVE_EVENTS_UNAVAILABLE');
+          phase('native_evidence', 'unknown', session, 'NATIVE_EVENTS_UNAVAILABLE', 0, '', object);
         }
       } finally {
         try { data?.reclaim(); } catch (_) {}
@@ -709,7 +730,7 @@ export namespace VpnController {
       // The request-scoped IPC ACK covers even an empty recovered session ID.
       // It cannot be replaced by an old file receipt or a late ACK from another stop.
       const cleanup = remote !== null ? boundedCleanup(remote, session, `${Date.now()}-stop-${attempt}`) : null;
-      if (cleanup !== null) { extensionCompleted = await cleanup; if (remote !== null) { nativePhases(remote, session, attempt); } }
+      if (cleanup !== null) { extensionCompleted = await cleanup; if (remote !== null) { nativePhases(remote, session, attempt, true); } }
       if (connectedService) {
         try { await stoppingContext.disconnectServiceExtensionAbility(stoppingServiceId); disconnectedBinding = true; }
         catch (_) { Logger.error(TAG, 'service disconnect failed'); }

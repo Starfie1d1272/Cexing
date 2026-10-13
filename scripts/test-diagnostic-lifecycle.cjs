@@ -62,6 +62,30 @@ function runtimeFixture() {
   assert.ok(!JSON.stringify(imported).includes('private.example'));
   await native.VpnController.stop(native.context);await flush();
   assert.equal(imported.filter(e=>e.stage==='protect').length,1,'re-reading the same session queue cannot duplicate a phase');
+  // Reproduce the reviewed race: recovery's native read is still pending when stop completes.
+  for (const emptySession of [false,true]) {
+    const race=controllerFixture({delayedNative:true}), evidence=[];
+    race.VpnController.onPhase(e=>evidence.push(e));
+    if(emptySession) race.set({session:''});
+    await recover(race);await flush();assert.equal(race.nativeRequests.length,1);
+    const request=race.nativeRequests[0];
+    assert.equal(await race.VpnController.stop(race.context),true,'stop never waits for diagnostic IPC');
+    const gap=evidence.find(e=>e.code==='NATIVE_STOP_SNAPSHOT_PENDING');
+    assert.ok(gap,'a busy diagnostic read must explicitly mark the missing final stop snapshot');
+    const oldObject=gap.object;
+    if(emptySession) {
+      race.VpnController.recover(()=>{},race.context);race.probes.shift()(false);await flush();
+    } else {
+      assert.equal(race.VpnController.start(race.context),true);await flush();
+    }
+    request.resolve({errCode:0,reply:{readString:()=>JSON.stringify({session:request.session,dropped:0,
+      events:[{sequence:1,stage:'core_stop',outcome:'success',code:'',durationMs:1}]})}});
+    await flush();
+    const retired=evidence.find(e=>e.code==='NATIVE_EVIDENCE_SUPERSEDED');
+    assert.ok(retired);
+    assert.equal(retired.object,oldObject,'retired reply keeps the captured old-session identity, including empty sessions');
+    assert.ok(!evidence.some(e=>e.stage==='core_stop'),'old payload cannot become new-session phase evidence');
+  }
   const owner=runtimeFixture(), first={}, second={};
   owner.runtime.initialize(first);assert.deepEqual(owner.events.slice(0,3),['initialize','observe','recover']);
   owner.runtime.initialize(second);assert.deepEqual(owner.counts(),{phaseOff:1,observeOff:1});
