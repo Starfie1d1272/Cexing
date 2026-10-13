@@ -107,14 +107,8 @@ func localProviderSnapshot(text string) (string, error) {
 			if err != nil {
 				return "", err
 			}
-			if kind == "http" {
-				// A custom cache path has no proof that its bytes came from this
-				// candidate URL. Only the URL-derived default path is source-bound.
-				expected := constant.Path.GetPathByHash(section.prefix, url)
-				if path != "" && filepath.Clean(constant.Path.Resolve(path)) != filepath.Clean(constant.Path.Resolve(expected)) {
-					return "", errors.New("unbound provider cache")
-				}
-				path = expected
+			if kind == "http" && path == "" {
+				path = constant.Path.GetPathByHash(section.prefix, url)
 			}
 			if err := validateProviderPath(path); err != nil {
 				return "", err

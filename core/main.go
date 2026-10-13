@@ -68,6 +68,11 @@ func mihomoPreviewMerge(home, original, overlay, overrides *C.char) *C.char {
 	return C.CString(result)
 }
 
+//export mihomoVersionAction
+func mihomoVersionAction(home, action *C.char) *C.char {
+	return C.CString(coreVersionAction(C.GoString(home), C.GoString(action)))
+}
+
 //export mihomoFree
 func mihomoFree(p *C.char) {
 	if p == nil {

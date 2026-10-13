@@ -30,7 +30,7 @@ struct CoreContext {
     std::string overridesJson; // 用户设置覆写（JSON，可为空串，兼容两参调用）
     std::string mergeYaml;
     // 操作类型
-    int op = 0; // 0=init, 1=startTun, 2=stop, 3=validateOffline, 4=previewMerge
+    int op = 0; // 0=init, 1=startTun, 2=stop, 3=validateOffline, 4=previewMerge, 5=versionAction
 };
 
 bool GetStringArg(napi_env env, napi_value arg, std::string &out) {
@@ -64,6 +64,9 @@ void CoreExecute(napi_env env, void *data) {
             break;
         case 4:
             ctx->err = bridge::PreviewMerge(ctx->homeDir, ctx->configJson, ctx->mergeYaml, ctx->overridesJson);
+            break;
+        case 5:
+            ctx->err = bridge::VersionAction(ctx->homeDir, ctx->configJson);
             break;
     }
 }
@@ -204,6 +207,27 @@ napi_value PreviewMerge(napi_env env, napi_callback_info info) {
     return promise;
 }
 
+napi_value VersionAction(napi_env env, napi_callback_info info) {
+    size_t argc = 2;
+    napi_value args[2] = {nullptr};
+    napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
+    auto *ctx = new CoreContext();
+    ctx->op = 5;
+    if (argc != 2 || !GetStringArg(env, args[0], ctx->homeDir) ||
+        !GetStringArg(env, args[1], ctx->configJson)) {
+        delete ctx;
+        napi_throw_error(env, "BAD_PARAMS", "versionAction requires homeDir and action JSON strings");
+        return nullptr;
+    }
+    napi_value resourceName;
+    napi_create_string_utf8(env, "CoreVersionAction", NAPI_AUTO_LENGTH, &resourceName);
+    napi_value promise;
+    napi_create_promise(env, &ctx->deferred, &promise);
+    napi_create_async_work(env, nullptr, resourceName, CoreExecute, CoreComplete, ctx, &ctx->work);
+    napi_queue_async_work(env, ctx->work);
+    return promise;
+}
+
 napi_value GetBridgeStatus(napi_env env, napi_callback_info info) {
     bridge::Status st = bridge::GetStatus();
     napi_value obj;
@@ -231,6 +255,7 @@ napi_value Init(napi_env env, napi_value exports) {
         {"getBridgeStatus", nullptr, GetBridgeStatus, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"validateOffline", nullptr, ValidateOffline, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"previewMerge", nullptr, PreviewMerge, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"versionAction", nullptr, VersionAction, nullptr, nullptr, nullptr, napi_default, nullptr},
     };
     napi_define_properties(env, exports, sizeof(desc) / sizeof(desc[0]), desc);
     VPN_LOGI("cexing core bridge napi module registered");

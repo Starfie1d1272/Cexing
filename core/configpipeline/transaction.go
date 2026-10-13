@@ -8,8 +8,11 @@ import (
 
 // Version stores provenance separately from generated YAML, in private storage.
 // Path is immutable after staging and is the only path passed to the activator.
-type Version struct{ ID, Path string }
-type Snapshot struct{ Current, Previous *Version }
+type Version struct{ ID, Path, ProfileID string }
+type Snapshot struct {
+	Current, Previous *Version
+	Profiles          map[string]Version
+}
 
 // Store must leave its last successful snapshot untouched on any error.
 // Commit is one atomic switch. Stage does not change the current version.

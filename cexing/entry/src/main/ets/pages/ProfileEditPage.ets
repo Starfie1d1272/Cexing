@@ -156,11 +156,25 @@ export struct ProfileEditPage {
     } finally { this.mergeBusy = false; }
   }
 
+  private async applyMerge(): Promise<void> {
+    if (this.mergeBusy || this.mergeLoadFailed) { return; }
+    if (this.dirty) { this.toast('请先保存原始配置，再应用 Merge'); return; }
+    this.mergeBusy = true;
+    try {
+      const context = getContext(this) as common.UIAbilityContext;
+      const result = await ProfileTransactions.applyMerge(context, ProfileEditBus.current, this.mergeText);
+      this.toast(result === 'applied' ? 'Merge 已保存并应用' : 'Merge 已保存，下次连接时生效');
+      this.profileRevision++;
+    } catch (e) {
+      this.toast(`应用 Merge 失败: ${(e as Error).message ?? '请检查内容'}`);
+    } finally { this.mergeBusy = false; }
+  }
+
   @Builder
   MergeSheet() {
     Column({ space: 12 }) {
       Text('每订阅 Merge 草稿').fontSize(17).fontWeight(FontWeight.Medium).fontColor(UI.ink)
-      Text('采用 Clash Verge 2.5.8 合并规则。预览仅显示字段数量；草稿目前不会改变运行配置。')
+      Text('采用 Clash Verge 2.5.8 合并规则。预览只保存草稿；点击应用才改变有效配置。清空后应用可停用 Merge。')
         .fontSize(13).fontColor(UI.muted)
       if (this.mergeLoadFailed) {
         Text('现有 Merge 草稿读取失败，已阻止覆盖').fontSize(13).fontColor(UI.error)
@@ -179,6 +193,10 @@ export struct ProfileEditPage {
           .height(44).layoutWeight(1).backgroundColor(UI.action).fontColor(UI.onAccent)
           .enabled(!this.mergeBusy && !this.mergeLoadFailed).onClick(() => { this.previewMerge(); })
       }.width('100%')
+      Button(this.mergeBusy ? '处理中' : '应用 Merge')
+        .height(44).width('100%').backgroundColor(UI.action).fontColor(UI.onAccent)
+        .enabled(!this.mergeBusy && !this.mergeLoadFailed)
+        .onClick(() => { this.applyMerge(); })
     }.padding(20).backgroundColor(UI.surface).borderRadius(24)
   }
 

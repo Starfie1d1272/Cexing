@@ -39,6 +39,7 @@ function load(relative, modules, timers = [], clock = Date) {
   return context.exports;
 }
 async function testClient(mode) {
+  let cleared = 0;
   let callbacks;
   let session = '';
   let activeSession = '';
@@ -64,6 +65,7 @@ async function testClient(mode) {
       readTextSync: () => stopReceipt } }, './Logger': logger,
     './ConnectionFailure': failureModule.exports,
     './CoreApi': { CoreApi: { bindContext() {} } }, './Settings': { Settings: { load: () => settings, save() {} } },
+    './ProfileStore': { ProfileStore: { clearApplyUncertain: () => { cleared++; } } },
     '@kit.IPCKit': { rpc: { MessageSequence: { create: () => ({ reclaim() {} }) }, MessageOption: class {} } }
   };
   let clockTick = 0;
@@ -121,6 +123,7 @@ async function testClient(mode) {
     const stopped = await controller.stop(context);
     assert.equal(stopped, mode !== 'stop-failed' && mode !== 'cleanup-failed' && mode !== 'stale-receipt',
       'Stop result must require matching extension cleanup and system stop completion');
+    assert.equal(cleared, stopped ? 1 : 0, 'only a confirmed stop may clear the uncertain config marker');
     ready = true;
     timers.shift()();
     await flush();
@@ -134,6 +137,7 @@ async function testExtension() {
   let stopCount = 0;
   let destroyCount = 0;
   let prepared = 0;
+  let brokenPointer = false;
   let modelPrepared = 0;
   const files = new Map();
   const pending = new Promise(resolve => { complete = resolve; });
@@ -152,6 +156,10 @@ async function testExtension() {
     '../lib/SmartModelAssets': { SmartModelAssets: { prepare: async () => { modelPrepared++; return { state: 'missing', message: 'synthetic model absent' }; } } },
     '../lib/Logger': logger, '../lib/ConnectionFailure': failureModule.exports,
     '../lib/ProfileStore': { ProfileStore: { getActiveContent: () => 'proxies: []' } },
+    '../lib/EffectiveVersions': { EffectiveVersions: { read: () => {
+      if (brokenPointer) throw Error('synthetic invalid effective pointer');
+      return null;
+    } } },
     '../lib/Settings': { Settings: { load: () => ({}) } }, '@kit.ArkTS': { util: {} }
   };
   const Extension = load('vpnability/CexingVpnAbility.ets', modules).default;
@@ -182,6 +190,9 @@ async function testExtension() {
   restarted.onRemoteMessageRequest(1, {}, { writeBoolean: value => { reportedReady = value; }, writeString() {} }, {});
   assert.equal(reportedReady, true, 'The same extension must allow restart after cleanup despite unavailable panel resources');
   assert.equal(prepared, 2);
+  brokenPointer = true;
+  await assert.rejects(extension.buildCoreConfig(), /invalid effective pointer/,
+    'broken effective pointer must not silently start the built-in fallback');
 }
 (async () => {
   await testClient('ready');

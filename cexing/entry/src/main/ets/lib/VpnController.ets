@@ -12,6 +12,7 @@ import { CoreApi } from './CoreApi';
 import { rpc } from '@kit.IPCKit';
 import { Settings } from './Settings';
 import { ConnectionFailure, ConnectionFailures } from './ConnectionFailure';
+import { ProfileStore } from './ProfileStore';
 
 const TAG = 'vpnCtrl';
 const VPN_ABILITY_NAME = 'CexingVpnAbility';
@@ -438,7 +439,12 @@ export namespace VpnController {
       }
       serviceId = 0;
       setStatus(VpnStatus.Disconnected);
-      return saved && extensionCompleted && systemStopped;
+      const completed = saved && extensionCompleted && systemStopped;
+      if (completed) {
+        try { ProfileStore.clearApplyUncertain(context); }
+        catch (_) { Logger.error(TAG, 'confirmed stop marker cleanup failed'); }
+      }
+      return completed;
     })();
   }
 }
