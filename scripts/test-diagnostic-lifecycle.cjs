@@ -113,5 +113,16 @@ function runtimeFixture() {
   assert.equal(helpers.exports.VpnPhases.code({code:'https://private.example'},'FIXED'), 'FIXED');
   assert.equal(helpers.exports.VpnPhases.valid({sequence:1,stage:'protect',outcome:'failed',code:'201',durationMs:4}),true);
   assert.equal(helpers.exports.VpnPhases.valid({sequence:2,stage:'protect',outcome:'failed',code:'https://private.example',durationMs:4}),false);
+  assert.equal(helpers.exports.VpnPhases.code({code:4294967296},'FIXED'), 'FIXED');
+  const vocabSource=fs.readFileSync(path.join(__dirname,'../core/diagnostics_fields.go'),'utf8');
+  const vocabulary=name=>new Set(vocabSource.match(new RegExp('const '+name+' = \"([^\"]+)\"'))[1].split(/\s+/));
+  const codes=new Set(vocabSource.match(/const fixed = \"([^\"]+)\"/)[1].split(/\s+/));
+  for(const e of [...phases,...invalidEvents,...imported,...finalEvidence]) {
+    assert.ok(vocabulary('diagnosticOperations').has(e.operation),e.operation);
+    assert.ok(vocabulary('diagnosticStages').has(e.stage),e.stage);
+    assert.ok(vocabulary('diagnosticOutcomes').has(e.outcome),e.outcome);
+    if(e.reason)assert.ok(vocabulary('diagnosticReasons').has(e.reason),e.reason);
+    if(e.code)assert.ok(codes.has(e.code)||(/^-?\d+$/.test(e.code)&&Number(e.code)>=-2147483648&&Number(e.code)<=4294967295),e.code);
+  }
   await flush();console.log('PASS: actual lifecycle phases, runtime observer ownership, fixed-code redaction and collector failure isolation');
 })().catch(e=>{console.error(e);process.exitCode=1;});

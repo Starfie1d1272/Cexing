@@ -2,7 +2,7 @@
 
 `DiagnosticsService` 通过既有 `versionAction` NAPI 单 worker 调用 Go 存储，不增加内核 C ABI，不上传。页面用 `check(context, kind, proxy?)` 执行检查，用 `exportBundle(context)` 获取 `{json, path, fileName}`；结果文件在 cacheDir，保存位置选择和分享由页面拥有。导出不执行网络检查，重复导出覆盖同一个缓存文件。
 
-运行时在恢复前调用 `initialize(context)`，并拥有 `observe(context)` 返回的释放函数。观察器只订阅 `VpnController.onChanged/offChanged`，读取脱敏故障、TUN 创建、内核就绪和停止结果 getters，不消费错误、不改变启停。缺少细分阶段时标明覆盖缺口。更精确的业务动作由拥有该动作的模块调用 `record(context, {operation, stage, outcome, object?, reason?, code?, durationMs?})`；只传固定阶段和数字/固定码，禁止传原始异常、Want、URL、配置或凭据。字段词表在 `core/diagnostics_fields.go`；未列入词表的阶段、原因、枚举或错误码记为 unknown，并保存包内关联 identity，不允许通过“符合标识符格式”传任意明文。新增调用者的固定阶段必须补入词表。数值错误码按 32 位范围保存，errno 和定义内 DNS rcode 保留其结构。`record` 返回落盘是否成功，不应改变 VPN 控制结果。
+运行时在恢复前调用 `initialize(context)`，并拥有 `observe(context)` 返回的释放函数。观察器只订阅 `VpnController.onChanged/offChanged`，读取脱敏故障、TUN 创建、内核就绪和停止结果 getters，不消费错误、不改变启停。缺少细分阶段时标明覆盖缺口。更精确的业务动作由拥有该动作的模块调用 `record(context, {operation, stage, outcome, object?, reason?, code?, durationMs?})`；只传固定阶段和数字/固定码，禁止传原始异常、Want、URL、配置或凭据。字段词表在 `core/diagnostics_fields.go`；未列入词表的阶段、原因、枚举或错误码记为 unknown，并保存包内关联 identity，不允许通过“符合标识符格式”传任意明文。新增调用者的固定阶段必须补入词表。生命周期挂点的阶段、固定码和缺口原因均采用显式有限词表；生产方法事件与静态生产者契约分别验证，Go 持久化回归确认这些字段不会被折叠为 unknown，任意标识符文本仍被拒绝。数值错误码按 32 位范围保存，errno 和定义内 DNS rcode 保留其结构。`record` 返回落盘是否成功，不应改变 VPN 控制结果。
 
 生命周期接入由 `AppRuntime` 初始化并持有状态观察与阶段订阅；Ability 重建先释放旧订阅，迟到的旧 Ability 销毁不能释放新订阅。窗口关闭时 VPN 或未知会话仍存在则继续观察，确认停止后释放。授权、绑定、恢复与停止只提交固定阶段、原始数字码或明确固定码及不透明会话身份；采集异常不能改变控制结果。
 

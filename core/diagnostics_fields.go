@@ -10,9 +10,9 @@ import (
 // These are vocabularies, not syntax filters. An identifier-shaped credential
 // must never become a plaintext diagnostic label or error code.
 const diagnosticOperations = "vpn host core profile subscription configuration entry recovery connection fixture check_controller check_dns check_connection check_delay check_bandwidth"
-const diagnosticStages = "authorization service vpn protect assets core-init config core-start readiness system_authorization system_stop service_bind service_unbind network_protect resource_prepare core_init effective_config config_parse controller_listen config_apply tun_start core_ready core_stop config_reload_parse config_reload settings_patch runtime_error controller_transport controller_credentials controller_authorization controller_http controller_version precondition dns_exchange proxy_dial tls_handshake http_status state_observation environment test"
+const diagnosticStages = "authorization service vpn protect assets core-init config core-start readiness system_authorization system_stop service_bind service_unbind network_protect resource_prepare core_init effective_config config_parse controller_listen config_apply tun_start core_ready core_stop config_reload_parse config_reload settings_patch runtime_error controller_transport controller_credentials controller_authorization controller_http controller_version precondition dns_exchange proxy_dial tls_handshake http_status state_observation environment test native_evidence recovery_probe recovery_binding recovery_validation runtime_validation start_precondition service_binding kernel_readiness stop tun_create geodata_prepare smart_model_prepare panel_assets_prepare core_initialize configuration_prepare core_start tun_destroy late_tun_destroy"
 const diagnosticOutcomes = "started success failed skipped unknown cancelled observed projected completed applied rejected warning error"
-const diagnosticReasons = "requires_explicit_bandwidth_test credentials_unavailable core_not_ready proxy_not_selected transport_error not_reported evidence_unavailable"
+const diagnosticReasons = "requires_explicit_bandwidth_test credentials_unavailable core_not_ready proxy_not_selected transport_error not_reported evidence_unavailable extension_event_via_ipc snapshot_missing_at_stop_return retired_request_not_collected native_snapshot_not_collected"
 const diagnosticProxyTypes = "direct reject reject-drop compatible pass pass-rule rematch dns ss ssr snell socks5 http vmess vless trojan hysteria hysteria2 wireguard tuic ssh mieru anytls sudoku masque trusttunnel shadowquic openvpn tailscale zerotier selector select url-test fallback load-balance smart relay"
 
 func diagnosticEnum(value, vocabulary string) string {
@@ -51,7 +51,7 @@ func diagnosticCodeValue(value string) (string, bool) {
 			return "DNS_RCODE_" + strconv.FormatUint(n, 10), true
 		}
 	}
-	const fixed = "unknown deadline_exceeded cancelled DNS_RESOLVER_UNAVAILABLE DNS_EMPTY_RESPONSE DNS_NO_ANSWER PROXY_UNAVAILABLE PROBE_UNEXPECTED_HTTP_STATUS ECONNREFUSED ECONNRESET ETIMEDOUT ENETUNREACH EHOSTUNREACH EACCES EADDRINUSE EADDRNOTAVAIL TLS_CERTIFICATE TLS_HANDSHAKE_FAILED"
+	const fixed = "unknown deadline_exceeded cancelled DNS_RESOLVER_UNAVAILABLE DNS_EMPTY_RESPONSE DNS_NO_ANSWER PROXY_UNAVAILABLE PROBE_UNEXPECTED_HTTP_STATUS ECONNREFUSED ECONNRESET ETIMEDOUT ENETUNREACH EHOSTUNREACH EACCES EADDRINUSE EADDRNOTAVAIL TLS_CERTIFICATE TLS_HANDSHAKE_FAILED NATIVE_STOP_SNAPSHOT_PENDING NATIVE_EVIDENCE_SUPERSEDED NATIVE_EVIDENCE_SCOPE_MISMATCH NATIVE_EVENTS_TRUNCATED NATIVE_EVENT_INVALID NATIVE_EVENTS_UNAVAILABLE CONTROLLER_PROBE_UNCONFIRMED VPN_SESSION_UNCONFIRMED SERVICE_BIND_FAILED STOP_NOT_CONFIRMED START_SUPERSEDED AUTHORIZATION_FAILED OPTIONAL_MODEL_UNAVAILABLE OPTIONAL_PANEL_UNAVAILABLE TUN_DESTROY_FAILED CORE_STOP_FAILED TUN_CREATE_FAILED PROTECT_FAILED GEODATA_PREPARE_FAILED SMART_MODEL_PREPARE_FAILED PANEL_ASSETS_PREPARE_FAILED CORE_INITIALIZE_FAILED CONFIGURATION_PREPARE_FAILED CORE_START_FAILED LATE_TUN_DESTROY_FAILED"
 	for _, v := range strings.Fields(fixed) {
 		if value == v {
 			return value, true

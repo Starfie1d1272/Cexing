@@ -127,6 +127,7 @@ export default class CexingVpnAbility extends VpnExtensionAbility {
   private stopping = false;
   private cleanupPending: Promise<boolean> | null = null;
   private startupPhase: string = 'vpn';
+  private startupDiagnosticStage: string = 'tun_create';
   private startupSession: string = '';
   private tunCreateObserved: boolean = false;
   private diagnosticEvents: NativeVpnPhase[] = [];
@@ -221,12 +222,14 @@ export default class CexingVpnAbility extends VpnExtensionAbility {
     let fd = -1;
     try {
       const config = want.parameters?.['VPN_CONFIG'] as vpnExtension.VpnConfig;
+      this.startupDiagnosticStage = 'tun_create';
       this.diagnostic('tun_create', 'started');
       fd = await this.connection.create(config);
       this.diagnostic('tun_create', 'success');
       this.tunCreateObserved = true;
       Logger.info(TAG, `tun fd acquired: ${fd}`);
       this.startupPhase = 'protect';
+      this.startupDiagnosticStage = 'protect';
       this.diagnostic('protect', 'started');
       await this.connection.protectProcessNet();
       this.diagnostic('protect', 'success');
@@ -234,22 +237,26 @@ export default class CexingVpnAbility extends VpnExtensionAbility {
 
       const filesDir = this.context.filesDir;
       this.startupPhase = 'assets';
+      this.startupDiagnosticStage = 'geodata_prepare';
       this.diagnostic('geodata_prepare', 'started');
       await this.seedGeoData(filesDir);
       this.diagnostic('geodata_prepare', 'success');
       // Install a verified offline model before the Go runtime first attempts to load it.
       // Failure is recoverable: Smart continues with its statistical weights.
+      this.startupDiagnosticStage = 'smart_model_prepare';
       this.diagnostic('smart_model_prepare', 'started');
       const smartModel = await SmartModelAssets.prepare(this.context);
       this.diagnostic('smart_model_prepare', smartModel.state === 'ready' ? 'success' : 'skipped',
         smartModel.state === 'ready' ? '' : 'OPTIONAL_MODEL_UNAVAILABLE');
       if (smartModel.state !== 'ready') { Logger.warn(TAG, smartModel.message); }
       // Static resource failure is recoverable; Controller credentials still fail closed.
+      this.startupDiagnosticStage = 'panel_assets_prepare';
       this.diagnostic('panel_assets_prepare', 'started');
       const panelAssets = await ZashboardAssets.prepare(this.context);
       this.diagnostic('panel_assets_prepare', panelAssets.directory.length > 0 ? 'success' : 'skipped',
         panelAssets.directory.length > 0 ? '' : 'OPTIONAL_PANEL_UNAVAILABLE');
       this.startupPhase = 'core-init';
+      this.startupDiagnosticStage = 'core_initialize';
       this.diagnostic('core_initialize', 'started');
       const initErr: string = await core.initCore(filesDir);
       if (initErr) {
@@ -261,6 +268,7 @@ export default class CexingVpnAbility extends VpnExtensionAbility {
       this.diagnostic('core_initialize', 'success');
 
       this.startupPhase = 'config';
+      this.startupDiagnosticStage = 'configuration_prepare';
       this.diagnostic('configuration_prepare', 'started');
       const cfg: string = await this.buildCoreConfig();
       this.diagnostic('configuration_prepare', 'success');
@@ -276,6 +284,7 @@ export default class CexingVpnAbility extends VpnExtensionAbility {
       Logger.info(TAG,
         `user overrides: mixedPort=${s.mixedPort} logLevel=${s.logLevel} allowLan=${s.allowLan} mode=${s.mode} logToFile=${s.logToFile}`);
       this.startupPhase = 'core-start';
+      this.startupDiagnosticStage = 'core_start';
       this.diagnostic('core_start', 'started');
       const startErr: string = await core.startTun(fd, cfg, JSON.stringify(overrides));
       if (startErr) {
@@ -286,18 +295,7 @@ export default class CexingVpnAbility extends VpnExtensionAbility {
       this.diagnostic('core_start', 'success');
       Logger.info(TAG, 'mihomo core started, TUN handed over');
     } catch (e) {
-      const pending = this.diagnosticEvents[this.diagnosticEvents.length - 1];
-      let stage: string = 'core_start';
-      if (pending?.outcome === 'started') { stage = pending.stage; }
-      else {
-        switch (this.startupPhase) {
-          case 'vpn': stage = 'tun_create'; break;
-          case 'protect': stage = 'protect'; break;
-          case 'assets': stage = 'geodata_prepare'; break;
-          case 'core-init': stage = 'core_initialize'; break;
-          case 'config': stage = 'configuration_prepare'; break;
-        }
-      }
+      const stage = this.startupDiagnosticStage;
       this.diagnostic(stage, 'failed', VpnPhases.code(e, `${stage.toUpperCase()}_FAILED`));
       const msg = (e as Error).message ?? JSON.stringify(e);
       this.startupError = ConnectionFailures.encode(this.startupSession,

@@ -27,7 +27,7 @@ export namespace VpnPhases {
   export function code(error: Object, fallback: string): string {
     try {
       const value = (error as NumericFailure).code;
-      if (typeof value === 'number' && Number.isSafeInteger(value)) { return `${value}`; }
+      if (typeof value === 'number' && Number.isInteger(value) && value >= -2147483648 && value <= 4294967295) { return `${value}`; }
     } catch (_) {}
     return fallback;
   }
