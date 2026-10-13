@@ -174,16 +174,17 @@ export namespace VpnController {
   }
 
   function nativePhases(remote: rpc.IRemoteObject, session: string, attempt: number,
-    stopSnapshot: boolean = false): void {
-    if (phaseListeners.length === 0) { return; }
+    stopSnapshot: boolean = false): (() => void) | null {
+    if (phaseListeners.length === 0) { return null; }
     const object = session.length > 0 ? `vpn-session:${session}` : diagnosticUnknownObject;
     if (collectingNative) {
       if (stopSnapshot) {
         phase('native_evidence', 'unknown', session, 'NATIVE_STOP_SNAPSHOT_PENDING', 0,
-          'stop_snapshot_not_collected', object);
+          'snapshot_missing_at_stop_return', object);
       }
-      return;
+      return null;
     }
+    let finished = false;
     collectingNative = true;
     (async (): Promise<void> => {
       let data: rpc.MessageSequence | null = null;
@@ -232,8 +233,16 @@ export namespace VpnController {
         try { data?.reclaim(); } catch (_) {}
         try { reply?.reclaim(); } catch (_) {}
         collectingNative = false;
+        finished = true;
       }
     })();
+    if (!stopSnapshot) { return null; }
+    return (): void => {
+      if (!finished) {
+        phase('native_evidence', 'unknown', session, 'NATIVE_STOP_SNAPSHOT_PENDING', 0,
+          'snapshot_missing_at_stop_return', object);
+      }
+    };
   }
 
   export function onChanged(cb: StatusListener): void {
@@ -714,6 +723,7 @@ export namespace VpnController {
       let extensionCompleted = nativeNotEntered;
       let remote = boundRemote;
       let disconnectedBinding = false;
+      let reportPendingNativeStop: (() => void) | null = null;
       if (remote === null && retryUnknown && serviceId < 0) {
         remote = await bindExistingService(context);
         connectedService = serviceId >= 0;
@@ -730,7 +740,7 @@ export namespace VpnController {
       // The request-scoped IPC ACK covers even an empty recovered session ID.
       // It cannot be replaced by an old file receipt or a late ACK from another stop.
       const cleanup = remote !== null ? boundedCleanup(remote, session, `${Date.now()}-stop-${attempt}`) : null;
-      if (cleanup !== null) { extensionCompleted = await cleanup; if (remote !== null) { nativePhases(remote, session, attempt, true); } }
+      if (cleanup !== null) { extensionCompleted = await cleanup; if (remote !== null) { reportPendingNativeStop = nativePhases(remote, session, attempt, true); } }
       if (connectedService) {
         try { await stoppingContext.disconnectServiceExtensionAbility(stoppingServiceId); disconnectedBinding = true; }
         catch (_) { Logger.error(TAG, 'service disconnect failed'); }
@@ -756,6 +766,7 @@ export namespace VpnController {
       }
       // Retain the unknown result after failure; a released binding is reacquired
       // by an explicit retry. Late cleanup cannot clear this result.
+      reportPendingNativeStop?.();
       const completed = saved && extensionCompleted && systemStopped;
       lastStopCompleted = completed;
       phase('stop', completed ? 'success' : 'unknown', session, completed ? '' : 'STOP_NOT_CONFIRMED', Date.now() - stoppingAt);

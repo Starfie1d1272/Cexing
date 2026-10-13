@@ -86,6 +86,17 @@ function runtimeFixture() {
     assert.equal(retired.object,oldObject,'retired reply keeps the captured old-session identity, including empty sessions');
     assert.ok(!evidence.some(e=>e.stage==='core_stop'),'old payload cannot become new-session phase evidence');
   }
+  const pendingFinal=controllerFixture(), finalEvidence=[];
+  pendingFinal.VpnController.onPhase(e=>finalEvidence.push(e));await recover(pendingFinal);await flush();
+  pendingFinal.options.delayedNative=true;
+  assert.equal(await pendingFinal.VpnController.stop(pendingFinal.context),true);
+  assert.equal(pendingFinal.nativeRequests.length,1,'free collector can start the final snapshot without awaiting it');
+  assert.ok(finalEvidence.some(e=>e.code==='NATIVE_STOP_SNAPSHOT_PENDING'),
+    'a newly issued snapshot still pending at stop return is also an explicit gap');
+  const finalRequest=pendingFinal.nativeRequests[0];
+  finalRequest.resolve({errCode:0,reply:{readString:()=>JSON.stringify({session:finalRequest.session,dropped:0,
+    events:[{sequence:1,stage:'core_stop',outcome:'success',code:'',durationMs:1}]})}});
+  await flush();assert.ok(finalEvidence.some(e=>e.stage==='core_stop'));
   const owner=runtimeFixture(), first={}, second={};
   owner.runtime.initialize(first);assert.deepEqual(owner.events.slice(0,3),['initialize','observe','recover']);
   owner.runtime.initialize(second);assert.deepEqual(owner.counts(),{phaseOff:1,observeOff:1});
