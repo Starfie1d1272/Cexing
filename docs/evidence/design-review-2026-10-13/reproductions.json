@@ -1,0 +1,21 @@
+{
+  "source": "SDK-transpiled actual page methods, synthetic mocks; no device/rendering claim",
+  "observations": [
+    {
+      "id": "R1",
+      "observed": "reload=false 后 active 标记仍为 new.yaml，运行内核未接受新配置"
+    },
+    {
+      "id": "R2",
+      "observed": "更新后 reload=false，唯一反馈仍是已更新"
+    },
+    {
+      "id": "R3",
+      "observed": "Home 销毁期间启动失败，返回只显示未连接，未读取仍存留的错误"
+    },
+    {
+      "id": "R4",
+      "observed": "详情更新与列表下拉可同时进入来源更新，各页面的局部门禁未共享"
+    }
+  ]
+}

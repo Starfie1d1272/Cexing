@@ -1,0 +1,135 @@
+{
+  "date": "2026-10-13",
+  "timezone": "Asia/Shanghai",
+  "main": "81215c5f5bc10c04f382d526e1b03d6484b26151",
+  "pr11_head": "8131567d44ce02f9af3b149c5eb83c9cf238d93c",
+  "pr11_home_baseline": "0974f9dd021130fe2b17554af773db554d05ddb5",
+  "pr11_commits": [
+    "4cfbd25104c16b16a936d5ae20b02a800ac6fe7e design: add fresh native mobile host prototype",
+    "f57713860c80b6f0a7521b610bab43203d816142 design: keep native tabs visible and compact connection status",
+    "9127864ab4fb1ac4cc971238cd8581be40ff4a03 design: add native light surfaces and window-adaptive comparison",
+    "ce5789e7dde283c8dc9537ca7e865ef53a79ad7d design: add optional Ark identity details with frozen light baseline",
+    "7c585393f2b88748ac5f03d6f490547b7600b99b design: recompose connection home around status and joined geometry",
+    "3f5e3002054275bf2fd39fed3f8a3029d52bf5f6 design: refine connection home hierarchy and original port illustration",
+    "0974f9dd021130fe2b17554af773db554d05ddb5 design: replace connection icon with asymmetric card planes",
+    "8131567d44ce02f9af3b149c5eb83c9cf238d93c design: keep accepted home and align utility page controls"
+  ],
+  "inputs": [
+    {
+      "path": "clash-openharmony/entry/src/main/ets/pages/DiagnosticsPage.ets",
+      "sha256": "fde7ff8b707756df345e1513fff2c21f05179a4dde4900beb45ff2dcd9ed2c81",
+      "source_commit": "81215c5f5bc10c04f382d526e1b03d6484b26151"
+    },
+    {
+      "path": "clash-openharmony/entry/src/main/ets/pages/HomePage.ets",
+      "sha256": "1cdc09680444c9147caba6b6318cd3270f96e8772f56e7888a597cbfcb152cf8",
+      "source_commit": "81215c5f5bc10c04f382d526e1b03d6484b26151"
+    },
+    {
+      "path": "clash-openharmony/entry/src/main/ets/pages/Index.ets",
+      "sha256": "6e2a3fa649d1aaa40747fe6e740584bd06301ad9c78d1feba46a2f191a2a467c",
+      "source_commit": "81215c5f5bc10c04f382d526e1b03d6484b26151"
+    },
+    {
+      "path": "clash-openharmony/entry/src/main/ets/pages/NativeTheme.ets",
+      "sha256": "d2d92dc2073ddd1a736256dd2365e81cc84f270e9005a1b6a368e6b70578b0ce",
+      "source_commit": "81215c5f5bc10c04f382d526e1b03d6484b26151"
+    },
+    {
+      "path": "clash-openharmony/entry/src/main/ets/pages/NetworkSettingsPage.ets",
+      "sha256": "ccf39ca3963db109c94a46ba9e5b3cbeb75d4446fd016c40ccfce727d608590c",
+      "source_commit": "81215c5f5bc10c04f382d526e1b03d6484b26151"
+    },
+    {
+      "path": "clash-openharmony/entry/src/main/ets/pages/OverridePage.ets",
+      "sha256": "009bb3971624c4fd964ed5cfbb6b64cd7d9b1deac41d71588a05076a6f973f09",
+      "source_commit": "81215c5f5bc10c04f382d526e1b03d6484b26151"
+    },
+    {
+      "path": "clash-openharmony/entry/src/main/ets/pages/ProfileEditPage.ets",
+      "sha256": "e7f7012af80fb6bf37a2adf4a17efc1cb0e563407f18311442f9f7521132d1d2",
+      "source_commit": "81215c5f5bc10c04f382d526e1b03d6484b26151"
+    },
+    {
+      "path": "clash-openharmony/entry/src/main/ets/pages/ProfilePage.ets",
+      "sha256": "e2675d28e546d76b5790febcca622cc1f19ae547fc090e7aee90d59c645d878c",
+      "source_commit": "81215c5f5bc10c04f382d526e1b03d6484b26151"
+    },
+    {
+      "path": "clash-openharmony/entry/src/main/ets/pages/ProxyPage.ets",
+      "sha256": "88d9fcf18c1ef349264259a6dc3b88a0701b3c7a0906d80e234e8047bc5b090d",
+      "source_commit": "81215c5f5bc10c04f382d526e1b03d6484b26151"
+    },
+    {
+      "path": "clash-openharmony/entry/src/main/ets/pages/SettingsPage.ets",
+      "sha256": "80875f98f0954db7794c50adcad7311db8e02861df6d883f5e54b4c6ca0cfc85",
+      "source_commit": "81215c5f5bc10c04f382d526e1b03d6484b26151"
+    },
+    {
+      "path": "clash-openharmony/entry/src/main/ets/pages/SmartPage.ets",
+      "sha256": "9d02741b81a7b63c5c3593a515ca0c20de5b82dbb8acf006e5fd59fbf2cce6b4",
+      "source_commit": "81215c5f5bc10c04f382d526e1b03d6484b26151"
+    },
+    {
+      "path": "clash-openharmony/entry/src/main/ets/pages/ZashboardPage.ets",
+      "sha256": "a8e18b15ecb68b6b0c7bd0be2d0c40fcc251c3e781900dc39a355752dd0bea44",
+      "source_commit": "81215c5f5bc10c04f382d526e1b03d6484b26151"
+    },
+    {
+      "path": "clash-openharmony/entry/src/main/ets/lib/ProfileStore.ets",
+      "sha256": "c4df8d1bb586dbdd03f71f8b18b5707ac49218e749540b9b0bfabc22a03e5044",
+      "source_commit": "81215c5f5bc10c04f382d526e1b03d6484b26151"
+    },
+    {
+      "path": "clash-openharmony/entry/src/main/ets/lib/VpnController.ets",
+      "sha256": "cd8b1d7876276d23a495421eecfc39cfe3b68100f83e85b7bae2641d6d79d403",
+      "source_commit": "81215c5f5bc10c04f382d526e1b03d6484b26151"
+    },
+    {
+      "path": "clash-openharmony/entry/src/main/ets/lib/AutoUpdater.ets",
+      "sha256": "93242fd8f45d318a433770ff129f80a46cca47ed901afb40cc17ce76729f8188",
+      "source_commit": "81215c5f5bc10c04f382d526e1b03d6484b26151"
+    },
+    {
+      "path": "clash-openharmony/entry/src/main/ets/lib/CoreApi.ets",
+      "sha256": "4b122251e72c2ad2e77c1c03b16d78d23de8fbcd8005804b44857ea803588346",
+      "source_commit": "81215c5f5bc10c04f382d526e1b03d6484b26151"
+    },
+    {
+      "path": "clash-openharmony/entry/src/main/ets/lib/ZashboardSession.ets",
+      "sha256": "75d53bf1955b472dd5a5332f7aad3ba43aa484039561336a6ff34cce1a7a7e27",
+      "source_commit": "81215c5f5bc10c04f382d526e1b03d6484b26151"
+    },
+    {
+      "path": "clash-openharmony/entry/src/main/ets/lib/SmartModelRestart.ets",
+      "sha256": "06dceea16a945a5b39f9dd9addd7982e262e6514d9cdeaea4680f76b4c368a98",
+      "source_commit": "81215c5f5bc10c04f382d526e1b03d6484b26151"
+    }
+  ],
+  "native_screenshots": [],
+  "viewed_final_browser_screenshots": [
+    "connected",
+    "ready",
+    "profile",
+    "settings-interval",
+    "diagnostics",
+    "panel-error"
+  ],
+  "tests_executed": [
+    "scripts/test-native-ui.cjs",
+    "scripts/test-smart-ui.cjs",
+    "scripts/test-smart-model-restart.cjs",
+    "docs/evidence/design-review-2026-10-13/reproduce.cjs"
+  ],
+  "test_result": "passed; reproduce assertions confirm R1-R4 deficiencies, not product correctness",
+  "hap_build_executed": false,
+  "production_changes": false,
+  "pr11_decision": "keep open; closure conditions in README.md",
+  "delivery_checks": {
+    "frozen_evidence_targets_verified": 53,
+    "reference_links_resolved": true,
+    "input_hashes_unchanged": true,
+    "json_valid": true,
+    "diff_check": "passed"
+  }
+}
