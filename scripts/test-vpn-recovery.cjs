@@ -14,12 +14,15 @@ const failureModule = { exports: {} };
 vm.runInNewContext(failureCode, failureModule);
 function load() {
   const probes = [];
+  let session = '';
+  let stopReceipt = '';
   const source = fs.readFileSync(process.env.VPN_CONTROLLER_SOURCE || path.join(__dirname, '../cexing/entry/src/main/ets/lib/VpnController.ets'), 'utf8');
   const output = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText;
   const settings = { accessMode: 'all', accessList: [], ipv6: false, vpnWasConnected: false };
   const modules = {
     '@kit.NetworkKit': { vpnExtension: { startVpnExtensionAbility: async () => {}, stopVpnExtensionAbility() {} } },
-    '@kit.CoreFileKit': { fileIo: {} }, './Logger': { Logger: { info() {}, warn() {}, error() {} } },
+    '@kit.CoreFileKit': { fileIo: { accessSync: () => stopReceipt.length > 0,
+      readTextSync: () => stopReceipt } }, './Logger': { Logger: { info() {}, warn() {}, error() {} } },
     './CoreApi': { CoreApi: { bindContext() {}, isAlive: () => new Promise(resolve => probes.push(resolve)) } },
     './Settings': { Settings: { load: () => settings, save() {} } }, '@kit.IPCKit': { rpc: {} },
     './ConnectionFailure': failureModule.exports
@@ -27,7 +30,8 @@ function load() {
   const sandbox = { exports: {}, require: name => { assert.ok(name in modules); return modules[name]; }, Promise, Date, JSON };
   vm.runInNewContext(output, sandbox);
   const context = { filesDir: '/private', applicationInfo: { name: 'test.bundle' },
-    connectServiceExtensionAbility: () => 1, disconnectServiceExtensionAbility: async () => {} };
+    connectServiceExtensionAbility: want => { session = want.parameters.SESSION_ID; return 1; },
+    disconnectServiceExtensionAbility: async () => { stopReceipt = JSON.stringify({ session, completed: true }); } };
   return { ...sandbox.exports, context, probes };
 }
 (async () => {
@@ -79,6 +83,8 @@ function load() {
     await flush();
     assert.equal(vc.status, VpnStatus.Connected, 'A fresh valid recovery should still commit');
     assert.equal(result, true);
+    assert.equal(await vc.stop(context), false,
+      'Recovered Connected without a service binding cannot prove native stop completion');
   }
   console.log('PASS: late recovery after start/cancel, newer intent, disconnected stop, explicit cancellation and fresh recovery');
 })().catch(error => { console.error(error); process.exitCode = 1; });

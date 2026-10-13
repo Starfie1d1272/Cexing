@@ -17,6 +17,13 @@ const TAG = 'vpnCtrl';
 const VPN_ABILITY_NAME = 'CexingVpnAbility';
 // 与 vpnability/CexingVpnAbility.ets 的 LAST_ERROR_FILE 一致（同一应用沙箱共享 filesDir）
 const LAST_ERROR_FILE = 'last_start_error.txt';
+const LAST_STOP_FILE = 'last_stop_result.json';
+const STOP_COMPLETION_TIMEOUT_MS = 15000;
+
+interface StopResult {
+  session: string;
+  completed: boolean;
+}
 
 export enum VpnStatus {
   Disconnected = 0,
@@ -94,6 +101,29 @@ function readLastStartError(context: common.UIAbilityContext): string {
     // 忽略
   }
   return '';
+}
+
+function readStopResult(context: common.UIAbilityContext, session: string): boolean | null {
+  try {
+    const path = `${context.filesDir}/${LAST_STOP_FILE}`;
+    if (fileIo.accessSync(path)) {
+      const result = JSON.parse(fileIo.readTextSync(path)) as StopResult;
+      if (result.session === session && typeof result.completed === 'boolean') {
+        return result.completed;
+      }
+    }
+  } catch (_) {}
+  return null;
+}
+
+async function waitForStopResult(context: common.UIAbilityContext, session: string): Promise<boolean> {
+  const deadline = Date.now() + STOP_COMPLETION_TIMEOUT_MS;
+  while (Date.now() < deadline) {
+    const result = readStopResult(context, session);
+    if (result !== null) { return result; }
+    await new Promise<void>((resolve) => { setTimeout(resolve, 100); });
+  }
+  return false;
 }
 
 export namespace VpnController {
@@ -358,17 +388,30 @@ export namespace VpnController {
     }
   }
 
-  export function stop(context: common.UIAbilityContext, preserveFailure: boolean = false): void {
+  /** True means this session's extension cleanup and system stop both completed. False is unknown. */
+  export function stop(context: common.UIAbilityContext, preserveFailure: boolean = false): Promise<boolean> {
     cancelRecovery();
     if (status !== VpnStatus.Connected && status !== VpnStatus.Connecting) {
       Logger.warn(TAG, `stop ignored, status=${VpnStatus[status]}`);
-      return;
+      return Promise.resolve(false);
     }
     startAttempt++;
+    const session = startSession;
+    const connectedService = serviceId > 0;
+    // A recovered Connected status can have no service binding in this UI process.
+    // Only a pre-binding Connecting cancellation proves native startup was never entered.
+    const nativeNotEntered = status === VpnStatus.Connecting && !connectedService;
+    const stoppingServiceId = serviceId;
     // 用户主动停止：清除「会话曾连接」标记（冷启动不再自动恢复）
-    const s = Settings.load(context);
-    s.vpnWasConnected = false;
-    Settings.save(context, s);
+    let saved = true;
+    try {
+      const s = Settings.load(context);
+      s.vpnWasConnected = false;
+      Settings.save(context, s);
+    } catch (_) {
+      saved = false;
+      Logger.error(TAG, 'disconnect preference save failed');
+    }
     // 用户主动停止：清除残留失败信息，避免断开回调误报
     if (!preserveFailure) {
       lastStartError = '';
@@ -376,17 +419,26 @@ export namespace VpnController {
     }
     setStatus(VpnStatus.Disconnecting);
     const want: Want = { bundleName: context.applicationInfo.name, abilityName: VPN_ABILITY_NAME };
-    if (serviceId > 0) {
-      context.disconnectServiceExtensionAbility(serviceId).catch((e: Object) => {
-        Logger.error(TAG, `disconnectServiceExtensionAbility failed: ${JSON.stringify(e)}`);
-      }).finally(() => {
-        vpnExtension.stopVpnExtensionAbility(want);
-        serviceId = 0;
-        setStatus(VpnStatus.Disconnected);
-      });
-    } else {
-      vpnExtension.stopVpnExtensionAbility(want);
+    return (async (): Promise<boolean> => {
+      let extensionCompleted = nativeNotEntered;
+      if (connectedService) {
+        try {
+          await context.disconnectServiceExtensionAbility(stoppingServiceId);
+          extensionCompleted = await waitForStopResult(context, session);
+        } catch (_) {
+          Logger.error(TAG, 'service disconnect failed');
+        }
+      }
+      let systemStopped = false;
+      try {
+        await vpnExtension.stopVpnExtensionAbility(want);
+        systemStopped = true;
+      } catch (_) {
+        Logger.error(TAG, 'VPN Extension stop failed');
+      }
+      serviceId = 0;
       setStatus(VpnStatus.Disconnected);
-    }
+      return saved && extensionCompleted && systemStopped;
+    })();
   }
 }
