@@ -141,6 +141,7 @@ export struct ProfileEditPage {
   private async previewMerge(): Promise<void> {
     if (this.mergeBusy) { return; }
     if (this.mergeLoadFailed) { this.toast('现有 Merge 草稿读取失败，未覆盖'); return; }
+    if (this.dirty) { this.toast('请先保存原始配置，再预览 Merge'); return; }
     this.mergeBusy = true;
     this.mergeSummary = '';
     try {
