@@ -38,19 +38,24 @@ export struct HomePage {
     this.status = status;
     if (this.visible) {
       this.refreshTraffic();
-      const message = VpnController.consumeLastStartError();
-      if (message.length > 0) {
-        this.startFailed = true;
-        promptAction.showToast({ message: `启动失败：${message}`, duration: 3000 });
-      }
+      this.showStartFailure();
     }
   };
+
+  private showStartFailure(): void {
+    const message = VpnController.consumeLastStartError();
+    if (message.length > 0) {
+      this.startFailed = true;
+      promptAction.showToast({ message: `启动失败：${message}`, duration: 3000 });
+    }
+  }
 
   aboutToAppear(): void {
     this.disconnectGeneration++;
     this.visible = true;
     this.status = VpnController.status;
     VpnController.onChanged(this.listener);
+    this.showStartFailure();
     this.refreshProfile();
     this.refreshTraffic();
     this.freshnessTimer = setInterval(() => {

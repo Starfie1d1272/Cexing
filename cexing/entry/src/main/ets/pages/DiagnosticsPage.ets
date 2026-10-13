@@ -1,9 +1,14 @@
 import { CoreApi } from '../lib/CoreApi';
 import { VpnController, VpnStatus } from '../lib/VpnController';
 import { NativeTheme as UI } from './NativeTheme';
+import { ConnectionFailures } from '../lib/ConnectionFailure';
+import { pasteboard } from '@kit.BasicServicesKit';
+import { promptAction } from '@kit.ArkUI';
+import { bundleManager } from '@kit.AbilityKit';
 
 @Component
 export struct DiagnosticsPage {
+  @Consume('nav') navStack: NavPathStack;
   @State status: VpnStatus = VpnController.status;
   @State control: string = '尚未检查';
   @State busy: boolean = false;
@@ -32,9 +37,15 @@ export struct DiagnosticsPage {
     if (this.busy) { return; }
     const attempt = ++this.generation;
     this.busy = true;
-    const alive = await CoreApi.isAlive();
+    let timeoutId: number = -1;
+    const result = await Promise.race<string>([
+      CoreApi.isAlive().then((alive: boolean) => alive ? 'reachable' : 'failed').catch(() => 'failed'),
+      new Promise<string>((resolve) => { timeoutId = setTimeout(() => resolve('timeout'), 5000); })
+    ]);
+    if (timeoutId >= 0) { clearTimeout(timeoutId); }
     if (!this.visible || attempt !== this.generation) { return; }
-    this.control = alive ? 'Controller 可达' : 'Controller 不可达';
+    this.control = result === 'reachable' ? '本机服务可达' :
+      result === 'timeout' ? '检查超时' : '检查失败';
     this.busy = false;
   }
 
@@ -43,6 +54,29 @@ export struct DiagnosticsPage {
     if (this.status === VpnStatus.Connecting) { return '启动中'; }
     if (this.status === VpnStatus.Disconnecting) { return '停止中'; }
     return '未连接';
+  }
+
+  private async copySummary(): Promise<void> {
+    const attempt = this.generation;
+    const states = ['disconnected', 'connecting', 'connected', 'disconnecting'];
+    const control = this.control === '本机服务可达' ? 'reachable' :
+      this.control === '检查超时' ? 'timeout' :
+      this.control === '检查失败' ? 'failed' : 'not-run';
+    try {
+      const bundle = await bundleManager.getBundleInfoForSelf(bundleManager.BundleFlag.GET_BUNDLE_INFO_DEFAULT);
+      if (!this.visible || attempt !== this.generation) { return; }
+      const version = `${bundle.versionName}+${bundle.versionCode}`;
+      const text = ConnectionFailures.summary(states[this.status], control,
+        VpnController.getLastStartFailure(), version);
+      await pasteboard.getSystemPasteboard().setData(pasteboard.createData(pasteboard.MIMETYPE_TEXT_PLAIN, text));
+      if (this.visible && attempt === this.generation) {
+        promptAction.showToast({ message: '脱敏摘要已复制' });
+      }
+    } catch (_) {
+      if (this.visible && attempt === this.generation) {
+        promptAction.showToast({ message: '复制失败，请重试' });
+      }
+    }
   }
 
   @Builder
@@ -69,10 +103,19 @@ export struct DiagnosticsPage {
           }.width('100%').borderRadius(24).backgroundColor(UI.surface)
           Text('就绪与控制面可达不代表流量已通过系统隧道。')
             .fontSize(13).fontColor(UI.muted).width('100%')
+          if (VpnController.getLastStartFailure() !== null) {
+            Text(`最近启动失败：${ConnectionFailures.label(VpnController.getLastStartFailure()!)}`)
+              .fontSize(14).fontColor(UI.error).width('100%')
+          }
         }.width('100%')
       }.width('100%').layoutWeight(1)
       Button(this.busy ? '检查中…' : '检查控制面').width('100%').height(56)
         .backgroundColor(UI.action).fontColor(UI.onAccent).enabled(!this.busy).onClick(() => this.check())
+      Button('复制脱敏摘要').width('100%').height(48)
+        .backgroundColor(UI.soft).fontColor(UI.accentText).onClick(() => this.copySummary())
+      Button('打开面板查看日志').width('100%').height(48)
+        .backgroundColor(UI.soft).fontColor(UI.accentText).enabled(this.status === VpnStatus.Connected)
+        .onClick(() => { this.navStack.pushPath({ name: 'zashboard' }); })
     }.width('100%').height('100%').padding(24).backgroundColor(UI.paper).constraintSize({ maxWidth: 760 }).alignSelf(ItemAlign.Center)
   }
 }

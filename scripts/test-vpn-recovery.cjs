@@ -6,6 +6,12 @@ const path = require('node:path');
 const vm = require('node:vm');
 const ts = require('./ci/transpile-arkts.cjs');
 const flush = () => new Promise(resolve => setImmediate(resolve));
+const failureSource = fs.readFileSync(path.join(__dirname, '../cexing/entry/src/main/ets/lib/ConnectionFailure.ets'), 'utf8');
+const failureCode = ts.transpileModule(failureSource, { compilerOptions: {
+  module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020
+} }).outputText;
+const failureModule = { exports: {} };
+vm.runInNewContext(failureCode, failureModule);
 function load() {
   const probes = [];
   const source = fs.readFileSync(process.env.VPN_CONTROLLER_SOURCE || path.join(__dirname, '../cexing/entry/src/main/ets/lib/VpnController.ets'), 'utf8');
@@ -15,7 +21,8 @@ function load() {
     '@kit.NetworkKit': { vpnExtension: { startVpnExtensionAbility: async () => {}, stopVpnExtensionAbility() {} } },
     '@kit.CoreFileKit': { fileIo: {} }, './Logger': { Logger: { info() {}, warn() {}, error() {} } },
     './CoreApi': { CoreApi: { bindContext() {}, isAlive: () => new Promise(resolve => probes.push(resolve)) } },
-    './Settings': { Settings: { load: () => settings, save() {} } }, '@kit.IPCKit': { rpc: {} }
+    './Settings': { Settings: { load: () => settings, save() {} } }, '@kit.IPCKit': { rpc: {} },
+    './ConnectionFailure': failureModule.exports
   };
   const sandbox = { exports: {}, require: name => { assert.ok(name in modules); return modules[name]; }, Promise, Date, JSON };
   vm.runInNewContext(output, sandbox);
