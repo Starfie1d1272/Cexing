@@ -131,12 +131,13 @@ export namespace ConnectionEntry {
     if (ProfileTransactions.isBusy()) { return '配置正在更新，请稍后连接'; }
     const file = ProfileStore.getActiveFile(ctx);
     if (file.length === 0) { return '请先添加并启用订阅'; }
+    const expectedRevision = revision;
     try { await ProfileTransactions.ensureActiveSmartPolicy(ctx); }
     catch (_) {
       if (context !== ctx || request !== expected) { return ''; }
       return '当前配置未能生成，请检查后重试';
     }
-    if (context !== ctx || !ready || request !== expected || action !== 'connect' ||
+    if (context !== ctx || !ready || request !== expected || revision !== expectedRevision || action !== 'connect' ||
       VpnController.status !== VpnStatus.Disconnected || stopUnknown ||
       VpnController.getLastStopCompleted() === false || ProfileTransactions.isBusy() ||
       ProfileStore.isApplyUncertain(ctx) || ProfileStore.getActiveFile(ctx) !== file) { return ''; }

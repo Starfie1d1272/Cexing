@@ -43,12 +43,13 @@ async function tests(){
   assert.equal(blocked.calls.start,0,'configuration/stop safety blocks startup');assert.equal(blocked.calls.toasts.length,1);
  }
  const cold=fixture(true);cold.entry.receive(cold.want('connect'));cold.entry.recovered(cold.ctx);await flush();assert.equal(cold.calls.start,0);
- for(const supersede of ['want','ability','status','profile']){
+ for(const supersede of ['want','ability','status','cycle','profile']){
   const g=fixture();let finish;g.set({prepare:()=>new Promise(r=>finish=r)});
   g.entry.receive(g.want('connect'));g.entry.recovered(g.ctx);assert.equal(g.calls.prepare,1);
   if(supersede==='want')g.entry.receive(g.want('disconnect'));
   if(supersede==='ability')g.entry.destroyed(g.ctx);
   if(supersede==='status')g.emit(status.Connected);
+  if(supersede==='cycle'){g.emit(status.Connecting);g.emit(status.Connected);g.emit(status.Disconnecting);g.emit(status.Disconnected);}
   if(supersede==='profile')g.set({profile:'other.yaml'});
   finish();await flush();assert.equal(g.calls.start,0,`${supersede} invalidates prepared start`);
  }
