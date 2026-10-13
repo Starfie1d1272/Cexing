@@ -49,11 +49,13 @@ type Change struct {
 	Before, After int
 }
 type Result struct {
-	Original []byte
-	Overlays [][]byte
-	YAML     []byte
-	Digest   string
-	Changes  []Change
+	Original  []byte
+	Overlays  [][]byte
+	YAML      []byte
+	Digest    string
+	Changes   []Change
+	ProfileID string
+	Metadata  string
 }
 
 func (c Compiler) Compile(ctx context.Context, r Request) (Result, error) {

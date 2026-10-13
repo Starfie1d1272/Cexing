@@ -29,5 +29,8 @@ export const validateOffline: (homeDir: string, configJson: string, overridesJso
 /** Pinned Verge v2.5.8 Merge preview. Returns only fixed-section counts and digest. */
 export const previewMerge: (homeDir: string, original: string, overlay: string, overridesJson: string) => Promise<string>;
 
+/** Atomic private effective-version store operation on the Go worker. */
+export const versionAction: (homeDir: string, actionJson: string) => Promise<string>;
+
 /** 桥接层状态（库是否加载、调用计数等）。 */
 export const getBridgeStatus: () => BridgeStatus;

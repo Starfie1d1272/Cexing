@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"os"
+	"path/filepath"
 	"reflect"
 	"sort"
 
@@ -19,6 +21,18 @@ type mergePreview struct {
 // corePreviewMerge follows the pinned Verge dialect through configpipeline.
 // It returns only fixed section counts and a digest, never candidate YAML.
 func corePreviewMerge(home, original, overlay, overrides string) (string, error) {
+	result, _, err := compilePinnedMerge(home, original, overlay, overrides)
+	if err != nil {
+		return "", errors.New("MERGE_PREVIEW_FAILED")
+	}
+	data, err := json.Marshal(mergePreview{Digest: result.Digest, Changes: result.Changes})
+	if err != nil {
+		return "", errors.New("MERGE_PREVIEW_FAILED")
+	}
+	return string(data), nil
+}
+
+func compilePinnedMerge(home, original, overlay, overrides string) (configpipeline.Result, string, error) {
 	project := func(_ context.Context, root *yaml.Node) error {
 		var before, after map[string]any
 		if err := root.Decode(&before); err != nil {
@@ -51,19 +65,47 @@ func corePreviewMerge(home, original, overlay, overrides string) (string, error)
 		}
 		return nil
 	}
+	receipt := ""
 	validator := func(_ context.Context, content []byte) error {
-		return coreValidateOffline(home, string(content), overrides)
+		var err error
+		receipt, err = validateCandidateWithReceipt(home, string(content), overrides)
+		return err
+	}
+	var overlays [][]byte
+	if overlay != "" {
+		overlays = [][]byte{[]byte(overlay)}
 	}
 	result, err := (configpipeline.Compiler{Platform: project, Validate: validator}).Compile(
-		context.Background(), configpipeline.Request{Original: []byte(original), Overlays: [][]byte{[]byte(overlay)}, Previous: []byte(original)})
-	if err != nil {
-		return "", errors.New("MERGE_PREVIEW_FAILED")
+		context.Background(), configpipeline.Request{Original: []byte(original), Overlays: overlays, Previous: []byte(original)})
+	return result, receipt, err
+}
+
+// The running core parses the generated candidate in /configs before applying it.
+// Its in-process offline parser cannot run concurrently with a live TUN, so the
+// live preflight checks resources and cache identity without mutating core state.
+func validateCandidateWithReceipt(home, text, overrides string) (string, error) {
+	runLock.Lock()
+	live := tunListener != nil
+	runLock.Unlock()
+	if !live {
+		return coreValidateOfflineWithReceipt(home, text, overrides)
 	}
-	data, err := json.Marshal(mergePreview{Digest: result.Digest, Changes: result.Changes})
+	providers, needsGeosite, err := configpipeline.InspectOffline([]byte(text))
 	if err != nil {
-		return "", errors.New("MERGE_PREVIEW_FAILED")
+		return "", err
 	}
-	return string(data), nil
+	if _, err := os.Stat(filepath.Join(home, "geoip.metadb")); err != nil {
+		return "", err
+	}
+	if needsGeosite {
+		if _, err := os.Stat(filepath.Join(home, "geosite.dat")); err != nil {
+			return "", err
+		}
+	}
+	if !providers {
+		return "", nil
+	}
+	return localProviderSnapshot(text)
 }
 
 func setPreviewField(root *yaml.Node, key string, value *yaml.Node) {
