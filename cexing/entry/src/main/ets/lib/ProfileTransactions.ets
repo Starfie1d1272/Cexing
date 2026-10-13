@@ -4,6 +4,7 @@ import { CoreApi, ConfigApplyResult } from './CoreApi';
 import { ProfileStore } from './ProfileStore';
 import { VpnController, VpnStatus } from './VpnController';
 import { CoreValidator } from './CoreValidator';
+import { MergePreview } from './CoreValidator';
 
 export type ProfileApplyState = 'applied' | 'saved';
 
@@ -126,5 +127,18 @@ export namespace ProfileTransactions {
     enter(context);
     try { await ProfileStore.deleteProfile(context, file); }
     finally { busy = false; }
+  }
+
+  /** Preview and store an inert per-profile overlay. Production application remains a separate transaction. */
+  export async function saveMergeDraft(context: common.Context, file: string,
+    overlay: string): Promise<MergePreview> {
+    enter(context);
+    try {
+      const original = ProfileStore.getProfileContent(context, file);
+      if (original === null) { throw new Error('原始配置不存在'); }
+      const preview = await CoreValidator.previewMerge(context, original, overlay);
+      ProfileStore.saveMergeDraft(context, file, overlay);
+      return preview;
+    } finally { busy = false; }
   }
 }

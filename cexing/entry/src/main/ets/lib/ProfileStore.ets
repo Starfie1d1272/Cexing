@@ -329,6 +329,10 @@ export namespace ProfileStore {
     if (fileIo.accessSync(backup)) {
       try { await fileIo.unlink(backup); } catch (_) { /* non-effective backup */ }
     }
+    const merge = `${dir(context)}/${file}.merge.json`;
+    if (fileIo.accessSync(merge)) {
+      try { await fileIo.unlink(merge); } catch (_) { /* orphan draft is not effective */ }
+    }
     try { clearDraft(context, file); } catch (_) { /* non-effective draft */ }
   }
 
@@ -355,6 +359,24 @@ export namespace ProfileStore {
   export function clearDraft(context: common.Context, file: string): void {
     const p = draftPath(context, file);
     if (fileIo.accessSync(p)) { fileIo.unlinkSync(p); }
+  }
+
+  /** Stored separately from the raw subscription; never active until a full transaction commits it. */
+  export function getMergeDraft(context: common.Context, file: string): string {
+    const p = `${ensureDir(context)}/${file}.merge.json`;
+    if (!fileIo.accessSync(p)) { return ''; }
+    const entry = JSON.parse(fileIo.readTextSync(p)) as Record<string, string>;
+    if (entry['dialect'] !== 'clash-verge-merge-2.5.8' || typeof entry['content'] !== 'string') {
+      throw new Error('Merge 方言不受支持');
+    }
+    return entry['content'];
+  }
+
+  export function saveMergeDraft(context: common.Context, file: string, content: string): void {
+    if (!fileIo.accessSync(absPath(context, file))) { throw new Error('原始配置不存在'); }
+    atomicText(`${ensureDir(context)}/${file}.merge.json`, JSON.stringify({
+      dialect: 'clash-verge-merge-2.5.8', sourceVersion: '', content: content
+    }));
   }
 
   /** 重命名配置：自动补 .yaml 后缀，迁移 active/.url/meta 记录；返回新文件名，失败抛错 */
@@ -388,7 +410,7 @@ export namespace ProfileStore {
     }
     const moved: string[][] = [];
     try {
-      for (const suffix of ['.url', '.last-good']) {
+      for (const suffix of ['.url', '.last-good', '.merge.json']) {
         const from = `${oldPath}${suffix}`;
         const to = `${newPath}${suffix}`;
         if (fileIo.accessSync(from)) {

@@ -7,6 +7,7 @@ import { common } from '@kit.AbilityKit';
 import { promptAction } from '@kit.ArkUI';
 import { ProfileStore } from '../lib/ProfileStore';
 import { ProfileTransactions } from '../lib/ProfileTransactions';
+import { MergeChange } from '../lib/CoreValidator';
 import { Logger } from '../lib/Logger';
 
 const TAG = 'profileEdit';
@@ -27,6 +28,11 @@ export struct ProfileEditPage {
   @State showSaveAsSheet: boolean = false;
   @State saveAsInput: string = '';
   @State saving: boolean = false;
+  @State showMergeSheet: boolean = false;
+  @State mergeText: string = '';
+  @State mergeBusy: boolean = false;
+  @State mergeSummary: string = '';
+  @State mergeLoadFailed: boolean = false;
 
   aboutToAppear(): void {
     const context = getContext(this) as common.UIAbilityContext;
@@ -36,6 +42,13 @@ export struct ProfileEditPage {
       return;
     }
     this.loadFailed = false;
+    try {
+      this.mergeText = ProfileStore.getMergeDraft(context, ProfileEditBus.current);
+      this.mergeLoadFailed = false;
+    } catch (_) {
+      this.mergeText = '';
+      this.mergeLoadFailed = true;
+    }
     try {
       const draft = ProfileStore.readDraft(context, ProfileEditBus.current);
       this.text = draft === null ? content : draft;
@@ -125,6 +138,50 @@ export struct ProfileEditPage {
     }
   }
 
+  private async previewMerge(): Promise<void> {
+    if (this.mergeBusy) { return; }
+    if (this.mergeLoadFailed) { this.toast('现有 Merge 草稿读取失败，未覆盖'); return; }
+    if (this.dirty) { this.toast('请先保存原始配置，再预览 Merge'); return; }
+    this.mergeBusy = true;
+    this.mergeSummary = '';
+    try {
+      const context = getContext(this) as common.UIAbilityContext;
+      const result = await ProfileTransactions.saveMergeDraft(context, ProfileEditBus.current, this.mergeText);
+      this.mergeSummary = result.changes.map((change: MergeChange) =>
+        `${change.section}: ${change.before} → ${change.after}`).join(' · ');
+      if (this.mergeSummary.length === 0) { this.mergeSummary = '配置内容无统计差异'; }
+      this.toast('Merge 草稿已保存');
+    } catch (e) {
+      this.toast(`Merge 预览失败: ${(e as Error).message ?? '请检查内容'}`);
+    } finally { this.mergeBusy = false; }
+  }
+
+  @Builder
+  MergeSheet() {
+    Column({ space: 12 }) {
+      Text('每订阅 Merge 草稿').fontSize(17).fontWeight(FontWeight.Medium).fontColor(UI.ink)
+      Text('采用 Clash Verge 2.5.8 合并规则。预览仅显示字段数量；草稿目前不会改变运行配置。')
+        .fontSize(13).fontColor(UI.muted)
+      if (this.mergeLoadFailed) {
+        Text('现有 Merge 草稿读取失败，已阻止覆盖').fontSize(13).fontColor(UI.error)
+      }
+      TextArea({ text: $$this.mergeText })
+        .width('100%').height(250).fontSize(14).fontFamily('HarmonyOS Sans Mono')
+        .enabled(!this.mergeBusy && !this.mergeLoadFailed)
+        .backgroundColor(UI.paper).borderRadius(12).padding(12)
+      if (this.mergeSummary.length > 0) {
+        Text(this.mergeSummary).fontSize(13).fontColor(UI.muted)
+      }
+      Row({ space: 12 }) {
+        Button('关闭').height(44).layoutWeight(1).backgroundColor(UI.soft).fontColor(UI.ink)
+          .onClick(() => { this.showMergeSheet = false; })
+        Button(this.mergeBusy ? '预览中' : '校验并保存草稿')
+          .height(44).layoutWeight(1).backgroundColor(UI.action).fontColor(UI.onAccent)
+          .enabled(!this.mergeBusy && !this.mergeLoadFailed).onClick(() => { this.previewMerge(); })
+      }.width('100%')
+    }.padding(20).backgroundColor(UI.surface).borderRadius(24)
+  }
+
   @Builder
   HeaderButton(label: string, symbol: Resource, color: ResourceColor, enabled: boolean, onTap: () => void) {
     SymbolGlyph(symbol)
@@ -195,6 +252,9 @@ export struct ProfileEditPage {
         }
         .alignItems(HorizontalAlign.Start)
         .layoutWeight(1)
+        Button('Merge 预览')
+          .fontSize(13).height(40).backgroundColor(UI.soft).fontColor(UI.ink)
+          .enabled(!this.loadFailed).onClick(() => { this.showMergeSheet = true; })
         this.HeaderButton('另存为', $r('sys.symbol.doc_filled_on_doc'), UI.muted, !this.loadFailed, () => {
           this.showSaveAsSheet = true;
         })
@@ -246,5 +306,6 @@ export struct ProfileEditPage {
     .padding({ left: 24, right: 24 })
     .backgroundColor(UI.paper).constraintSize({ maxWidth: 760 }).alignSelf(ItemAlign.Center)
     .bindSheet($$this.showSaveAsSheet, this.SaveAsSheet(), { height: SheetSize.MEDIUM })
+    .bindSheet($$this.showMergeSheet, this.MergeSheet(), { height: SheetSize.LARGE })
   }
 }

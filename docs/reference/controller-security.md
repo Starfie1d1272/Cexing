@@ -1,6 +1,6 @@
 # Controller 宿主契约
 
-Controller 安全线的实现与其他配置/面板任务对接入口。基于 main `7f731d5c9c8d4eba7a1680bcb3981d7877232bcc` 和锁定 Mihomo 模块，保留原有四个 C ABI、ProfileStore 格式及应用身份。离线候选校验另增 `mihomoValidateOffline`，仍由同一 C++ worker 调用，不启动监听器。
+Controller 安全线的实现与其他配置/面板任务对接入口。基于 main `7f731d5c9c8d4eba7a1680bcb3981d7877232bcc` 和锁定 Mihomo 模块，保留原有四个 C ABI、ProfileStore 格式及应用身份。离线候选校验与 Merge 预览分别新增 `mihomoValidateOffline`、`mihomoPreviewMerge`，仍由同一 C++ worker 调用，不启动监听器。
 
 ## 地址、认证与存储
 
