@@ -136,7 +136,7 @@ async function testStopKeepsUnknownUntilConfirmed() {
     if (fail) rejectStop(Error('synthetic stop failure'));
     else resolveStop();
     await flush();
-    assert.equal(cleared, fail ? 0 : 1, 'only confirmed stop may clear unknown outcome');
+    assert.equal(cleared, 0, 'system stop alone cannot prove native extension cleanup');
   }
 }
 (async () => {
