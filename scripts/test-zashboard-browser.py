@@ -64,10 +64,10 @@ with tempfile.TemporaryDirectory(prefix='zashboard-browser-') as temporary:
         assert api('/ohos/ui-status')[0] == 200, 'UI status failed'
         assert json.loads(api('/ohos/ui-status')[1])['available'], 'Validated resources unavailable'
         assert api('/restart', 'POST')[0] == 405, 'Native lifecycle boundary changed'
-        # Use the actual SDK-transpiled native bootstrap, not a duplicate implementation.
+        # Compile the actual native bootstrap with the pinned host TypeScript CLI.
         node = r"""
 const fs=require('fs'), path=require('path'), vm=require('vm');
-const ts=require(path.join(process.env.OHOS_SDK_HOME,'ets/build-tools/ets-loader/node_modules/typescript'));
+const ts=require('./scripts/ci/transpile-arkts.cjs');
 const source=fs.readFileSync('cexing/entry/src/main/ets/lib/ZashboardSession.ets','utf8');
 const context={exports:{},require:()=>({})};
 vm.runInNewContext(ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText,context);

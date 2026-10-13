@@ -6,9 +6,9 @@ node scripts/ci/source-check.cjs
 while IFS= read -r script; do bash -n "$script"; done < <(git ls-files 'scripts/*.sh' 'scripts/ci/*.sh')
 git diff --check
 python3 scripts/ci/test-gvisor-patch.py
-export OHOS_SDK_HOME="${TMPDIR:-/tmp}/cexing-ci-host-mock"
+python3 scripts/test-zashboard-notices.py
 for test in scripts/test-*.cjs; do
-  node -r ./scripts/ci/arkts-mocks.cjs "$test"
+  node "$test"
 done
 export GOFLAGS=-mod=readonly GOTOOLCHAIN=local
 # A separate cache also protects Quick from legacy patched developer caches.

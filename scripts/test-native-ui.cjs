@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
-const ts = require(path.join(process.env.OHOS_SDK_HOME, 'ets/build-tools/ets-loader/node_modules/typescript'));
+const ts = require('./ci/transpile-arkts.cjs');
 const pages = path.join(process.argv[2] || path.join(__dirname, '..'), 'cexing/entry/src/main/ets/pages');
 function load(name, modules, extra = {}) {
   let source = fs.readFileSync(path.join(pages, name + '.ets'), 'utf8');
@@ -29,10 +29,13 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   let activeHomeFile = 'fixture.yaml';
   const listeners = new Set();
   function emit(next) { controller.status = next; for (const listener of listeners) listener(next); }
+  let pendingFailure = '';
   const controller = { status: status.Connected, onChanged(fn) { listeners.add(fn); }, offChanged(fn) { listeners.delete(fn); },
-    consumeLastStartError: () => '', stop: () => stop++, start: () => start++ };
+    consumeLastStartError: () => { const value = pendingFailure; pendingFailure = ''; return value; },
+    getLastStartFailure: () => null, stop: () => stop++, start: () => start++ };
   const common = {
     '@kit.AbilityKit': {}, '@kit.ArkUI': { promptAction: { showToast() {} } },
+    '@kit.BasicServicesKit': {}, '../lib/ConnectionFailure': { ConnectionFailures: {} },
     '../lib/VpnController': { VpnController: controller, VpnStatus: status },
     './NativeTheme': { NativeTheme: {} }, '../lib/Logger': { Logger: { warn() {} } }
   };
@@ -46,7 +49,9 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   }, { Date: { now: () => now }, setInterval: cb => { tick = cb; return 1; },
     clearInterval: () => timerCleared++, AlertDialog: { show: value => { dialog = value; } } });
   const home = new Home();
-  home.rootVisible = true; home.currentVisibleTab = 0; home.aboutToAppear();
+  home.rootVisible = true; home.currentVisibleTab = 0;
+  pendingFailure = '配置解析：配置错误'; home.aboutToAppear();
+  assert.equal(home.startFailed, true, 'returning to the page must retain a failure that arrived while hidden');
   // Optional exported source root + review-repro runs both reported cases against a fixed tree.
   if (process.argv[3] === 'review-repro') {
     const failures = [];
@@ -98,10 +103,17 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   let resolveProbe;
   const Diagnostics = load('DiagnosticsPage', { ...common,
     '../lib/CoreApi': { CoreApi: { isAlive: () => new Promise(resolve => { resolveProbe = resolve; }) } }
-  });
+  }, { setTimeout: () => 1, clearTimeout() {} });
   const diagnostics = new Diagnostics(); diagnostics.aboutToAppear();
   const pending = diagnostics.check(); diagnostics.aboutToDisappear(); resolveProbe(true); await pending;
   assert.equal(diagnostics.control, '尚未检查本机服务', 'late probe must not update destroyed page');
+  let expireProbe;
+  const TimedDiagnostics = load('DiagnosticsPage', { ...common,
+    '../lib/CoreApi': { CoreApi: { isAlive: () => new Promise(() => {}) } }
+  }, { setTimeout: fn => { expireProbe = fn; return 1; }, clearTimeout() {} });
+  const timedDiagnostics = new TimedDiagnostics(); timedDiagnostics.aboutToAppear();
+  const timedProbe = timedDiagnostics.check(); expireProbe(); await timedProbe;
+  assert.equal(timedDiagnostics.control, '检查超时', 'bounded probe timeout must be distinguishable from failure');
 
   let saved = 0, value;
   const Override = load('OverridePage', { ...common,

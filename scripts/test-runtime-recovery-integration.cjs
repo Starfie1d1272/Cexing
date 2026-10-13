@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
-const ts = require(path.join(process.env.OHOS_SDK_HOME, 'ets/build-tools/ets-loader/node_modules/typescript'));
+const ts = require('./ci/transpile-arkts.cjs');
 const root = process.argv[2] || path.join(__dirname, '..');
 const flush = () => new Promise(resolve => setImmediate(resolve));
 function load(name, modules, timers) {
@@ -23,10 +23,12 @@ function fixture() {
   const calls = { backgroundStart: 0, backgroundStop: 0, updatesStart: 0, updatesStop: 0 };
   const settings = { autoRestore: true, vpnWasConnected: true };
   const logger = { Logger: { info() {}, warn() {}, error() {} } };
+  const failure = load('ConnectionFailure', {}, timers);
   const controller = load('VpnController', {
     '@kit.NetworkKit': { vpnExtension: {} }, '@kit.CoreFileKit': { fileIo: {} }, '@kit.IPCKit': { rpc: {} },
     './CoreApi': { CoreApi: { isAlive: () => new Promise(resolve => probes.push(resolve)) } },
-    './Settings': { Settings: { load: () => settings } }, './Logger': logger
+    './Settings': { Settings: { load: () => settings } }, './Logger': logger,
+    './ConnectionFailure': failure
   }, timers);
   const runtime = load('AppRuntime', {
     './VpnController': controller, './Settings': { Settings: { load: () => settings } }, './Logger': logger,
