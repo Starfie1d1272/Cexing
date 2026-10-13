@@ -6,6 +6,7 @@ import { ProfileStore } from '../lib/ProfileStore';
 import { Settings } from '../lib/Settings';
 import { AppRuntime } from '../lib/AppRuntime';
 import { NativeTheme as UI } from './NativeTheme';
+import { ProfileDetailBus } from './ProfilePage';
 
 const MODE_LABELS: string[] = ['规则', '全局', '直连'];
 const MODE_VALUES: string[] = ['rule', 'global', 'direct'];
@@ -27,14 +28,13 @@ export struct HomePage {
   @State wide: boolean = false;
   @State stageHeight: number = 174;
   @State shortWindow: boolean = false;
+  @State prioritizePanel: boolean = false;
   @State startFailed: boolean = false;
-  private disconnectGeneration: number = 0;
   private lastTrafficAt: number = 0;
   private freshnessTimer: number = -1;
   private watcher: CoreApi.StreamWatcher<TrafficMsg> = new CoreApi.StreamWatcher<TrafficMsg>();
   private visible: boolean = false;
   private listener: (status: VpnStatus) => void = (status: VpnStatus) => {
-    this.disconnectGeneration++;
     this.status = status;
     if (this.visible) {
       this.refreshTraffic();
@@ -51,7 +51,6 @@ export struct HomePage {
   }
 
   aboutToAppear(): void {
-    this.disconnectGeneration++;
     this.visible = true;
     this.status = VpnController.status;
     VpnController.onChanged(this.listener);
@@ -67,7 +66,6 @@ export struct HomePage {
   }
 
   aboutToDisappear(): void {
-    this.disconnectGeneration++;
     this.visible = false;
     VpnController.offChanged(this.listener);
     this.watcher.stop();
@@ -80,12 +78,10 @@ export struct HomePage {
   }
 
   private onRootVisible(): void {
-    if (!this.rootVisible) { this.disconnectGeneration++; }
     this.refreshTraffic();
   }
 
   private onTabVisible(): void {
-    if (this.currentVisibleTab !== 0) { this.disconnectGeneration++; }
     if (this.currentVisibleTab === 0) {
       this.refreshProfile();
     }
@@ -135,23 +131,7 @@ export struct HomePage {
     } else if (this.status === VpnStatus.Connecting) {
       VpnController.stop(ctx);
     } else if (this.status === VpnStatus.Connected) {
-      const confirmation = ++this.disconnectGeneration;
-      AlertDialog.show({
-        title: '断开连接？',
-        message: '系统 VPN 会话将结束',
-        primaryButton: { value: '保持连接', action: () => {
-          if (confirmation === this.disconnectGeneration) { this.disconnectGeneration++; }
-        } },
-        secondaryButton: { value: '断开连接', action: () => {
-          // A later Connected may belong to a new session; state equality is insufficient.
-          if (confirmation === this.disconnectGeneration && this.visible && this.rootVisible &&
-            this.currentVisibleTab === 0 && VpnController.status === VpnStatus.Connected) {
-            this.disconnectGeneration++;
-            AppRuntime.cancelRestore();
-            VpnController.stop(ctx);
-          }
-        } }
-      });
+      VpnController.stop(ctx);
     }
   }
 
@@ -176,7 +156,7 @@ export struct HomePage {
   }
 
   private stateLine(): string {
-    if (this.status === VpnStatus.Connected) { return '内核已就绪'; }
+    if (this.status === VpnStatus.Connected) { return '应用报告已连接，可检查网络'; }
     if (this.status === VpnStatus.Connecting) { return '正在建立系统连接'; }
     if (this.status === VpnStatus.Disconnecting) { return '正在结束系统会话'; }
     return this.startFailed ? '可重试或前往诊断' : '准备连接';
@@ -212,7 +192,7 @@ export struct HomePage {
           .fill(this.status === VpnStatus.Connected ? UI.signal : '#AEBCC3').accessibilityLevel('no')
         Column({ space: 13 }) {
           if (!this.shortWindow) {
-            Text('VPN / 系统连接').fontSize(12).fontColor(UI.stateMuted).margin({ bottom: 5 })
+            Text('连接状态').fontSize(12).fontColor(UI.stateMuted).margin({ bottom: 5 })
           }
           Text(this.label()).fontSize(36).fontWeight(600, { enableVariableFontWeight: true }).fontColor(UI.stateInk)
           Row({ space: 8 }) {
@@ -243,8 +223,21 @@ export struct HomePage {
   }
 
   @Builder
+  PanelEntry() {
+    Button({ type: ButtonType.Normal }) {
+      Row({ space: 12 }) {
+        SymbolGlyph($r('sys.symbol.chevron_right')).fontSize(18).fontColor([UI.accentText])
+        Text('Zashboard 面板').fontSize(17).fontWeight(FontWeight.Medium).layoutWeight(1)
+      }.width('100%').padding(18)
+    }.width('100%').constraintSize({ minHeight: 80 }).borderRadius(24)
+      .backgroundColor(UI.soft).fontColor(UI.ink).enabled(this.status === VpnStatus.Connected)
+      .onClick(() => { this.navStack.pushPath({ name: 'zashboard' }); })
+  }
+
+  @Builder
   ConnectionTools() {
     Column({ space: 16 }) {
+      if (!this.prioritizePanel) { this.PanelEntry() }
       Row() {
         Text('当前订阅').fontSize(13).fontColor(UI.muted).layoutWeight(1)
         Button('管理', { type: ButtonType.Normal }).height(48).fontSize(14)
@@ -257,7 +250,12 @@ export struct HomePage {
           SymbolGlyph($r('sys.symbol.chevron_right')).fontSize(16).fontColor([UI.muted])
         }.padding(18).width('100%')
       }.width('100%').constraintSize({ minHeight: 80 }).borderRadius(24).backgroundColor(UI.surface)
-        .onClick(() => { this.tabJump = 1; })
+        .onClick(() => {
+          const file = ProfileStore.getActiveFile(getContext(this) as common.UIAbilityContext);
+          if (file.length === 0) { this.tabJump = 1; return; }
+          ProfileDetailBus.current = file;
+          this.navStack.pushPath({ name: 'profileDetail' });
+        })
       Row({ space: 4 }) {
         ForEach(MODE_LABELS, (label: string, index: number) => {
           Button(label).layoutWeight(1).height(48).fontSize(14)
@@ -270,12 +268,10 @@ export struct HomePage {
       Button({ type: ButtonType.Normal }) {
         Row({ space: 12 }) {
           SymbolGlyph($r('sys.symbol.chevron_right')).fontSize(18).fontColor([UI.accentText])
-          Text('Zashboard 面板').fontSize(17).fontWeight(FontWeight.Medium).layoutWeight(1)
-        }.width('100%').padding(18)
-      }.width('100%').constraintSize({ minHeight: 80 }).borderRadius(24)
-        .backgroundColor(UI.soft).fontColor(UI.ink).enabled(this.status === VpnStatus.Connected)
-        .onClick(() => { this.navStack.pushPath({ name: 'zashboard' }); })
-      Button('诊断').height(48).backgroundColor(Color.Transparent).fontColor(UI.muted)
+          Text('检查连接').fontSize(16).fontWeight(FontWeight.Medium).fontColor(UI.ink).layoutWeight(1)
+        }.width('100%').padding({ left: 18, right: 18 })
+      }.width('100%').constraintSize({ minHeight: 56 }).borderRadius(20).backgroundColor(UI.surface)
+        .accessibilityText('检查连接状态和本机服务')
         .onClick(() => { this.navStack.pushPath({ name: 'diagnostics' }); })
     }.width(this.wide ? '48%' : '100%').alignItems(HorizontalAlign.Start)
   }
@@ -293,6 +289,7 @@ export struct HomePage {
                 .onClick(() => { this.tabJump = 1; })
             }.padding(24).width('100%').borderRadius(28).backgroundColor(UI.surface)
           } else {
+            if (this.prioritizePanel && this.status === VpnStatus.Connected) { this.PanelEntry() }
             Flex({ direction: this.wide ? FlexDirection.Row : FlexDirection.Column,
               justifyContent: FlexAlign.SpaceBetween }) {
               this.ConnectionCard()
@@ -317,6 +314,7 @@ export struct HomePage {
         const scale = (getContext(this) as common.UIAbilityContext).config.fontSizeScale ?? 1;
         this.shortWindow = Number(area.height) <= 400;
         this.stageHeight = (this.shortWindow ? 134 : 174) + Math.max(0, scale - 1) * 160;
+        this.prioritizePanel = Number(area.height) <= 650 || this.stageHeight >= 240;
       })
 
   }
