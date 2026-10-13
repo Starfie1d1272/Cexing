@@ -60,6 +60,8 @@ export struct HomePage {
   aboutToAppear(): void {
     this.visible = true;
     this.status = VpnController.status;
+    this.stopUnknown = this.status === VpnStatus.Disconnected &&
+      VpnController.getLastStopCompleted() === false;
     VpnController.onChanged(this.listener);
     this.showStartFailure();
     this.refreshProfile();

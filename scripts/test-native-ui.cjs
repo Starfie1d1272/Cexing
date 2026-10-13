@@ -32,7 +32,9 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   const listeners = new Set();
   function emit(next) { controller.status = next; for (const listener of listeners) listener(next); }
   let pendingFailure = '';
+  let lastStopCompleted = null;
   const controller = { status: status.Connected, onChanged(fn) { listeners.add(fn); }, offChanged(fn) { listeners.delete(fn); },
+    getLastStopCompleted: () => lastStopCompleted,
     consumeLastStartError: () => { const value = pendingFailure; pendingFailure = ''; return value; },
     getLastStartFailure: () => null, stop: () => { stop++; return stopResult(); }, start: () => start++ };
   const common = {
@@ -122,6 +124,26 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   assert.ok(toasts.includes('停止结果未知，请检查系统 VPN 状态后重试'), 'rejected stop must be visible');
   assert.equal(home.label(), '停止结果未知');
   home.aboutToDisappear();
+  lastStopCompleted = false;
+  const rebuiltHome = new Home();
+  rebuiltHome.rootVisible = true; rebuiltHome.currentVisibleTab = 0;
+  rebuiltHome.aboutToAppear();
+  assert.equal(rebuiltHome.label(), '停止结果未知', 'page recreation must restore the controller stop outcome');
+  assert.ok(rebuiltHome.stateLine().includes('检查系统 VPN'));
+  rebuiltHome.aboutToDisappear();
+  emit(status.Connected);
+  const connectedHome = new Home();
+  connectedHome.rootVisible = true; connectedHome.currentVisibleTab = 0;
+  connectedHome.aboutToAppear();
+  assert.equal(connectedHome.stopUnknown, false, 'an old failed stop must not override a connected session');
+  assert.equal(connectedHome.label(), '已连接');
+  connectedHome.aboutToDisappear();
+  lastStopCompleted = true; emit(status.Disconnected);
+  const confirmedHome = new Home();
+  confirmedHome.rootVisible = true; confirmedHome.currentVisibleTab = 0;
+  confirmedHome.aboutToAppear();
+  assert.equal(confirmedHome.stopUnknown, false, 'a confirmed stop must not restore an old warning');
+  confirmedHome.aboutToDisappear();
   console.log('PASS: one-tap stop, cancel/reconnect, stale traffic and sentinel-named profiles');
 
   let resolveProbe;
