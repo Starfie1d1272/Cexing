@@ -1,0 +1,12 @@
+{
+  "source": "https://github.com/vernesong/mihomo/releases/download/LightGBM-Model/Model.bin",
+  "release": "https://github.com/vernesong/mihomo/releases/tag/LightGBM-Model",
+  "releaseTagCommit": "16d678a879606447b2be49a21b293dde69189f57",
+  "assetId": 530723858,
+  "assetSize": 9345218,
+  "assetSha256": "23633022a815fb34e510befe1c176ba50af3ced48f08b172454f4cd6b8327788",
+  "license": "GPL-3.0",
+  "licenseSource": "https://github.com/vernesong/mihomo/blob/LightGBM-Model/LICENSE",
+  "readmeLicenseSource": "https://github.com/vernesong/mihomo/blob/LightGBM-Model/README.md#license",
+  "licenseSha256": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986"
+}

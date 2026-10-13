@@ -1,0 +1,99 @@
+--- a/adapter/inbound/auth.go
++++ b/adapter/inbound/auth.go
+@@ -3,18 +3,24 @@
+ import (
+ 	"net"
+ 	"net/netip"
++	"sync/atomic"
+ 
+ 	C "github.com/metacubex/mihomo/constant"
+ )
+ 
+-var skipAuthPrefixes []netip.Prefix
++var skipAuthPrefixes atomic.Pointer[[]netip.Prefix]
+ 
+ func SetSkipAuthPrefixes(prefixes []netip.Prefix) {
+-	skipAuthPrefixes = prefixes
++	snapshot := append([]netip.Prefix(nil), prefixes...)
++	skipAuthPrefixes.Store(&snapshot)
+ }
+ 
+ func SkipAuthPrefixes() []netip.Prefix {
+-	return skipAuthPrefixes
++	snapshot := skipAuthPrefixes.Load()
++	if snapshot == nil {
++		return nil
++	}
++	return append([]netip.Prefix(nil), (*snapshot)...)
+ }
+ 
+ func SkipAuthRemoteAddr(addr net.Addr) bool {
+@@ -34,5 +40,6 @@
+ }
+ 
+ func skipAuth(addr netip.Addr) bool {
+-	return prefixesContains(skipAuthPrefixes, addr)
++	snapshot := skipAuthPrefixes.Load()
++	return snapshot != nil && prefixesContains(*snapshot, addr)
+ }
+--- a/adapter/inbound/ipfilter.go
++++ b/adapter/inbound/ipfilter.go
+@@ -3,27 +3,38 @@
+ import (
+ 	"net"
+ 	"net/netip"
++	"sync/atomic"
+ 
+ 	C "github.com/metacubex/mihomo/constant"
+ )
+ 
+-var lanAllowedIPs []netip.Prefix
+-var lanDisAllowedIPs []netip.Prefix
++var lanAllowedIPs atomic.Pointer[[]netip.Prefix]
++var lanDisAllowedIPs atomic.Pointer[[]netip.Prefix]
+ 
+ func SetAllowedIPs(prefixes []netip.Prefix) {
+-	lanAllowedIPs = prefixes
++	snapshot := append([]netip.Prefix(nil), prefixes...)
++	lanAllowedIPs.Store(&snapshot)
+ }
+ 
+ func SetDisAllowedIPs(prefixes []netip.Prefix) {
+-	lanDisAllowedIPs = prefixes
++	snapshot := append([]netip.Prefix(nil), prefixes...)
++	lanDisAllowedIPs.Store(&snapshot)
+ }
+ 
+ func AllowedIPs() []netip.Prefix {
+-	return lanAllowedIPs
++	snapshot := lanAllowedIPs.Load()
++	if snapshot == nil {
++		return nil
++	}
++	return append([]netip.Prefix(nil), (*snapshot)...)
+ }
+ 
+ func DisAllowedIPs() []netip.Prefix {
+-	return lanDisAllowedIPs
++	snapshot := lanDisAllowedIPs.Load()
++	if snapshot == nil {
++		return nil
++	}
++	return append([]netip.Prefix(nil), (*snapshot)...)
+ }
+ 
+ func IsRemoteAddrDisAllowed(addr net.Addr) bool {
+@@ -39,9 +50,11 @@
+ }
+ 
+ func isAllowed(addr netip.Addr) bool {
+-	return prefixesContains(lanAllowedIPs, addr)
++	snapshot := lanAllowedIPs.Load()
++	return snapshot != nil && prefixesContains(*snapshot, addr)
+ }
+ 
+ func isDisAllowed(addr netip.Addr) bool {
+-	return prefixesContains(lanDisAllowedIPs, addr)
++	snapshot := lanDisAllowedIPs.Load()
++	return snapshot != nil && prefixesContains(*snapshot, addr)
+ }

@@ -117,7 +117,16 @@ func coreInit(home string) error {
 	if err := os.MkdirAll(home, 0o755); err != nil {
 		return fmt.Errorf("mihomoInit: mkdir home: %w", err)
 	}
+	// The log relay survives coreStop. Switch its destination under the same lock
+	// used by writeLogLine, and release any file from the previous core session.
+	logFileMu.Lock()
+	if logFile != nil {
+		_ = logFile.Close()
+		logFile = nil
+		logFileBytes = 0
+	}
 	homeDir = home
+	logFileMu.Unlock()
 	constant.SetHomeDir(home)
 	log.SetLevel(log.INFO)
 

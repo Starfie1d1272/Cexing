@@ -38,6 +38,8 @@ else
 fi
 python3 scripts/ci/timed.py go-download bash -c 'cd core && go mod download && go mod verify'
 ci_save_go_download_cache
+python3 scripts/ci/timed.py smart-model python3 scripts/prepare-smart-model.py
+export SMART_REAL_MODEL="$PWD/cexing/entry/src/main/resources/rawfile/smart/Model.bin"
 python3 scripts/ci/timed.py smart-tests bash scripts/test-smart.sh
 python3 scripts/ci/license-inventory.py "$CI_BUILD_ROOT/GO-NOTICES.txt" > "$CI_BUILD_ROOT/licenses.json"
 for test in scripts/test-*.cjs; do node "$test"; done

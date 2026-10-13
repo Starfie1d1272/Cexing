@@ -23,11 +23,12 @@ function fixture() {
   const calls = { backgroundStart: 0, backgroundStop: 0, updatesStart: 0, updatesStop: 0 };
   const settings = { autoRestore: true, vpnWasConnected: true };
   const logger = { Logger: { info() {}, warn() {}, error() {} } };
+  const failure = load('ConnectionFailure', {}, timers);
   const controller = load('VpnController', {
     '@kit.NetworkKit': { vpnExtension: {} }, '@kit.CoreFileKit': { fileIo: {} }, '@kit.IPCKit': { rpc: {} },
     './CoreApi': { CoreApi: { isAlive: () => new Promise(resolve => probes.push(resolve)) } },
     './Settings': { Settings: { load: () => settings } }, './Logger': logger,
-    './ProfileStore': { ProfileStore: { clearApplyUncertain() {} } }
+    './ConnectionFailure': failure
   }, timers);
   const runtime = load('AppRuntime', {
     './VpnController': controller, './Settings': { Settings: { load: () => settings } }, './Logger': logger,

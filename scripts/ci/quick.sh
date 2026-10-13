@@ -6,6 +6,7 @@ node scripts/ci/source-check.cjs
 while IFS= read -r script; do bash -n "$script"; done < <(git ls-files 'scripts/*.sh' 'scripts/ci/*.sh')
 git diff --check
 python3 scripts/ci/test-gvisor-patch.py
+python3 scripts/test-zashboard-notices.py
 for test in scripts/test-*.cjs; do
   node "$test"
 done
