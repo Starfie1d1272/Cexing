@@ -150,21 +150,25 @@ export struct HomePage {
     const ctx = getContext(this) as common.UIAbilityContext;
     if (this.status === VpnStatus.Disconnected) {
       if (this.preparingSmart) { return; }
-      this.stopRequest++;
-      if (ProfileStore.getActiveFile(ctx).length === 0) {
+      const file = ProfileStore.getActiveFile(ctx);
+      if (file.length === 0) {
         this.tabJump = 1;
         return;
       }
+      const request = this.stopRequest;
       this.startFailed = false;
-      this.stopUnknown = false;
       this.preparingSmart = true;
       try { await ProfileTransactions.ensureActiveSmartPolicy(ctx); }
       catch (_) {
+        if (request !== this.stopRequest || !this.visible || !this.rootVisible ||
+          this.currentVisibleTab !== 0) { return; }
         this.startFailed = true;
         promptAction.showToast({ message: '当前配置未能生成，请检查配置后重试' });
         return;
       } finally { this.preparingSmart = false; }
-      if (VpnController.status !== VpnStatus.Disconnected) { return; }
+      if (request !== this.stopRequest || !this.visible || !this.rootVisible ||
+        this.currentVisibleTab !== 0 || VpnController.status !== VpnStatus.Disconnected ||
+        ProfileStore.getActiveFile(ctx) !== file) { return; }
       VpnController.start(ctx);
     } else if (this.status === VpnStatus.Connecting) {
       this.stopVpn(ctx);

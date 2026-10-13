@@ -28,6 +28,7 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   let now = 1000, stream, tick, dialog, stop = 0, start = 0, cancelRestore = 0, timerCleared = 0;
   const toasts = [];
   let stopResult = async () => true;
+  let smartPrepare = async () => {};
   let activeHomeFile = 'fixture.yaml';
   const listeners = new Set();
   function emit(next) { controller.status = next; for (const listener of listeners) listener(next); }
@@ -36,7 +37,8 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   const controller = { status: status.Connected, onChanged(fn) { listeners.add(fn); }, offChanged(fn) { listeners.delete(fn); },
     getLastStopCompleted: () => lastStopCompleted,
     consumeLastStartError: () => { const value = pendingFailure; pendingFailure = ''; return value; },
-    getLastStartFailure: () => null, stop: () => { stop++; return stopResult(); }, start: () => start++ };
+    getLastStartFailure: () => null, stop: () => { stop++; return stopResult(); },
+    start: () => { start++; emit(status.Connecting); } };
   const common = {
     '@kit.AbilityKit': {}, '@kit.ArkUI': { promptAction: { showToast(value) { toasts.push(value.message); } } },
     '@kit.BasicServicesKit': {}, '../lib/ConnectionFailure': { ConnectionFailures: {} },
@@ -49,7 +51,7 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
     '../lib/ProfileStore': { ProfileStore: { getActiveFile: () => activeHomeFile } },
     '../lib/Settings': { Settings: { load: () => ({ mode: 'rule' }) } },
     '../lib/AppRuntime': { AppRuntime: { cancelRestore: () => cancelRestore++ } },
-    '../lib/ProfileTransactions': { ProfileTransactions: { ensureActiveSmartPolicy: async () => {} } },
+    '../lib/ProfileTransactions': { ProfileTransactions: { ensureActiveSmartPolicy: () => smartPrepare() } },
     './ProfilePage': { ProfileDetailBus: { current: '' } }
   }, { Date: { now: () => now }, setInterval: cb => { tick = cb; return 1; },
     clearInterval: () => timerCleared++, AlertDialog: { show: value => { dialog = value; } } });
@@ -111,6 +113,19 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
     'false stop must be visible despite Disconnected status');
   assert.equal(home.label(), '停止结果未知', 'the card must retain an unconfirmed stop after the toast');
   assert.ok(home.stateLine().includes('检查系统 VPN'));
+  smartPrepare = async () => { throw Error('synthetic Smart preparation failure'); };
+  await home.toggle();
+  assert.equal(home.stopUnknown, true, 'failed preparation must preserve an unconfirmed stop');
+  assert.equal(start, 1, 'failed preparation must not start VPN');
+  let finishPreparation;
+  smartPrepare = () => new Promise(resolve => { finishPreparation = resolve; });
+  const stalePreparation = home.toggle();
+  home.currentVisibleTab = 1; home.onTabVisible();
+  finishPreparation(); await stalePreparation;
+  assert.equal(home.stopUnknown, true, 'late preparation must preserve the stop warning');
+  assert.equal(start, 1, 'late preparation after leaving the tab must not start VPN');
+  smartPrepare = async () => {};
+  home.currentVisibleTab = 0; home.onTabVisible();
   toasts.length = 0;
   let finishStop;
   stopResult = () => new Promise(resolve => { finishStop = resolve; });

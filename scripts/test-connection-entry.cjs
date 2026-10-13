@@ -10,8 +10,9 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
 function fixture(persistedUnknown = false) {
   const ctx = {};
   const listeners = [];
-  const calls = { start: 0, stop: 0, cancel: 0, reports: [] };
+  const calls = { start: 0, stop: 0, cancel: 0, prepare: 0, reports: [] };
   let stopResult = null, busy = false, uncertain = false, profile = 'synthetic.yaml', observed = false;
+  let prepare = async () => {};
   const controller = { status: status.Disconnected, onChanged: cb => listeners.push(cb),
     getLastStopCompleted: () => stopResult, getLastStartFailure: () => null,
     getTunCreateObserved: () => observed, getKernelReadyReported: () => observed,
@@ -22,7 +23,8 @@ function fixture(persistedUnknown = false) {
   const modules = {
     './VpnController': { VpnController: controller, VpnStatus: status },
     './ProfileStore': { ProfileStore: { isApplyUncertain: () => uncertain, getActiveFile: () => profile } },
-    './ProfileTransactions': { ProfileTransactions: { isBusy: () => busy } },
+    './ProfileTransactions': { ProfileTransactions: { isBusy: () => busy,
+      ensureActiveSmartPolicy: async context => { calls.prepare++; return prepare(context); } } },
     './AppRuntime': { AppRuntime: { cancelRestore: () => calls.cancel++ } },
     './ConnectionCards': { ConnectionCards: { read: () => ({ stopUnknown: persistedUnknown }),
       publish: (_, label, unknown) => calls.reports.push({ label, unknown }) } }
@@ -35,7 +37,9 @@ function fixture(persistedUnknown = false) {
   const want = action => ({ parameters: { cexingConnectionAction: action } });
   return { entry, ctx, controller, calls, emit, want,
     set: values => { if ('busy' in values) busy = values.busy; if ('uncertain' in values) uncertain = values.uncertain;
-      if ('profile' in values) profile = values.profile; if ('observed' in values) observed = values.observed; } };
+      if ('profile' in values) profile = values.profile; if ('observed' in values) observed = values.observed;
+      if ('prepare' in values) prepare = values.prepare;
+      if ('stopResult' in values) stopResult = values.stopResult; } };
 }
 async function tests() {
   const f = fixture();
@@ -74,6 +78,7 @@ async function tests() {
   const request = f.entry.request, revision = f.entry.revision;
   await Promise.all([f.entry.confirm(f.ctx, request, revision), f.entry.confirm(f.ctx, request, revision)]);
   assert.equal(f.calls.start, 1, 'Repeated confirmation must submit once');
+  assert.equal(f.calls.prepare, 1, 'Entry start must prepare the active Smart configuration once');
   f.entry.receive(f.want('connect'));
   await f.entry.confirm(f.ctx, f.entry.request, f.entry.revision);
   assert.equal(f.calls.start, 1, 'Connect must not toggle a pending start');
@@ -108,6 +113,32 @@ async function tests() {
   assert.equal(rebound.calls.cancel, 0, 'An old external intent must not suppress normal auto-restore');
   rebound.entry.destroyed(rebound.ctx);
   assert.equal(rebound.entry.ready, true, 'Late old-Ability teardown must preserve the new context');
+  const failedPreparation = fixture();
+  failedPreparation.set({ prepare: async () => { throw Error('synthetic preparation failure'); } });
+  failedPreparation.entry.receive(failedPreparation.want('connect'));
+  failedPreparation.entry.recovered(failedPreparation.ctx);
+  const preparationMessage = await failedPreparation.entry.confirm(failedPreparation.ctx,
+    failedPreparation.entry.request, failedPreparation.entry.revision);
+  assert.match(preparationMessage, /配置未能生成/);
+  assert.equal(failedPreparation.calls.start, 0, 'Failed preparation must not start the old generated profile');
+  for (const supersede of ['want', 'ability', 'status', 'stopUnknown']) {
+    const pendingEntry = fixture();
+    let finishPreparation;
+    pendingEntry.set({ prepare: () => new Promise(resolve => { finishPreparation = resolve; }) });
+    pendingEntry.entry.receive(pendingEntry.want('connect'));
+    pendingEntry.entry.recovered(pendingEntry.ctx);
+    const operation = pendingEntry.entry.confirm(pendingEntry.ctx,
+      pendingEntry.entry.request, pendingEntry.entry.revision);
+    assert.equal(pendingEntry.calls.prepare, 1);
+    if (supersede === 'want') { pendingEntry.entry.receive(pendingEntry.want('disconnect')); }
+    if (supersede === 'ability') { pendingEntry.entry.destroyed(pendingEntry.ctx); }
+    if (supersede === 'status') { pendingEntry.emit(status.Connected); }
+    if (supersede === 'stopUnknown') {
+      pendingEntry.set({ stopResult: false }); pendingEntry.emit(status.Disconnected);
+    }
+    finishPreparation(); await operation;
+    assert.equal(pendingEntry.calls.start, 0, `${supersede} must block a stale prepared start`);
+  }
   // Persistence belongs to the card adapter, not to an alternate VPN controller.
   const files = new Map(), updates = [];
   const io = { OpenMode: { CREATE: 1, WRITE_ONLY: 2, TRUNC: 4 },
