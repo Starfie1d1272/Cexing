@@ -45,6 +45,9 @@ export struct HomePage {
       this.stopUnknown = false;
     }
     this.status = status;
+    this.stopUnknown = status === VpnStatus.Disconnected && VpnController.needsStop();
+    if (status === VpnStatus.Disconnected && VpnController.getLastStopCompleted() === true &&
+      VpnController.getLastStartFailure() === null) { this.startFailed = false; }
     if (this.visible) {
       this.refreshTraffic();
       this.showStartFailure();
@@ -63,7 +66,7 @@ export struct HomePage {
     this.visible = true;
     this.status = VpnController.status;
     this.stopUnknown = this.status === VpnStatus.Disconnected &&
-      VpnController.getLastStopCompleted() === false;
+      VpnController.needsStop();
     VpnController.onChanged(this.listener);
     this.showStartFailure();
     this.refreshProfile();
@@ -149,6 +152,7 @@ export struct HomePage {
     AppRuntime.cancelRestore();
     const ctx = getContext(this) as common.UIAbilityContext;
     if (this.status === VpnStatus.Disconnected) {
+      if (VpnController.needsStop() || this.stopUnknown) { await this.stopVpn(ctx); return; }
       if (this.preparingSmart) { return; }
       const file = ProfileStore.getActiveFile(ctx);
       if (file.length === 0) {
@@ -169,6 +173,11 @@ export struct HomePage {
       if (request !== this.stopRequest || !this.visible || !this.rootVisible ||
         this.currentVisibleTab !== 0 || VpnController.status !== VpnStatus.Disconnected ||
         ProfileStore.getActiveFile(ctx) !== file) { return; }
+      if (VpnController.needsStop()) {
+        this.stopUnknown = true;
+        promptAction.showToast({ message: '连接状态待核对，请先重试断开' });
+        return;
+      }
       VpnController.start(ctx);
     } else if (this.status === VpnStatus.Connecting) {
       this.stopVpn(ctx);
@@ -201,7 +210,7 @@ export struct HomePage {
     if (this.status === VpnStatus.Connected) { return '可查看流量或检查连接'; }
     if (this.status === VpnStatus.Connecting) { return '正在建立系统连接'; }
     if (this.status === VpnStatus.Disconnecting) { return '正在结束系统会话'; }
-    return this.stopUnknown ? '请检查系统 VPN 状态或前往诊断' :
+    return this.stopUnknown ? '请重试断开，或前往诊断检查' :
       (this.startFailed ? '可重试或前往诊断' : '准备连接');
   }
 
@@ -341,8 +350,8 @@ export struct HomePage {
           }
         }.width('100%').padding({ bottom: 12 })
       }.layoutWeight(1).width('100%').scrollBar(BarState.Off)
-      if (this.hasProfile) {
-        Button(this.status === VpnStatus.Disconnected ? '连接 VPN' :
+      if (this.hasProfile || this.stopUnknown) {
+        Button(this.status === VpnStatus.Disconnected ? (this.stopUnknown ? '重试断开' : '连接 VPN') :
           (this.status === VpnStatus.Connecting ? '取消连接' :
             (this.status === VpnStatus.Disconnecting ? '断开中' : '断开连接')))
           .width('100%').height(56).fontSize(16).fontWeight(FontWeight.Medium)
