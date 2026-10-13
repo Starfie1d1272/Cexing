@@ -108,6 +108,7 @@ process.stdout.write(context.exports.ZashboardSession.bootstrap(fixture.secret,f
             page.wait_for_function("() => document.documentElement.dataset.theme === 'dark'")
             if screenshot_dir:
                 page.screenshot(path=str(Path(screenshot_dir) / 'overview-dark.png'), full_page=True)
+                page.locator('.earth-globe-card').screenshot(path=str(Path(screenshot_dir) / 'globe-dark.png'))
             page.goto(url + '#/proxies', wait_until='networkidle')
             page.emulate_media(color_scheme='light')
             page.get_by_text('Local test', exact=False).first.wait_for(timeout=20000)
@@ -198,8 +199,11 @@ process.stdout.write(context.exports.ZashboardSession.bootstrap(fixture.secret,f
             manual_page.goto(url, wait_until='networkidle')
             assert manual_page.evaluate("localStorage.getItem('config/split-overview-page')") == 'false'
             assert manual_page.evaluate("localStorage.getItem('config/earth-visual-mode')") == 'flat'
-            assert manual_page.get_by_label('Globe style', exact=True).inner_text().strip() == 'Flat'
+            manual_page.wait_for_url('**/#/proxies')
             assert manual_page.get_by_role('button', name='Overview', exact=True).count() == 0
+            manual_page.goto(url + '#/overview', wait_until='networkidle')
+            manual_page.get_by_text('City locations are unavailable in this offline panel.', exact=False).wait_for(timeout=20000)
+            assert manual_page.get_by_label('Globe style', exact=True).inner_text().strip() == 'Flat'
             manual.close()
             Path(str(ready)+'.stop').touch()
             process.wait(timeout=20)
