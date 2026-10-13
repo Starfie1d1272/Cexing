@@ -28,6 +28,10 @@ func TestLockedMihomoValidator(t *testing.T) {
 		if _, err := c.Compile(context.Background(), Request{Original: []byte(smart)}); err != nil {
 			t.Fatalf("locked Smart core rejected smart: %v", err)
 		}
+		urlTest := strings.Replace(original, "type: select", "type: url-test", 1)
+		if _, err := c.Compile(context.Background(), Request{Original: []byte(urlTest), Strategy: SmartAuto}); err != nil {
+			t.Fatalf("locked Smart core rejected converted url-test: %v", err)
+		}
 		providerOnly := `proxy-providers:
   feed:
     type: inline

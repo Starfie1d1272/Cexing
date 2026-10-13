@@ -33,6 +33,10 @@ func corePreviewMerge(home, original, overlay, overrides string) (string, error)
 }
 
 func compilePinnedMerge(home, original, overlay, overrides string) (configpipeline.Result, string, error) {
+	return compilePinnedMergeWithSmart(home, original, overlay, overrides, false)
+}
+
+func compilePinnedMergeWithSmart(home, original, overlay, overrides string, smartConversion bool) (configpipeline.Result, string, error) {
 	project := func(_ context.Context, root *yaml.Node) error {
 		var before, after map[string]any
 		if err := root.Decode(&before); err != nil {
@@ -75,8 +79,13 @@ func compilePinnedMerge(home, original, overlay, overrides string) (configpipeli
 	if overlay != "" {
 		overlays = [][]byte{[]byte(overlay)}
 	}
+	var strategy configpipeline.Transform
+	if smartConversion {
+		strategy = configpipeline.SmartAuto
+	}
 	result, err := (configpipeline.Compiler{Platform: project, Validate: validator}).Compile(
-		context.Background(), configpipeline.Request{Original: []byte(original), Overlays: overlays, Previous: []byte(original)})
+		context.Background(), configpipeline.Request{Original: []byte(original), Overlays: overlays,
+			Strategy: strategy, Previous: []byte(original)})
 	return result, receipt, err
 }
 
