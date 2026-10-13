@@ -11,11 +11,19 @@ import { Logger } from './Logger';
 import { CoreApi } from './CoreApi';
 import { rpc } from '@kit.IPCKit';
 import { Settings } from './Settings';
+import { ConnectionFailure, ConnectionFailures } from './ConnectionFailure';
 
 const TAG = 'vpnCtrl';
 const VPN_ABILITY_NAME = 'CexingVpnAbility';
 // 与 vpnability/CexingVpnAbility.ets 的 LAST_ERROR_FILE 一致（同一应用沙箱共享 filesDir）
 const LAST_ERROR_FILE = 'last_start_error.txt';
+const LAST_STOP_FILE = 'last_stop_result.json';
+const STOP_COMPLETION_TIMEOUT_MS = 15000;
+
+interface StopResult {
+  session: string;
+  completed: boolean;
+}
 
 export enum VpnStatus {
   Disconnected = 0,
@@ -95,13 +103,41 @@ function readLastStartError(context: common.UIAbilityContext): string {
   return '';
 }
 
+function readStopResult(context: common.UIAbilityContext, session: string): boolean | null {
+  try {
+    const path = `${context.filesDir}/${LAST_STOP_FILE}`;
+    if (fileIo.accessSync(path)) {
+      const result = JSON.parse(fileIo.readTextSync(path)) as StopResult;
+      if (result.session === session && typeof result.completed === 'boolean') {
+        return result.completed;
+      }
+    }
+  } catch (_) {}
+  return null;
+}
+
+async function waitForStopResult(context: common.UIAbilityContext, session: string): Promise<boolean> {
+  const deadline = Date.now() + STOP_COMPLETION_TIMEOUT_MS;
+  while (Date.now() < deadline) {
+    const result = readStopResult(context, session);
+    if (result !== null) { return result; }
+    await new Promise<void>((resolve) => { setTimeout(resolve, 100); });
+  }
+  return false;
+}
+
 export namespace VpnController {
   export let status: VpnStatus = VpnStatus.Disconnected;
   /** 最近一次内核启动失败原因（空串=正常）。UI 读取后调用 consumeLastStartError 清空。 */
   export let lastStartError: string = '';
+  export let lastStartFailure: ConnectionFailure | null = null;
+  // Independent observations from this start attempt, not claims of live forwarding.
+  let tunCreateObserved: boolean = false;
+  let kernelReadyReported: boolean = false;
   let serviceId: number = 0;
   const listeners: StatusListener[] = [];
   let startAttempt = 0;
+  let startSession: string = '';
   let recoveryAttempt = 0;
 
   export function onChanged(cb: StatusListener): void {
@@ -121,6 +157,23 @@ export namespace VpnController {
     const msg = lastStartError;
     lastStartError = '';
     return msg;
+  }
+
+  export function getLastStartFailure(): ConnectionFailure | null {
+    return lastStartFailure;
+  }
+
+  export function getTunCreateObserved(): boolean {
+    return tunCreateObserved;
+  }
+
+  export function getKernelReadyReported(): boolean {
+    return kernelReadyReported;
+  }
+
+  function recordFailure(failure: ConnectionFailure): void {
+    lastStartFailure = failure;
+    lastStartError = ConnectionFailures.label(failure);
   }
 
   /**
@@ -173,15 +226,23 @@ export namespace VpnController {
       return;
     }
     cancelRecovery();
+    lastStartError = '';
+    lastStartFailure = null;
+    tunCreateObserved = false;
+    kernelReadyReported = false;
     CoreApi.bindContext(context);
     setStatus(VpnStatus.Connecting);
-    startAttempt++;
+    const attempt = ++startAttempt;
+    startSession = `${Date.now()}-${attempt}`;
     const want: Want = { bundleName: context.applicationInfo.name, abilityName: VPN_ABILITY_NAME };
     Logger.info(TAG, 'startVpnExtensionAbility...');
     vpnExtension.startVpnExtensionAbility(want).then(() => {
+      if (attempt !== startAttempt || status !== VpnStatus.Connecting) { return; }
       connectService(context, want);
     }).catch((e: Object) => {
-      Logger.error(TAG, `startVpnExtensionAbility failed: ${JSON.stringify(e)}`);
+      if (attempt !== startAttempt || status !== VpnStatus.Connecting) { return; }
+      recordFailure(ConnectionFailures.classify('authorization', JSON.stringify(e)));
+      Logger.error(TAG, `startVpnExtensionAbility failed: ${lastStartError}`);
       setStatus(VpnStatus.Disconnected);
     });
   }
@@ -227,7 +288,7 @@ export namespace VpnController {
     if (trusted.length > 0) {
       vpnConfig.trustedApplications = trusted;
     }
-    const params: Record<string, Object> = { 'VPN_CONFIG': vpnConfig };
+    const params: Record<string, Object> = { 'VPN_CONFIG': vpnConfig, 'SESSION_ID': startSession };
     const connectWant: Want = {
       bundleName: want.bundleName,
       abilityName: want.abilityName,
@@ -247,7 +308,10 @@ export namespace VpnController {
             return;
           }
           Logger.warn(TAG, 'service disconnected unexpectedly');
-          lastStartError = readLastStartError(context);
+          if (status === VpnStatus.Connecting) {
+            const saved = ConnectionFailures.decode(readLastStartError(context), startSession);
+            recordFailure(saved ?? ConnectionFailures.classify('service', 'disconnect'));
+          }
           setStatus(VpnStatus.Disconnected);
         },
         onFailed: (code: number) => {
@@ -255,12 +319,14 @@ export namespace VpnController {
             return;
           }
           Logger.error(TAG, `service connect failed: ${code}`);
-          lastStartError = readLastStartError(context);
+          const saved = ConnectionFailures.decode(readLastStartError(context), startSession);
+          recordFailure(saved ?? ConnectionFailures.systemCode('service', code));
           setStatus(VpnStatus.Disconnected);
         }
       });
     } catch (e) {
-      Logger.error(TAG, `connectServiceExtensionAbility threw: ${JSON.stringify(e)}`);
+      recordFailure(ConnectionFailures.classify('service', JSON.stringify(e)));
+      Logger.error(TAG, `connectServiceExtensionAbility failed: ${lastStartError}`);
       setStatus(VpnStatus.Disconnected);
     }
   }
@@ -280,6 +346,14 @@ export namespace VpnController {
         }
         ready = result.reply.readBoolean();
         error = result.reply.readString();
+        const remoteSession = result.reply.readString();
+        const remoteTunCreated = result.reply.readBoolean();
+        if (remoteSession !== startSession) {
+          error = 'service session mismatch';
+          ready = false;
+        } else if (remoteTunCreated) {
+          tunCreateObserved = true;
+        }
       } catch (e) {
         error = (e as Error).message ?? '启动状态读取失败';
       } finally {
@@ -290,7 +364,9 @@ export namespace VpnController {
         return;
       }
       if (ready) {
+        kernelReadyReported = true;
         lastStartError = '';
+        lastStartFailure = null;
         setStatus(VpnStatus.Connected);
         const settings = Settings.load(context);
         settings.vpnWasConnected = true;
@@ -298,45 +374,71 @@ export namespace VpnController {
         return;
       }
       if (error.length > 0 || Date.now() >= deadline) {
-        stop(context);
-        lastStartError = error.length > 0 ? error : '内核启动超时，请检查数据库和配置下载';
+        const failure = error.length > 0 ? ConnectionFailures.decode(error, startSession) :
+          ConnectionFailures.classify('readiness', 'timeout');
+        if (failure === null && error.startsWith('{') && Date.now() < deadline) {
+          await new Promise<void>((resolve) => { setTimeout(resolve, 500); });
+          continue;
+        }
+        recordFailure(failure ?? ConnectionFailures.classify('readiness', error));
+        stop(context, true);
         return;
       }
       await new Promise<void>((resolve) => { setTimeout(resolve, 500); });
     }
   }
 
-  export function stop(context: common.UIAbilityContext): void {
+  /** True means this session's extension cleanup and system stop both completed. False is unknown. */
+  export function stop(context: common.UIAbilityContext, preserveFailure: boolean = false): Promise<boolean> {
     cancelRecovery();
     if (status !== VpnStatus.Connected && status !== VpnStatus.Connecting) {
       Logger.warn(TAG, `stop ignored, status=${VpnStatus[status]}`);
-      return;
+      return Promise.resolve(false);
     }
     startAttempt++;
-    const attempt = startAttempt;
+    const session = startSession;
+    const connectedService = serviceId > 0;
+    // A recovered Connected status can have no service binding in this UI process.
+    // Only a pre-binding Connecting cancellation proves native startup was never entered.
+    const nativeNotEntered = status === VpnStatus.Connecting && !connectedService;
+    const stoppingServiceId = serviceId;
     // 用户主动停止：清除「会话曾连接」标记（冷启动不再自动恢复）
-    const s = Settings.load(context);
-    s.vpnWasConnected = false;
-    Settings.save(context, s);
+    let saved = true;
+    try {
+      const s = Settings.load(context);
+      s.vpnWasConnected = false;
+      Settings.save(context, s);
+    } catch (_) {
+      saved = false;
+      Logger.error(TAG, 'disconnect preference save failed');
+    }
     // 用户主动停止：清除残留失败信息，避免断开回调误报
-    lastStartError = '';
+    if (!preserveFailure) {
+      lastStartError = '';
+      lastStartFailure = null;
+    }
     setStatus(VpnStatus.Disconnecting);
     const want: Want = { bundleName: context.applicationInfo.name, abilityName: VPN_ABILITY_NAME };
-    const id = serviceId;
-    const finish = async (): Promise<void> => {
-      if (id > 0) {
-        try { await context.disconnectServiceExtensionAbility(id); }
-        catch (e) { Logger.error(TAG, `disconnectServiceExtensionAbility failed: ${JSON.stringify(e)}`); }
+    return (async (): Promise<boolean> => {
+      let extensionCompleted = nativeNotEntered;
+      if (connectedService) {
+        try {
+          await context.disconnectServiceExtensionAbility(stoppingServiceId);
+          extensionCompleted = await waitForStopResult(context, session);
+        } catch (_) {
+          Logger.error(TAG, 'service disconnect failed');
+        }
       }
-      try { await vpnExtension.stopVpnExtensionAbility(want); }
-      catch (e) { Logger.error(TAG, `stopVpnExtensionAbility failed: ${JSON.stringify(e)}`); }
-      if (attempt !== startAttempt || status !== VpnStatus.Disconnecting) { return; }
+      let systemStopped = false;
+      try {
+        await vpnExtension.stopVpnExtensionAbility(want);
+        systemStopped = true;
+      } catch (_) {
+        Logger.error(TAG, 'VPN Extension stop failed');
+      }
       serviceId = 0;
-      // Neither system-stop resolution nor a Controller probe proves native
-      // extension cleanup. The session-bound stop result is integrated by the
-      // runtime line before clearing an uncertain config outcome.
       setStatus(VpnStatus.Disconnected);
-    };
-    finish().catch((e: Object) => { Logger.error(TAG, `stop completion failed: ${JSON.stringify(e)}`); });
+      return saved && extensionCompleted && systemStopped;
+    })();
   }
 }

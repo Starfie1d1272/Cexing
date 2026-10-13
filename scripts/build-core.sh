@@ -98,6 +98,7 @@ ci_seed_go_download_cache
 ci_save_go_download_cache
 (cd "$CORE_DIR" && python3 "$SCRIPT_DIR/ci/patch-gvisor.py" "$PRIVATE_MODCACHE")
 (cd "$CORE_DIR" && python3 "$SCRIPT_DIR/ci/patch-smart.py" "$PRIVATE_MODCACHE")
+(cd "$CORE_DIR" && python3 "$SCRIPT_DIR/ci/patch-inbound-race.py" "$PRIVATE_MODCACHE")
 
 # ---- 3. 交叉编译 ----
 echo "[build-core] compiling libmihomo.so (GOOS=android GOARCH=arm64, tags: netgo ohos cmfa with_gvisor)"
@@ -118,7 +119,9 @@ mkdir -p "$OUT_DIR"
   -o "$OUT_DIR/libmihomo.so" .)
 
 (cd "$CORE_DIR" && python3 "$SCRIPT_DIR/ci/patch-smart.py" "$PRIVATE_MODCACHE" record "$OUT_DIR/libmihomo.so")
+(cd "$CORE_DIR" && python3 "$SCRIPT_DIR/ci/patch-inbound-race.py" "$PRIVATE_MODCACHE" record "$OUT_DIR/libmihomo.so")
 (cd "$CORE_DIR" && python3 "$SCRIPT_DIR/ci/patch-smart.py" "$PRIVATE_MODCACHE" restore)
+(cd "$CORE_DIR" && python3 "$SCRIPT_DIR/ci/patch-inbound-race.py" "$PRIVATE_MODCACHE" restore)
 (cd "$CORE_DIR" && python3 "$SCRIPT_DIR/ci/patch-gvisor.py" "$PRIVATE_MODCACHE" verify)
 mv "$OUT_DIR/smart-build.pending.json" "$OUT_DIR/smart-build.json"
 
