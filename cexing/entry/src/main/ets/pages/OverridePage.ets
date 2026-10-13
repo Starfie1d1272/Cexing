@@ -66,6 +66,7 @@ export struct OverridePage {
   private changeAllowLan(enabled: boolean): void {
     const generation = ++this.lanDialogGeneration;
     if (!enabled) {
+      this.allowLan = false;
       this.saveAllowLan(false);
       return;
     }
