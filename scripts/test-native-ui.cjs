@@ -41,6 +41,7 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
     start: () => { start++; emit(status.Connecting); } };
   const common = {
     '@kit.AbilityKit': {}, '@kit.CoreFileKit': {}, '@kit.ShareKit': {}, '@kit.ArkData': {},
+    '../lib/DiagnosticExportSnapshots': {},
     '../lib/DiagnosticsBundleView': { DiagnosticsBundleView: { result: r => r.reason === 'page_check_timeout' ? '检查超时' : r.stage === 'controller_authorization' ? '连接认证失败，请断开后重新连接' : '本机服务可达', title: () => '本机服务' } },
     '@kit.ArkUI': { promptAction: { showToast(value) { toasts.push(value.message); } } },
     '@kit.BasicServicesKit': {}, '../lib/ConnectionFailure': { ConnectionFailures: {} },

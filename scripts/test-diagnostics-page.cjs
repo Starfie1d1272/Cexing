@@ -1,46 +1,69 @@
-// Actual page methods and full-file export; no picker/share/device claim.
+// Actual page + snapshot store methods; no physical picker/share claim.
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const ts=require('./ci/transpile-arkts.cjs');
-function module(source,require=()=>({})){const c={exports:{},require};vm.runInNewContext(ts.transpileModule(source).outputText,c);return c.exports;}
-const failures=module(fs.readFileSync('cexing/entry/src/main/ets/lib/ConnectionFailure.ets','utf8'));
-const view=module(fs.readFileSync('cexing/entry/src/main/ets/lib/DiagnosticsBundleView.ets','utf8'));
-const sources=[{name:'host-current',status:'available',journal:{events:[{}],dropped:3,writeFailures:2,logSuppressed:1},exportOmitted:4,unpersistedEvents:1},
- {name:'host-previous',status:'available',journal:{events:[{},{}]}},{name:'kernel-previous',status:'invalid'}];
-const json=JSON.stringify({schema:'cexing-support-bundle/1',sources,exportContextCollected:false,selectedVersion:{effectiveVersion:'unknown'},checkCoverage:{controller:[{}]}, padding:'x'.repeat(250000)});
-const facts=view.DiagnosticsBundleView.facts(json);
-assert.ok(facts.some(s=>s.includes('上一会话：2')));assert.ok(facts.some(s=>s.includes('记录丢弃 3')));
-assert.ok(facts.some(s=>s.includes('文件损坏')));assert.ok(facts.some(s=>s.includes('不能据此判断')));
-assert.throws(()=>view.DiagnosticsBundleView.facts('{"schema":"wrong","sources":[]}'));
-let outcome='success',kind='controller',stage='controller_version',listener,copied,opened,shares=[],dest=['file://chosen'],closed=0,files=[],throwsCopy=false,exportCount=0,checks=0;
-const messages=[];
+function load(file,modules={},extra={}){const c={exports:{},require:k=>{assert.ok(k in modules,k);return modules[k];},...extra};vm.runInNewContext(ts.transpileModule(fs.readFileSync(file,'utf8')).outputText,c);return c.exports;}
+const failures=load('cexing/entry/src/main/ets/lib/ConnectionFailure.ets');
+const view=load('cexing/entry/src/main/ets/lib/DiagnosticsBundleView.ets');
+function packet(marker,count=1){return JSON.stringify({schema:'cexing-support-bundle/1',sources:[{name:'host-current',status:'available',journal:{events:Array(count).fill({}),dropped:3,writeFailures:2,logSuppressed:1},exportOmitted:4,unpersistedEvents:1},{name:'host-previous',status:'available',journal:{events:[{},{}]}},{name:'kernel-previous',status:'invalid'}],exportContextCollected:false,selectedVersion:{effectiveVersion:'unknown'},checkCoverage:{controller:[{}]},marker,padding:'x'.repeat(250000)});}
+const facts=view.DiagnosticsBundleView.facts(packet('A'));
+assert.ok(facts.some(s=>s.includes('上一会话：2')));assert.ok(facts.some(s=>s.includes('记录丢弃 3')));assert.ok(facts.some(s=>s.includes('文件损坏')));assert.ok(facts.some(s=>s.includes('不能据此判断')));
+let clock=1760000000000,uuid=0,nextFD=0,copyFail=false,shortWrite=false;
+const files=new Map(),directories=new Set(),descriptors=new Map(),closed=[],copies=[];
+const fileIo={OpenMode:{READ_WRITE:1,CREATE:2,TRUNC:4,WRITE_ONLY:8,NOFOLLOW:16},
+ accessSync:p=>files.has(p)||directories.has(p),mkdirSync:p=>directories.add(p),
+ listFileSync:dir=>Array.from(files.keys()).filter(p=>p.startsWith(dir+'/')).map(p=>p.slice(dir.length+1)),
+ unlinkSync:p=>files.delete(p),
+ openSync:(path,mode)=>{const fd=++nextFD;if(!files.has(path)||(mode&4))files.set(path,Buffer.alloc(0));descriptors.set(fd,{path,position:0});return {fd};},
+ writeSync:(fd,buffer)=>{const d=descriptors.get(fd),all=Buffer.from(buffer),bytes=all.subarray(0,shortWrite?Math.min(7,all.length):all.length);files.set(d.path,Buffer.concat([files.get(d.path),bytes]));d.position+=bytes.length;return bytes.length;},
+ fsyncSync(){},closeSync:file=>{const fd=typeof file==='number'?file:file.fd;closed.push(descriptors.get(fd).path);descriptors.delete(fd);},
+ copyFileSync:(src,to)=>{if(copyFail)throw Error('disk');const dest=typeof to==='number'?descriptors.get(to).path:to;const bytes=Buffer.from(files.get(src));copies.push({src,dest,bytes});files.set(dest,bytes);}
+};
+const snapshots=load('cexing/entry/src/main/ets/lib/DiagnosticExportSnapshots.ets',{'@kit.CoreFileKit':{fileIo},'@kit.ArkTS':{util:{TextEncoder:class{encodeInto(s){return new TextEncoder().encode(s);}},generateRandomUUID:()=>`00000000-0000-0000-0000-${String(++uuid).padStart(12,'0')}`}}},{Date:{now:()=>clock}});
+let outcome='success',stage='controller_version',listener,currentJson=packet('A'),exportsMade=0,checks=0,holdPicker=false,holdShare=false,dest=['file://chosen'],opened,copied;
+const pickerWaits=[],shareCalls=[],messages=[];
 const context={filesDir:'/private',cacheDir:'/cache',startAbility:async w=>{opened=w.uri;}};
-const modules={
- '../lib/CoreApi':{CoreApi:{getProxies:async()=>({UserChoice:{}})}},'./NativeTheme':{},
+const service={record:async()=>true,check:async(_ctx,kind)=>{checks++;return {kind,stage,outcome,at:'2026-10-13T00:00:00Z',durationMs:1};},exportBundle:async()=>{exportsMade++;const json=currentJson;files.set('/cache/cexing-support.json',Buffer.from(json));return {json,path:'/cache/cexing-support.json',fileName:'cexing-support.json'};}};
+const modules={'../lib/CoreApi':{CoreApi:{getProxies:async()=>({UserChoice:{}})}},'./NativeTheme':{},
  '../lib/VpnController':{VpnController:{status:2,onChanged:fn=>{listener=fn;},offChanged(){},getLastStartFailure:()=>null,getTunCreateObserved:()=>true,getKernelReadyReported:()=>true},VpnStatus:{Connected:2,Connecting:1,Disconnecting:3}},
- '../lib/ConnectionFailure':failures,'../lib/DiagnosticsBundleView':view,
- '../lib/DiagnosticsService':{DiagnosticsService:{record:async()=>true,check:async(_ctx,k)=>{checks++;return {kind:k,stage,outcome,at:'2026-10-13T00:00:00Z',durationMs:1};},exportBundle:async()=>{exportCount++;return {json,path:'/cache/cexing-support.json',fileName:'cexing-support.json'};}}},
- '@kit.BasicServicesKit':{deviceInfo:{osFullName:'HarmonyOS 7.0.0.109'},pasteboard:{MIMETYPE_TEXT_PLAIN:'text/plain',createData:(_m,text)=>text,getSystemPasteboard:()=>({setData:async text=>{copied=text;}})}},
- '@kit.AbilityKit':{bundleManager:{BundleFlag:{GET_BUNDLE_INFO_DEFAULT:0},getBundleInfoForSelf:async()=>({versionName:'1.0.0',versionCode:1})}},
- '@kit.ArkUI':{promptAction:{showToast:v=>messages.push(v.message)}},
- '@kit.CoreFileKit':{fileUri:{getUriFromPath:p=>'file://'+p},picker:{DocumentViewPicker:class{async save(){return dest;}}},fileIo:{OpenMode:{READ_WRITE:1,CREATE:2,TRUNC:4},openSync:()=>({fd:9}),copyFileSync:(src,to)=>{if(throwsCopy)throw Error('disk');files.push({src,to});},closeSync:()=>closed++}},
+ '../lib/ConnectionFailure':failures,'../lib/DiagnosticsBundleView':view,'../lib/DiagnosticExportSnapshots':snapshots,'../lib/DiagnosticsService':{DiagnosticsService:service},
+ '@kit.BasicServicesKit':{deviceInfo:{osFullName:'HarmonyOS 7.0.0.109'},pasteboard:{MIMETYPE_TEXT_PLAIN:'text/plain',createData:(_m,s)=>s,getSystemPasteboard:()=>({setData:async s=>{copied=s;}})}},
+ '@kit.AbilityKit':{bundleManager:{BundleFlag:{GET_BUNDLE_INFO_DEFAULT:0},getBundleInfoForSelf:async()=>({versionName:'1.0.0',versionCode:1})}},'@kit.ArkUI':{promptAction:{showToast:v=>messages.push(v.message)}},
+ '@kit.CoreFileKit':{fileIo,fileUri:{getUriFromPath:p=>'file://'+p},picker:{DocumentViewPicker:class{save(){return holdPicker?new Promise(resolve=>pickerWaits.push(resolve)):Promise.resolve(dest);}}}},
  '@kit.ArkData':{uniformTypeDescriptor:{UniformDataType:{FILE:'general.file'}}},
- '@kit.ShareKit':{systemShare:{SharedData:class{constructor(r){this.record=r;}},ShareController:class{constructor(data){this.data=data;}async show(){shares.push(this.data.record);}}}}
+ '@kit.ShareKit':{systemShare:{SharedData:class{constructor(record){this.record=record;}},ShareController:class{constructor(data){this.record=data.record;this.listeners=new Map();}on(k,fn){this.listeners.set(k,fn);}off(k){this.listeners.delete(k);}show(){shareCalls.push(this);return holdShare?new Promise(resolve=>{this.resolve=resolve;}):Promise.resolve();}dismiss(){this.listeners.get('dismiss')?.();}}}}
 };
 const src=fs.readFileSync('cexing/entry/src/main/ets/pages/DiagnosticsPage.ets','utf8');
 const methods=(src.slice(0,src.indexOf('  build()'))+'\n}').split('\n').map(l=>l.trimStart().startsWith('@')?l.replace(/@\w+(?:\([^\n)]*\))?\s*/g,''):l).join('\n').replace('export struct ','export class ');
 const c={exports:{},require:k=>{assert.ok(k in modules,k);return modules[k];},getContext:()=>context,Date,Promise,setTimeout:()=>1,clearTimeout(){}};
 vm.runInNewContext(ts.transpileModule(methods).outputText,c);
+const flush=async()=>{for(let i=0;i<12;i++)await Promise.resolve();};
+const readURI=uri=>files.get(uri.slice('file://'.length)).toString();
 (async()=>{
  const page=new c.exports.DiagnosticsPage();page.aboutToAppear();await page.check();assert.equal(page.control,'本机服务可达');listener(2);assert.equal(page.control,'本机服务可达');
- stage='controller_authorization';outcome='failed';await page.check();assert.match(page.control,/认证失败/);
- await page.exportSupport(false);assert.equal(exportCount,1);assert.equal(checks,2,'export never probes');assert.equal(files[0].to,9);assert.equal(closed,1);assert.match(page.exportMessage,/诊断支持包已保存/);
- dest=[];await page.exportSupport(false);assert.equal(closed,1);assert.match(page.exportMessage,/取消/);
- throwsCopy=true;dest=['file://chosen'];await page.exportSupport(false);assert.equal(closed,2,'failed copy closes destination');assert.match(page.exportMessage,/未完成/);
- throwsCopy=false;await page.exportSupport(true);assert.equal(shares.length,1);assert.equal(shares[0].utd,'general.file');assert.equal(shares[0].uri,'file:///cache/cexing-support-share.json');assert.equal(shares[0].content,undefined,'1 MiB JSON is not text IPC');
- assert.ok(files.some(f=>f.to==='/cache/cexing-support-share.json'));
- await page.chooseProxy();assert.deepEqual(Array.from(page.proxyNames),['UserChoice']);assert.equal(page.proxyName,'','read never silently selects a proxy');
- await page.copySummary();assert.match(copied,/controller_checked_at=/);await page.openFeedback();assert.ok(opened.includes('template=diagnostics.yml'));assert.ok(!opened.includes('json='));
- page.aboutToDisappear();const before=files.length;await page.exportSupport(false);assert.equal(files.length,before,'hidden generation cannot save');
+ await page.exportSupport(false); assert.equal(files.get('file://chosen').toString(),currentJson);assert.equal(checks,1,'export never probes');assert.ok(closed.includes('file://chosen'));assert.match(page.exportMessage,/诊断支持包已保存/);
+ dest=[];await page.exportSupport(false);assert.match(page.exportMessage,/取消/);
+ copyFail=true;dest=['file://fail'];await page.exportSupport(false);assert.ok(closed.includes('file://fail'));assert.match(page.exportMessage,/未完成/);copyFail=false;
+ // P2: picker waits while another caller replaces the mutable service cache.
+ currentJson=packet('picker-A',2);holdPicker=true;const saveA=page.exportSupport(false);await flush();assert.equal(pickerWaits.length,1);const previewA=page.bundleFacts.slice();
+ currentJson=packet('cache-B',4);await service.exportBundle();pickerWaits.shift()(['file://saved-A']);await saveA;
+ assert.equal(JSON.parse(files.get('file://saved-A')).marker,'picker-A');assert.ok(previewA.some(x=>x.includes('当前会话：2')));assert.ok(page.bundleFacts.some(x=>x.includes('当前会话：2')));
+ // P1: VPN notification unblocks B while share A is still waiting.
+ holdPicker=false;holdShare=true;currentJson=packet('share-A',2);const shareA=page.exportSupport(true);await flush();const a=shareCalls.at(-1);assert.equal(a.record.content,undefined);assert.equal(a.record.utd,'general.file');
+ listener(0);currentJson=packet('share-B',4);const shareB=page.exportSupport(true);await flush();const b=shareCalls.at(-1);assert.notEqual(a.record.uri,b.record.uri);assert.equal(JSON.parse(readURI(a.record.uri)).marker,'share-A');assert.equal(JSON.parse(readURI(b.record.uri)).marker,'share-B');
+ a.resolve();await shareA;assert.equal(page.busy,true,'late A completion cannot clear B busy state');b.resolve();await shareB;
+ const aPath=a.record.uri.slice(7),bPath=b.record.uri.slice(7);clock+=25*60*60*1000;
+ // Active shares survive cleanup and page reentry even after the grace period.
+ const lease=snapshots.DiagnosticExportSnapshots.create(context,packet('cleanup'),false);assert.ok(files.has(aPath)&&files.has(bPath));snapshots.DiagnosticExportSnapshots.release(lease,false);
+ page.aboutToDisappear();page.aboutToAppear();a.dismiss();a.dismiss();assert.ok(files.has(bPath),'late/idempotent A dismiss does not release B');
+ const lease2=snapshots.DiagnosticExportSnapshots.create(context,packet('cleanup2'),false);assert.ok(!files.has(aPath)&&files.has(bPath));snapshots.DiagnosticExportSnapshots.release(lease2,false);b.dismiss();
+ // Picker completion after leaving/reentering cannot write a user file.
+ holdShare=false;holdPicker=true;currentJson=packet('old-page');const late=page.exportSupport(false);await flush();page.aboutToDisappear();page.aboutToAppear();pickerWaits.shift()(['file://late']);await late;assert.ok(!files.has('file://late'));
+ // Fresh exports remain accurate and partial native writes are completed.
+ holdPicker=false;shortWrite=true;const small=snapshots.DiagnosticExportSnapshots.create(context,'{"中文":"完整"}',false);assert.equal(files.get(small.path).toString(),'{"中文":"完整"}');snapshots.DiagnosticExportSnapshots.release(small,false);shortWrite=false;
+ const retained=[];for(let i=0;i<16;i++){const item=snapshots.DiagnosticExportSnapshots.create(context,'{}',true);retained.push(item);snapshots.DiagnosticExportSnapshots.release(item,true);}
+ assert.throws(()=>snapshots.DiagnosticExportSnapshots.create(context,'{}',true),/snapshot_capacity/);const reservedSave=snapshots.DiagnosticExportSnapshots.create(context,'{}',false);snapshots.DiagnosticExportSnapshots.release(reservedSave,false);
+ assert.throws(()=>snapshots.DiagnosticExportSnapshots.create(context,'x'.repeat(1024*1024+1),false),/snapshot_size/);
+ await page.chooseProxy();assert.deepEqual(Array.from(page.proxyNames),['UserChoice']);assert.equal(page.proxyName,'');await page.copySummary();assert.match(copied,/controller_checked_at=/);await page.openFeedback();assert.ok(opened.includes('template=diagnostics.yml'));
  assert.match(src,/Text\(this\.control\)/);assert.ok(!src.includes('this.Fact('));
- console.log('PASS: service result updates, bundle coverage/truncation/missing, complete file save/cancel/failure/close, URI share, no implicit probe/proxy/upload and hidden cleanup');
+ console.log('PASS: immutable per-export JSON, VPN-concurrent A/B sharing, mutable-cache picker race, preview consistency, active/grace cleanup, cancellation/failure/FD close, reentry/late callbacks, full UTF8 writes and no implicit checks/upload');
 })().catch(e=>{console.error(e);process.exitCode=1;});

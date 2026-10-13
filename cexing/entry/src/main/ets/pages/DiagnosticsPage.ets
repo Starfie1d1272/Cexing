@@ -9,6 +9,7 @@ import { fileIo, fileUri, picker } from '@kit.CoreFileKit';
 import { systemShare } from '@kit.ShareKit';
 import { uniformTypeDescriptor } from '@kit.ArkData';
 import { DiagnosticsService, DiagnosticCheckKind, DiagnosticCheckResult } from '../lib/DiagnosticsService';
+import { DiagnosticExportSnapshots, DiagnosticExportSnapshot } from '../lib/DiagnosticExportSnapshots';
 import { DiagnosticsBundleView } from '../lib/DiagnosticsBundleView';
 
 @Component
@@ -27,6 +28,8 @@ export struct DiagnosticsPage {
   private results: DiagnosticCheckResult[] = [];
   private visible: boolean = false;
   private generation: number = 0;
+  private exportEpoch: number = 0;
+  private exportAction: number = 0;
   private listener: (status: VpnStatus) => void = (status: VpnStatus) => {
     if (this.status === status) { return; }
     this.status = status;
@@ -44,6 +47,7 @@ export struct DiagnosticsPage {
 
   aboutToDisappear(): void {
     this.visible = false;
+    this.exportEpoch++;
     this.generation++;
     this.busy = false;
     this.control = '尚未检查本机服务';
@@ -95,36 +99,64 @@ export struct DiagnosticsPage {
 
   private async exportSupport(share: boolean): Promise<void> {
     if (this.busy || !this.visible) { return; }
-    const attempt = this.generation;
+    const epoch = this.exportEpoch;
+    const action = ++this.exportAction;
     this.busy = true;
     const context = getContext(this) as common.UIAbilityContext;
     this.exportMessage = '正在准备诊断支持包…';
+    let snapshot: DiagnosticExportSnapshot | null = null;
+    let handedToShare = false;
     try {
       const bundle = await DiagnosticsService.exportBundle(context);
-      if (!this.visible || attempt !== this.generation) { return; }
-      this.bundleFacts = DiagnosticsBundleView.facts(bundle.json);
+      if (!this.visible || epoch !== this.exportEpoch || action !== this.exportAction) { return; }
+      const facts = DiagnosticsBundleView.facts(bundle.json);
+      // Snapshot the returned JSON, not bundle.path: another service export can
+      // replace that cache even before the picker or share callback resolves.
+      snapshot = DiagnosticExportSnapshots.create(context, bundle.json, share);
+      this.bundleFacts = facts;
       if (share) {
-        // File URI avoids ShareKit's 200 KB text IPC limit and preserves the
-        // reviewed snapshot if another export replaces the service cache file.
-        const snapshot = `${context.cacheDir}/cexing-support-share.json`;
-        fileIo.copyFileSync(bundle.path, snapshot);
+        const captured = snapshot;
         const data = new systemShare.SharedData({ utd: uniformTypeDescriptor.UniformDataType.FILE,
-          uri: fileUri.getUriFromPath(snapshot), title: '策星诊断支持包', label: 'FILE' });
-        await new systemShare.ShareController(data).show(context, {});
-        if (this.visible && attempt === this.generation) { this.exportMessage = '已打开系统分享面板，请审核内容后选择接收应用'; }
+          uri: fileUri.getUriFromPath(captured.path), title: '策星诊断支持包', label: 'FILE' });
+        const controller = new systemShare.ShareController(data);
+        const dismiss = (): void => {
+          DiagnosticExportSnapshots.release(captured, true);
+          try { controller.off('dismiss', dismiss); } catch (_) {}
+        };
+        controller.on('dismiss', dismiss);
+        handedToShare = true;
+        try { await controller.show(context, {}); }
+        catch (error) {
+          DiagnosticExportSnapshots.release(captured, true);
+          try { controller.off('dismiss', dismiss); } catch (_) {}
+          throw error as Error;
+        }
+        if (this.visible && epoch === this.exportEpoch && action === this.exportAction) {
+          this.exportMessage = '已打开系统分享面板，请审核内容后选择接收应用';
+        }
       } else {
         const uris = await new picker.DocumentViewPicker(context).save({
           newFileNames: [bundle.fileName], fileSuffixChoices: ['诊断支持包|.json']
         });
-        if (!this.visible || attempt !== this.generation) { return; }
-        if (uris.length === 0) { this.exportMessage = '保存已取消，诊断包保留在应用中'; return; }
+        if (!this.visible || epoch !== this.exportEpoch) { return; }
+        if (uris.length === 0) {
+          if (action === this.exportAction) { this.exportMessage = '保存已取消，诊断包保留在应用中'; }
+          return;
+        }
         const file = fileIo.openSync(uris[0], fileIo.OpenMode.READ_WRITE | fileIo.OpenMode.CREATE | fileIo.OpenMode.TRUNC);
-        try { fileIo.copyFileSync(bundle.path, file.fd); } finally { fileIo.closeSync(file); }
-        this.exportMessage = '诊断支持包已保存，请审核证据范围后提交';
+        try { fileIo.copyFileSync(snapshot.path, file.fd); } finally { fileIo.closeSync(file); }
+        if (action === this.exportAction) { this.exportMessage = '诊断支持包已保存，请审核证据范围后提交'; }
       }
-    } catch (_) {
-      if (this.visible && attempt === this.generation) { this.exportMessage = '诊断包保存或分享未完成，可重试；历史证据保留'; }
-    } finally { if (attempt === this.generation) { this.busy = false; } }
+    } catch (error) {
+      if (this.visible && epoch === this.exportEpoch && action === this.exportAction) {
+        this.exportMessage = (error as Error).message === 'snapshot_capacity' ?
+          '已有诊断文件仍在等待或保留，请先完成保存/分享或稍后重试' :
+          '诊断包保存或分享未完成，可重试；历史证据保留';
+      }
+    } finally {
+      if (snapshot !== null && !handedToShare) { DiagnosticExportSnapshots.release(snapshot, false); }
+      if (epoch === this.exportEpoch && action === this.exportAction) { this.busy = false; }
+    }
   }
 
   private connection(): string {
