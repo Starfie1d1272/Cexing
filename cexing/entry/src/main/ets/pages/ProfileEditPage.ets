@@ -22,6 +22,7 @@ export struct ProfileEditPage {
   @Consume('nav') navStack: NavPathStack;
   @State text: string = '';
   @State dirty: boolean = false;
+  @State draftPersisted: boolean = false;
   @State loadFailed: boolean = false;
   @State showSaveAsSheet: boolean = false;
   @State saveAsInput: string = '';
@@ -39,9 +40,11 @@ export struct ProfileEditPage {
       const draft = ProfileStore.readDraft(context, ProfileEditBus.current);
       this.text = draft === null ? content : draft;
       this.dirty = draft !== null;
+      this.draftPersisted = draft !== null;
     } catch (_) {
       this.text = content;
       this.dirty = false;
+      this.draftPersisted = false;
     }
   }
 
@@ -66,6 +69,7 @@ export struct ProfileEditPage {
     try {
       const result = await ProfileTransactions.edit(context, file, snapshot);
       this.dirty = this.text !== snapshot;
+      if (!this.dirty) { this.draftPersisted = false; }
       this.profileRevision++;
       this.toast(result === 'applied' ? '已保存并应用' : '已保存，启用或启动后生效');
       if (!this.dirty) {
@@ -89,6 +93,18 @@ export struct ProfileEditPage {
     }
     this.text = content;
     this.dirty = false;
+    this.draftPersisted = false;
+  }
+
+  private persistDraft(value: string): void {
+    this.dirty = true;
+    try {
+      ProfileStore.writeDraft(getContext(this) as common.UIAbilityContext, ProfileEditBus.current, value);
+      this.draftPersisted = true;
+    } catch (_) {
+      this.draftPersisted = false;
+      this.toast('草稿保存失败，请先保存配置');
+    }
   }
 
   private saveAs(): void {
@@ -172,7 +188,7 @@ export struct ProfileEditPage {
             .maxLines(1)
             .textOverflow({ overflow: TextOverflow.Ellipsis })
           if (this.dirty) {
-            Text('未保存 · 草稿已保留，返回后可继续编辑')
+            Text(this.draftPersisted ? '未保存 · 草稿已保留，返回后可继续编辑' : '未保存 · 草稿保留失败，请先保存配置')
               .fontSize(13)
               .fontColor(UI.accentText)
           }
@@ -211,10 +227,7 @@ export struct ProfileEditPage {
           .borderRadius(12)
           .padding(12)
           .onChange((v: string) => {
-            this.dirty = true;
-            try {
-              ProfileStore.writeDraft(getContext(this) as common.UIAbilityContext, ProfileEditBus.current, v);
-            } catch (_) { this.toast('草稿保存失败，请先保存配置'); }
+            this.persistDraft(v);
           })
       }
 
