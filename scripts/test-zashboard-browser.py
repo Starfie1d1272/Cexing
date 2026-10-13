@@ -99,6 +99,36 @@ process.stdout.write(context.exports.ZashboardSession.bootstrap(fixture.secret,f
             if city_data['state'] == 'missing':
                 page.get_by_text('Download the fixed DB-IP city database', exact=False).wait_for(timeout=20000)
                 assert not any('/ohos/geoip/download' in r.url for r in requests), 'Page automatically downloaded data'
+                # Actual built consent UI: narrow English/Chinese and enlarged root font.
+                # Each fresh session remains undownloaded; no destructive download is needed.
+                for language, title, later, download in [
+                    ('en-US', 'Download the local city database?', 'Later, show space', 'Download database'),
+                    ('zh-CN', '下载本地城市数据库？', '稍后下载，查看星空', '下载数据库'),
+                ]:
+                    for font_scale in [100, 150]:
+                        probe_context = browser.new_context(viewport={'width': 390, 'height': 844}, locale=language)
+                        probe_context.add_init_script(bootstrap)
+                        probe_context.add_init_script('localStorage.setItem("config/language", '+json.dumps(language)+');')
+                        probe = probe_context.new_page()
+                        probe.goto(url, wait_until='networkidle')
+                        heading = probe.get_by_text(title, exact=True)
+                        heading.wait_for(timeout=20000)
+                        probe.evaluate('(scale) => document.documentElement.style.fontSize=scale+"%"', font_scale)
+                        consent = heading.locator('..')
+                        for label in [later, download]:
+                            action = consent.get_by_role('button', name=label, exact=True)
+                            action.scroll_into_view_if_needed()
+                            geometry = action.evaluate("""el => {const b=el.getBoundingClientRect(),c=el.parentElement.parentElement.getBoundingClientRect();return {left:b.left,right:b.right,cardLeft:c.left,cardRight:c.right,scroll:el.scrollWidth,width:el.clientWidth}}""")
+                            assert geometry['left'] >= max(0,geometry['cardLeft'])-1 and geometry['right'] <= min(390,geometry['cardRight'])+1, (language,font_scale,label,geometry)
+                            assert geometry['scroll'] <= geometry['width']+1, (language,font_scale,label,'clipped text',geometry)
+                        screenshot_dir = os.environ.get('ZASHBOARD_SCREENSHOTS')
+                        if screenshot_dir:
+                            Path(screenshot_dir).mkdir(parents=True, exist_ok=True)
+                            consent.screenshot(path=str(Path(screenshot_dir)/f'city-consent-390-{language}-{font_scale}.png'))
+                        consent.get_by_role('button', name=later, exact=True).click()
+                        assert api('/ohos/geoip/status')[0] == 200 and json.loads(api('/ohos/geoip/status')[1])['state'] == 'missing'
+                        probe_context.close()
+                print('PASS: 390px English/Chinese consent at 100%/150% root font; buttons and text within card/viewport, Later usable, no download')
                 page.get_by_role('button', name='Later, show space', exact=True).click()
                 if os.environ.get('CITY_BROWSER_DOWNLOAD') == 'true':
                     page.get_by_role('button', name='Download database', exact=True).click()

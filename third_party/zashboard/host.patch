@@ -273,7 +273,7 @@ index 72a8213..e74ab19 100644
 -}
 +/* Host distribution uses system emoji; only licensed Fira Sans is bundled. */
 diff --git a/src/components/overview/EarthGlobeCard.vue b/src/components/overview/EarthGlobeCard.vue
-index 82b3e9d..3c83f4e 100644
+index 82b3e9d..5c44bad 100644
 --- a/src/components/overview/EarthGlobeCard.vue
 +++ b/src/components/overview/EarthGlobeCard.vue
 @@ -93,28 +93 @@
@@ -309,10 +309,15 @@ index 82b3e9d..3c83f4e 100644
 @@ -200 +173 @@
 -        v-else-if="databaseStatus === 'idle'"
 +        v-else-if="databaseStatus === 'idle' && !cityPromptHidden"
+@@ -204 +177 @@
+-          class="bg-base-100/90 pointer-events-auto max-w-md rounded-xl p-4 text-sm shadow-xl backdrop-blur-md"
++          class="bg-base-100/90 pointer-events-auto max-h-full w-full min-w-0 max-w-md overflow-y-auto rounded-xl p-4 text-sm shadow-xl backdrop-blur-md"
 @@ -208 +181 @@
 -            {{ t('earthDatabaseConsent', { download: '61.7 MB', stored: '130.2 MB' }) }}
 +            {{ t('earthHostCityConsent') }}
-@@ -216,0 +190 @@
+@@ -216 +189,2 @@
+-          <div class="mt-3 flex items-center gap-2">
++          <div class="mt-3 flex flex-wrap items-center gap-2">
 +            <button class="btn btn-sm" @click="cityPromptHidden = true">{{ t('earthHostCityLater') }}</button>
 @@ -268,0 +243 @@
 +            v-if="databaseError !== 'host-offline'"
