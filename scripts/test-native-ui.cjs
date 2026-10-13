@@ -28,6 +28,7 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   let now = 1000, stream, tick, dialog, stop = 0, start = 0, cancelRestore = 0, timerCleared = 0;
   const toasts = [];
   let stopResult = async () => true;
+  let smartPrepare = async () => {};
   let activeHomeFile = 'fixture.yaml';
   const listeners = new Set();
   function emit(next) { controller.status = next; for (const listener of listeners) listener(next); }
@@ -36,7 +37,8 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   const controller = { status: status.Connected, onChanged(fn) { listeners.add(fn); }, offChanged(fn) { listeners.delete(fn); },
     getLastStopCompleted: () => lastStopCompleted,
     consumeLastStartError: () => { const value = pendingFailure; pendingFailure = ''; return value; },
-    getLastStartFailure: () => null, stop: () => { stop++; return stopResult(); }, start: () => start++ };
+    getLastStartFailure: () => null, stop: () => { stop++; return stopResult(); },
+    start: () => { start++; emit(status.Connecting); } };
   const common = {
     '@kit.AbilityKit': {}, '@kit.ArkUI': { promptAction: { showToast(value) { toasts.push(value.message); } } },
     '@kit.BasicServicesKit': {}, '../lib/ConnectionFailure': { ConnectionFailures: {} },
@@ -49,6 +51,7 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
     '../lib/ProfileStore': { ProfileStore: { getActiveFile: () => activeHomeFile } },
     '../lib/Settings': { Settings: { load: () => ({ mode: 'rule' }) } },
     '../lib/AppRuntime': { AppRuntime: { cancelRestore: () => cancelRestore++ } },
+    '../lib/ProfileTransactions': { ProfileTransactions: { ensureActiveSmartPolicy: () => smartPrepare() } },
     './ProfilePage': { ProfileDetailBus: { current: '' } }
   }, { Date: { now: () => now }, setInterval: cb => { tick = cb; return 1; },
     clearInterval: () => timerCleared++, AlertDialog: { show: value => { dialog = value; } } });
@@ -89,7 +92,7 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   assert.equal(cancelRestore, 1, 'explicit stop cancels pending restore');
   assert.equal(dialog, undefined, 'disconnect must not show a confirmation');
   emit(status.Disconnecting); home.toggle(); assert.equal(stop, 1, 'disconnecting ignores another tap');
-  emit(status.Disconnected); home.toggle(); assert.equal(start, 1, 'reconnect starts normally');
+  emit(status.Disconnected); await home.toggle(); assert.equal(start, 1, 'reconnect starts normally');
   emit(status.Connecting); home.toggle(); assert.equal(stop, 2, 'connecting can be cancelled');
   emit(status.Disconnecting); emit(status.Disconnected); emit(status.Connecting); emit(status.Connected);
   assert.equal(stop, 2, 'old stop did not trigger a new stop after reconnect');
@@ -110,11 +113,24 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
     'false stop must be visible despite Disconnected status');
   assert.equal(home.label(), '停止结果未知', 'the card must retain an unconfirmed stop after the toast');
   assert.ok(home.stateLine().includes('检查系统 VPN'));
+  smartPrepare = async () => { throw Error('synthetic Smart preparation failure'); };
+  await home.toggle();
+  assert.equal(home.stopUnknown, true, 'failed preparation must preserve an unconfirmed stop');
+  assert.equal(start, 1, 'failed preparation must not start VPN');
+  let finishPreparation;
+  smartPrepare = () => new Promise(resolve => { finishPreparation = resolve; });
+  const stalePreparation = home.toggle();
+  home.currentVisibleTab = 1; home.onTabVisible();
+  finishPreparation(); await stalePreparation;
+  assert.equal(home.stopUnknown, true, 'late preparation must preserve the stop warning');
+  assert.equal(start, 1, 'late preparation after leaving the tab must not start VPN');
+  smartPrepare = async () => {};
+  home.currentVisibleTab = 0; home.onTabVisible();
   toasts.length = 0;
   let finishStop;
   stopResult = () => new Promise(resolve => { finishStop = resolve; });
   emit(status.Connected); home.toggle(); emit(status.Disconnecting); emit(status.Disconnected);
-  home.toggle(); assert.equal(home.stopUnknown, false, 'a new start clears the old stop warning');
+  await home.toggle(); assert.equal(home.stopUnknown, false, 'a new start clears the old stop warning');
   finishStop(false);
   await new Promise(resolve => setImmediate(resolve));
   assert.equal(toasts.length, 0, 'old stop result cannot toast after a newer start');
@@ -182,17 +198,20 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
 
   let active = 'fixture.yaml', deleted = 0, rejectImport = true;
   let activateResult = async () => 'applied';
+  let regionResult = async () => 'saved';
   const profiles = [{ file: 'fixture.yaml', name: 'Fixture', active: true },
     { file: 'candidate.yaml', name: 'Candidate', active: false }];
   const Profile = load('ProfilePage', { ...common,
     '@kit.CoreFileKit': {}, '@kit.ArkTS': {}, '@kit.BasicServicesKit': {}, './ProfileEditPage': {},
     '../lib/CoreApi': { CoreApi: {} },
+    '../lib/EffectiveVersions': { EffectiveVersions: { read: () => null } },
     '../lib/ProfileTransactions': { ProfileTransactions: {
       remove: async () => { deleted++; }, activate: (...args) => activateResult(...args),
+      setRegionPlan: (...args) => regionResult(...args),
       update: async () => 'applied', rename: () => 'fixture.yaml'
     } },
     '../lib/ProfileStore': { ProfileStore: { list: () => profiles, getMeta: () => ({}),
-      getActiveFile: () => active,
+      getActiveFile: () => active, pendingRegionSelection: () => '',
       importFromUrl: async () => { if (rejectImport) throw Error('network'); return 'candidate.yaml'; } } }
   }, { AlertDialog: { show: value => { dialog = value; } } });
   const profile = new Profile(); profile.profileRevision = 0; profile.navStack = { pop() {} };
@@ -263,6 +282,25 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   await waitForActivation(); finishActivation('saved'); await completedDetail;
   assert.equal(detail.pops(), 1, 'current detail pops exactly once after definite success');
   assert.equal(detail.page.tabJump, 0, 'current detail returns to Connect');
+  function regionPage() {
+    const page = activationPage().page;
+    page.importedFile = 'candidate.yaml'; page.regionFromImport = true;
+    page.regionPreview = { eligible: true, nodes: { Node: '香港' } };
+    return page;
+  }
+  const createdAndEnabled = regionPage();
+  await createdAndEnabled.saveRegion(true);
+  assert.equal(createdAndEnabled.tabJump, 0, 'create and enable uses the activation navigation guard');
+  regionResult = async () => { throw Error('地区策略未应用'); };
+  const rejectedRegion = regionPage();
+  await rejectedRegion.saveRegion(true);
+  assert.equal(rejectedRegion.tabJump, -1, 'rejected create and enable stays on profiles');
+  let finishRegion;
+  regionResult = () => new Promise(resolve => { finishRegion = resolve; });
+  const leftRegion = regionPage();
+  const pendingRegion = leftRegion.saveRegion(true);
+  leftRegion.aboutToDisappear(); finishRegion('saved'); await pendingRegion;
+  assert.equal(leftRegion.tabJump, -1, 'late create and enable cannot navigate after leaving');
   active = 'fixture.yaml';
   controller.status = status.Connected; profile.confirmDelete(profiles[0]); dialog.secondaryButton.action();
   assert.equal(deleted, 0, 'running active profile must be protected');

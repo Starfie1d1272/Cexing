@@ -37,6 +37,8 @@ function fixture(recovered = status.Disconnected) {
       checkAndRun: async () => { calls.check++; }
     } },
     './Settings': { Settings: { load: () => settings } },
+    './ProfileTransactions': { ProfileTransactions: { ensureActiveSmartPolicy: async () => {},
+      applyPendingRegionSelection: async () => false } },
     './Logger': { Logger: { warn() {} } }
   };
   const ctx = { exports: {}, require: name => {
@@ -76,7 +78,7 @@ async function testOwnership() {
   assert.equal(f.calls.backgroundStart, 2, 'Reconnect must restart services');
   assert.equal(f.calls.updatesStart, 2);
 }
-function testRestore() {
+async function testRestore() {
   const entry = fixture();
   entry.settings.autoRestore = true;
   entry.settings.vpnWasConnected = true;
@@ -148,10 +150,11 @@ function testRestore() {
   g.settings.vpnWasConnected = true;
   g.runtime.initialize({});
   [...g.timers.values()][0]();
+  await flush();
   assert.equal(g.calls.start, 1);
 }
 (async () => {
   await testOwnership();
-  testRestore();
+  await testRestore();
   console.log('PASS: process-owned background services, recovery, transitions and auto-restore');
 })().catch(error => { console.error(error); process.exitCode = 1; });

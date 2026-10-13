@@ -351,6 +351,8 @@ export namespace ProfileStore {
     if (fileIo.accessSync(merge)) {
       try { await fileIo.unlink(merge); } catch (_) { /* orphan draft is not effective */ }
     }
+    clearPendingRegionSelection(context, file);
+    clearPreviousRegionSelection(context, file);
     try { clearDraft(context, file); } catch (_) { /* non-effective draft */ }
   }
 
@@ -401,6 +403,57 @@ export namespace ProfileStore {
     return getMergeDraft(context, file);
   }
 
+  export function pendingRegionSelection(context: common.Context, file: string): string {
+    const p = `${ensureDir(context)}/${file}.region-select.json`;
+    if (!fileIo.accessSync(p)) { return ''; }
+    const raw = JSON.parse(fileIo.readTextSync(p)) as Record<string, string>;
+    return typeof raw['selector'] === 'string' ? raw['selector'] : '';
+  }
+
+  export function setPendingRegionSelection(context: common.Context, file: string,
+    selector: string): void {
+    atomicText(`${ensureDir(context)}/${file}.region-select.json`, JSON.stringify({ selector: selector }));
+  }
+
+  export function clearPendingRegionSelection(context: common.Context, file: string): void {
+    const p = `${ensureDir(context)}/${file}.region-select.json`;
+    if (fileIo.accessSync(p)) { fileIo.unlinkSync(p); }
+  }
+
+  export function previousRegionSelection(context: common.Context, file: string): string {
+    const p = `${ensureDir(context)}/${file}.region-previous.json`;
+    if (!fileIo.accessSync(p)) { return ''; }
+    const raw = JSON.parse(fileIo.readTextSync(p)) as Record<string, string>;
+    return typeof raw['name'] === 'string' ? raw['name'] : '';
+  }
+
+  export function setPreviousRegionSelection(context: common.Context, file: string,
+    name: string): void {
+    atomicText(`${ensureDir(context)}/${file}.region-previous.json`, JSON.stringify({ name: name }));
+  }
+
+  /** Controller's choice immediately after a failed disable restore; later changes are not ours to overwrite. */
+  export function previousRegionObservation(context: common.Context, file: string): string {
+    const p = `${ensureDir(context)}/${file}.region-previous.json`;
+    if (!fileIo.accessSync(p)) { return ''; }
+    const raw = JSON.parse(fileIo.readTextSync(p)) as Record<string, string>;
+    return typeof raw['observed'] === 'string' ? raw['observed'] : '';
+  }
+
+  export function setPreviousRegionObservation(context: common.Context, file: string,
+    observed: string): void {
+    const name = previousRegionSelection(context, file);
+    if (name !== '') {
+      atomicText(`${ensureDir(context)}/${file}.region-previous.json`,
+        JSON.stringify({ name: name, observed: observed }));
+    }
+  }
+
+  export function clearPreviousRegionSelection(context: common.Context, file: string): void {
+    const p = `${ensureDir(context)}/${file}.region-previous.json`;
+    if (fileIo.accessSync(p)) { fileIo.unlinkSync(p); }
+  }
+
   export function setMergeEnabled(context: common.Context, file: string, content: string): void {
     atomicText(`${ensureDir(context)}/${file}.merge.json`, JSON.stringify({
       dialect: 'clash-verge-merge-2.5.8', sourceVersion: '', content: content, enabled: content.length > 0
@@ -445,7 +498,8 @@ export namespace ProfileStore {
     }
     const moved: string[][] = [];
     try {
-      for (const suffix of ['.url', '.last-good', '.merge.json']) {
+      for (const suffix of ['.url', '.last-good', '.merge.json', '.region-select.json',
+        '.region-previous.json']) {
         const from = `${oldPath}${suffix}`;
         const to = `${newPath}${suffix}`;
         if (fileIo.accessSync(from)) {

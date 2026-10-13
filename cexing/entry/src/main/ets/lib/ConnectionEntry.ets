@@ -111,8 +111,23 @@ export namespace ConnectionEntry {
     }
     consumed = request;
     AppRuntime.cancelRestore();
-    // No asynchronous gap between the gate and the existing lifecycle call.
     if (action === 'connect') {
+      try { await ProfileTransactions.ensureActiveSmartPolicy(ctx); }
+      catch (_) {
+        if (context !== ctx || request !== expectedRequest) { return ''; }
+        changed();
+        return '当前配置未能生成，请检查配置后重试';
+      }
+      // Preparation is asynchronous: another Want, Ability, VPN session or stop result
+      // may have superseded the confirmed intent while the transaction was running.
+      if (context !== ctx || !ready || request !== expectedRequest ||
+        revision !== expectedRevision || action !== 'connect' ||
+        VpnController.status !== VpnStatus.Disconnected || stopUnknown ||
+        VpnController.getLastStopCompleted() === false ||
+        ProfileTransactions.isBusy() || ProfileStore.isApplyUncertain(ctx) ||
+        ProfileStore.getActiveFile(ctx).length === 0) {
+        return '状态或入口已变化，请查看当前连接状态';
+      }
       VpnController.start(ctx);
       changed();
       return '已进入系统连接与授权流程';

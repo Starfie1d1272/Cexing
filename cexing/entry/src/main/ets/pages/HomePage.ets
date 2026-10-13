@@ -5,6 +5,7 @@ import { CoreApi, TrafficMsg, formatRate } from '../lib/CoreApi';
 import { ProfileStore } from '../lib/ProfileStore';
 import { Settings } from '../lib/Settings';
 import { AppRuntime } from '../lib/AppRuntime';
+import { ProfileTransactions } from '../lib/ProfileTransactions';
 import { NativeTheme as UI } from './NativeTheme';
 import { ProfileDetailBus } from './ProfilePage';
 
@@ -19,6 +20,7 @@ export struct HomePage {
   @Consume('tabJump') tabJump: number;
   @Consume('tab') @Watch('onTabVisible') currentVisibleTab: number;
   @State status: VpnStatus = VpnController.status;
+  private preparingSmart: boolean = false;
   @State profileName: string = '未导入';
   @State hasProfile: boolean = false;
   @State upRate: string = '—';
@@ -143,17 +145,30 @@ export struct HomePage {
     }
   }
 
-  private toggle(): void {
+  private async toggle(): Promise<void> {
     AppRuntime.cancelRestore();
     const ctx = getContext(this) as common.UIAbilityContext;
     if (this.status === VpnStatus.Disconnected) {
-      this.stopRequest++;
-      if (ProfileStore.getActiveFile(ctx).length === 0) {
+      if (this.preparingSmart) { return; }
+      const file = ProfileStore.getActiveFile(ctx);
+      if (file.length === 0) {
         this.tabJump = 1;
         return;
       }
+      const request = this.stopRequest;
       this.startFailed = false;
-      this.stopUnknown = false;
+      this.preparingSmart = true;
+      try { await ProfileTransactions.ensureActiveSmartPolicy(ctx); }
+      catch (_) {
+        if (request !== this.stopRequest || !this.visible || !this.rootVisible ||
+          this.currentVisibleTab !== 0) { return; }
+        this.startFailed = true;
+        promptAction.showToast({ message: '当前配置未能生成，请检查配置后重试' });
+        return;
+      } finally { this.preparingSmart = false; }
+      if (request !== this.stopRequest || !this.visible || !this.rootVisible ||
+        this.currentVisibleTab !== 0 || VpnController.status !== VpnStatus.Disconnected ||
+        ProfileStore.getActiveFile(ctx) !== file) { return; }
       VpnController.start(ctx);
     } else if (this.status === VpnStatus.Connecting) {
       this.stopVpn(ctx);

@@ -5,6 +5,7 @@ import { LiveViewKeeper } from './LiveViewKeeper';
 import { AutoUpdater } from './AutoUpdater';
 import { Settings } from './Settings';
 import { Logger } from './Logger';
+import { ProfileTransactions } from './ProfileTransactions';
 
 export namespace AppRuntime {
   let context: common.UIAbilityContext | null = null;
@@ -42,7 +43,13 @@ export namespace AppRuntime {
           const current = Settings.load(context);
           if (current.autoRestore && current.vpnWasConnected &&
             VpnController.status === VpnStatus.Disconnected) {
-            VpnController.start(context);
+            const restoreContext = context;
+            ProfileTransactions.ensureActiveSmartPolicy(restoreContext).then(() => {
+              if (generation === restoreGeneration && context === restoreContext &&
+                VpnController.status === VpnStatus.Disconnected) {
+                VpnController.start(restoreContext);
+              }
+            }).catch(() => { Logger.warn('runtime', 'generated profile preparation failed'); });
           }
         }, 1200);
       }
@@ -60,6 +67,8 @@ export namespace AppRuntime {
     }
     if (status === VpnStatus.Connected && !servicesStarted) {
       servicesStarted = true;
+      ProfileTransactions.applyPendingRegionSelection(ctx)
+        .catch(() => Logger.warn('runtime', 'explicit region selection pending'));
       LiveViewKeeper.start(ctx).catch(() => Logger.warn('runtime', 'background task start failed'));
       AutoUpdater.start(ctx);
       AutoUpdater.checkAndRun(ctx).catch(() => Logger.warn('runtime', 'subscription check failed'));

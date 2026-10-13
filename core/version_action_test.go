@@ -4,8 +4,50 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
+
+func TestVersionActionSmartTogglePreservesOriginal(t *testing.T) {
+	home := t.TempDir()
+	if err := os.WriteFile(filepath.Join(home, "geoip.metadb"), []byte("synthetic"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	original := "proxies: [{name: node, type: socks5, server: 192.0.2.1, port: 1080}]\n" +
+		"proxy-groups: [{name: automatic, type: url-test, proxies: [node]}, {name: manual, type: select, proxies: [automatic, DIRECT]}]\n" +
+		"rules: ['MATCH,manual']\n"
+	act := versionAction{Op: "stage", ProfileID: "source.yaml", Original: original, Metadata: `{}`, SmartConversion: true}
+	on, err := executeVersionAction(home, act)
+	if err != nil || on.Version == nil {
+		t.Fatalf("enabled stage: %v", err)
+	}
+	generated, err := os.ReadFile(on.Version.Path)
+	if err != nil || !strings.Contains(string(generated), "type: smart") ||
+		!strings.Contains(string(generated), "type: select") || !strings.Contains(string(generated), "MATCH,manual") {
+		t.Fatal("enabled generated policy lost group or rule")
+	}
+	stored, err := os.ReadFile(filepath.Join(filepath.Dir(on.Version.Path), "original.yaml"))
+	if err != nil || string(stored) != original {
+		t.Fatal("subscription source changed")
+	}
+	source, err := os.ReadFile(filepath.Join(filepath.Dir(on.Version.Path), "source.json"))
+	if err != nil || !strings.Contains(string(source), `"SmartConversion":true`) {
+		t.Fatal("enabled policy provenance missing")
+	}
+	if _, err := executeVersionAction(home, versionAction{Op: "commit", VersionID: on.Version.ID, Active: true}); err != nil {
+		t.Fatal(err)
+	}
+	act.Expected = on.Version.ID
+	act.SmartConversion = false
+	off, err := executeVersionAction(home, act)
+	if err != nil || off.Version == nil {
+		t.Fatalf("disabled stage: %v", err)
+	}
+	generated, err = os.ReadFile(off.Version.Path)
+	if err != nil || !strings.Contains(string(generated), "type: url-test") || strings.Contains(string(generated), "type: smart") {
+		t.Fatal("disabled version did not restore original group type")
+	}
+}
 
 func TestVersionActionPublishesPerProfileAndKeepsPrevious(t *testing.T) {
 	home := t.TempDir()

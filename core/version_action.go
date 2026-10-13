@@ -14,23 +14,26 @@ import (
 var profileIDPattern = regexp.MustCompile(`(?i)^[^/\\\x00-\x1f]{1,128}\.ya?ml$`)
 
 type versionAction struct {
-	Op           string `json:"op"`
-	ProfileID    string `json:"profileId"`
-	Original     string `json:"original"`
-	Overlay      string `json:"overlay"`
-	Metadata     string `json:"metadata"`
-	Overrides    string `json:"overrides"`
-	Expected     string `json:"expected"`
-	VersionID    string `json:"versionId"`
-	Active       bool   `json:"active"`
-	NewProfileID string `json:"newProfileId"`
+	Op              string                     `json:"op"`
+	ProfileID       string                     `json:"profileId"`
+	Original        string                     `json:"original"`
+	Overlay         string                     `json:"overlay"`
+	Metadata        string                     `json:"metadata"`
+	Overrides       string                     `json:"overrides"`
+	Expected        string                     `json:"expected"`
+	VersionID       string                     `json:"versionId"`
+	Active          bool                       `json:"active"`
+	NewProfileID    string                     `json:"newProfileId"`
+	SmartConversion bool                       `json:"smartConversion"`
+	RegionPlan      *configpipeline.RegionPlan `json:"regionPlan,omitempty"`
 }
 
 type versionResponse struct {
-	Version *configpipeline.Version  `json:"version,omitempty"`
-	State   *configpipeline.Snapshot `json:"state,omitempty"`
-	Receipt string                   `json:"receipt,omitempty"`
-	Error   string                   `json:"error,omitempty"`
+	Version       *configpipeline.Version       `json:"version,omitempty"`
+	State         *configpipeline.Snapshot      `json:"state,omitempty"`
+	Receipt       string                        `json:"receipt,omitempty"`
+	Error         string                        `json:"error,omitempty"`
+	RegionPreview *configpipeline.RegionPreview `json:"regionPreview,omitempty"`
 }
 
 func coreVersionAction(home, input string) string {
@@ -68,6 +71,15 @@ func executeVersionAction(home string, action versionAction) (versionResponse, e
 		return versionResponse{}, errors.New("VERSION_STALE")
 	}
 	switch action.Op {
+	case "region-preview":
+		if action.RegionPlan == nil || len(action.Original) > maxConfigBytes || len(action.Overlay) > maxConfigBytes {
+			return versionResponse{}, errors.New("REGION_INVALID")
+		}
+		preview, err := previewRegion(home, action.Original, action.Overlay, *action.RegionPlan)
+		if err != nil {
+			return versionResponse{}, errors.New("REGION_PREVIEW_FAILED")
+		}
+		return versionResponse{RegionPreview: &preview}, nil
 	case "verify":
 		if len(action.VersionID) < len("version-x") || filepath.Base(action.VersionID) != action.VersionID {
 			return versionResponse{}, errors.New("VERSION_INVALID")
@@ -91,12 +103,15 @@ func executeVersionAction(home string, action versionAction) (versionResponse, e
 		if json.Unmarshal([]byte(action.Metadata), &metadata) != nil || metadata == nil {
 			return versionResponse{}, errors.New("VERSION_INVALID")
 		}
-		result, receipt, err := compilePinnedMerge(home, action.Original, action.Overlay, action.Overrides)
+		result, receipt, err := compilePinnedMergeWithStrategies(home, action.Original, action.Overlay,
+			action.Overrides, action.SmartConversion, action.RegionPlan)
 		if err != nil || len(result.YAML) > maxConfigBytes {
 			return versionResponse{}, errors.New("VERSION_COMPILE_FAILED")
 		}
 		result.ProfileID = action.ProfileID
 		result.Metadata = action.Metadata
+		result.SmartConversion = action.SmartConversion
+		result.RegionPlan = action.RegionPlan
 		version, err := store.Stage(ctx, result)
 		if err != nil {
 			return versionResponse{}, errors.New("VERSION_STAGE_FAILED")

@@ -9,6 +9,7 @@ import (
 
 	"github.com/metacubex/mihomo/config"
 	_ "github.com/metacubex/mihomo/hub/executor" // provides config's linked temporary-state rollback
+	"gopkg.in/yaml.v3"
 )
 
 // The locked Mihomo parser mutates globals and allocates runtime objects. Run
@@ -27,6 +28,16 @@ func TestLockedMihomoValidator(t *testing.T) {
 		smart := strings.Replace(original, "type: select", "type: smart, uselightgbm: false, collectdata: false, prefer-asn: false", 1)
 		if _, err := c.Compile(context.Background(), Request{Original: []byte(smart)}); err != nil {
 			t.Fatalf("locked Smart core rejected smart: %v", err)
+		}
+		urlTest := strings.Replace(original, "type: select", "type: url-test", 1)
+		if _, err := c.Compile(context.Background(), Request{Original: []byte(urlTest), Strategy: SmartAuto}); err != nil {
+			t.Fatalf("locked Smart core rejected converted url-test: %v", err)
+		}
+		if _, err := c.Compile(context.Background(), Request{Original: []byte(regionFixture),
+			Strategy: func(ctx context.Context, root *yaml.Node) error {
+				return ApplyRegion(ctx, root, RegionPlan{Mode: "region", Selector: "Main", Enable: true})
+			}}); err != nil {
+			t.Fatalf("locked Smart core rejected generated region plan: %v", err)
 		}
 		providerOnly := `proxy-providers:
   feed:

@@ -45,6 +45,8 @@ function compile(file, modules, extras = {}, page = false) {
   const timers = new Map(); let timerID = 0;
   const { SmartPage } = compile('pages/SmartPage.ets', {
     '@kit.AbilityKit': {}, './NativeTheme': {}, '../lib/SmartModelRestart': { SmartModelRestart: {} },
+    '../lib/Settings': { Settings: { load: () => ({ smartAutoConvert: true }) } },
+    '../lib/ProfileTransactions': { ProfileTransactions: { setSmartAutoConvert: async () => 'applied' } },
     '../lib/VpnController': { VpnStatus: { Connected: 2 }, VpnController: { status: 2 } },
     '../lib/CoreApi': { CoreApi: { getSmartStatus: async () => status,
       importSmartModel: async body => { assert.equal(body.byteLength, 9345218); uploaded++; return { installed: true, restartRequired: true }; } } },
