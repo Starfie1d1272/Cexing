@@ -26,15 +26,15 @@ function load(name, modules, extra = {}) {
 const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 };
 (async () => {
   let now = 1000, stream, tick, dialog, stop = 0, start = 0, cancelRestore = 0, timerCleared = 0;
-  let activeHomeFile = 'fixture.yaml';
   const toasts = [];
-  let stopResult = true;
+  let stopResult = async () => true;
+  let activeHomeFile = 'fixture.yaml';
   const listeners = new Set();
   function emit(next) { controller.status = next; for (const listener of listeners) listener(next); }
   let pendingFailure = '';
   const controller = { status: status.Connected, onChanged(fn) { listeners.add(fn); }, offChanged(fn) { listeners.delete(fn); },
     consumeLastStartError: () => { const value = pendingFailure; pendingFailure = ''; return value; },
-    getLastStartFailure: () => null, stop: () => { stop++; return Promise.resolve(stopResult); }, start: () => start++ };
+    getLastStartFailure: () => null, stop: () => { stop++; return stopResult(); }, start: () => start++ };
   const common = {
     '@kit.AbilityKit': {}, '@kit.ArkUI': { promptAction: { showToast(value) { toasts.push(value.message); } } },
     '@kit.BasicServicesKit': {}, '../lib/ConnectionFailure': { ConnectionFailures: {} },
@@ -96,27 +96,32 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   home.aboutToAppear(); assert.equal(stop, 2, 'recreated page cannot revive a stop action');
   home.aboutToDisappear();
 
-  home.aboutToAppear(); emit(status.Connected);
-  stopResult = false;
-  home.toggle(); emit(status.Disconnected); await new Promise(resolve => setImmediate(resolve));
-  assert.equal(home.label(), '停止结果未知', 'Disconnected must not claim completed cleanup');
-  assert.ok(home.stateLine().includes('检查系统 VPN'));
-  assert.ok(toasts.some(message => message.includes('停止结果未知')));
-  home.toggle(); assert.equal(home.stopUnknown, false, 'new start clears the displayed old stop outcome');
-  emit(status.Connected);
-  let finishLateStop;
-  controller.stop = () => { stop++; return new Promise(resolve => { finishLateStop = resolve; }); };
-  const toastCount = toasts.length;
-  home.toggle(); emit(status.Disconnected); home.toggle();
-  finishLateStop(false); await new Promise(resolve => setImmediate(resolve));
-  assert.equal(toasts.length, toastCount, 'an old stop cannot report failure on a new intent');
-  assert.equal(home.stopUnknown, false);
-  home.aboutToDisappear();
-
   activeHomeFile = '未导入.yaml'; home.refreshProfile();
   assert.equal(home.profileName, '未导入'); assert.equal(home.hasProfile, true, 'display sentinel is a valid filename');
   activeHomeFile = '未导入.yml'; home.refreshProfile(); assert.equal(home.hasProfile, true);
   activeHomeFile = ''; home.refreshProfile(); assert.equal(home.hasProfile, false, 'empty selection has separate existence state');
+  activeHomeFile = 'fixture.yaml'; home.refreshProfile(); home.aboutToAppear();
+  stopResult = async () => false;
+  home.toggle(); emit(status.Disconnecting); emit(status.Disconnected);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.ok(toasts.includes('停止结果未知，请检查系统 VPN 状态后重试'),
+    'false stop must be visible despite Disconnected status');
+  assert.equal(home.label(), '停止结果未知', 'the card must retain an unconfirmed stop after the toast');
+  assert.ok(home.stateLine().includes('检查系统 VPN'));
+  toasts.length = 0;
+  let finishStop;
+  stopResult = () => new Promise(resolve => { finishStop = resolve; });
+  emit(status.Connected); home.toggle(); emit(status.Disconnecting); emit(status.Disconnected);
+  home.toggle(); assert.equal(home.stopUnknown, false, 'a new start clears the old stop warning');
+  finishStop(false);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(toasts.length, 0, 'old stop result cannot toast after a newer start');
+  stopResult = async () => { throw Error('synthetic stop failure'); };
+  emit(status.Connected); home.toggle(); emit(status.Disconnecting); emit(status.Disconnected);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.ok(toasts.includes('停止结果未知，请检查系统 VPN 状态后重试'), 'rejected stop must be visible');
+  assert.equal(home.label(), '停止结果未知');
+  home.aboutToDisappear();
   console.log('PASS: one-tap stop, cancel/reconnect, stale traffic and sentinel-named profiles');
 
   let resolveProbe;

@@ -31,12 +31,17 @@ export struct HomePage {
   @State prioritizePanel: boolean = false;
   @State startFailed: boolean = false;
   @State stopUnknown: boolean = false;
-  private stopIntent: number = 0;
   private lastTrafficAt: number = 0;
   private freshnessTimer: number = -1;
+  private stopRequest: number = 0;
   private watcher: CoreApi.StreamWatcher<TrafficMsg> = new CoreApi.StreamWatcher<TrafficMsg>();
   private visible: boolean = false;
   private listener: (status: VpnStatus) => void = (status: VpnStatus) => {
+    if ((status === VpnStatus.Connecting || status === VpnStatus.Connected) &&
+      (this.status === VpnStatus.Disconnected || this.status === VpnStatus.Disconnecting)) {
+      this.stopRequest++;
+      this.stopUnknown = false;
+    }
     this.status = status;
     if (this.visible) {
       this.refreshTraffic();
@@ -69,7 +74,7 @@ export struct HomePage {
 
   aboutToDisappear(): void {
     this.visible = false;
-    this.stopIntent++;
+    this.stopRequest++;
     VpnController.offChanged(this.listener);
     this.watcher.stop();
     clearInterval(this.freshnessTimer);
@@ -81,10 +86,12 @@ export struct HomePage {
   }
 
   private onRootVisible(): void {
+    if (!this.rootVisible) { this.stopRequest++; }
     this.refreshTraffic();
   }
 
   private onTabVisible(): void {
+    if (this.currentVisibleTab !== 0) { this.stopRequest++; }
     if (this.currentVisibleTab === 0) {
       this.refreshProfile();
     }
@@ -121,11 +128,24 @@ export struct HomePage {
     }
   }
 
+  private async stopVpn(ctx: common.UIAbilityContext): Promise<void> {
+    const request = ++this.stopRequest;
+    let completed = false;
+    try { completed = await VpnController.stop(ctx); }
+    catch (_) {}
+    if (request !== this.stopRequest) { return; }
+    this.stopUnknown = !completed;
+    if (!completed && this.visible && this.rootVisible &&
+      this.currentVisibleTab === 0) {
+      promptAction.showToast({ message: '停止结果未知，请检查系统 VPN 状态后重试', duration: 3000 });
+    }
+  }
+
   private toggle(): void {
     AppRuntime.cancelRestore();
     const ctx = getContext(this) as common.UIAbilityContext;
     if (this.status === VpnStatus.Disconnected) {
-      this.stopIntent++;
+      this.stopRequest++;
       if (ProfileStore.getActiveFile(ctx).length === 0) {
         this.tabJump = 1;
         return;
@@ -133,20 +153,10 @@ export struct HomePage {
       this.startFailed = false;
       this.stopUnknown = false;
       VpnController.start(ctx);
-    } else if (this.status === VpnStatus.Connecting || this.status === VpnStatus.Connected) {
-      this.stopAndReport(ctx, ++this.stopIntent);
-    }
-  }
-
-  private async stopAndReport(ctx: common.UIAbilityContext, intent: number): Promise<void> {
-    let completed = false;
-    try {
-      completed = await VpnController.stop(ctx);
-    } catch (_) {}
-    if (intent !== this.stopIntent) { return; }
-    this.stopUnknown = !completed;
-    if (!completed && this.visible && this.rootVisible && this.currentVisibleTab === 0) {
-      promptAction.showToast({ message: '停止结果未知，请检查系统 VPN 状态后重试' });
+    } else if (this.status === VpnStatus.Connecting) {
+      this.stopVpn(ctx);
+    } else if (this.status === VpnStatus.Connected) {
+      this.stopVpn(ctx);
     }
   }
 
