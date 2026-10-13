@@ -2,12 +2,16 @@ package main
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"core/configpipeline"
+	"github.com/metacubex/mihomo/constant"
 	"gopkg.in/yaml.v3"
 )
 
@@ -94,6 +98,31 @@ rules: ["MATCH,Main"]
 	allGenerated, _ := yaml.Marshal(allRoot)
 	if _, _, err := configpipeline.InspectOffline(allGenerated); err != nil {
 		t.Fatalf("include-all generated a broken reference or cycle: %v", err)
+	}
+	var requests atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests.Add(1)
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer server.Close()
+	address := server.URL + "/feed"
+	constant.SetHomeDir(home)
+	httpCache := constant.Path.Resolve(constant.Path.GetPathByHash("proxies", address))
+	if err := os.MkdirAll(filepath.Dir(httpCache), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(httpCache, []byte(cache), 0600); err != nil {
+		t.Fatal(err)
+	}
+	httpSource := strings.Replace(source, "type: file, path: providers/region.yaml",
+		"type: http, url: '"+address+"'", 1)
+	httpRoot, err := configpipeline.RegionMergedSource([]byte(httpSource), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	httpNames, err := regionProviderNames(home, httpRoot)
+	if err != nil || len(httpNames["local"]) != 2 || requests.Load() != 0 {
+		t.Fatalf("HTTP cache was not used offline: %v, names=%v, requests=%d", err, httpNames, requests.Load())
 	}
 	if err := os.Remove(filepath.Join(home, "providers", "region.yaml")); err != nil {
 		t.Fatal(err)
