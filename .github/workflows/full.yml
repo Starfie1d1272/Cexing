@@ -35,9 +35,37 @@ jobs:
       # No SDK downloads, signing secrets, private configuration, or device access.
       - run: npm ci --prefix scripts/ci --ignore-scripts --no-audit --no-fund
       - run: bash scripts/ci/full.sh
+      - name: Prepare verified unsigned test package
+        run: |
+          python3 - <<'PYCODE'
+          import hashlib, json, os, pathlib, shutil
+          report = pathlib.Path('clash-openharmony/dist/ci')
+          identity = json.loads((report / 'build-identity.json').read_text())
+          hap = pathlib.Path('clash-openharmony/entry/build/default/outputs/default/entry-default-unsigned.hap')
+          def sha(path):
+              return hashlib.sha256(path.read_bytes()).hexdigest()
+          if identity['commit'] != os.environ['GITHUB_SHA'] or identity['signed'] is not False:
+              raise SystemExit('Artifact identity does not match this unsigned CI build')
+          if sha(hap) != identity['hapSha256']:
+              raise SystemExit('Artifact HAP differs from the verified CI output')
+          shutil.copyfile(hap, report / 'entry-default-unsigned.hap')
+          source = f'https://github.com/{os.environ["GITHUB_REPOSITORY"]}/blob/{os.environ["GITHUB_SHA"]}/docs/'
+          guide = pathlib.Path('docs/how-to/device.md').read_text()
+          guide = guide.replace('../reference/smart-beta.md', source + 'reference/smart-beta.md')
+          guide = guide.replace('../evidence/native-ui/DEVICE-CHECKLIST.md', source + 'evidence/native-ui/DEVICE-CHECKLIST.md')
+          (report / 'HOKIT-QUICKSTART.md').write_text(guide)
+          files = ['entry-default-unsigned.hap', 'build-identity.json', 'module-notices.json', 'HOKIT-QUICKSTART.md']
+          (report / 'SHA256SUMS').write_text(''.join(sha(report / name) + '  ' + name + '\n' for name in files))
+          PYCODE
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: unsigned-build-evidence-${{ github.sha }}
-          path: clash-openharmony/dist/ci/*.json
+          name: unsigned-test-hap-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            clash-openharmony/dist/ci/entry-default-unsigned.hap
+            clash-openharmony/dist/ci/build-identity.json
+            clash-openharmony/dist/ci/module-notices.json
+            clash-openharmony/dist/ci/HOKIT-QUICKSTART.md
+            clash-openharmony/dist/ci/SHA256SUMS
+          compression-level: 0
           if-no-files-found: error
           retention-days: 7
