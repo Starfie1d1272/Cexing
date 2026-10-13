@@ -190,10 +190,11 @@ var diagnosticBearer = regexp.MustCompile(`(?i)\bBearer\s+[^\s,;]+`)
 func (s *diagnosticStore) text(input string) string {
 	// Raw URLs (including userinfo/path/query/fragment) are removed before any
 	// truncation. No credential can survive at a clipped boundary.
+	// One read transaction covers capacity, dictionary and the complete text
+	// transformation. A registration cannot publish a skipped value between them.
 	s.privacyMu.RLock()
-	limited := s.privacyLimited
-	s.privacyMu.RUnlock()
-	if limited {
+	defer s.privacyMu.RUnlock()
+	if s.privacyLimited {
 		return "DETAIL_OMITTED_REDACTION_CAPACITY"
 	}
 	input = redactControllerSecret(input)
@@ -201,7 +202,6 @@ func (s *diagnosticStore) text(input string) string {
 	input = diagnosticURL.ReplaceAllStringFunc(input, func(v string) string { id := s.object(v); protected[id] = true; return "url-" + id })
 	input = diagnosticBearer.ReplaceAllString(input, "Bearer [redacted]")
 	input = diagnosticCredentials.ReplaceAllString(input, "credential=[redacted]")
-	s.privacyMu.RLock()
 	if s.privateValues != nil {
 		// Do not let a short credential or node label rewrite generated opaque
 		// IDs or URL delimiters before the whole URL has been removed.
@@ -221,7 +221,6 @@ func (s *diagnosticStore) text(input string) string {
 		safe.WriteString(s.privateValues.Replace(input[last:]))
 		input = safe.String()
 	}
-	s.privacyMu.RUnlock()
 	input = diagnosticHex.ReplaceAllString(input, "[redacted-id]")
 	input = diagnosticHost.ReplaceAllStringFunc(input, s.object)
 	input = diagnosticPath.ReplaceAllStringFunc(input, func(v string) string { return "path-" + s.object(v) })
