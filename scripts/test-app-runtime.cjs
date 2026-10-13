@@ -19,7 +19,7 @@ function fixture(recovered = status.Disconnected) {
   const controller = {
     status: status.Disconnected,
     onChanged: cb => listeners.push(cb),
-    cancelRecovery: () => {},
+    cancelRecovery: () => {}, verify: async () => {}, getLastStopCompleted: () => null,
     recover: cb => { controller.status = recovered; listeners.forEach(fn => fn(recovered)); cb(); },
     start: () => { calls.start++; }
   };
@@ -39,11 +39,12 @@ function fixture(recovered = status.Disconnected) {
     './Settings': { Settings: { load: () => settings } },
     './ProfileTransactions': { ProfileTransactions: { ensureActiveSmartPolicy: async () => {},
       applyPendingRegionSelection: async () => false } },
-    './Logger': { Logger: { warn() {} } }
+    './Logger': { Logger: { warn() {} } },
+    './ConnectionCards': { ConnectionCards: { publish() {} } }
   };
   const ctx = { exports: {}, require: name => {
     assert.ok(name in modules, `Missing mock: ${name}`); return modules[name];
-  }, setTimeout: fn => { timers.set(++timerId, fn); return timerId; }, clearTimeout: id => timers.delete(id) };
+  }, setTimeout: fn => { timers.set(++timerId, fn); return timerId; }, clearTimeout: id => timers.delete(id), setInterval: () => 100, clearInterval() {} };
   vm.runInNewContext(compiled, ctx);
   return { runtime: ctx.exports.AppRuntime, controller, listeners, timers, calls, settings,
     emit: value => { controller.status = value; listeners.forEach(fn => fn(value)); } };

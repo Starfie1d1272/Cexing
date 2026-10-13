@@ -79,18 +79,30 @@ class CoreStatusRemote extends rpc.RemoteObject {
   private getError: () => string;
   private getSession: () => string;
   private wasTunCreated: () => boolean;
+  private stopSession: (session: string) => Promise<boolean>;
 
   constructor(isReady: () => boolean, getError: () => string, getSession: () => string,
-    wasTunCreated: () => boolean) {
+    wasTunCreated: () => boolean, stopSession: (session: string) => Promise<boolean>) {
     super('CEXING_VPN_ABILITY');
     this.isReady = isReady;
     this.getError = getError;
     this.getSession = getSession;
     this.wasTunCreated = wasTunCreated;
+    this.stopSession = stopSession;
   }
 
   onRemoteMessageRequest(code: number, data: rpc.MessageSequence, reply: rpc.MessageSequence,
-    options: rpc.MessageOption): boolean {
+    options: rpc.MessageOption): boolean | Promise<boolean> {
+    if (code === 2) {
+      const session = data.readString();
+      const request = data.readString();
+      if (request.length === 0 || request.length > 128) { return false; }
+      return this.stopSession(session).then((completed: boolean) => {
+        reply.writeString(request);
+        reply.writeBoolean(completed);
+        return true;
+      });
+    }
     if (code !== 1) {
       return false;
     }
@@ -109,6 +121,7 @@ export default class CexingVpnAbility extends VpnExtensionAbility {
   private startupError = '';
   private starting: Promise<void> | null = null;
   private stopping = false;
+  private cleanupPending: Promise<boolean> | null = null;
   private startupPhase: string = 'vpn';
   private startupSession: string = '';
   private tunCreateObserved: boolean = false;
@@ -152,14 +165,20 @@ export default class CexingVpnAbility extends VpnExtensionAbility {
 
   onConnect(want: Want): rpc.RemoteObject {
     Logger.info(TAG, 'CexingVpnAbility.onConnect');
+    // A recovery bind only observes this process; it must never create a new TUN.
+    if (want.parameters?.['RECOVER_ONLY'] === true) {
+      return new CoreStatusRemote(() => this.coreStarted && !this.stopping,
+        () => this.startupError, () => this.startupSession, () => this.tunCreateObserved, (session: string) => this.stopSession(session));
+    }
     if (this.stopping && this.starting !== null) {
       return new CoreStatusRemote(() => false, () => 'VPN 正在停止，请稍后重试',
-        () => this.startupSession, () => this.tunCreateObserved);
+        () => this.startupSession, () => this.tunCreateObserved, (session: string) => this.stopSession(session));
     }
     if (this.starting !== null) {
       return new CoreStatusRemote(() => this.coreStarted && !this.stopping, () => this.startupError,
-        () => this.startupSession, () => this.tunCreateObserved);
+        () => this.startupSession, () => this.tunCreateObserved, (session: string) => this.stopSession(session));
     }
+    this.cleanupPending = null;
     this.clearLastError();
     this.startupError = '';
     this.startupPhase = 'vpn';
@@ -168,7 +187,7 @@ export default class CexingVpnAbility extends VpnExtensionAbility {
     this.stopping = false;
     this.starting = this.startCore(want);
     return new CoreStatusRemote(() => this.coreStarted, () => this.startupError,
-      () => this.startupSession, () => this.tunCreateObserved);
+      () => this.startupSession, () => this.tunCreateObserved, (session: string) => this.stopSession(session));
   }
 
   private async startCore(want: Want): Promise<void> {
@@ -230,11 +249,11 @@ export default class CexingVpnAbility extends VpnExtensionAbility {
       if (this.coreInitialized) {
         try {
           await core.stopCore();
+          this.coreStarted = false;
+          this.coreInitialized = false;
         } catch (e2) {
           Logger.error(TAG, 'stopCore failed during startup cleanup');
         }
-        this.coreStarted = false;
-        this.coreInitialized = false;
       }
       if (fd > 0) {
         try {
@@ -263,43 +282,52 @@ export default class CexingVpnAbility extends VpnExtensionAbility {
     Logger.info(TAG, `seeded GeoIP database (${bytes.length} bytes)`);
   }
 
-  onDisconnect(): void {
-    Logger.info(TAG, 'CexingVpnAbility.onDisconnect');
-    if (this.stopping) {
-      return;
-    }
+  private stopSession(session: string): Promise<boolean> {
+    if (session !== this.startupSession) { return Promise.resolve(false); }
+    if (this.cleanupPending !== null) { return this.cleanupPending; }
     this.stopping = true;
-    this.cleanup().catch((e: Object) => {
-      Logger.error(TAG, 'cleanup failed');
-      this.writeStopResult(this.startupSession, false);
+    this.cleanupPending = this.cleanup();
+    const pending = this.cleanupPending;
+    pending.then((completed: boolean) => {
+      if (!completed && this.cleanupPending === pending) { this.cleanupPending = null; }
     });
+    return pending;
   }
 
-  private async cleanup(): Promise<void> {
+  onDisconnect(): void {
+    Logger.info(TAG, 'CexingVpnAbility.onDisconnect');
+    this.stopSession(this.startupSession);
+  }
+
+  private async cleanup(): Promise<boolean> {
     const session = this.startupSession;
     let completed = true;
-    try {
-      await this.connection.destroy();
-    } catch (e) {
-      completed = false;
-      Logger.error(TAG, 'VPN destroy failed');
+    const pendingStartup = this.starting;
+    const tunBeforeStop = this.tunCreateObserved;
+    if (tunBeforeStop || pendingStartup !== null || this.coreInitialized) {
+      try { await this.connection.destroy(); }
+      catch (_) { completed = false; Logger.error(TAG, 'VPN destroy failed'); }
     }
-    if (this.starting !== null) {
-      await this.starting;
+    if (pendingStartup !== null) { await pendingStartup; }
+    // A create already in flight may finish after the first destroy attempt.
+    if (!tunBeforeStop && this.tunCreateObserved) {
+      try { await this.connection.destroy(); completed = true; }
+      catch (_) { completed = false; Logger.error(TAG, 'late VPN destroy failed'); }
     }
     if (this.coreInitialized) {
       try {
         await core.stopCore();
         Logger.info(TAG, 'mihomo core stopped');
+        this.coreStarted = false;
+        this.coreInitialized = false;
       } catch (e) {
         completed = false;
         Logger.error(TAG, 'stopCore failed');
       }
-      this.coreStarted = false;
-      this.coreInitialized = false;
     }
     this.starting = null;
     this.writeStopResult(session, completed);
+    return completed;
   }
 
   onDestroy(): void {

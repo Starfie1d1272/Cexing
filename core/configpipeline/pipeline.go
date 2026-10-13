@@ -51,6 +51,7 @@ type Change struct {
 type Result struct {
 	Original        []byte
 	Overlays        [][]byte
+	GlobalMerge     string
 	YAML            []byte
 	Digest          string
 	Changes         []Change

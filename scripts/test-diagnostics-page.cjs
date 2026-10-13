@@ -21,12 +21,13 @@ const fileIo={OpenMode:{READ_WRITE:1,CREATE:2,TRUNC:4,WRITE_ONLY:8,NOFOLLOW:16},
 const snapshots=load('cexing/entry/src/main/ets/lib/DiagnosticExportSnapshots.ets',{'@kit.CoreFileKit':{fileIo},'@kit.ArkTS':{util:{TextEncoder:class{encodeInto(s){return new TextEncoder().encode(s);}},generateRandomUUID:()=>`00000000-0000-0000-0000-${String(++uuid).padStart(12,'0')}`}}},{Date:{now:()=>clock}});
 let outcome='success',stage='controller_version',listener,currentJson=packet('A'),exportsMade=0,checks=0,holdPicker=false,holdShare=false,dest=['file://chosen'],opened,copied;
 const pickerWaits=[],shareCalls=[],messages=[];
+const deviceInfo={osFullName:'HarmonyOS 7.0.0.109'};
 const context={filesDir:'/private',cacheDir:'/cache',startAbility:async w=>{opened=w.uri;}};
 const service={record:async()=>true,check:async(_ctx,kind)=>{checks++;return {kind,stage,outcome,at:'2026-10-13T00:00:00Z',durationMs:1};},exportBundle:async()=>{exportsMade++;const json=currentJson;files.set('/cache/cexing-support.json',Buffer.from(json));return {json,path:'/cache/cexing-support.json',fileName:'cexing-support.json'};}};
 const modules={'../lib/CoreApi':{CoreApi:{getProxies:async()=>({UserChoice:{}})}},'./NativeTheme':{},
  '../lib/VpnController':{VpnController:{status:2,onChanged:fn=>{listener=fn;},offChanged(){},getLastStartFailure:()=>null,getTunCreateObserved:()=>true,getKernelReadyReported:()=>true},VpnStatus:{Connected:2,Connecting:1,Disconnecting:3}},
  '../lib/ConnectionFailure':failures,'../lib/DiagnosticsBundleView':view,'../lib/DiagnosticExportSnapshots':snapshots,'../lib/DiagnosticsService':{DiagnosticsService:service},
- '@kit.BasicServicesKit':{deviceInfo:{osFullName:'HarmonyOS 7.0.0.109'},pasteboard:{MIMETYPE_TEXT_PLAIN:'text/plain',createData:(_m,s)=>s,getSystemPasteboard:()=>({setData:async s=>{copied=s;}})}},
+ '@kit.BasicServicesKit':{deviceInfo,pasteboard:{MIMETYPE_TEXT_PLAIN:'text/plain',createData:(_m,s)=>s,getSystemPasteboard:()=>({setData:async s=>{copied=s;}})}},
  '@kit.AbilityKit':{bundleManager:{BundleFlag:{GET_BUNDLE_INFO_DEFAULT:0},getBundleInfoForSelf:async()=>({versionName:'1.0.0',versionCode:1})}},'@kit.ArkUI':{promptAction:{showToast:v=>messages.push(v.message)}},
  '@kit.CoreFileKit':{fileIo,fileUri:{getUriFromPath:p=>'file://'+p},picker:{DocumentViewPicker:class{save(){return holdPicker?new Promise(resolve=>pickerWaits.push(resolve)):Promise.resolve(dest);}}}},
  '@kit.ArkData':{uniformTypeDescriptor:{UniformDataType:{FILE:'general.file'}}},
@@ -63,7 +64,7 @@ const readURI=uri=>files.get(uri.slice('file://'.length)).toString();
  const retained=[];for(let i=0;i<16;i++){const item=snapshots.DiagnosticExportSnapshots.create(context,'{}',true);retained.push(item);snapshots.DiagnosticExportSnapshots.release(item,true);}
  assert.throws(()=>snapshots.DiagnosticExportSnapshots.create(context,'{}',true),/snapshot_capacity/);const reservedSave=snapshots.DiagnosticExportSnapshots.create(context,'{}',false);snapshots.DiagnosticExportSnapshots.release(reservedSave,false);
  assert.throws(()=>snapshots.DiagnosticExportSnapshots.create(context,'x'.repeat(1024*1024+1),false),/snapshot_size/);
- await page.chooseProxy();assert.deepEqual(Array.from(page.proxyNames),['UserChoice']);assert.equal(page.proxyName,'');await page.copySummary();assert.match(copied,/controller_checked_at=/);await page.openFeedback();assert.ok(opened.includes('template=diagnostics.yml'));
+ await page.chooseProxy();assert.deepEqual(Array.from(page.proxyNames),['UserChoice']);assert.equal(page.proxyName,'');await page.copySummary();assert.match(copied,/controller_checked_at=/);deviceInfo.osFullName='https://private.invalid/?token=secret';await page.copySummary();assert.match(copied,/system_version=unknown/);assert.ok(!copied.includes('secret'));await page.openFeedback();assert.ok(opened.includes('template=diagnostics.yml'));
  assert.match(src,/Text\(this\.control\)/);assert.ok(!src.includes('this.Fact('));
  console.log('PASS: immutable per-export JSON, VPN-concurrent A/B sharing, mutable-cache picker race, preview consistency, active/grace cleanup, cancellation/failure/FD close, reentry/late callbacks, full UTF8 writes and no implicit checks/upload');
 })().catch(e=>{console.error(e);process.exitCode=1;});

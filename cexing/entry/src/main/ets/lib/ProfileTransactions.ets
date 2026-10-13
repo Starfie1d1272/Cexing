@@ -57,7 +57,8 @@ export namespace ProfileTransactions {
 
   async function publish(context: common.Context, file: string, original: string,
     overlay: string, metadata: string, select: boolean,
-    isCurrent?: () => boolean, regionOverride?: RegionPlan | null): Promise<ProfileApplyState> {
+    isCurrent?: () => boolean, regionOverride?: RegionPlan | null,
+    globalOverride?: string): Promise<ProfileApplyState> {
     const state = EffectiveVersions.read(context);
     const expected = state?.Current?.ID ?? '';
     const live = select ? await running(context) : false;
@@ -66,19 +67,19 @@ export namespace ProfileTransactions {
     const saved = state?.Profiles[file];
     const region = regionOverride !== undefined ? regionOverride :
       (saved !== undefined ? EffectiveVersions.regionPlan(context, saved) : null);
-    const staged = await EffectiveVersions.stage(context, file, original, overlay, metadata, expected, region);
+    const staged = await EffectiveVersions.stage(context, file, original, overlay, metadata, expected, region, globalOverride);
     let applied = false;
     let published = false;
     try {
       const candidate = fileIo.readTextSync(staged.version.Path);
       if (staged.receipt.length > 0 &&
-        await EffectiveVersions.verify(context, staged.version, expected) !== staged.receipt) {
+        await EffectiveVersions.verify(context, staged.version, expected, globalOverride) !== staged.receipt) {
         throw new Error('provider 缓存已变化，请重试');
       }
       if (isCurrent !== undefined && !isCurrent()) { throw new Error('更新已取消'); }
       if (live) { await apply(context, candidate); applied = true; }
       try {
-        await EffectiveVersions.commit(context, staged.version, expected, select);
+        await EffectiveVersions.commit(context, staged.version, expected, select, globalOverride);
         published = true;
       } catch (e) {
         let after: EffectiveState | null = null;
@@ -135,7 +136,8 @@ export namespace ProfileTransactions {
       if (file === '') { return; }
       const current = EffectiveVersions.read(context)?.Current;
       if (current !== null && current !== undefined &&
-        EffectiveVersions.smartConversion(context, current) === Settings.load(context).smartAutoConvert) {
+        EffectiveVersions.smartConversion(context, current) === Settings.load(context).smartAutoConvert &&
+        EffectiveVersions.globalMerge(context, current) === EffectiveVersions.globalContent(context)) {
         return;
       }
       const original = ProfileStore.getProfileContent(context, file);
@@ -215,9 +217,41 @@ export namespace ProfileTransactions {
     try {
       const original = ProfileStore.getProfileContent(context, file);
       if (original === null) { throw new Error('原始配置不存在'); }
-      const preview = await CoreValidator.previewMerge(context, original, overlay);
+      await CoreValidator.prepareResources(context);
+      const saved = EffectiveVersions.read(context)?.Profiles[file];
+      const region = saved !== undefined ? EffectiveVersions.regionPlan(context, saved) : null;
+      const preview = await EffectiveVersions.previewMerge(context, original, overlay, region);
       ProfileStore.saveMergeDraft(context, file, overlay);
       return preview;
+    } finally { busy = false; }
+  }
+
+  /** Preview a common baseline against the active source and its local exception. */
+  export async function previewGlobalMerge(context: common.Context, overlay: string): Promise<MergePreview> {
+    enter(context);
+    try {
+      const file = ProfileStore.getActiveFile(context);
+      if (file === '') { throw new Error('请先启用订阅，再预览或应用全局覆写'); }
+      const original = ProfileStore.getProfileContent(context, file);
+      if (original === null) { throw new Error('当前原始配置读取失败'); }
+      await CoreValidator.prepareResources(context);
+      const saved = EffectiveVersions.read(context)?.Profiles[file];
+      const region = saved !== undefined ? EffectiveVersions.regionPlan(context, saved) : null;
+      return await EffectiveVersions.previewMerge(context, original,
+        ProfileStore.getEnabledMerge(context, file), region, overlay);
+    } finally { busy = false; }
+  }
+
+  /** Global text and the active version share one atomic state publication. */
+  export async function applyGlobalMerge(context: common.Context, overlay: string): Promise<ProfileApplyState> {
+    enter(context);
+    try {
+      const file = ProfileStore.getActiveFile(context);
+      if (file === '') { throw new Error('请先启用订阅，再应用全局覆写；可先保留草稿'); }
+      const original = ProfileStore.getProfileContent(context, file);
+      if (original === null) { throw new Error('当前原始配置读取失败'); }
+      return await publish(context, file, original, ProfileStore.getEnabledMerge(context, file),
+        metadata(context, file), true, undefined, undefined, overlay);
     } finally { busy = false; }
   }
 

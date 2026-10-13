@@ -146,6 +146,39 @@ func (controllerLogWriter) Write(p []byte) (int, error) {
 // A persisted candidate must never contain either subscription or app secret.
 func projectPlatformConfig(overlay map[string]any) {
 	applyPlatformDefaults(overlay)
+	// Subscription bind-address cannot defeat a confirmed host LAN toggle.
+	if allowed, _ := overlay["allow-lan"].(bool); allowed {
+		overlay["bind-address"] = "*"
+	} else {
+		overlay["bind-address"] = "127.0.0.1"
+	}
+	// Host LAN consent shares only the host's mixed proxy. Generic inbounds
+	// have independent addresses and do not consult Mihomo's AllowLan flag.
+	for _, key := range []string{"port", "socks-port", "redir-port", "tproxy-port"} {
+		overlay[key] = 0
+	}
+	overlay["ss-config"] = ""
+	overlay["vmess-config"] = ""
+	overlay["tuic-server"] = map[string]any{"enable": false}
+	overlay["tunnels"] = []any{}
+	if listeners, ok := overlay["listeners"].([]any); ok {
+		for _, item := range listeners {
+			if inbound, ok := item.(map[string]any); ok {
+				// The upstream inbound decoder is case insensitive.
+				for key := range inbound {
+					if strings.EqualFold(key, "listen") {
+						delete(inbound, key)
+					}
+				}
+				inbound["listen"] = "127.0.0.1"
+			}
+		}
+	}
+	// The TUN resolver is in-process. Standalone DNS must never be exposed by a
+	// subscription or Merge; LAN proxy consent does not authorize LAN DNS.
+	if dns, ok := overlay["dns"].(map[string]any); ok && dns != nil {
+		dns["listen"] = defaultDNSListen
+	}
 	delete(overlay, "secret")
 	overlay["external-controller"] = defaultController
 	for _, key := range []string{"external-controller-tls", "external-controller-unix", "external-controller-pipe", "external-doh-server", "external-ui-url", "external-ui-name"} {
@@ -435,7 +468,40 @@ func reloadPlatformConfig(w MHTTP.ResponseWriter, req *MHTTP.Request) {
 	}
 	overrides := activeOverrides
 	if body.Overrides != nil {
-		overrides = *body.Overrides
+		// REST authentication permits config reload, not LAN risk consent.
+		// Only native startup may supply Settings' confirmed sharing policy.
+		current, requested := map[string]any{}, map[string]any{}
+		_ = yaml.Unmarshal([]byte(activeOverrides), &current)
+		if yaml.Unmarshal([]byte(*body.Overrides), &requested) != nil || requested == nil {
+			controllerError(w, 400, "invalid host overrides")
+			return
+		}
+		allowed, _ := current["allowLan"].(bool)
+		if value, exists := requested["allowLan"]; exists {
+			if enabled, valid := value.(bool); !valid || enabled != allowed {
+				controllerError(w, 400, "LAN policy requires host confirmation and VPN restart")
+				return
+			}
+		}
+		requested["allowLan"] = allowed
+		// The shared port is also owned by native Settings, not the panel.
+		port := current["mixedPort"]
+		if port == nil {
+			port = defaultMixedPort
+		}
+		if value, exists := requested["mixedPort"]; exists {
+			if number, valid := value.(int); !valid || number != port {
+				controllerError(w, 400, "proxy port requires host settings and VPN restart")
+				return
+			}
+		}
+		requested["mixedPort"] = port
+		bytes, err := json.Marshal(requested)
+		if err != nil {
+			controllerError(w, 400, "invalid host overrides")
+			return
+		}
+		overrides = string(bytes)
 	}
 	diagnosticRecordConfig(text, overrides)
 	cfg, err := preparePlatformConfig(text, overrides)

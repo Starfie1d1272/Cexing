@@ -243,6 +243,36 @@ index 72a8213..e74ab19 100644
 -  }
 -}
 +/* Host distribution uses system emoji; only licensed Fira Sans is bundled. */
+diff --git a/src/components/overview/EarthGlobeCard.vue b/src/components/overview/EarthGlobeCard.vue
+index 82b3e9d..8b8d166 100644
+--- a/src/components/overview/EarthGlobeCard.vue
++++ b/src/components/overview/EarthGlobeCard.vue
+@@ -268,0 +269 @@
++            v-if="databaseError !== 'host-offline'"
+@@ -444,0 +446 @@ const displayedOriginIP = computed(() => {
++  if (databaseError.value === 'host-offline') return '—'
+@@ -464 +466 @@ const showRetry = computed(
+-  () =>
++  () => databaseError.value !== 'host-offline' && (
+@@ -469 +471 @@ const showRetry = computed(
+-      activeConnections.value.length > 0),
++      activeConnections.value.length > 0)),
+@@ -760,4 +762,4 @@ const initialize = async () => {
+-  worker = new Worker(new URL('./earth/geoip.worker.ts', import.meta.url), { type: 'module' })
+-  worker.addEventListener('message', handleWorkerMessage)
+-  postWorker({ type: 'init' })
+-  void loadOrigin()
++  // Offline host intentionally disables Worker/remote databases under its CSP.
++  // Do not enter a pending cache check that can never execute.
++  databaseStatus.value = 'error'
++  databaseError.value = 'host-offline'
+diff --git a/src/components/overview/earth/types.ts b/src/components/overview/earth/types.ts
+index 8be3cf5..8fd162b 100644
+--- a/src/components/overview/earth/types.ts
++++ b/src/components/overview/earth/types.ts
+@@ -55 +55 @@ export type GeoDatabaseError =
+-  'space' | 'network' | 'decompress' | 'invalid' | 'storage' | 'unsupported' | 'unknown'
++  'space' | 'network' | 'decompress' | 'invalid' | 'storage' | 'unsupported' | 'unknown' | 'host-offline'
 diff --git a/src/helper/backend-actions.ts b/src/helper/backend-actions.ts
 index 3ada65c..f368054 100644
 --- a/src/helper/backend-actions.ts
@@ -294,6 +324,50 @@ index ff4cf74..8dcdcf3 100644
 -  })
 +export const notifyRequestError = (_error: unknown, key?: string) => {
 +  showNotification({ key, content: getRequestErrorMessage(_error), type: 'alert-error' })
+diff --git a/src/i18n/en.ts b/src/i18n/en.ts
+index c990b7f..b72cca5 100644
+--- a/src/i18n/en.ts
++++ b/src/i18n/en.ts
+@@ -423,0 +424 @@ const en = {
++  'earthDatabaseError_host-offline': 'City locations are unavailable in this offline panel. Continue using connections and proxy groups.',
+diff --git a/src/i18n/ru.ts b/src/i18n/ru.ts
+index aa37c67..2329519 100644
+--- a/src/i18n/ru.ts
++++ b/src/i18n/ru.ts
+@@ -426,0 +427 @@ const ru: LANG_MESSAGE = {
++  'earthDatabaseError_host-offline': 'Геолокация городов недоступна в офлайн-панели. Соединения и группы прокси доступны.',
+diff --git a/src/i18n/zh-tw.ts b/src/i18n/zh-tw.ts
+index 38ef4c1..87edfa6 100644
+--- a/src/i18n/zh-tw.ts
++++ b/src/i18n/zh-tw.ts
+@@ -412,0 +413 @@ const zhTW: LANG_MESSAGE = {
++  'earthDatabaseError_host-offline': '離線面板暫未提供城市定位，可繼續查看連線和策略組。',
+diff --git a/src/i18n/zh.ts b/src/i18n/zh.ts
+index 15ec5ec..2213e4d 100644
+--- a/src/i18n/zh.ts
++++ b/src/i18n/zh.ts
+@@ -412,0 +413 @@ const zh: LANG_MESSAGE = {
++  'earthDatabaseError_host-offline': '离线面板暂未提供城市定位，可继续查看连接和策略组。',
+diff --git a/src/router/index.ts b/src/router/index.ts
+index f672873..dca7871 100644
+--- a/src/router/index.ts
++++ b/src/router/index.ts
+@@ -4 +4 @@ import { i18n } from '@/i18n'
+-import { language } from '@/store/settings'
++import { language, splitOverviewPage } from '@/store/settings'
+@@ -56 +56 @@ const router = createRouter({
+-      redirect: ROUTE_NAME.proxies,
++      redirect: () => ({ name: splitOverviewPage.value ? ROUTE_NAME.overview : ROUTE_NAME.proxies }),
+diff --git a/src/store/settings.ts b/src/store/settings.ts
+index fbd4faa..a485870 100644
+--- a/src/store/settings.ts
++++ b/src/store/settings.ts
+@@ -217 +217 @@ export const keyboardShortcuts = useStorage<Record<string, string>>('config/keyb
+-export const splitOverviewPage = useStorage('config/split-overview-page', false)
++export const splitOverviewPage = useStorage('config/split-overview-page', true)
+@@ -298 +298 @@ export const earthIPInfoAPI = useStorage<IP_INFO_API>('config/earth-ip-info-api'
+-export const earthVisualMode = useStorage<'flat' | 'space'>('config/earth-visual-mode', 'flat')
++export const earthVisualMode = useStorage<'flat' | 'space'>('config/earth-visual-mode', 'space')
 diff --git a/src/store/setup.ts b/src/store/setup.ts
 index f5a4ffb..c9a521d 100644
 --- a/src/store/setup.ts
