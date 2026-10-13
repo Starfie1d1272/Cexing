@@ -67,6 +67,8 @@ for key, value in {'GOOS': 'android', 'GOARCH': 'arm64', 'CGO_ENABLED': '1', '-b
 require(set(settings.get('-tags', '').split(',')) == {'netgo', 'ohos', 'cmfa', 'with_gvisor'}, 'platform tags')
 smart_record = json.loads((root / 'cexing/entry/libs/arm64-v8a/smart-build.json').read_text())
 require(smart_record['patchSha256'] == sha((root / 'core/patches/smart-offline.patch').read_bytes()), 'reviewed Smart patch identity')
+require(smart_record['inboundPolicy']['patchSha256'] == sha((root / 'core/patches/inbound-policy-race.patch').read_bytes()), 'reviewed inbound snapshot patch identity')
+require(set(smart_record['inboundPolicy']['files']) == {'adapter/inbound/auth.go', 'adapter/inbound/ipfilter.go'}, 'inbound snapshot source set')
 require(smart_record['librarySha256'] == sha((root / 'cexing/entry/libs/arm64-v8a/libmihomo.so').read_bytes()), 'Smart build record fresh library identity')
 require(smart_record['headerSha256'] == sha((root / 'cexing/entry/libs/arm64-v8a/libmihomo.h').read_bytes()), 'Smart build record ABI header identity')
 go_inputs = {file.relative_to(root).as_posix() for file in (root / 'core').rglob('*.go') if not file.name.endswith('_test.go') and 'third_party' not in file.relative_to(root / 'core').parts}
@@ -139,6 +141,7 @@ identity = {
     'geodata': geodata,
     'inputs': {file: sha((root / file).read_bytes()) for file in [
         'core/go.mod', 'core/go.sum', 'core/patches/smart-offline.patch', 'scripts/ci/patch-smart.py', 'scripts/build-core.sh', 'scripts/ci/patch-gvisor.py',
+        'core/patches/inbound-policy-race.patch', 'scripts/ci/patch-inbound-race.py',
         'scripts/prepare-geodata.sh', 'scripts/build-hap.sh', 'scripts/env.sh',
         'cexing/entry/oh-package-lock.json5', 'scripts/ci/package-lock.json', 'scripts/ci/toolchain.json',
         'scripts/ci/sdk-download.json', 'scripts/ci/setup-clt.py', 'scripts/ci/go-download-cache.sh',
