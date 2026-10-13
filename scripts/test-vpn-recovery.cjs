@@ -25,7 +25,8 @@ function load() {
       readTextSync: () => stopReceipt } }, './Logger': { Logger: { info() {}, warn() {}, error() {} } },
     './CoreApi': { CoreApi: { bindContext() {}, isAlive: () => new Promise(resolve => probes.push(resolve)) } },
     './Settings': { Settings: { load: () => settings, save() {} } }, '@kit.IPCKit': { rpc: {} },
-    './ConnectionFailure': failureModule.exports
+    './ConnectionFailure': failureModule.exports,
+    './ProfileStore': { ProfileStore: { clearApplyUncertain() {} } }
   };
   const sandbox = { exports: {}, require: name => { assert.ok(name in modules); return modules[name]; }, Promise, Date, JSON };
   vm.runInNewContext(output, sandbox);

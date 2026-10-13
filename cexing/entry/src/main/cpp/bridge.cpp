@@ -33,23 +33,31 @@ typedef char *(*MihomoInitFn)(const char *);
 typedef char *(*MihomoStartTunFn)(int, const char *, const char *);
 typedef void (*MihomoStopFn)();
 typedef void (*MihomoFreeFn)(char *);
+typedef char *(*MihomoValidateFn)(const char *, const char *, const char *);
+typedef char *(*MihomoPreviewFn)(const char *, const char *, const char *, const char *);
+typedef char *(*MihomoVersionFn)(const char *, const char *);
 
 static void *gHandle = nullptr;
 static MihomoInitFn gInit = nullptr;
 static MihomoStartTunFn gStartTun = nullptr;
 static MihomoStopFn gStop = nullptr;
 static MihomoFreeFn gFree = nullptr;
+static MihomoValidateFn gValidate = nullptr;
+static MihomoPreviewFn gPreview = nullptr;
+static MihomoVersionFn gVersion = nullptr;
 static std::mutex gMutex;
 static Status gStatus = {false, "libmihomo.so", "", 0, 0};
 static bool gStderrRedirected = false;
 
-enum class Op { Init, StartTun, Stop };
+enum class Op { Init, StartTun, Stop, Validate, Preview, Version };
 
 struct Job {
     Op op;
     int fd = -1;
     std::string arg;       // homeDir / configJson
     std::string overrides; // 用户设置覆写（JSON，可为空串）
+    std::string homeDir;
+    std::string overlay;
     std::string result;
     bool done = false;
     std::condition_variable cv;
@@ -84,7 +92,7 @@ static void redirectStderrOnce() {
 static bool ensureLoaded() {
     if (gHandle != nullptr) {
         // Go runtime cannot be unloaded. Cache an incomplete ABI as unavailable.
-        return gInit != nullptr && gStartTun != nullptr && gStop != nullptr && gFree != nullptr;
+        return gInit != nullptr && gStartTun != nullptr && gStop != nullptr && gFree != nullptr && gValidate != nullptr && gPreview != nullptr && gVersion != nullptr;
     }
     redirectStderrOnce();
     dlerror();
@@ -101,7 +109,10 @@ static bool ensureLoaded() {
     gStartTun = reinterpret_cast<MihomoStartTunFn>(dlsym(h, "mihomoStartTun"));
     gStop = reinterpret_cast<MihomoStopFn>(dlsym(h, "mihomoStop"));
     gFree = reinterpret_cast<MihomoFreeFn>(dlsym(h, "mihomoFree"));
-    if (gInit == nullptr || gStartTun == nullptr || gStop == nullptr || gFree == nullptr) {
+    gValidate = reinterpret_cast<MihomoValidateFn>(dlsym(h, "mihomoValidateOffline"));
+    gPreview = reinterpret_cast<MihomoPreviewFn>(dlsym(h, "mihomoPreviewMerge"));
+    gVersion = reinterpret_cast<MihomoVersionFn>(dlsym(h, "mihomoVersionAction"));
+    if (gInit == nullptr || gStartTun == nullptr || gStop == nullptr || gFree == nullptr || gValidate == nullptr || gPreview == nullptr || gVersion == nullptr) {
         const char *err = dlerror();
         gStatus.lastError = std::string("dlsym failed: ") + (err != nullptr ? err : "symbol not found");
         gStatus.loaded = false;
@@ -144,6 +155,24 @@ static void *workerMain(void *) {
             }
             case Op::Stop: {
                 gStop();
+                break;
+            }
+            case Op::Validate: {
+                char *raw = gValidate(job->homeDir.c_str(), job->arg.c_str(), job->overrides.c_str());
+                if (raw != nullptr) {
+                    job->result = raw;
+                    gFree(raw);
+                }
+                break;
+            }
+            case Op::Preview: {
+                char *raw = gPreview(job->homeDir.c_str(), job->arg.c_str(), job->overlay.c_str(), job->overrides.c_str());
+                if (raw != nullptr) { job->result = raw; gFree(raw); }
+                break;
+            }
+            case Op::Version: {
+                char *raw = gVersion(job->homeDir.c_str(), job->arg.c_str());
+                if (raw != nullptr) { job->result = raw; gFree(raw); }
                 break;
             }
         }
@@ -243,6 +272,33 @@ std::string StartTun(int fd, const std::string &configJson, const std::string &o
         }
     }
     return err;
+}
+
+std::string ValidateOffline(const std::string &homeDir, const std::string &configJson, const std::string &overridesJson) {
+    auto job = std::make_shared<Job>();
+    job->op = Op::Validate;
+    job->homeDir = homeDir;
+    job->arg = configJson;
+    job->overrides = overridesJson;
+    return submit(job);
+}
+
+std::string PreviewMerge(const std::string &homeDir, const std::string &original, const std::string &overlay, const std::string &overridesJson) {
+    auto job = std::make_shared<Job>();
+    job->op = Op::Preview;
+    job->homeDir = homeDir;
+    job->arg = original;
+    job->overlay = overlay;
+    job->overrides = overridesJson;
+    return submit(job);
+}
+
+std::string VersionAction(const std::string &homeDir, const std::string &actionJson) {
+    auto job = std::make_shared<Job>();
+    job->op = Op::Version;
+    job->homeDir = homeDir;
+    job->arg = actionJson;
+    return submit(job);
 }
 
 std::string Stop() {

@@ -132,8 +132,12 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   const Profile = load('ProfilePage', { ...common,
     '@kit.CoreFileKit': {}, '@kit.ArkTS': {}, '@kit.BasicServicesKit': {}, './ProfileEditPage': {},
     '../lib/CoreApi': { CoreApi: {} },
+    '../lib/ProfileTransactions': { ProfileTransactions: {
+      remove: async () => { deleted++; }, activate: async () => 'applied',
+      update: async () => 'applied', rename: () => 'fixture.yaml'
+    } },
     '../lib/ProfileStore': { ProfileStore: { list: () => profiles, getMeta: () => ({}),
-      getActiveFile: () => active, deleteProfile: () => deleted++,
+      getActiveFile: () => active,
       importFromUrl: async () => { if (rejectImport) throw Error('network'); return 'candidate.yaml'; } } }
   }, { AlertDialog: { show: value => { dialog = value; } } });
   const profile = new Profile(); profile.profileRevision = 0; profile.navStack = { pop() {} };
@@ -145,6 +149,14 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   assert.equal(profile.importedFile, 'candidate.yaml'); assert.equal(profile.showSheet, true);
   controller.status = status.Connected; profile.confirmDelete(profiles[0]); dialog.secondaryButton.action();
   assert.equal(deleted, 0, 'running active profile must be protected');
-  controller.status = status.Disconnected; dialog.secondaryButton.action(); assert.equal(deleted, 1);
+  controller.status = status.Disconnected; await dialog.secondaryButton.action(); await new Promise(resolve => setImmediate(resolve)); assert.equal(deleted, 1);
+  let failDraft = true;
+  const Edit = load('ProfileEditPage', { ...common,
+    '../lib/ProfileStore': { ProfileStore: { writeDraft: () => { if (failDraft) throw Error('disk full'); } } },
+    '../lib/ProfileTransactions': { ProfileTransactions: { edit: async () => 'applied' } }
+  });
+  const editor = new Edit(); editor.persistDraft('synthetic');
+  assert.equal(editor.dirty, true); assert.equal(editor.draftPersisted, false, 'failed draft write cannot claim recovery');
+  failDraft = false; editor.persistDraft('synthetic'); assert.equal(editor.draftPersisted, true);
   console.log('PASS: native page stale traffic/navigation ownership, disconnect confirmation, stale diagnosis, invalid port, import retry/confirmation and active-delete guard');
 })().catch(error => { console.error(error); process.exit(1); });

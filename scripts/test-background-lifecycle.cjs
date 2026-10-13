@@ -116,6 +116,7 @@ async function testUpdaterContext() {
     './CoreApi': { CoreApi: { isAlive: async () => true, reloadConfig: async () => {} } },
     './ProfileStore': { ProfileStore: { getActiveFile: () => 'test.yaml', getOrigin: () => 'https://example.invalid/subscription',
       updateFromOrigin: async ctx => { updates.push(ctx); }, absPath: () => '/private/test.yaml' } },
+    './ProfileTransactions': { ProfileTransactions: { update: async ctx => { updates.push(ctx); } } },
     './Logger': logger
   };
   const updater = load('AutoUpdater', modules, timers), old = {}, fresh = {};
@@ -276,6 +277,11 @@ function updaterFixture() {
     './CoreApi': { CoreApi: { isAlive: async () => true, reloadConfig: async file => reloads.push(file) } },
     './ProfileStore': { ProfileStore: { getActiveFile: () => active, getOrigin: () => 'https://example.invalid/sub',
       updateFromOrigin: async (ctx, file) => updates.push(file), absPath: (ctx, file) => file } },
+    './ProfileTransactions': { ProfileTransactions: { update: async (ctx, file, valid) => {
+      await modules['./ProfileStore'].ProfileStore.updateFromOrigin(ctx, file);
+      if (!valid()) throw new Error('cancelled');
+      reloads.push(file);
+    } } },
     './Logger': logger
   };
   return { updater: load('AutoUpdater', modules, timers), timers, modules, settings, updates, reloads, writes,

@@ -6,7 +6,8 @@ import { NativeTheme as UI } from './NativeTheme';
 import { common } from '@kit.AbilityKit';
 import { promptAction } from '@kit.ArkUI';
 import { ProfileStore } from '../lib/ProfileStore';
-import { CoreApi } from '../lib/CoreApi';
+import { ProfileTransactions } from '../lib/ProfileTransactions';
+import { MergeChange } from '../lib/CoreValidator';
 import { Logger } from '../lib/Logger';
 
 const TAG = 'profileEdit';
@@ -22,9 +23,16 @@ export struct ProfileEditPage {
   @Consume('nav') navStack: NavPathStack;
   @State text: string = '';
   @State dirty: boolean = false;
+  @State draftPersisted: boolean = false;
   @State loadFailed: boolean = false;
   @State showSaveAsSheet: boolean = false;
   @State saveAsInput: string = '';
+  @State saving: boolean = false;
+  @State showMergeSheet: boolean = false;
+  @State mergeText: string = '';
+  @State mergeBusy: boolean = false;
+  @State mergeSummary: string = '';
+  @State mergeLoadFailed: boolean = false;
 
   aboutToAppear(): void {
     const context = getContext(this) as common.UIAbilityContext;
@@ -34,8 +42,23 @@ export struct ProfileEditPage {
       return;
     }
     this.loadFailed = false;
-    this.text = content;
-    this.dirty = false;
+    try {
+      this.mergeText = ProfileStore.getMergeDraft(context, ProfileEditBus.current);
+      this.mergeLoadFailed = false;
+    } catch (_) {
+      this.mergeText = '';
+      this.mergeLoadFailed = true;
+    }
+    try {
+      const draft = ProfileStore.readDraft(context, ProfileEditBus.current);
+      this.text = draft === null ? content : draft;
+      this.dirty = draft !== null;
+      this.draftPersisted = draft !== null;
+    } catch (_) {
+      this.text = content;
+      this.dirty = false;
+      this.draftPersisted = false;
+    }
   }
 
   private toast(msg: string): void {
@@ -43,6 +66,7 @@ export struct ProfileEditPage {
   }
 
   private async save(): Promise<void> {
+    if (this.saving) { return; }
     if (this.loadFailed) {
       this.toast('配置文件读取失败，无法保存');
       return;
@@ -53,22 +77,46 @@ export struct ProfileEditPage {
       this.toast('目标配置不存在');
       return;
     }
+    const snapshot = this.text;
+    this.saving = true;
     try {
-      ProfileStore.updateProfileContent(context, file, this.text);
-      this.dirty = false;
+      const result = await ProfileTransactions.edit(context, file, snapshot);
+      this.dirty = this.text !== snapshot;
+      if (!this.dirty) { this.draftPersisted = false; }
       this.profileRevision++;
-      this.toast('已保存');
-      // 若编辑的是当前激活配置且内核运行中，热重载立即生效
-      if (ProfileStore.getActiveFile(context) === file && await CoreApi.isAlive()) {
-        const ok = await CoreApi.reloadConfig(ProfileStore.absPath(context, file));
-        if (!ok) {
-          this.toast('保存成功，热重载失败（重启 VPN 生效）');
-        }
+      this.toast(result === 'applied' ? '已保存并应用' : '已保存，启用或启动后生效');
+      if (!this.dirty) {
+        try { ProfileStore.clearDraft(context, file); } catch (_) { /* saved text remains authoritative */ }
       }
     } catch (e) {
       const msg = (e as Error).message ?? JSON.stringify(e);
       Logger.warn(TAG, `save failed: ${msg}`);
       this.toast(`保存失败: ${msg}`);
+    } finally {
+      this.saving = false;
+    }
+  }
+
+  private discardDraft(): void {
+    const context = getContext(this) as common.UIAbilityContext;
+    const content = ProfileStore.getProfileContent(context, ProfileEditBus.current);
+    if (content === null) { this.toast('无法读取已保存配置'); return; }
+    try { ProfileStore.clearDraft(context, ProfileEditBus.current); } catch (_) {
+      this.toast('草稿删除失败'); return;
+    }
+    this.text = content;
+    this.dirty = false;
+    this.draftPersisted = false;
+  }
+
+  private persistDraft(value: string): void {
+    this.dirty = true;
+    try {
+      ProfileStore.writeDraft(getContext(this) as common.UIAbilityContext, ProfileEditBus.current, value);
+      this.draftPersisted = true;
+    } catch (_) {
+      this.draftPersisted = false;
+      this.toast('草稿保存失败，请先保存配置');
     }
   }
 
@@ -88,6 +136,68 @@ export struct ProfileEditPage {
     } catch (e) {
       this.toast(`另存失败: ${(e as Error).message ?? JSON.stringify(e)}`);
     }
+  }
+
+  private async previewMerge(): Promise<void> {
+    if (this.mergeBusy) { return; }
+    if (this.mergeLoadFailed) { this.toast('现有 Merge 草稿读取失败，未覆盖'); return; }
+    if (this.dirty) { this.toast('请先保存原始配置，再预览 Merge'); return; }
+    this.mergeBusy = true;
+    this.mergeSummary = '';
+    try {
+      const context = getContext(this) as common.UIAbilityContext;
+      const result = await ProfileTransactions.saveMergeDraft(context, ProfileEditBus.current, this.mergeText);
+      this.mergeSummary = result.changes.map((change: MergeChange) =>
+        `${change.section}: ${change.before} → ${change.after}`).join(' · ');
+      if (this.mergeSummary.length === 0) { this.mergeSummary = '配置内容无统计差异'; }
+      this.toast('Merge 草稿已保存');
+    } catch (e) {
+      this.toast(`Merge 预览失败: ${(e as Error).message ?? '请检查内容'}`);
+    } finally { this.mergeBusy = false; }
+  }
+
+  private async applyMerge(): Promise<void> {
+    if (this.mergeBusy || this.mergeLoadFailed) { return; }
+    if (this.dirty) { this.toast('请先保存原始配置，再应用 Merge'); return; }
+    this.mergeBusy = true;
+    try {
+      const context = getContext(this) as common.UIAbilityContext;
+      const result = await ProfileTransactions.applyMerge(context, ProfileEditBus.current, this.mergeText);
+      this.toast(result === 'applied' ? 'Merge 已保存并应用' : 'Merge 已保存，下次连接时生效');
+      this.profileRevision++;
+    } catch (e) {
+      this.toast(`应用 Merge 失败: ${(e as Error).message ?? '请检查内容'}`);
+    } finally { this.mergeBusy = false; }
+  }
+
+  @Builder
+  MergeSheet() {
+    Column({ space: 12 }) {
+      Text('每订阅 Merge 草稿').fontSize(17).fontWeight(FontWeight.Medium).fontColor(UI.ink)
+      Text('采用 Clash Verge 2.5.8 合并规则。预览只保存草稿；点击应用才改变有效配置。清空后应用可停用 Merge。')
+        .fontSize(13).fontColor(UI.muted)
+      if (this.mergeLoadFailed) {
+        Text('现有 Merge 草稿读取失败，已阻止覆盖').fontSize(13).fontColor(UI.error)
+      }
+      TextArea({ text: $$this.mergeText })
+        .width('100%').height(250).fontSize(14).fontFamily('HarmonyOS Sans Mono')
+        .enabled(!this.mergeBusy && !this.mergeLoadFailed)
+        .backgroundColor(UI.paper).borderRadius(12).padding(12)
+      if (this.mergeSummary.length > 0) {
+        Text(this.mergeSummary).fontSize(13).fontColor(UI.muted)
+      }
+      Row({ space: 12 }) {
+        Button('关闭').height(44).layoutWeight(1).backgroundColor(UI.soft).fontColor(UI.ink)
+          .onClick(() => { this.showMergeSheet = false; })
+        Button(this.mergeBusy ? '预览中' : '校验并保存草稿')
+          .height(44).layoutWeight(1).backgroundColor(UI.action).fontColor(UI.onAccent)
+          .enabled(!this.mergeBusy && !this.mergeLoadFailed).onClick(() => { this.previewMerge(); })
+      }.width('100%')
+      Button(this.mergeBusy ? '处理中' : '应用 Merge')
+        .height(44).width('100%').backgroundColor(UI.action).fontColor(UI.onAccent)
+        .enabled(!this.mergeBusy && !this.mergeLoadFailed)
+        .onClick(() => { this.applyMerge(); })
+    }.padding(20).backgroundColor(UI.surface).borderRadius(24)
   }
 
   @Builder
@@ -153,17 +263,20 @@ export struct ProfileEditPage {
             .maxLines(1)
             .textOverflow({ overflow: TextOverflow.Ellipsis })
           if (this.dirty) {
-            Text('未保存')
+            Text(this.draftPersisted ? '未保存 · 草稿已保留，返回后可继续编辑' : '未保存 · 草稿保留失败，请先保存配置')
               .fontSize(13)
               .fontColor(UI.accentText)
           }
         }
         .alignItems(HorizontalAlign.Start)
         .layoutWeight(1)
+        Button('Merge 预览')
+          .fontSize(13).height(40).backgroundColor(UI.soft).fontColor(UI.ink)
+          .enabled(!this.loadFailed).onClick(() => { this.showMergeSheet = true; })
         this.HeaderButton('另存为', $r('sys.symbol.doc_filled_on_doc'), UI.muted, !this.loadFailed, () => {
           this.showSaveAsSheet = true;
         })
-        this.HeaderButton('保存', $r('sys.symbol.checkmark'), UI.accent, !this.loadFailed, () => {
+        this.HeaderButton('保存', $r('sys.symbol.checkmark'), UI.accent, !this.loadFailed && !this.saving, () => {
           this.save();
         })
       }
@@ -192,11 +305,15 @@ export struct ProfileEditPage {
           .borderRadius(12)
           .padding(12)
           .onChange((v: string) => {
-            this.dirty = true;
+            this.persistDraft(v);
           })
       }
 
-      Text('保存后立即生效（运行中热重载）')
+      if (this.dirty) {
+        Button('放弃草稿').height(44).backgroundColor(UI.soft).fontColor(UI.error)
+          .onClick(() => this.discardDraft())
+      }
+      Text('保存会校验配置；运行中成功热加载后才覆盖原文件')
         .fontSize(13)
         .fontColor(UI.muted)
         .width('100%')
@@ -207,5 +324,6 @@ export struct ProfileEditPage {
     .padding({ left: 24, right: 24 })
     .backgroundColor(UI.paper).constraintSize({ maxWidth: 760 }).alignSelf(ItemAlign.Center)
     .bindSheet($$this.showSaveAsSheet, this.SaveAsSheet(), { height: SheetSize.MEDIUM })
+    .bindSheet($$this.showMergeSheet, this.MergeSheet(), { height: SheetSize.LARGE })
   }
 }

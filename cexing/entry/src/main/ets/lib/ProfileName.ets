@@ -34,3 +34,23 @@ export function suggestProfileName(headers: Record<string, Object>, fallback: st
   }
   return fallback;
 }
+
+/** Only a YAML leaf in the URL path may become a display name. Query and fragment never participate. */
+export function profileNameFromUrl(url: string, fallback: string): string {
+  try {
+    const withoutSuffix = url.split(/[?#]/, 1)[0];
+    const leaf = withoutSuffix.substring(withoutSuffix.lastIndexOf('/') + 1);
+    if (!/%(?![0-9a-fA-F]{2})/.test(leaf)) {
+      const decoded = decodeURIComponent(leaf);
+      if (/\.(yaml|yml)$/i.test(decoded)) {
+        const name = cleanProfileName(decoded);
+        // Long hex/base64 path components are usually access tokens, not titles.
+        if (name.length > 0 && !/^[0-9a-f]{24,}$/i.test(name) &&
+          !/^[A-Za-z0-9_-]{40,}$/.test(name)) { return name; }
+      }
+    }
+  } catch (_) {
+    // Malformed percent encoding is not a filename.
+  }
+  return fallback;
+}

@@ -17,6 +17,7 @@ import { fileIo } from '@kit.CoreFileKit';
 import core from 'libentry.so';
 import { Logger } from '../lib/Logger';
 import { ProfileStore } from '../lib/ProfileStore';
+import { EffectiveVersions } from '../lib/EffectiveVersions';
 import { Settings } from '../lib/Settings';
 import { CoreApi } from '../lib/CoreApi';
 import { ConnectionFailures } from '../lib/ConnectionFailure';
@@ -309,13 +310,18 @@ export default class CexingVpnAbility extends VpnExtensionAbility {
   }
 
   /**
-   * 构建 mihomo 启动配置，三级回退：
-   * 1. filesDir/profiles/ 中激活的订阅配置（配置 Tab 导入）
-   * 2. rawfile 资源 override.yaml（内置空配置：全部直连）
-   * 3. 最小硬编码 JSON（兜底）
+   * 优先读取原子发布的有效版本；其损坏时拒绝启动。
+   * 尚未迁移的旧数据依次读取 active.txt、内置 override.yaml 和最小配置。
    * 返回字符串直接作为 configJson 传给 startTun（Go 侧 yaml 解析，JSON/YAML 均兼容）。
    */
   private async buildCoreConfig(): Promise<string> {
+    const effective = EffectiveVersions.read(this.context);
+    if (effective !== null && effective.Current !== null && effective.Current !== undefined) {
+      const selected = ProfileStore.getActiveContent(this.context);
+      if (selected === null || selected.length === 0) { throw new Error('有效配置版本不可读取'); }
+      Logger.info(TAG, `config source: effective version, ${selected.length} bytes`);
+      return selected;
+    }
     try {
       const profile: string | null = ProfileStore.getActiveContent(this.context);
       if (profile !== null && profile.length > 0) {

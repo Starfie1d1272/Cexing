@@ -22,5 +22,15 @@ export const startTun: (fd: number, configJson: string, overridesJson?: string) 
 /** 停止内核（关 TUN 与全部 listener）。 */
 export const stopCore: () => Promise<void>;
 
+/** Parse a candidate on the Go worker without applying it or fetching providers.
+ * Empty string means valid; fixed error codes distinguish unresolved resources. */
+export const validateOffline: (homeDir: string, configJson: string, overridesJson: string) => Promise<string>;
+
+/** Pinned Verge v2.5.8 Merge preview. Returns only fixed-section counts and digest. */
+export const previewMerge: (homeDir: string, original: string, overlay: string, overridesJson: string) => Promise<string>;
+
+/** Atomic private effective-version store operation on the Go worker. */
+export const versionAction: (homeDir: string, actionJson: string) => Promise<string>;
+
 /** 桥接层状态（库是否加载、调用计数等）。 */
 export const getBridgeStatus: () => BridgeStatus;
