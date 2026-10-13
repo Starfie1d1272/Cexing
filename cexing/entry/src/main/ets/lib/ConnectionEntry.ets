@@ -30,6 +30,9 @@ export namespace ConnectionEntry {
 
   export function bind(ctx: common.UIAbilityContext): void {
     context = ctx;
+    action = '';
+    consumed = request;
+    routed = request;
     ready = false;
     stopUnknown = ConnectionCards.read(ctx).stopUnknown;
     if (!registered) {

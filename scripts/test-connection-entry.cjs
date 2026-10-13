@@ -99,6 +99,15 @@ async function tests() {
   g.entry.destroyed(g.ctx);
   assert.equal(g.entry.canConfirm(), false, 'Destroyed Ability cannot confirm');
   assert.equal(g.entry.takeNavigation(), false);
+  const rebound = fixture();
+  rebound.entry.receive(rebound.want('connect'));
+  const nextContext = {};
+  rebound.entry.bind(nextContext);
+  rebound.entry.recovered(nextContext);
+  assert.equal(rebound.entry.action, '', 'A normal Ability recreation must discard a previous external intent');
+  assert.equal(rebound.calls.cancel, 0, 'An old external intent must not suppress normal auto-restore');
+  rebound.entry.destroyed(rebound.ctx);
+  assert.equal(rebound.entry.ready, true, 'Late old-Ability teardown must preserve the new context');
   // Persistence belongs to the card adapter, not to an alternate VPN controller.
   const files = new Map(), updates = [];
   const io = { OpenMode: { CREATE: 1, WRITE_ONLY: 2, TRUNC: 4 },
