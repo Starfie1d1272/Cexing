@@ -193,7 +193,7 @@ export struct ProfilePage {
     }
   }
 
-  private doRename(): void {
+  private async doRename(): Promise<void> {
     const context = getContext(this) as common.UIAbilityContext;
     const target = this.renameTarget;
     const input = this.renameInput.trim();
@@ -205,7 +205,7 @@ export struct ProfilePage {
       return;
     }
     try {
-      const renamed = ProfileTransactions.rename(context, target, input);
+      const renamed = await ProfileTransactions.rename(context, target, input);
       if (this.selectedFile === target) { this.selectedFile = renamed; }
       this.toast(`已重命名为 ${renamed.replace(/\.(yaml|yml)$/, '')}`);
       this.changed();

@@ -1,6 +1,7 @@
 /*
  * ProfileStore.ets - 配置（订阅）存储
- * 存放于 filesDir/profiles/*.yaml，active.txt 记录当前激活文件名。
+ * 导入兼容文件存放于 filesDir/profiles/*.yaml；发布过版本后，
+ * profile-versions/state.json 是唯一有效选择与内容指针，active.txt 仅供旧数据迁移。
  * 主进程下载订阅（本应用已被加入 VPN blockedApplications，走直连）。
  */
 import { fileIo } from '@kit.CoreFileKit';
@@ -9,6 +10,7 @@ import { common } from '@kit.AbilityKit';
 import { util } from '@kit.ArkTS';
 import { Logger } from './Logger';
 import { suggestProfileName, profileNameFromUrl } from './ProfileName';
+import { EffectiveVersions } from './EffectiveVersions';
 
 const TAG = 'profileStore';
 const ACTIVE_FILE = 'active.txt';
@@ -85,20 +87,27 @@ export namespace ProfileStore {
 
   /** 读取侧车 meta.json；文件不存在或解析失败返回 {} */
   export function getMeta(context: common.Context): Record<string, ProfileMetaExt> {
+    const state = EffectiveVersions.read(context);
+    let all: Record<string, ProfileMetaExt>;
     try {
       const p = metaPath(context);
-      if (!fileIo.accessSync(p)) {
-        return {};
-      }
-      const raw = fileIo.readTextSync(p);
-      if (raw.trim().length === 0) {
-        return {};
-      }
-      return JSON.parse(raw) as Record<string, ProfileMetaExt>;
+      const raw = fileIo.accessSync(p) ? fileIo.readTextSync(p) : '{}';
+      all = JSON.parse(raw.trim().length > 0 ? raw : '{}') as Record<string, ProfileMetaExt>;
     } catch (e) {
-      Logger.warn(TAG, `getMeta failed: ${JSON.stringify(e)}`);
-      return {};
+      Logger.warn(TAG, 'getMeta failed');
+      all = JSON.parse('{}') as Record<string, ProfileMetaExt>;
     }
+    if (state !== null) {
+      for (const name of Object.keys(state.Profiles)) {
+        const version = state.Profiles[name];
+        try {
+          const source = JSON.parse(fileIo.readTextSync(`${context.filesDir}/profile-versions/${version.ID}/source.json`)) as
+            Record<string, string>;
+          all[name] = JSON.parse(source['Metadata']) as ProfileMetaExt;
+        } catch (_) { throw new Error('有效配置元数据损坏，请勿继续修改'); }
+      }
+    }
+    return all;
   }
 
   function writeMeta(context: common.Context, all: Record<string, ProfileMetaExt>): void {
@@ -125,7 +134,7 @@ export namespace ProfileStore {
       all[file] = entry;
       writeMeta(context, all);
     } catch (e) {
-      Logger.warn(TAG, `setMetaEntry ${file} failed: ${JSON.stringify(e)}`);
+      Logger.warn(TAG, 'setMetaEntry failed');
     }
   }
 
@@ -145,7 +154,7 @@ export namespace ProfileStore {
       }
       writeMeta(context, next);
     } catch (e) {
-      Logger.warn(TAG, `deleteMetaEntry ${file} failed: ${JSON.stringify(e)}`);
+      Logger.warn(TAG, 'deleteMetaEntry failed');
     }
   }
 
@@ -199,19 +208,22 @@ export namespace ProfileStore {
 
   export function list(context: common.Context): ProfileMeta[] {
     const d = ensureDir(context);
+    const state = EffectiveVersions.read(context);
     const active = getActiveFile(context);
     const out: ProfileMeta[] = [];
     try {
       const names = fileIo.listFileSync(d);
       for (const name of names) {
-        if (name === ACTIVE_FILE || (!name.endsWith('.yaml') && !name.endsWith('.yml'))) {
+        if (name === ACTIVE_FILE || !/\.(yaml|yml)$/i.test(name)) {
           continue;
         }
         try {
-          const st = fileIo.statSync(`${d}/${name}`);
+          const version = state?.Profiles[name];
+          const st = fileIo.statSync(version === undefined ? `${d}/${name}` :
+            `${context.filesDir}/profile-versions/${version.ID}/original.yaml`);
           out.push({
             file: name,
-            name: name.replace(/\.(yaml|yml)$/, ''),
+            name: name.replace(/\.(yaml|yml)$/i, ''),
             size: st.size,
             mtime: st.mtime,
             active: name === active
@@ -228,6 +240,8 @@ export namespace ProfileStore {
   }
 
   export function getActiveFile(context: common.Context): string {
+    const state = EffectiveVersions.read(context);
+    if (state !== null) { return state.Current?.ProfileID ?? ''; }
     try {
       const p = activePath(context);
       if (fileIo.accessSync(p)) {
@@ -294,6 +308,10 @@ export namespace ProfileStore {
    *  读取时执行编码修复：若文件是旧版导入的字节拍平损坏，修复后回写磁盘，
    *  保证后续 PUT /configs 按路径热加载也能解析成功。 */
   export function getActiveContent(context: common.Context): string | null {
+    const state = EffectiveVersions.read(context);
+    if (state !== null) {
+      return state.Current === null || state.Current === undefined ? null : fileIo.readTextSync(state.Current.Path);
+    }
     const file = getActiveFile(context);
     if (file.length === 0) {
       return null;
@@ -329,6 +347,10 @@ export namespace ProfileStore {
     if (fileIo.accessSync(backup)) {
       try { await fileIo.unlink(backup); } catch (_) { /* non-effective backup */ }
     }
+    const merge = `${dir(context)}/${file}.merge.json`;
+    if (fileIo.accessSync(merge)) {
+      try { await fileIo.unlink(merge); } catch (_) { /* orphan draft is not effective */ }
+    }
     try { clearDraft(context, file); } catch (_) { /* non-effective draft */ }
   }
 
@@ -357,6 +379,41 @@ export namespace ProfileStore {
     if (fileIo.accessSync(p)) { fileIo.unlinkSync(p); }
   }
 
+  /** Stored separately from the raw subscription; never active until a full transaction commits it. */
+  export function getMergeDraft(context: common.Context, file: string): string {
+    const p = `${ensureDir(context)}/${file}.merge.json`;
+    if (!fileIo.accessSync(p)) { return ''; }
+    const entry = JSON.parse(fileIo.readTextSync(p)) as Record<string, string>;
+    if (entry['dialect'] !== 'clash-verge-merge-2.5.8' || typeof entry['content'] !== 'string') {
+      throw new Error('Merge 方言不受支持');
+    }
+    return entry['content'];
+  }
+
+  /** The immutable version owns an enabled overlay; editing the draft cannot change it. */
+  export function getEnabledMerge(context: common.Context, file: string): string {
+    const version = EffectiveVersions.read(context)?.Profiles[file];
+    if (version !== undefined) { return EffectiveVersions.overlay(context, version); }
+    const p = `${ensureDir(context)}/${file}.merge.json`;
+    if (!fileIo.accessSync(p)) { return ''; }
+    const entry = JSON.parse(fileIo.readTextSync(p)) as Record<string, Object>;
+    if (entry['enabled'] !== true) { return ''; }
+    return getMergeDraft(context, file);
+  }
+
+  export function setMergeEnabled(context: common.Context, file: string, content: string): void {
+    atomicText(`${ensureDir(context)}/${file}.merge.json`, JSON.stringify({
+      dialect: 'clash-verge-merge-2.5.8', sourceVersion: '', content: content, enabled: content.length > 0
+    }));
+  }
+
+  export function saveMergeDraft(context: common.Context, file: string, content: string): void {
+    if (!fileIo.accessSync(absPath(context, file))) { throw new Error('原始配置不存在'); }
+    atomicText(`${ensureDir(context)}/${file}.merge.json`, JSON.stringify({
+      dialect: 'clash-verge-merge-2.5.8', sourceVersion: '', content: content
+    }));
+  }
+
   /** 重命名配置：自动补 .yaml 后缀，迁移 active/.url/meta 记录；返回新文件名，失败抛错 */
   export function renameProfile(context: common.Context, oldFile: string, newName: string): string {
     let target = newName.trim();
@@ -366,7 +423,7 @@ export namespace ProfileStore {
     if (target.includes('/') || target.includes('\\')) {
       throw new Error('名称不能包含路径分隔符');
     }
-    if (!target.endsWith('.yaml') && !target.endsWith('.yml')) {
+    if (!/\.(yaml|yml)$/i.test(target)) {
       target = `${target}.yaml`;
     }
     if (target === oldFile) {
@@ -388,7 +445,7 @@ export namespace ProfileStore {
     }
     const moved: string[][] = [];
     try {
-      for (const suffix of ['.url', '.last-good']) {
+      for (const suffix of ['.url', '.last-good', '.merge.json']) {
         const from = `${oldPath}${suffix}`;
         const to = `${newPath}${suffix}`;
         if (fileIo.accessSync(from)) {
@@ -422,6 +479,10 @@ export namespace ProfileStore {
 
   /** 读取指定配置内容（复用 getActiveContent 的 sanitize 修复逻辑）；文件不存在返回 null */
   export function getProfileContent(context: common.Context, file: string): string | null {
+    const state = EffectiveVersions.read(context);
+    if (state !== null && state.Profiles[file] !== undefined) {
+      return EffectiveVersions.original(context, state.Profiles[file]);
+    }
     const p = `${dir(context)}/${file}`;
     try {
       if (!fileIo.accessSync(p)) {
@@ -475,6 +536,10 @@ export namespace ProfileStore {
 
   /** 订阅来源 URL（用于“更新”），sidecar 文件 <file>.url */
   export function getOrigin(context: common.Context, file: string): string {
+    const state = EffectiveVersions.read(context);
+    if (state !== null && state.Profiles[file] !== undefined) {
+      return getMeta(context)[file]?.origin ?? '';
+    }
     try {
       const p = `${dir(context)}/${file}.url`;
       if (fileIo.accessSync(p)) {

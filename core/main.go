@@ -10,6 +10,8 @@
 //	mihomoFree(p *C.char)                 释放上述函数返回的 C 字符串
 //	mihomoValidateOffline(home, config, overrides) *C.char
 //	                                     无副作用候选校验；不下载 provider
+//	mihomoPreviewMerge(home, original, overlay, overrides) *C.char
+//	                                     固定方言合并的脱敏摘要；不应用候选
 //
 // 注意: 所有导出函数必须经由桥接层 worker 线程调用（鸿蒙 musl 主线程 TLS 布局与
 // pthread 线程不同，主线程直进 Go c-shared 会 SIGSEGV，详见 docs/reference/platform.md）。
@@ -55,6 +57,20 @@ func mihomoValidateOffline(home, config, overrides *C.char) *C.char {
 		return C.CString("CACHED_PROVIDER:" + receipt)
 	}
 	return C.CString(err.Error())
+}
+
+//export mihomoPreviewMerge
+func mihomoPreviewMerge(home, original, overlay, overrides *C.char) *C.char {
+	result, err := corePreviewMerge(C.GoString(home), C.GoString(original), C.GoString(overlay), C.GoString(overrides))
+	if err != nil {
+		return C.CString(`{"error":"MERGE_PREVIEW_FAILED"}`)
+	}
+	return C.CString(result)
+}
+
+//export mihomoVersionAction
+func mihomoVersionAction(home, action *C.char) *C.char {
+	return C.CString(coreVersionAction(C.GoString(home), C.GoString(action)))
 }
 
 //export mihomoFree

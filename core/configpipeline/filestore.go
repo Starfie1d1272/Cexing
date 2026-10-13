@@ -17,6 +17,18 @@ type FileStore struct{ Root string }
 func (s FileStore) valid(v *Version) bool {
 	return v == nil || (strings.HasPrefix(v.ID, "version-") && filepath.Base(v.ID) == v.ID && v.Path == filepath.Join(s.Root, v.ID, "config.yaml"))
 }
+func (s FileStore) filesRegular(v *Version) bool {
+	if v == nil {
+		return true
+	}
+	for _, name := range []string{"config.yaml", "original.yaml", "source.json"} {
+		info, err := os.Lstat(filepath.Join(s.Root, v.ID, name))
+		if err != nil || !info.Mode().IsRegular() {
+			return false
+		}
+	}
+	return true
+}
 func (s FileStore) Load(ctx context.Context) (Snapshot, error) {
 	if err := ctx.Err(); err != nil {
 		return Snapshot{}, err
@@ -35,10 +47,18 @@ func (s FileStore) Load(ctx context.Context) (Snapshot, error) {
 	if !s.valid(state.Current) || !s.valid(state.Previous) {
 		return Snapshot{}, errors.New("invalid version path")
 	}
+	for name, version := range state.Profiles {
+		if name == "" || name != version.ProfileID || !s.valid(&version) {
+			return Snapshot{}, errors.New("invalid profile version")
+		}
+		if !s.filesRegular(&version) {
+			return Snapshot{}, errors.New("missing profile version")
+		}
+	}
 	for _, v := range []*Version{state.Current, state.Previous} {
 		if v != nil {
-			if _, err := os.Stat(v.Path); err != nil {
-				return Snapshot{}, err
+			if !s.filesRegular(v) {
+				return Snapshot{}, errors.New("missing selected version")
 			}
 		}
 	}
@@ -68,18 +88,25 @@ func (s FileStore) Stage(ctx context.Context, r Result) (Version, error) {
 		}
 	}()
 	provenance, err := json.Marshal(struct {
-		Original []byte
-		Overlays [][]byte
-		Digest   string
-	}{r.Original, r.Overlays, r.Digest})
+		Original  []byte
+		Overlays  [][]byte
+		Digest    string
+		ProfileID string
+		Metadata  string
+	}{r.Original, r.Overlays, r.Digest, r.ProfileID, r.Metadata})
 	if err != nil {
 		return Version{}, err
 	}
 	for _, file := range []struct {
 		name string
 		data []byte
-	}{{"source.json", provenance}, {"config.yaml", r.YAML}} {
+	}{{"source.json", provenance}, {"original.yaml", r.Original}, {"config.yaml", r.YAML}} {
 		if err := writeSync(filepath.Join(dir, file.name), file.data); err != nil {
+			return Version{}, err
+		}
+	}
+	if len(r.Overlays) > 0 {
+		if err := writeSync(filepath.Join(dir, "overlay.yaml"), r.Overlays[0]); err != nil {
 			return Version{}, err
 		}
 	}
@@ -90,18 +117,34 @@ func (s FileStore) Stage(ctx context.Context, r Result) (Version, error) {
 		return Version{}, err
 	}
 	complete = true
-	return Version{ID: filepath.Base(dir), Path: filepath.Join(dir, "config.yaml")}, nil
+	return Version{ID: filepath.Base(dir), Path: filepath.Join(dir, "config.yaml"), ProfileID: r.ProfileID}, nil
 }
 func (s FileStore) Commit(ctx context.Context, state Snapshot) error {
+	if state.Current == nil {
+		return errors.New("invalid version")
+	}
+	return s.Publish(ctx, state)
+}
+
+// Publish also permits clearing the selected version after a confirmed stop.
+func (s FileStore) Publish(ctx context.Context, state Snapshot) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if state.Current == nil || !s.valid(state.Current) || !s.valid(state.Previous) {
+	if !s.valid(state.Current) || !s.valid(state.Previous) {
 		return errors.New("invalid version")
+	}
+	for name, version := range state.Profiles {
+		if name == "" || name != version.ProfileID || !s.valid(&version) {
+			return errors.New("invalid profile version")
+		}
+		if !s.filesRegular(&version) {
+			return errors.New("missing profile version")
+		}
 	}
 	for _, v := range []*Version{state.Current, state.Previous} {
 		if v != nil {
-			if info, err := os.Stat(v.Path); err != nil || !info.Mode().IsRegular() {
+			if !s.filesRegular(v) {
 				return errors.New("missing staged version")
 			}
 		}
@@ -144,6 +187,11 @@ func (s FileStore) Discard(ctx context.Context, v Version) error {
 	}
 	for _, active := range []*Version{state.Current, state.Previous} {
 		if active != nil && active.ID == v.ID {
+			return errors.New("cannot discard successful version")
+		}
+	}
+	for _, active := range state.Profiles {
+		if active.ID == v.ID {
 			return errors.New("cannot discard successful version")
 		}
 	}
