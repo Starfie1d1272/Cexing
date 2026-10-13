@@ -24,6 +24,7 @@ source scripts/env.sh
 (cd cexing && "$CLT_ROOT/ohpm/bin/ohpm" install)
 bash scripts/build-core.sh
 bash scripts/prepare-geodata.sh
+python3 scripts/prepare-smart-model.py
 (cd cexing && hvigorw clean --no-daemon)
 bash scripts/build-hap.sh
 ```
