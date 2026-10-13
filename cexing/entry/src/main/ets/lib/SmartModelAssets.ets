@@ -74,9 +74,9 @@ export class SmartModelAssets {
       } finally { fileIo.closeSync(file); }
       if (fileIo.accessSync(path)) { fileIo.renameSync(path, backup); }
       try { fileIo.renameSync(temp, path); }
-      catch (error) {
+      catch (_) {
         if (fileIo.accessSync(backup) && !fileIo.accessSync(path)) { fileIo.renameSync(backup, path); }
-        throw error;
+        throw new Error('Failed to install bundled model');
       }
       return { state: 'ready', message: '已安装经校验的内置模型' };
     } catch (_) {

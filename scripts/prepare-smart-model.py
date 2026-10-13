@@ -43,6 +43,8 @@ def verify():
 
 def prepare():
     pin, license_data = identity()
+    if RAW.is_symlink():
+        raise ValueError('unsafe Smart model resource directory')
     RAW.mkdir(parents=True, exist_ok=True)
     model = RAW / 'Model.bin'
     try:
