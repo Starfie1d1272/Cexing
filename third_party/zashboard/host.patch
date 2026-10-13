@@ -21,15 +21,17 @@ index e27dd98..d54974b 100644
 -      })()
 -    </script>
 diff --git a/src/api/clash.ts b/src/api/clash.ts
-index cdcb6af..cb3c65a 100644
+index cdcb6af..27de06c 100644
 --- a/src/api/clash.ts
 +++ b/src/api/clash.ts
-@@ -17 +16,0 @@ import { debounce } from 'lodash'
+@@ -0,0 +1 @@
++import type { EarthLocation } from '@/components/overview/earth/types'
+@@ -17 +17,0 @@ import { debounce } from 'lodash'
 -import ReconnectingWebSocket from 'reconnectingwebsocket'
-@@ -19 +18 @@ import { shallowRef } from 'vue'
+@@ -19 +19 @@ import { shallowRef } from 'vue'
 -import './http'
 +import { hostAuthorization, createHostSocket } from './http'
-@@ -130,11 +128,0 @@ export const createClashWebSocket = <T>(url: string, searchParams?: Record<strin
+@@ -130,11 +129,0 @@ export const createClashWebSocket = <T>(url: string, searchParams?: Record<strin
 -  const backend = activeBackend.value!
 -  const resurl = new URL(`${getUrlFromBackend(backend).replace('http', 'ws')}/${url}`)
 -
@@ -41,7 +43,7 @@ index cdcb6af..cb3c65a 100644
 -    })
 -  }
 -
-@@ -142,15 +130,4 @@ export const createClashWebSocket = <T>(url: string, searchParams?: Record<strin
+@@ -142,15 +131,4 @@ export const createClashWebSocket = <T>(url: string, searchParams?: Record<strin
 -  const websocket = new ReconnectingWebSocket(resurl.toString())
 -
 -  const close = () => {
@@ -61,17 +63,44 @@ index cdcb6af..cb3c65a 100644
 +  const messageHandler = (message: string) => {
 +    if (closed) return
 +    try { data.value = JSON.parse(message) } catch { /* Ignore malformed messages without logging. */ }
-@@ -157,0 +135,4 @@ export const createClashWebSocket = <T>(url: string, searchParams?: Record<strin
+@@ -157,0 +136,4 @@ export const createClashWebSocket = <T>(url: string, searchParams?: Record<strin
 +  const receive = debounce(messageHandler, url === 'logs' ? 0 : 100)
 +  const socket = createHostSocket(url, searchParams, receive)
 +  const close = () => { closed = true; receive.cancel(); socket.close() }
 +  return { data, close }
-@@ -178 +159 @@ export const probeClashChannel = async (
+@@ -178 +160 @@ export const probeClashChannel = async (
 -        Authorization: `Bearer ${backend.password}`,
 +        Authorization: hostAuthorization(),
-@@ -233 +214 @@ export const restartCoreAPI = () => {
+@@ -233 +215 @@ export const restartCoreAPI = () => {
 -  return axios.post('/restart')
 +  return Promise.reject(new Error('Core restart is managed by the native host'))
+@@ -271,0 +254,26 @@ export const toggleRuleDisabledRefindAPI = (uuid: string) => {
++
++// City data is optional; only the explicit POST asks the native host to
++// download the fixed release. Lookup IPs stay on the authenticated loopback API.
++export interface HostCityStatus {
++  state: 'missing' | 'downloading' | 'ready' | 'error'
++  reason?: string
++  release: string
++  downloadBytes: number
++  storedBytes: number
++  received: number
++}
++export const fetchHostCityStatus = () => axios.get<HostCityStatus>('/ohos/geoip/status', { timeout: 5000 })
++export const downloadHostCity = (release: string) => axios.post<HostCityStatus>(
++  '/ohos/geoip/download', { confirmDownload: true, release }, { timeout: 185000 },
++)
++export const cancelHostCity = () => axios.post('/ohos/geoip/cancel')
++export const lookupHostCity = async (ips: string[], locale: string) => {
++  const locations: Record<string, EarthLocation | null> = {}
++  for (let offset = 0; offset < ips.length; offset += 128) {
++    const response = await axios.post<{ locations: typeof locations }>(
++      '/ohos/geoip/lookup', { ips: ips.slice(offset, offset + 128), locale }, { timeout: 5000 },
++    )
++    Object.assign(locations, response.data.locations)
++  }
++  return locations
++}
 diff --git a/src/api/http.ts b/src/api/http.ts
 index f5c9b6d..85e32e7 100644
 --- a/src/api/http.ts
@@ -244,35 +273,387 @@ index 72a8213..e74ab19 100644
 -}
 +/* Host distribution uses system emoji; only licensed Fira Sans is bundled. */
 diff --git a/src/components/overview/EarthGlobeCard.vue b/src/components/overview/EarthGlobeCard.vue
-index 82b3e9d..8b8d166 100644
+index 82b3e9d..5c44bad 100644
 --- a/src/components/overview/EarthGlobeCard.vue
 +++ b/src/components/overview/EarthGlobeCard.vue
-@@ -268,0 +269 @@
+@@ -93,28 +93 @@
+-        <SelectInput
+-          v-model="earthIPInfoAPI"
+-          class="select select-sm bg-base-100/75 pointer-events-auto h-8 min-h-8 w-auto rounded-lg border-0 shadow backdrop-blur-md"
+-          :aria-label="t('earthOriginAPI')"
+-          :options="apiOptions"
+-        />
+-
+-        <div
+-          class="bg-base-100/75 pointer-events-auto flex h-8 items-center gap-1.5 rounded-lg px-2 shadow backdrop-blur-md"
+-        >
+-          <span class="text-base-content/60">{{ t('earthLocalIP') }}</span>
+-          <span class="font-mono">{{ displayedOriginIP }}</span>
+-          <button
+-            class="btn btn-ghost btn-circle btn-xs"
+-            :aria-label="t('earthToggleIP')"
+-            @click="showOriginIP = !showOriginIP"
+-          >
+-            <EyeIcon
+-              v-if="showOriginIP"
+-              class="h-3.5 w-3.5"
+-            />
+-            <EyeSlashIcon
+-              v-else
+-              class="h-3.5 w-3.5"
+-            />
+-          </button>
+-        </div>
+-
++        <span class="bg-base-100/75 pointer-events-auto rounded-lg px-2 py-1.5">{{ t('earthHostLocalLookup') }}</span>
+@@ -200 +173 @@
+-        v-else-if="databaseStatus === 'idle'"
++        v-else-if="databaseStatus === 'idle' && !cityPromptHidden"
+@@ -204 +177 @@
+-          class="bg-base-100/90 pointer-events-auto max-w-md rounded-xl p-4 text-sm shadow-xl backdrop-blur-md"
++          class="bg-base-100/90 pointer-events-auto max-h-full w-full min-w-0 max-w-md overflow-y-auto rounded-xl p-4 text-sm shadow-xl backdrop-blur-md"
+@@ -208 +181 @@
+-            {{ t('earthDatabaseConsent', { download: '61.7 MB', stored: '130.2 MB' }) }}
++            {{ t('earthHostCityConsent') }}
+@@ -216 +189,2 @@
+-          <div class="mt-3 flex items-center gap-2">
++          <div class="mt-3 flex flex-wrap items-center gap-2">
++            <button class="btn btn-sm" @click="cityPromptHidden = true">{{ t('earthHostCityLater') }}</button>
+@@ -268,0 +243 @@
 +            v-if="databaseError !== 'host-offline'"
-@@ -444,0 +446 @@ const displayedOriginIP = computed(() => {
-+  if (databaseError.value === 'host-offline') return '—'
-@@ -464 +466 @@ const showRetry = computed(
+@@ -277,9 +251,0 @@
+-      <div
+-        v-else-if="databaseStatus === 'ready' && originStatus === 'error'"
+-        class="pointer-events-none absolute inset-0 flex items-center justify-center p-4"
+-      >
+-        <div class="bg-base-100/85 rounded-xl px-4 py-3 text-sm shadow-xl backdrop-blur-md">
+-          {{ t('earthOriginError') }}
+-        </div>
+-      </div>
+-
+@@ -295,0 +262,4 @@
++    <div class="mt-2 flex flex-wrap items-center gap-2 text-xs text-base-content/65">
++      <span>{{ t('earthHostCityScope') }}</span>
++      <button v-if="databaseStatus === 'idle' && cityPromptHidden" class="btn btn-xs" @click="cityPromptHidden = false">{{ t('earthDatabaseDownload') }}</button>
++    </div>
+@@ -339,4 +309 @@ import SelectInput from '@/components/common/SelectInput.vue'
+-import { queryDNS } from '@/assembly/config'
+-import { getPublicIPInfo, type IPInfo } from '@/api/geoip'
+-import { getCachedPublicIPInfo } from '@/helper/overview'
+-import { IP_INFO_API } from '@/constant'
++import { fetchHostCityStatus, downloadHostCity, cancelHostCity, lookupHostCity, type HostCityStatus } from '@/api/clash'
+@@ -345 +312 @@ import { prettyBytesHelper } from '@/helper/utils'
+-import { earthIPInfoAPI, earthProjection, earthVisualMode, language, theme } from '@/store/settings'
++import { earthProjection, earthVisualMode, language, theme } from '@/store/settings'
+@@ -350,2 +316,0 @@ import {
+-  EyeIcon,
+-  EyeSlashIcon,
+@@ -358 +322,0 @@ import * as ipaddr from 'ipaddr.js'
+-import pLimit from 'p-limit'
+@@ -365 +328,0 @@ import {
+-  DBIP_COMPRESSED_BYTES,
+@@ -368 +330,0 @@ import {
+-  type EarthLocationHint,
+@@ -371,2 +332,0 @@ import {
+-  type GeoWorkerRequest,
+-  type GeoWorkerResponse,
+@@ -377 +336,0 @@ const { t } = useI18n()
+-const apiOptions = Object.values(IP_INFO_API).map((value) => ({ value, label: value }))
+@@ -383,0 +343,3 @@ const recoveredCorruptCache = ref(false)
++const cityPromptHidden = ref(false)
++const hostCity = ref<HostCityStatus>()
++let cityPollTimer: ReturnType<typeof setTimeout> | null = null
+@@ -385,5 +347 @@ const downloadedBytes = ref(0)
+-const downloadTotalBytes = ref(DBIP_COMPRESSED_BYTES)
+-const originIP = ref('')
+-const originAPIInfo = ref<IPInfo | null>(null)
+-const originStatus = ref<'loading' | 'ready' | 'error'>('loading')
+-const showOriginIP = ref(false)
++const downloadTotalBytes = ref(0)
+@@ -399,6 +356,0 @@ const locationCache = new Map<string, EarthLocation | null>()
+-const dnsCache = new Map<string, { ip: string | null; expiresAt: number }>()
+-const dnsRequests = new Map<string, Promise<string | null>>()
+-const dnsLookupLimit = pLimit(6)
+-const lookupRequests = new Map<number, (locations: Record<string, EarthLocation | null>) => void>()
+-let lookupID = 0
+-let worker: Worker | null = null
+@@ -409 +360,0 @@ let disposed = false
+-let originRequestID = 0
+@@ -444,6 +394,0 @@ const flatLook = computed(() => isFlatMap.value || earthVisualMode.value === 'fl
+-const displayedOriginIP = computed(() => {
+-  if (originStatus.value === 'loading') return t('getting')
+-  if (originStatus.value === 'error') return t('testFailed')
+-  return showOriginIP.value ? originIP.value : maskIP(originIP.value)
+-})
+-
+@@ -464 +409 @@ const showRetry = computed(
 -  () =>
 +  () => databaseError.value !== 'host-offline' && (
-@@ -469 +471 @@ const showRetry = computed(
+@@ -466 +410,0 @@ const showRetry = computed(
+-    originStatus.value === 'error' ||
+@@ -469 +413 @@ const showRetry = computed(
 -      activeConnections.value.length > 0),
 +      activeConnections.value.length > 0)),
-@@ -760,4 +762,4 @@ const initialize = async () => {
+@@ -474 +417,0 @@ const showNoData = computed(
+-    originStatus.value === 'ready' &&
+@@ -479 +421,0 @@ const legendItems = computed(() => [
+-  { color: ENDPOINT_PALETTE.origin, label: t('earthRole_origin') },
+@@ -488,55 +429,0 @@ const tooltipStyle = computed<CSSProperties>(() => ({
+-const postWorker = (message: GeoWorkerRequest) => worker?.postMessage(message)
+-
+-const resolveHostname = (hostname: string) => {
+-  const cached = dnsCache.get(hostname)
+-
+-  if (cached && cached.expiresAt > Date.now()) return Promise.resolve(cached.ip)
+-
+-  const pending = dnsRequests.get(hostname)
+-
+-  if (pending) return pending
+-
+-  const request = dnsLookupLimit(async () => {
+-    for (const { type, answerType } of [
+-      { type: 'A', answerType: 1 },
+-      { type: 'AAAA', answerType: 28 },
+-    ]) {
+-      try {
+-        const data = await queryDNS({ name: hostname, type })
+-
+-        for (const answer of data.Answer ?? []) {
+-          const ip = answer.type === answerType ? normalizeIP(answer.data) : null
+-
+-          if (!ip) continue
+-
+-          dnsCache.set(hostname, {
+-            ip,
+-            expiresAt: Date.now() + Math.max(1, answer.TTL) * 1000,
+-          })
+-          return ip
+-        }
+-      } catch {}
+-    }
+-
+-    dnsCache.set(hostname, { ip: null, expiresAt: Date.now() + 30_000 })
+-    return null
+-  }).finally(() => dnsRequests.delete(hostname))
+-
+-  dnsRequests.set(hostname, request)
+-  return request
+-}
+-
+-const resolveDestinationIPs = async (hostnames: string[]) => {
+-  const entries = await Promise.all(
+-    hostnames.map(async (hostname) => [hostname, await resolveHostname(hostname)] as const),
+-  )
+-
+-  while (dnsCache.size > 4096) {
+-    const oldest = dnsCache.keys().next().value
+-    if (oldest === undefined) break
+-    dnsCache.delete(oldest)
+-  }
+-
+-  return Object.fromEntries(entries)
+-}
+-
+@@ -553,5 +440 @@ const lookupLocations = async (ips: string[], locale: string) => {
+-    const id = ++lookupID
+-    const locations = await new Promise<Record<string, EarthLocation | null>>((resolve) => {
+-      lookupRequests.set(id, resolve)
+-      postWorker({ type: 'lookup', id, ips: missing, locale })
+-    })
++    const locations = await lookupHostCity(missing, locale)
+@@ -585 +468 @@ const refreshRoutes = async () => {
+-    if (databaseStatus.value !== 'ready' || !isValidIP(originIP.value)) {
++    if (databaseStatus.value !== 'ready') {
+@@ -593,11 +475,0 @@ const refreshRoutes = async () => {
+-    const routeOriginIP = originIP.value
+-    const routeOriginRequestID = originRequestID
+-    const preferredOrigin: EarthLocationHint | null =
+-      earthIPInfoAPI.value !== IP_INFO_API.IPIP && originAPIInfo.value
+-        ? {
+-            latitude: originAPIInfo.value.latitude,
+-            longitude: originAPIInfo.value.longitude,
+-            city: originAPIInfo.value.city,
+-            country: originAPIInfo.value.country,
+-          }
+-        : null
+@@ -608 +480 @@ const refreshRoutes = async () => {
+-        routeOriginIP,
++        '',
+@@ -611,2 +483,2 @@ const refreshRoutes = async () => {
+-        preferredOrigin,
+-        resolveDestinationIPs,
++        null,
++        undefined,
+@@ -615,5 +487 @@ const refreshRoutes = async () => {
+-      if (
+-        !disposed &&
+-        routeOriginRequestID === originRequestID &&
+-        routeOriginIP === originIP.value
+-      ) {
++      if (!disposed) {
+@@ -625,5 +493 @@ const refreshRoutes = async () => {
+-      if (
+-        !disposed &&
+-        routeOriginRequestID === originRequestID &&
+-        routeOriginIP === originIP.value
+-      ) {
++      if (!disposed) {
+@@ -649,19 +513,3 @@ const scheduleRouteRefresh = () => {
+-const loadOrigin = async (force = false) => {
+-  const requestID = ++originRequestID
+-  const api = earthIPInfoAPI.value
+-  const cached = force ? null : getCachedPublicIPInfo(api)
+-
+-  if (cached && isValidIP(cached.ip)) {
+-    originIP.value = cached.ip
+-    originAPIInfo.value = cached
+-    originStatus.value = 'ready'
+-    scheduleRouteRefresh()
+-    return
+-  }
+-
+-  originStatus.value = 'loading'
+-  originIP.value = ''
+-  originAPIInfo.value = null
+-  routeCount.value = 0
+-  renderer.value?.setRoutes([])
+-
++const refreshHostCity = async () => {
++  if (disposed) return
++  if (cityPollTimer) clearTimeout(cityPollTimer)
+@@ -669,9 +517,14 @@ const loadOrigin = async (force = false) => {
+-    const result = await getPublicIPInfo(api)
+-
+-    if (!isValidIP(result.ip)) throw new Error('Invalid origin IP')
+-    if (requestID !== originRequestID || api !== earthIPInfoAPI.value) return
+-
+-    originIP.value = result.ip
+-    originAPIInfo.value = result
+-    originStatus.value = 'ready'
+-    scheduleRouteRefresh()
++    const { data } = await fetchHostCityStatus()
++    if (disposed) return
++    hostCity.value = data
++    downloadedBytes.value = data.received
++    downloadTotalBytes.value = data.downloadBytes
++    databaseStatus.value = data.state === 'missing' ? 'idle' : data.state
++    if (data.state === 'error') {
++      databaseError.value = data.reason === 'storage' ? 'storage' : data.reason === 'decompress' ? 'decompress' :
++        data.reason === 'integrity' || data.reason === 'invalid' ? 'invalid' : data.reason === 'timeout' ? 'host-timeout' : 'network'
++    } else {
++      databaseError.value = undefined
++    }
++    if (data.state === 'ready') scheduleRouteRefresh()
++    if (data.state === 'downloading') cityPollTimer = setTimeout(() => void refreshHostCity(), 500)
+@@ -679,4 +532 @@ const loadOrigin = async (force = false) => {
+-    if (requestID !== originRequestID || api !== earthIPInfoAPI.value) return
+-    originStatus.value = 'error'
+-    originIP.value = ''
+-    originAPIInfo.value = null
++    if (!disposed) { databaseStatus.value = 'error'; databaseError.value = 'host-offline' }
+@@ -685,2 +535,4 @@ const loadOrigin = async (force = false) => {
+-
+-const downloadDatabase = () => {
++const downloadDatabase = async () => {
++  if (!hostCity.value || databaseStatus.value === 'downloading') return
++  cityPromptHidden.value = false
++  databaseStatus.value = 'downloading'
+@@ -688 +540,3 @@ const downloadDatabase = () => {
+-  postWorker({ type: 'download' })
++  cityPollTimer = setTimeout(() => void refreshHostCity(), 500)
++  try { await downloadHostCity(hostCity.value.release) } catch { /* status gives the bounded failure reason */ }
++  await refreshHostCity()
+@@ -690,5 +544,3 @@ const downloadDatabase = () => {
+-const cancelDatabaseDownload = () => postWorker({ type: 'cancel' })
+-const retry = () => {
+-  if (databaseStatus.value === 'error') downloadDatabase()
+-  if (originStatus.value === 'error') void loadOrigin(true)
+-  if (databaseStatus.value === 'ready' && originStatus.value === 'ready') scheduleRouteRefresh()
++const cancelDatabaseDownload = async () => {
++  try { await cancelHostCity() } catch { /* session loss is handled by the host */ }
++  await refreshHostCity()
+@@ -696,22 +548,3 @@ const retry = () => {
+-
+-const handleWorkerMessage = ({ data }: MessageEvent<GeoWorkerResponse>) => {
+-  if (data.type === 'lookup') {
+-    lookupRequests.get(data.id)?.(data.locations)
+-    lookupRequests.delete(data.id)
+-    return
+-  }
+-
+-  databaseStatus.value = data.status
+-  if (data.error) databaseError.value = data.error
+-  if (data.recoveredCorruptCache) recoveredCorruptCache.value = true
+-  if (data.received != null) downloadedBytes.value = data.received
+-  if (data.total != null) downloadTotalBytes.value = data.total
+-
+-  if (data.status === 'ready') {
+-    locationCache.clear()
+-    scheduleRouteRefresh()
+-  }
+-  if (data.status !== 'ready' && data.status !== 'downloading') {
+-    routeCount.value = 0
+-    renderer.value?.setRoutes([])
+-  }
++const retry = () => {
++  if (databaseStatus.value === 'error') void downloadDatabase()
++  if (databaseStatus.value === 'ready') scheduleRouteRefresh()
+@@ -724 +556,0 @@ const handleEndpointHover = (info: EarthEndpointInfo | null, x?: number, y?: num
+-
+@@ -729 +560,0 @@ const toggleRotation = () => {
+-
+@@ -734 +564,0 @@ const toggleCityLabels = () => {
+-
+@@ -740 +570,2 @@ watch(activeConnections, scheduleRouteRefresh)
+-watch(earthIPInfoAPI, () => void loadOrigin())
++
++// Origin/IP-provider lookups are disabled in the native privacy-preserving view.
+@@ -760,4 +591,3 @@ const initialize = async () => {
 -  worker = new Worker(new URL('./earth/geoip.worker.ts', import.meta.url), { type: 'module' })
 -  worker.addEventListener('message', handleWorkerMessage)
 -  postWorker({ type: 'init' })
 -  void loadOrigin()
 +  // Offline host intentionally disables Worker/remote databases under its CSP.
 +  // Do not enter a pending cache check that can never execute.
-+  databaseStatus.value = 'error'
-+  databaseError.value = 'host-offline'
++  void refreshHostCity()
+@@ -821,0 +652 @@ onBeforeUnmount(() => {
++  if (cityPollTimer) clearTimeout(cityPollTimer)
+@@ -829,6 +659,0 @@ onBeforeUnmount(() => {
+-  worker?.removeEventListener('message', handleWorkerMessage)
+-  worker?.terminate()
+-  worker = null
+-  dnsCache.clear()
+-  dnsRequests.clear()
+-  lookupRequests.clear()
+diff --git a/src/components/overview/earth/routes.ts b/src/components/overview/earth/routes.ts
+index 1a46127..a473575 100644
+--- a/src/components/overview/earth/routes.ts
++++ b/src/components/overview/earth/routes.ts
+@@ -133 +133 @@ export const buildEarthRoutes = async (
+-  if (!normalizedOrigin) return { routes: [] as EarthRoute[], origin: null }
++  // A missing origin is not guessed; destination markers still work locally.
+@@ -144 +144 @@ export const buildEarthRoutes = async (
+-    resolveDestinationIPs && unresolvedHosts.length > 0
++    normalizedOrigin && resolveDestinationIPs && unresolvedHosts.length > 0
+@@ -158 +158 @@ export const buildEarthRoutes = async (
+-  const ips = new Set<string>([normalizedOrigin])
++  const ips = new Set<string>(normalizedOrigin ? [normalizedOrigin] : [])
+@@ -163 +163 @@ export const buildEarthRoutes = async (
+-  const origin = resolveOrigin(normalizedOrigin, locations[normalizedOrigin], preferredOrigin)
++  const origin = normalizedOrigin ? resolveOrigin(normalizedOrigin, locations[normalizedOrigin], preferredOrigin) : null
+@@ -165 +165 @@ export const buildEarthRoutes = async (
+-  if (!origin) return { routes: [] as EarthRoute[], origin: null }
++  // Unknown local position produces no invented origin marker or route arc.
+@@ -175 +175 @@ export const buildEarthRoutes = async (
+-      { ...origin, role: 'origin' },
++      ...(origin ? [{ ...origin, role: 'origin' as const }] : []),
 diff --git a/src/components/overview/earth/types.ts b/src/components/overview/earth/types.ts
-index 8be3cf5..8fd162b 100644
+index 8be3cf5..d493a57 100644
 --- a/src/components/overview/earth/types.ts
 +++ b/src/components/overview/earth/types.ts
 @@ -55 +55 @@ export type GeoDatabaseError =
 -  'space' | 'network' | 'decompress' | 'invalid' | 'storage' | 'unsupported' | 'unknown'
-+  'space' | 'network' | 'decompress' | 'invalid' | 'storage' | 'unsupported' | 'unknown' | 'host-offline'
++  'space' | 'network' | 'decompress' | 'invalid' | 'storage' | 'unsupported' | 'unknown' | 'host-offline' | 'host-timeout'
 diff --git a/src/helper/backend-actions.ts b/src/helper/backend-actions.ts
 index 3ada65c..f368054 100644
 --- a/src/helper/backend-actions.ts
@@ -325,28 +706,48 @@ index ff4cf74..8dcdcf3 100644
 +export const notifyRequestError = (_error: unknown, key?: string) => {
 +  showNotification({ key, content: getRequestErrorMessage(_error), type: 'alert-error' })
 diff --git a/src/i18n/en.ts b/src/i18n/en.ts
-index c990b7f..b72cca5 100644
+index c990b7f..672771d 100644
 --- a/src/i18n/en.ts
 +++ b/src/i18n/en.ts
-@@ -423,0 +424 @@ const en = {
+@@ -423,0 +424,6 @@ const en = {
++  'earthHostLocalLookup': 'Local lookup',
++  'earthHostCityConsent': 'Download the fixed DB-IP city database (60.2 MB; 127 MB stored). The download server sees your network exit IP. Lookup IPs and browsing targets remain on this device. Download only when you choose this action.',
++  'earthHostCityLater': 'Later, show space',
++  'earthHostCityScope': 'Approximate destination locations only; no local-device positioning or extra hostname DNS queries.',
++  'earthDatabaseError_host-timeout': 'City download timed out. Retry when the network is available.',
 +  'earthDatabaseError_host-offline': 'City locations are unavailable in this offline panel. Continue using connections and proxy groups.',
 diff --git a/src/i18n/ru.ts b/src/i18n/ru.ts
-index aa37c67..2329519 100644
+index aa37c67..329918c 100644
 --- a/src/i18n/ru.ts
 +++ b/src/i18n/ru.ts
-@@ -426,0 +427 @@ const ru: LANG_MESSAGE = {
+@@ -426,0 +427,6 @@ const ru: LANG_MESSAGE = {
++  'earthHostLocalLookup': 'Локальный поиск',
++  'earthHostCityConsent': 'Скачать фиксированную базу DB-IP: 60,2 МБ, 127 МБ на диске. Сервер загрузки видит внешний IP сети. Запросы IP и посещаемые адреса остаются на устройстве. Загрузка начинается только по нажатию.',
++  'earthHostCityLater': 'Позже, показать космос',
++  'earthHostCityScope': 'Только приблизительные назначения публичных IP; без определения позиции устройства и дополнительных DNS-запросов.',
++  'earthDatabaseError_host-timeout': 'Время загрузки базы истекло. Повторите после восстановления сети.',
 +  'earthDatabaseError_host-offline': 'Геолокация городов недоступна в офлайн-панели. Соединения и группы прокси доступны.',
 diff --git a/src/i18n/zh-tw.ts b/src/i18n/zh-tw.ts
-index 38ef4c1..87edfa6 100644
+index 38ef4c1..ff68ef3 100644
 --- a/src/i18n/zh-tw.ts
 +++ b/src/i18n/zh-tw.ts
-@@ -412,0 +413 @@ const zhTW: LANG_MESSAGE = {
+@@ -412,0 +413,6 @@ const zhTW: LANG_MESSAGE = {
++  'earthHostLocalLookup': '本機查詢',
++  'earthHostCityConsent': '下載固定版本 DB-IP 城市庫約 60.2 MB，儲存約 127 MB。下載伺服器可看到網路出口 IP；查詢 IP 和訪問目標僅在本機處理。點擊下載後才連網。',
++  'earthHostCityLater': '稍後下載，查看星空',
++  'earthHostCityScope': '僅估算已解析公網 IP 的目的地；不定位本機，不額外查詢訪問網域。',
++  'earthDatabaseError_host-timeout': '城市庫下載逾時，網路恢復後可重試。',
 +  'earthDatabaseError_host-offline': '離線面板暫未提供城市定位，可繼續查看連線和策略組。',
 diff --git a/src/i18n/zh.ts b/src/i18n/zh.ts
-index 15ec5ec..2213e4d 100644
+index 15ec5ec..61f656e 100644
 --- a/src/i18n/zh.ts
 +++ b/src/i18n/zh.ts
-@@ -412,0 +413 @@ const zh: LANG_MESSAGE = {
+@@ -412,0 +413,6 @@ const zh: LANG_MESSAGE = {
++  'earthHostLocalLookup': '本机查询',
++  'earthHostCityConsent': '下载固定版本 DB-IP 城市库约 60.2 MB，存储约 127 MB。下载服务器可看到网络出口 IP；查询 IP 和访问目标仅在本机处理。点击下载后才联网。',
++  'earthHostCityLater': '稍后下载，查看星空',
++  'earthHostCityScope': '仅估算已解析公网 IP 的目的地；不定位本机，不额外查询访问域名。',
++  'earthDatabaseError_host-timeout': '城市库下载超时，网络恢复后可重试。',
 +  'earthDatabaseError_host-offline': '离线面板暂未提供城市定位，可继续查看连接和策略组。',
 diff --git a/src/router/index.ts b/src/router/index.ts
 index f672873..dca7871 100644

@@ -93,9 +93,60 @@ process.stdout.write(context.exports.ZashboardSession.bootstrap(fixture.secret,f
             url = f'http://127.0.0.1:9090/ui/versions/{version}/'
             page.goto(url, wait_until='networkidle')
             page.wait_for_url('**/#/overview')
-            offline_city = page.get_by_text('City locations are unavailable in this offline panel.', exact=False)
-            offline_city.wait_for(timeout=20000)
-            assert not page.locator('.earth-globe-card').get_by_text('Getting...', exact=False).count()
+            city_data = json.loads(api('/ohos/geoip/status')[1])
+            assert api('/ohos/geoip/status', auth=False)[0] == 401
+            assert api('/ohos/geoip/download', 'POST', {'confirmDownload': False, 'release': '2026-10'})[0] == 400
+            if city_data['state'] == 'missing':
+                page.get_by_text('Download the fixed DB-IP city database', exact=False).wait_for(timeout=20000)
+                assert not any('/ohos/geoip/download' in r.url for r in requests), 'Page automatically downloaded data'
+                # Actual built consent UI: narrow English/Chinese and enlarged root font.
+                # Each fresh session remains undownloaded; no destructive download is needed.
+                for language, title, later, download in [
+                    ('en-US', 'Download the local city database?', 'Later, show space', 'Download database'),
+                    ('zh-CN', '下载本地城市数据库？', '稍后下载，查看星空', '下载数据库'),
+                ]:
+                    for font_scale in [100, 150]:
+                        probe_context = browser.new_context(viewport={'width': 390, 'height': 844}, locale=language)
+                        probe_context.add_init_script(bootstrap)
+                        probe_context.add_init_script('localStorage.setItem("config/language", '+json.dumps(language)+');')
+                        probe = probe_context.new_page()
+                        probe.goto(url, wait_until='networkidle')
+                        heading = probe.get_by_text(title, exact=True)
+                        heading.wait_for(timeout=20000)
+                        probe.evaluate('(scale) => document.documentElement.style.fontSize=scale+"%"', font_scale)
+                        consent = heading.locator('..')
+                        for label in [later, download]:
+                            action = consent.get_by_role('button', name=label, exact=True)
+                            action.scroll_into_view_if_needed()
+                            geometry = action.evaluate("""el => {const b=el.getBoundingClientRect(),c=el.parentElement.parentElement.getBoundingClientRect();return {left:b.left,right:b.right,cardLeft:c.left,cardRight:c.right,scroll:el.scrollWidth,width:el.clientWidth}}""")
+                            assert geometry['left'] >= max(0,geometry['cardLeft'])-1 and geometry['right'] <= min(390,geometry['cardRight'])+1, (language,font_scale,label,geometry)
+                            assert geometry['scroll'] <= geometry['width']+1, (language,font_scale,label,'clipped text',geometry)
+                        screenshot_dir = os.environ.get('ZASHBOARD_SCREENSHOTS')
+                        if screenshot_dir:
+                            Path(screenshot_dir).mkdir(parents=True, exist_ok=True)
+                            consent.screenshot(path=str(Path(screenshot_dir)/f'city-consent-390-{language}-{font_scale}.png'))
+                        consent.get_by_role('button', name=later, exact=True).click()
+                        assert api('/ohos/geoip/status')[0] == 200 and json.loads(api('/ohos/geoip/status')[1])['state'] == 'missing'
+                        probe_context.close()
+                print('PASS: 390px English/Chinese consent at 100%/150% root font; buttons and text within card/viewport, Later usable, no download')
+                page.get_by_role('button', name='Later, show space', exact=True).click()
+                if os.environ.get('CITY_BROWSER_DOWNLOAD') == 'true':
+                    page.get_by_role('button', name='Download database', exact=True).click()
+                    page.get_by_role('button', name='Download database', exact=True).click()
+                    deadline = time.monotonic() + 180
+                    while time.monotonic() < deadline:
+                        city_data = json.loads(api('/ohos/geoip/status')[1])
+                        if city_data['state'] == 'ready': break
+                        if city_data['state'] == 'error': raise AssertionError('Native city download failed: '+city_data.get('reason','unknown'))
+                        page.wait_for_timeout(250)
+                    assert city_data['state'] == 'ready', 'Explicit city download did not finish'
+            if city_data['state'] == 'ready':
+                code, result = api('/ohos/geoip/lookup', 'POST', {'ips': ['8.8.8.8', '10.0.0.1'], 'locale': 'en'})
+                assert code == 200
+                located = json.loads(result)
+                assert located['locations']['8.8.8.8']['latitude'] is not None
+                assert located['locations']['10.0.0.1'] is None
+                assert located['scope'] == 'local_only_no_origin_lookup'
             assert page.get_by_label('Globe style', exact=True).inner_text().strip() == 'Space'
             assert page.evaluate("localStorage.getItem('config/earth-visual-mode')") is None
             assert not page.get_by_text('Checking the local city database', exact=False).count(), 'City check never completed'
@@ -203,7 +254,7 @@ process.stdout.write(context.exports.ZashboardSession.bootstrap(fixture.secret,f
             manual_page.wait_for_url('**/#/proxies')
             assert manual_page.get_by_role('button', name='Overview', exact=True).count() == 0
             manual_page.goto(url + '#/overview', wait_until='networkidle')
-            manual_page.get_by_text('City locations are unavailable in this offline panel.', exact=False).wait_for(timeout=20000)
+            manual_page.get_by_label('Globe style', exact=True).wait_for(timeout=20000)
             assert manual_page.get_by_label('Globe style', exact=True).inner_text().strip() == 'Flat'
             manual.close()
             Path(str(ready)+'.stop').touch()
@@ -214,7 +265,7 @@ process.stdout.write(context.exports.ZashboardSession.bootstrap(fixture.secret,f
         assert process.returncode == 0, 'Controller fixture cleanup failed'
         log.seek(0)
         assert secret not in log.read(), 'Controller logs exposed fixture credential'
-        print('PASS: built Zashboard on real Go Controller: overview/space defaults, existing preferences, explicit offline city state, light/dark/live media/manual preference/reentry, authenticated REST/traffic WS, anonymous rejection, CSP HTTP/WS/inline-script blocking, reload, actual WS reconnect after server restart, revoke/reentry, real server loss; Chromium only, no ArkWeb/device/TUN claim')
+        print('PASS: built Zashboard on real Go Controller: overview/space defaults, existing preferences, explicit pinned city download/local lookup/no auto-download, light/dark/live media/manual preference/reentry, authenticated REST/traffic WS, anonymous rejection, CSP HTTP/WS/inline-script blocking, reload, actual WS reconnect after server restart, revoke/reentry, real server loss; Chromium only, no ArkWeb/device/TUN claim')
     except Exception as error:
         print('FAIL: ' + safe(error))
         raise SystemExit(1)
