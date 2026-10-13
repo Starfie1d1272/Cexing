@@ -133,6 +133,7 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   const Profile = load('ProfilePage', { ...common,
     '@kit.CoreFileKit': {}, '@kit.ArkTS': {}, '@kit.BasicServicesKit': {}, './ProfileEditPage': {},
     '../lib/CoreApi': { CoreApi: {} },
+    '../lib/EffectiveVersions': { EffectiveVersions: { read: () => null } },
     '../lib/ProfileTransactions': { ProfileTransactions: {
       remove: async () => { deleted++; }, activate: async () => 'applied',
       update: async () => 'applied', rename: () => 'fixture.yaml'
