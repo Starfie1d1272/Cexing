@@ -1,6 +1,6 @@
 # 独立配置编译与事务接口
 
-`core/configpipeline` 是独立 Go 包。生产离线校验入口使用其 `InspectOffline` 做 YAML 与引用检查；Merge 草案预览调用 `Compiler` 的固定 Verge v2.5.8 语义，只返回固定 section 数量和摘要。`FileStore`、`Transaction` 与生成配置的运行应用仍未接入生产；草案 sidecar 不会改变当前配置。先满足本文接入条件，再替换现有激活路径。模块使用仓库锁定的 yaml.v3 与 Mihomo 规则拆分函数，没有新增依赖。
+`core/configpipeline` 是独立 Go 包。生产端通过 Go worker 使用 `Compiler` 和 `FileStore` 暂存生成配置，再由 ArkTS `ProfileTransactions` 在确认热加载后发布统一版本指针；Go `Transaction` 类型保留为独立事务接口。Merge 固定采用 Verge v2.5.8 语义：草稿预览只返回固定 section 数量和摘要，保存草稿不会改变有效配置；编辑页显式应用或清空停用后才发布版本，订阅更新会重新应用已启用的 Merge。模块使用仓库锁定的 yaml.v3 与 Mihomo 规则拆分函数，没有新增依赖。
 
 ## 与安全线、策略线的最小契约
 
@@ -19,7 +19,7 @@ Compiler{Platform: projectNonSensitivePlatform, Validate: validateRuntimeCopyWit
 
 Platform 与 Validate 都必填；没有静默默认值或自动降级。策略线通过 `Request.Strategy` 接收同一 mapping，可按名称生成/更新组、规则和 provider；支持未来 `smart` 字段的原样传递，具体组类型是否可用由被锁定内核的 Validate 判断。本包不做 Smart 选点，不执行 JS、Shell 或 Ruby。
 
-如安全线接口采用 `map[string]any`，由安全线/宿主提供 Node adapter：只将其拥有的非敏感可持久化字段写回 Node，绝不注入 Secret 等敏感运行态，保持无关的有序映射（例如 nameserver-policy）和规则顺序。不在本包复制安全字段清单。启动、更新、编辑、热重载必须使用同一个约束实现。实际联调仍是后续接入门槛。
+如安全线接口采用 `map[string]any`，由安全线/宿主提供 Node adapter：只将其拥有的非敏感可持久化字段写回 Node，绝不注入 Secret 等敏感运行态，保持无关的有序映射（例如 nameserver-policy）和规则顺序。不在本包复制安全字段清单。启动、更新、编辑、热重载必须使用同一个约束实现。真机联调仍是验收门槛。
 
 ### 持久候选与运行态的边界
 
@@ -69,7 +69,7 @@ interface SubscriptionUpdateTicket {
 
 宿主必须把选择/编辑/取消与配置提交纳入同一串行 coordinator，ticket 的 profile 身份、sourceRevision、selectionEpoch、expectedActiveRevision 在接收下载结果、Stage 前、Activate 前及最终 Commit 的临界区内校验。任何变化均返回陈旧/取消，不覆盖现有原文、覆写、来源元数据、成功更新时间或激活选择；即使重新选回同一个 profile，epoch 不同也应拒绝旧请求。取消下载本身只是尽力操作，不能代替上述提交检查。
 
-本包的 ExpectedActiveRevision 只保护成功配置版本；它不表示 ArkTS 的待选 profile、来源编辑或 VPN 会话代次。应用选择改变而尚未提交新配置时，Current.ID 可能不变，因此宿主仍必须检查 selectionEpoch/profileId。宿主可把检查封装到 Store/Activator adapter，但最终检查和持久化发布必须处于同一选择锁/事务门控，不能留出“检查通过后切换 profile、随后旧写入发布”的窗口。本轮没有修改 ProfileStore，也没有宣称旧写入路径已修复。
+本包的 ExpectedActiveRevision 只保护成功配置版本；它不表示 ArkTS 的待选 profile、来源编辑或 VPN 会话代次。应用选择改变而尚未提交新配置时，Current.ID 可能不变，因此宿主仍必须检查 selectionEpoch/profileId。宿主可把检查封装到 Store/Activator adapter，但最终检查和持久化发布必须处于同一选择锁/事务门控，不能留出“检查通过后切换 profile、随后旧写入发布”的窗口。生产 `ProfileTransactions` 已串行化当前入口并让 `ProfileStore` 从成功指针读取有效版本；本段仍描述通用事务接口的约束。
 
 原文、覆写、生成配置和来源元数据先落到新的不可变版本目录；最终用一个原子 manifest/成功指针发布其身份，随后界面和启动从同一权威指针读取。不能分别 overwrite 原文与 active 元数据并把其中一个 rename 当成整体事务。若暂时保留旧 ProfileStore 文件布局，需要另行设计可恢复日志/统一元数据提交 adapter，不得同时维护两个独立激活权威。失败/取消只清理本事务创建的候选，不删旧 profile 或上次成功配置。
 
@@ -82,6 +82,6 @@ interface SubscriptionUpdateTicket {
 3. 在 Go worker 边界包装 Compile/Apply，保持现有四个 C ABI；新增桥接方式另开接入 PR，不在本包直接改 ABI。ArkTS 通过受控桥接传输入和固定差异摘要，不能在主线程直接调用 Go。
 4. 按上述 ticket/选择锁保护下载与写入，ProfileStore 读取现有来源元数据，向新私有目录保存 Original/Overlays/策略标识；更新、切换、编辑和启动均走唯一事务。策略函数自身不能 JSON 序列化，需由宿主将稳定策略 ID/版本映射到已注册函数，禁止任意代码执行。
 5. Activator 只应用已生成的不可变 Version.Path；安全线保证所有重载路由仍使用同一约束。应用失败 Restore 旧路径，首次失败停止部分激活候选；系统 TUN 生命周期仍由 VPN Extension 管理。
-6. crash/restart 从 successful pointer 恢复，与运行时线共同验收系统会话状态。完整契约回归通过前，保留当前导入及激活能力，不提前替换生产入口。
+6. crash/restart 从 successful pointer 恢复，与运行时线共同验收系统会话状态。现有导入能力继续保留；真机需验证有效配置、停止确认和实际转发。
 
 验收与原有门槛见 [配置契约](configuration.md)、[开发顺序](../development.md)；构建与实际网络/设备验证是不同证据。
