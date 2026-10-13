@@ -30,7 +30,7 @@ const REGION_NAMES: string[] = ['香港', '台湾', '日本', '新加坡', '美�
 
 class RegionSelectOption {
   value: string;
-  constructor(value: string) { this.value = value; }
+  constructor(value: string) { this.value = value === '未知' ? '其他地区' : value; }
 }
 
 export class ProfileDetailBus {
@@ -563,6 +563,14 @@ export struct ProfilePage {
     }
   }
 
+  private regionNames(): string[] {
+    return this.regionPreview?.regions ?? REGION_NAMES;
+  }
+
+  private regionLabel(name: string): string {
+    return name === '未知' ? '其他地区' : name;
+  }
+
   @Builder
   ProfileRow(p: ProfileMeta) {
     Button({ type: ButtonType.Normal }) {
@@ -860,11 +868,11 @@ export struct ProfilePage {
               catch (_) { this.importError = 'provider 尚未就绪'; }
             })
         }
-        Text(`已解析节点 ${Object.keys(this.regionPreview.nodes).length} · 未知 ${this.regionPreview.unknown}`)
+        Text(`已解析节点 ${Object.keys(this.regionPreview.nodes).length} · 其他地区 ${this.regionPreview.unknown}`)
           .fontSize(14).fontColor(UI.ink)
         if (this.regionMode === 'region') {
-          Text(REGION_NAMES.filter((name: string) => (this.regionPreview?.counts[name] ?? 0) > 0)
-            .map((name: string) => `${name} ${this.regionPreview?.counts[name] ?? 0}`).join(' · '))
+          Text(this.regionNames().filter((name: string) => (this.regionPreview?.counts[name] ?? 0) > 0)
+            .map((name: string) => `${this.regionLabel(name)} ${this.regionPreview?.counts[name] ?? 0}`).join(' · '))
             .fontSize(13).fontColor(UI.muted)
         }
         Scroll() {
@@ -873,15 +881,15 @@ export struct ProfilePage {
               Row({ space: 8 }) {
                 Text(node).fontSize(12).fontColor(UI.ink).layoutWeight(1)
                   .maxLines(1).textOverflow({ overflow: TextOverflow.Ellipsis })
-                Select(REGION_NAMES.map((name: string) => new RegionSelectOption(name)))
-                  .selected(REGION_NAMES.indexOf(this.regionPreview?.nodes[node] ?? '未知'))
-                  .value(this.regionPreview?.nodes[node] ?? '未知').width(104)
+                Select(this.regionNames().map((name: string) => new RegionSelectOption(name)))
+                  .selected(this.regionNames().indexOf(this.regionPreview?.nodes[node] ?? '未知'))
+                  .value(this.regionLabel(this.regionPreview?.nodes[node] ?? '未知')).width(104)
                   .onSelect(async (index: number) => {
                     const next: Record<string, string> = {};
                     for (const key of Object.keys(this.regionAssignments)) {
                       next[key] = this.regionAssignments[key];
                     }
-                    next[node] = REGION_NAMES[index];
+                    next[node] = this.regionNames()[index];
                     this.regionAssignments = next;
                     try { await this.refreshRegionPreview(); } catch (_) { this.importError = '预览失败'; }
                   })
