@@ -39,6 +39,7 @@ func init() {
 	// embedded PUT/PATCH handlers without modifying dependency source.
 	route.Register(func(r chi.Router) {
 		r.Get("/logs", getControllerLogs)
+		r.Post("/ohos/diagnostics/check", getDiagnosticCheck)
 		session := controllerSession
 		uiError := controllerUIError
 		r.Get("/ohos/ui-status", func(w MHTTP.ResponseWriter, req *MHTTP.Request) {
@@ -229,7 +230,7 @@ func validateProviderPath(path string) error {
 		return unsafe
 	}
 	parts := strings.Split(rel, string(filepath.Separator))
-	if parts[0] == "controller-security" || parts[0] == "ui" ||
+	if parts[0] == "controller-security" || parts[0] == "diagnostics" || parts[0] == "ui" ||
 		strings.HasPrefix(parts[0], "zashboard-staging-") || strings.HasPrefix(parts[0], "zashboard-quarantine-") {
 		return unsafe
 	}
@@ -398,7 +399,7 @@ func reloadPlatformConfig(w MHTTP.ResponseWriter, req *MHTTP.Request) {
 		path, err := filepath.EvalSymlinks(body.Path)
 		rel, relErr := filepath.Rel(homeDir, path)
 		ext := strings.ToLower(filepath.Ext(path))
-		if err != nil || relErr != nil || !filepath.IsAbs(body.Path) || path != filepath.Clean(body.Path) || rel == "." || strings.HasPrefix(rel, "..") || strings.HasPrefix(rel, "controller-security/") || strings.HasPrefix(rel, "ui/") || (ext != ".yaml" && ext != ".yml" && ext != ".json") {
+		if err != nil || relErr != nil || !filepath.IsAbs(body.Path) || path != filepath.Clean(body.Path) || rel == "." || strings.HasPrefix(rel, "..") || strings.HasPrefix(rel, "controller-security/") || strings.HasPrefix(rel, "diagnostics/") || strings.HasPrefix(rel, "ui/") || (ext != ".yaml" && ext != ".yml" && ext != ".json") {
 			controllerError(w, 400, "configuration path is outside allowed app files")
 			return
 		}
@@ -436,8 +437,10 @@ func reloadPlatformConfig(w MHTTP.ResponseWriter, req *MHTTP.Request) {
 	if body.Overrides != nil {
 		overrides = *body.Overrides
 	}
+	diagnosticRecordConfig(text, overrides)
 	cfg, err := preparePlatformConfig(text, overrides)
 	if err != nil {
+		kernelDiagnostic("config_reload_parse", "failed", err, nil)
 		controllerError(w, 400, err.Error())
 		return
 	}
@@ -445,6 +448,7 @@ func reloadPlatformConfig(w MHTTP.ResponseWriter, req *MHTTP.Request) {
 	executor.ApplyConfig(cfg, true)
 	applyLogOverride(overrides)
 	activeOverrides = overrides
+	kernelDiagnostic("config_reload", "completed", nil, nil)
 	w.WriteHeader(MHTTP.StatusNoContent)
 }
 
@@ -485,5 +489,10 @@ func patchPlatformConfig(w MHTTP.ResponseWriter, req *MHTTP.Request) {
 	if value, ok := values["log-level"]; ok {
 		log.SetLevel(log.LogLevelMapping[value])
 	}
+	details := map[string]any{"source": "authenticated_runtime_patch"}
+	for key, value := range values {
+		details[key] = value
+	}
+	kernelDiagnostic("settings_patch", "applied", nil, details)
 	w.WriteHeader(MHTTP.StatusNoContent)
 }
