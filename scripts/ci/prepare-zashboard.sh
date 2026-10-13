@@ -5,7 +5,7 @@ cd "$(dirname "$0")/../.."
 ROOT="$PWD"
 export PATH="$ROOT/scripts/ci/node_modules/.bin:$PATH"
 PIN="$ROOT/third_party/zashboard/source.json"
-RAW="$ROOT/clash-openharmony/entry/src/main/resources/rawfile/zashboard"
+RAW="$ROOT/cexing/entry/src/main/resources/rawfile/zashboard"
 if [ -d "$RAW" ]; then
   # A cache hit must match the complete reviewed resource set and every digest.
   python3 scripts/zashboard-assets.py verify
@@ -23,5 +23,5 @@ git -C "$CHECKOUT" fetch --depth 1 "$REPOSITORY" "$SHA"
 git -C "$CHECKOUT" checkout --quiet --detach FETCH_HEAD
 bash scripts/build-zashboard.sh "$CHECKOUT"
 # Generated identity must equal reviewed input; reject rather than accept a new bundle pin.
-git diff --exit-code -- third_party/zashboard/manifest.json clash-openharmony/entry/src/main/ets/lib/ZashboardPin.ets
+git diff --exit-code -- third_party/zashboard/manifest.json cexing/entry/src/main/ets/lib/ZashboardPin.ets
 python3 scripts/zashboard-assets.py verify

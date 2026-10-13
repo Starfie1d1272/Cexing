@@ -45,7 +45,7 @@ Full 要求干净、已提交的 checkout。Go 解压模块、编译、npm 和 H
 
 内核构建使用 `-trimpath` 和自行创建的临时模块缓存：Go 1.27 禁止 overlay 覆盖模块缓存，因此下载并验证原始依赖后，只补丁所选固定 gVisor 的 `endpoint.go`，不更改共享 Go 缓存，不触碰其他版本。仅接受原归档或完全一致的历史 Fstat 补丁，其他差异失败；构建后在专用缓存中临时还原该文件执行模块完整性检查并恢复补丁；旧 `patch-gvisor-tun-fd.sh` 是保留的历史手动工具，CI 不调用它。Android stub 每次由所选 NDK 重编译，避免继承旧 clang 产物。现有 `build-core.sh` 的调用方式不变。
 
-报告生成到忽略的 `clash-openharmony/dist/ci/`：
+报告生成到忽略的 `cexing/dist/ci/`：
 
 - `build-identity.json`：commit/tree、固定工具组合、应用版本、输入 SHA-256、Go 实际版本/依赖图、HAP/native 和每个 ZIP entry 的摘要。
 - `module-notices.json`：已下载选定模块的许可证与 NOTICE 摘要，以及模块图中未下载和仅有子目录许可的依赖；发行授权明确标为未批准。
@@ -68,7 +68,7 @@ gh workflow run full.yml --ref ci/github-hosted-hap \
   -f runner=github-hosted -f authorized_sdk=true -f reviewed_sha="$sha"
 ```
 
-`build-timings-<SHA>-<run>-<attempt>` artifact 保存 SDK 准备、Go 下载、Smart 测试/内核编译、Zashboard、ohpm、GeoIP、Hvigor clean、NAPI/ArkTS/HAP 和验证阶段的秒数/退出码，失败也保留已有计时。NAPI 与 ArkTS 分项时间可从同一 Hvigor 日志读取；上传时间在 Actions steps 中读取。SDK 每次冷下载，GeoIP 每次查询 latest，所谓热缓存仅表示公开依赖与面板资源命中，不意味着复用 SDK。没有成功跑两次前，不给出本项目冷/热耗时承诺。来源调查、方案成本和实测见 [调查证据](../evidence/2026-10-13-github-hosted-hap.md)。
+`build-timings-<SHA>-<run>-<attempt>` artifact 保存 SDK 准备、Go 下载、Smart 测试/内核编译、Zashboard、ohpm、GeoIP、Hvigor clean、NAPI/ArkTS/HAP 和验证阶段的秒数/退出码，失败也保留已有计时。NAPI 与 ArkTS 分项时间可从同一 Hvigor 日志读取；上传时间在 Actions steps 中读取。SDK 每次冷下载，GeoIP 每次查询 latest，所谓热缓存仅表示公开依赖与面板资源命中，不意味着复用 SDK。没有成功跑两次前，不给出本项目冷/热耗时承诺。来源调查、方案成本和实测见 [调查证据](https://github.com/Starfie1d1272/Cexing/blob/df757138/docs/evidence/2026-10-13-github-hosted-hap.md)。
 
 Full 成功完成所有检查后，将该次 CI 构建的未签名 HAP、build-identity.json、module-notices.json、GO-NOTICES.txt（已下载模块的声明全文）、项目 GPL 许可、第三方/Smart notices、Hokit 说明和 SHA256SUMS 保存为 Actions artifact，7 天后过期。暂存前要求报告 commit 与 GITHUB_SHA 相同、signed=false，并核对 HAP 字节摘要与已验证产物一致；不以本地旧包替代 CI 输出。artifact 名包含完整源码 SHA、run ID 和 attempt；没有宣称与其他构建逐字节相同。
 

@@ -8,7 +8,7 @@ const ts = require(path.join(process.env.OHOS_SDK_HOME, 'ets/build-tools/ets-loa
 const root = process.argv[2] || path.join(__dirname, '..');
 const flush = () => new Promise(resolve => setImmediate(resolve));
 function load(name, modules, timers) {
-  const source = fs.readFileSync(path.join(root, 'clash-openharmony/entry/src/main/ets/lib', name + '.ets'), 'utf8');
+  const source = fs.readFileSync(path.join(root, 'cexing/entry/src/main/ets/lib', name + '.ets'), 'utf8');
   const code = ts.transpileModule(source, { compilerOptions: {
     module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020
   } }).outputText;

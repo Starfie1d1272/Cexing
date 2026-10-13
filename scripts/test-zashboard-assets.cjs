@@ -8,7 +8,7 @@ const crypto = require('node:crypto');
 const sdk = process.env.OHOS_SDK_HOME;
 assert.ok(sdk, 'source scripts/env.sh first');
 const ts = require(path.join(sdk, 'ets/build-tools/ets-loader/node_modules/typescript'));
-const source = fs.readFileSync(path.join(__dirname, '../clash-openharmony/entry/src/main/ets/lib/ZashboardAssets.ets'), 'utf8');
+const source = fs.readFileSync(path.join(__dirname, '../cexing/entry/src/main/ets/lib/ZashboardAssets.ets'), 'utf8');
 const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS } });
 const digest = data => crypto.createHash('sha256').update(data).digest('hex');
 const pin = {};
@@ -45,7 +45,7 @@ const context = { exports: {}, require: name => { assert.ok(modules[name], name)
 vm.runInNewContext(compiled.outputText, context);
 const Assets = context.exports.ZashboardAssets;
 modules['./ZashboardAssets'] = { ZashboardAssets: Assets };
-const policySource = fs.readFileSync(path.join(__dirname, '../clash-openharmony/entry/src/main/ets/lib/ZashboardPolicy.ets'), 'utf8');
+const policySource = fs.readFileSync(path.join(__dirname, '../cexing/entry/src/main/ets/lib/ZashboardPolicy.ets'), 'utf8');
 const policyContext = { exports: {}, require: context.require };
 vm.runInNewContext(ts.transpileModule(policySource, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, policyContext);
 const Policy = policyContext.exports.ZashboardPolicy;

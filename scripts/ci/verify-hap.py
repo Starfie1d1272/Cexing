@@ -40,7 +40,7 @@ def elf(data, file):
     symbols = subprocess.check_output([str(readelf), '--dyn-syms', str(file)], text=True)
     return {line.split()[-1].split('@')[0] for line in symbols.splitlines()
             if re.match(r'\s*\d+:', line) and ' UND ' not in line and re.search(r'\bGLOBAL\b', line)}
-header = (root / 'clash-openharmony/entry/libs/arm64-v8a/libmihomo.h').read_text()
+header = (root / 'cexing/entry/libs/arm64-v8a/libmihomo.h').read_text()
 for declaration in [
     'extern char* mihomoInit(char* homeDir);',
     'extern char* mihomoStartTun(int fd, char* configJson, char* overridesJson);',
@@ -48,7 +48,7 @@ for declaration in [
     'extern void mihomoFree(char* p);'
 ]:
     require(declaration in header, 'generated C ABI prototype: ' + declaration.split('(')[0])
-source = metadata(root / 'clash-openharmony/entry/libs/arm64-v8a/libmihomo.so')
+source = metadata(root / 'cexing/entry/libs/arm64-v8a/libmihomo.so')
 # Compare all embedded dependency versions AND sums with the selected module graph.
 stream = subprocess.check_output(['go', 'list', '-m', '-json', 'all'], cwd='core', text=True)
 expected, decoder = {}, json.JSONDecoder()
@@ -65,10 +65,10 @@ settings = {s['Key']: s['Value'] for s in source['Settings']}
 for key, value in {'GOOS': 'android', 'GOARCH': 'arm64', 'CGO_ENABLED': '1', '-buildmode': 'c-shared', '-trimpath': 'true'}.items():
     require(settings.get(key) == value, 'Go build setting ' + key)
 require(set(settings.get('-tags', '').split(',')) == {'netgo', 'ohos', 'cmfa', 'with_gvisor'}, 'platform tags')
-smart_record = json.loads((root / 'clash-openharmony/entry/libs/arm64-v8a/smart-build.json').read_text())
+smart_record = json.loads((root / 'cexing/entry/libs/arm64-v8a/smart-build.json').read_text())
 require(smart_record['patchSha256'] == sha((root / 'core/patches/smart-offline.patch').read_bytes()), 'reviewed Smart patch identity')
-require(smart_record['librarySha256'] == sha((root / 'clash-openharmony/entry/libs/arm64-v8a/libmihomo.so').read_bytes()), 'Smart build record fresh library identity')
-require(smart_record['headerSha256'] == sha((root / 'clash-openharmony/entry/libs/arm64-v8a/libmihomo.h').read_bytes()), 'Smart build record ABI header identity')
+require(smart_record['librarySha256'] == sha((root / 'cexing/entry/libs/arm64-v8a/libmihomo.so').read_bytes()), 'Smart build record fresh library identity')
+require(smart_record['headerSha256'] == sha((root / 'cexing/entry/libs/arm64-v8a/libmihomo.h').read_bytes()), 'Smart build record ABI header identity')
 go_inputs = {file.relative_to(root).as_posix() for file in (root / 'core').rglob('*.go') if not file.name.endswith('_test.go') and 'third_party' not in file.relative_to(root / 'core').parts}
 require(go_inputs == {name for name in smart_record['inputs'] if name.startswith('core/') and name.endswith('.go')}, 'Smart production Go source set changed; rebuild core')
 require(all(digest == sha((root / name).read_bytes()) for name, digest in smart_record['inputs'].items()), 'Smart build inputs changed; rebuild core')
@@ -88,7 +88,7 @@ with zipfile.ZipFile(hap) as archive, tempfile.TemporaryDirectory() as directory
             raise SystemExit('HAP validation failed: private key (value withheld)')
         entries.append({'path': entry.filename, 'bytes': len(data), 'sha256': sha(data)})
     module = json.loads(archive.read('module.json'))
-    app = json.loads((root / 'clash-openharmony/AppScope/app.json5').read_text())['app']
+    app = json.loads((root / 'cexing/AppScope/app.json5').read_text())['app']
     for field in ['bundleName', 'versionCode', 'versionName', 'buildVersion']:
         require(module['app'][field] == app[field], 'app identity: ' + field)
     require(module['app']['compileSdkVersion'] == pin['sdk'], 'packaged SDK identity')
@@ -98,7 +98,7 @@ with zipfile.ZipFile(hap) as archive, tempfile.TemporaryDirectory() as directory
         file.write_bytes(data)
         symbols = elf(data, file)
         if name != 'libmihomo.so':
-            native = root / 'clash-openharmony/entry/build/default/intermediates/cmake/default/obj/arm64-v8a' / name
+            native = root / 'cexing/entry/build/default/intermediates/cmake/default/obj/arm64-v8a' / name
             stripped_native = pathlib.Path(directory) / ('fresh-' + name)
             subprocess.check_call([str(sdk / 'native/llvm/bin/llvm-strip'), '--strip-all', '-o', str(stripped_native), str(native)])
             require(stripped_native.read_bytes() == data, 'packaged native library differs from fresh CMake output: ' + name)
@@ -108,16 +108,16 @@ with zipfile.ZipFile(hap) as archive, tempfile.TemporaryDirectory() as directory
             require(packaged == source, 'packaged Go identity differs from fresh core')
             # Hvigor strips the native library. Compare the complete ELF after the same strip operation.
             stripped = pathlib.Path(directory) / 'fresh.so'
-            stripped.write_bytes((root / 'clash-openharmony/entry/libs/arm64-v8a/libmihomo.so').read_bytes())
+            stripped.write_bytes((root / 'cexing/entry/libs/arm64-v8a/libmihomo.so').read_bytes())
             subprocess.check_call([str(sdk / 'native/llvm/bin/llvm-strip'), '--strip-all', str(stripped)])
             require(sha(stripped.read_bytes()) == sha(data), 'packaged core is not the freshly built/stripped ELF')
     # Every rawfile is checked, including future offline panel/model assets.
-    raw = root / 'clash-openharmony/entry/src/main/resources/rawfile'
+    raw = root / 'cexing/entry/src/main/resources/rawfile'
     for file in sorted(raw.rglob('*')):
         if file.is_file():
             name = 'resources/rawfile/' + file.relative_to(raw).as_posix()
             require(sha(archive.read(name)) == sha(file.read_bytes()), 'raw resource mismatch: ' + name)
-    geodata = json.loads((root / 'clash-openharmony/dist/geodata-identity.json').read_text())
+    geodata = json.loads((root / 'cexing/dist/geodata-identity.json').read_text())
     require(geodata['policy'] == 'latest-stable', 'GeoIP latest selection policy')
     digest = sha(archive.read('resources/rawfile/geodata/geoip.metadb'))
     require(digest == geodata['expectedSha256'] == geodata['downloadedSha256'], 'GeoIP upstream/actual/package identity')
@@ -133,14 +133,14 @@ identity = {
         'aarch64-unknown-linux-ohos-clang', 'llvm-strip', 'llvm-readelf']},
     'app': {k: app[k] for k in ['bundleName', 'versionCode', 'versionName', 'buildVersion']},
     'hapSha256': sha(hap.read_bytes()),
-    'freshCoreSha256': sha((root / 'clash-openharmony/entry/libs/arm64-v8a/libmihomo.so').read_bytes()),
+    'freshCoreSha256': sha((root / 'cexing/entry/libs/arm64-v8a/libmihomo.so').read_bytes()),
     'core': source,
     'smartSource': smart_record,
     'geodata': geodata,
     'inputs': {file: sha((root / file).read_bytes()) for file in [
         'core/go.mod', 'core/go.sum', 'core/patches/smart-offline.patch', 'scripts/ci/patch-smart.py', 'scripts/build-core.sh', 'scripts/ci/patch-gvisor.py',
         'scripts/prepare-geodata.sh', 'scripts/build-hap.sh', 'scripts/env.sh',
-        'clash-openharmony/entry/oh-package-lock.json5', 'scripts/ci/package-lock.json', 'scripts/ci/toolchain.json',
+        'cexing/entry/oh-package-lock.json5', 'scripts/ci/package-lock.json', 'scripts/ci/toolchain.json',
         'scripts/ci/sdk-download.json', 'scripts/ci/setup-clt.py', 'scripts/ci/go-download-cache.sh',
         'scripts/ci/prepare-geodata.py',
         'scripts/ci/hvigor-wrapper/package-lock.json', '.github/workflows/full.yml']},

@@ -7,7 +7,7 @@ const ts = require(path.join(process.env.OHOS_SDK_HOME, 'ets/build-tools/ets-loa
 const flush = () => new Promise(resolve => setImmediate(resolve));
 const logger = { Logger: { info() {}, warn() {}, error() {} } };
 function load(relative, modules, timers = []) {
-  const source = fs.readFileSync(path.join(__dirname, '../clash-openharmony/entry/src/main/ets', relative), 'utf8');
+  const source = fs.readFileSync(path.join(__dirname, '../cexing/entry/src/main/ets', relative), 'utf8');
   const output = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText;
   const context = { exports: {}, require: name => {
     assert.ok(name in modules, `Missing mock: ${name}`);
@@ -93,7 +93,7 @@ async function testExtension() {
     '../lib/ProfileStore': { ProfileStore: { getActiveContent: () => 'proxies: []' } },
     '../lib/Settings': { Settings: { load: () => ({}) } }, '@kit.ArkTS': { util: {} }
   };
-  const Extension = load('vpnability/ClashVpnAbility.ets', modules).default;
+  const Extension = load('vpnability/CexingVpnAbility.ets', modules).default;
   const extension = new Extension();
   extension.context = { filesDir: '/private', resourceManager: { getRawFileContent: async () => new Uint8Array(16) } };
   extension.onCreate();

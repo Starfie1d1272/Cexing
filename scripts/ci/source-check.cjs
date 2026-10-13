@@ -33,11 +33,24 @@ for (const [name, version] of Object.entries(manifest.dependencies)) {
   assert.ok(lock.packages[`node_modules/${name}`].integrity && lock.packages[`node_modules/${name}`].license,
     `npm dependency ${name} requires integrity and license metadata`);
 }
-const project = JSON5.parse(fs.readFileSync('clash-openharmony/build-profile.json5', 'utf8'));
+const project = JSON5.parse(fs.readFileSync('cexing/build-profile.json5', 'utf8'));
 assert.deepEqual(project.app.signingConfigs, [], 'CI accepts unsigned builds only');
-const native = JSON5.parse(fs.readFileSync('clash-openharmony/entry/build-profile.json5', 'utf8'));
+const native = JSON5.parse(fs.readFileSync('cexing/entry/build-profile.json5', 'utf8'));
 assert.deepEqual(native.buildOption.externalNativeOptions.abiFilters, ['arm64-v8a']);
-const defaults = YAML.parse(fs.readFileSync('clash-openharmony/entry/src/main/resources/rawfile/override.yaml', 'utf8'));
+const app = JSON5.parse(fs.readFileSync('cexing/AppScope/app.json5', 'utf8')).app;
+assert.equal(app.bundleName, 'com.starfie1d.cexing');
+const moduleConfig = JSON5.parse(fs.readFileSync('cexing/entry/src/main/module.json5', 'utf8')).module;
+const vpn = moduleConfig.extensionAbilities.find(ability => ability.type === 'vpn');
+assert.equal(vpn.name, 'CexingVpnAbility');
+assert.ok(fs.existsSync(path.join('cexing/entry/src/main', vpn.srcEntry)), 'VPN entry must resolve');
+for (const scope of ['AppScope', 'entry/src/main']) {
+  const label = scope === 'AppScope' ? 'app_name' : 'EntryAbility_label';
+  for (const [locale, value] of [['base', 'Cexing'], ['zh_CN', '策星']]) {
+    const strings = JSON.parse(fs.readFileSync(`cexing/${scope}/resources/${locale}/element/string.json`, 'utf8')).string;
+    assert.equal(strings.find(item => item.name === label).value, value);
+  }
+}
+const defaults = YAML.parse(fs.readFileSync('cexing/entry/src/main/resources/rawfile/override.yaml', 'utf8'));
 assert.ok(defaults.dns.enable && defaults.rules.includes('MATCH,DIRECT'));
 for (const file of ['LICENSE', 'THIRD_PARTY_NOTICES.md']) assert.ok(fs.statSync(file).size > 0);
 for (const file of files.filter(f => /oh-package.json5$/.test(f))) {

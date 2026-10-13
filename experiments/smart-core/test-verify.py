@@ -53,7 +53,7 @@ def child(case):
         elif case == "model":
             entries["resources/rawfile/Model.bin"] = b"synthetic prohibited model"
         elif case == "stale-core":
-            with zipfile.ZipFile(ROOT / "clash-openharmony/entry" / HAP_PATH) as archive:
+            with zipfile.ZipFile(ROOT / "cexing/entry" / HAP_PATH) as archive:
                 entries[NAMES[0]] = archive.read(NAMES[0])
         elif case == "unstripped-core":
             entries[NAMES[0]] = (ENTRY / NAMES[0]).read_bytes()
@@ -80,7 +80,7 @@ def parent():
     cases = {"valid": None, "fake112": "HAP content differs",
              "unstripped-core": "HAP content differs", "model": "Model.bin is prohibited",
              "missing-export": "missing defined dynamic export mihomoFree"}
-    if (ROOT / "clash-openharmony/entry" / HAP_PATH).exists():
+    if (ROOT / "cexing/entry" / HAP_PATH).exists():
         cases["stale-core"] = "HAP content differs"
     for index in range(1, 5):
         cases[f"empty:{index}"] = "HAP content differs"

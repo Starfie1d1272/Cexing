@@ -9,7 +9,7 @@ flowchart TD
   Entry[EntryAbility] --> Runtime[AppRuntime]
   Runtime --> VC
   Runtime --> Background[LiveViewKeeper / AutoUpdater]
-  VC -->|系统授权与启动状态 IPC| VPN[ClashVpnAbility]
+  VC -->|系统授权与启动状态 IPC| VPN[CexingVpnAbility]
   VPN -->|系统 TUN fd| NAPI[NAPI async work]
   NAPI --> Worker[C++ 单 pthread worker]
   Worker --> Go[Go wrapper / Mihomo / gVisor]
@@ -23,7 +23,7 @@ VPN Extension 持有系统 VPN 连接；NAPI worker 将 Go 调用移到专用线
 | `EntryAbility` | 应用启动、加载窗口、通知运行时前台事件 |
 | `AppRuntime` | 进程级状态监听、后台任务、订阅调度与自动恢复 |
 | `VpnController` | 系统授权、路由与应用名单、扩展连接、启动状态 |
-| `ClashVpnAbility` | TUN 创建、进程网络保护、资源铺盘、内核启动与清理 |
+| `CexingVpnAbility` | TUN 创建、进程网络保护、资源铺盘、内核启动与清理 |
 | `ProfileStore` / `Settings` | 应用私有配置文件、来源元数据、激活选择及偏好 |
 | `CoreApi` | 原生 HTTP/WS 控制面客户端 |
 | `LiveViewKeeper` | 长时任务、实况窗更新、任务事件及有界重申请 |
@@ -44,4 +44,5 @@ Ability 重建时为后台服务重新绑定上下文，订阅定时器读取最
 
 Zashboard 承担节点、策略组、连接、日志、规则和 Smart 管理；原生宿主只承担系统、订阅、状态与故障恢复。配置生成统一经过平台约束，控制面共享一个端口与认证来源。详细要求见 [配置](reference/configuration.md)、[组件集成](reference/integrations.md)。
 
-ArkWeb 面板接线已实现，真实 Go Controller/Chromium 联调与官方 SDK 构建有独立证据，手机验收尚未完成。以上边界不代表 Smart、统一配置事务或系统健康恢复全部已实现。演进依赖见 [开发顺序](development.md)。
+
+`VpnController.cancelRecovery()` 使在途恢复结果与回调失效；`AppRuntime.cancelRestore()` 同时取消定时恢复。显式启停、当前 Ability 销毁及新恢复意图都须拒绝旧结果，旧 Ability 销毁不能撤销新上下文。页面销毁不能停止已建立的 VPN。

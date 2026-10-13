@@ -240,7 +240,7 @@ func coreStartTun(fd int, configJson string, overridesJson string) error {
 
 	opts := LC.Tun{
 		Enable:              true,
-		Device:              "ClashOH",
+		Device:              "Cexing",
 		Stack:               stack,
 		DNSHijack:           ext.dnsHijack,
 		AutoRoute:           false, // 鸿蒙沙箱无 root，路由由系统 VpnService 管理

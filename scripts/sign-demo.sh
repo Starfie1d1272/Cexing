@@ -7,8 +7,8 @@ set -e
 source "$(dirname "$0")/env.sh"
 LIB=$OHOS_SDK_HOME/toolchains/lib
 IN="${1:-$PROJECT_ROOT/entry/build/default/outputs/default/entry-default-unsigned.hap}"
-OUT="${2:-$PROJECT_ROOT/dist/clashoh-demo-signed.hap}"
-WORK=/tmp/clashoh-signing
+OUT="${2:-$PROJECT_ROOT/dist/cexing-demo-signed.hap}"
+WORK=/tmp/cexing-signing
 mkdir -p "$PROJECT_ROOT/dist" "$WORK"
 rm -f "$WORK"/*
 
@@ -47,7 +47,7 @@ profile = {
     'bundle-info': {
         'developer-id': 'OpenHarmony',
         'distribution-certificate': leaf,
-        'bundle-name': 'com.starfie1d.mihomo',
+        'bundle-name': 'com.starfie1d.cexing',
         'apl': 'normal',
         'app-feature': 'hos_normal_app',
     },

@@ -82,4 +82,4 @@ Controller HTTP/WS 的停止不代表代理侧 generic inbound 已停止。coreS
 
 ## 代理默认认证对象的同步
 
-默认代理 AuthStore 通过公开接口在 package init 一次性安装同步委托，之后不换 Default 身份。Get/SetAuthenticator 同步，已有 immutable snapshot、nil 和用户认证语义保留；它与 Controller Bearer Secret 分开。这个 wrapper 改动解决了第四项 authenticator race，不解决 upstream inbound 的三个私有前缀切片读写。产品链、实际双栈与未应用上游提案见 [race 边界报告](../evidence/controller-security/2026-10-12-race-boundary.md)；不得把部分解决当成完整 race 已通过。
+默认代理 AuthStore 通过公开接口在 package init 一次性安装同步委托，之后不换 Default 身份。Get/SetAuthenticator 同步，已有 immutable snapshot、nil 和用户认证语义保留；它与 Controller Bearer Secret 分开。这个 wrapper 改动解决了第四项 authenticator race，不解决 upstream inbound 的三个私有前缀切片读写。产品链、实际双栈与未应用上游提案见 [race 边界报告](https://github.com/Starfie1d1272/Cexing/blob/df757138/docs/evidence/controller-security/2026-10-12-race-boundary.md)；不得把部分解决当成完整 race 已通过。

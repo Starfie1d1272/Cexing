@@ -77,7 +77,7 @@ def verify(root, work, hap_mode):
     # A failure must not leave an earlier successful report masquerading as this run.
     report.unlink(missing_ok=True)
     require(abi((libs / "libmihomo.h").read_text()) == ABI, "ABI differs from wrapper contract")
-    baseline = root / "clash-openharmony/entry/libs/arm64-v8a/libmihomo.h"
+    baseline = root / "cexing/entry/libs/arm64-v8a/libmihomo.h"
     if baseline.exists():
         require(abi(baseline.read_text()) == ABI, "baseline ABI differs")
     library = elf(libs / "libmihomo.so", readelf, SYMBOLS)

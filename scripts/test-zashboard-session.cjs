@@ -17,7 +17,7 @@ const modules = { './CoreApi': { CoreApi }, './VpnController': {
 }, './ZashboardAssets': { ZashboardAssets: { prepare: async () => ({ directory: '/private/ui', version: deployment }) } },
 './ZashboardPin': { ZASHBOARD_VERSION: version } };
 const context = { exports: {}, require: name => modules[name], setTimeout: fn => { timers.set(++id, fn); return id; }, clearTimeout: id => timers.delete(id) };
-const src = fs.readFileSync(path.join(__dirname, '../clash-openharmony/entry/src/main/ets/lib/ZashboardSession.ets'), 'utf8');
+const src = fs.readFileSync(path.join(__dirname, '../cexing/entry/src/main/ets/lib/ZashboardSession.ets'), 'utf8');
 vm.runInNewContext(ts.transpileModule(src, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, context);
 const { ZashboardSession } = context.exports;
 const flush = async () => { for (let i = 0; i < 12; i++) await Promise.resolve(); };

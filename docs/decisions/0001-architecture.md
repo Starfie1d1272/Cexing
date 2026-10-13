@@ -12,4 +12,4 @@
 
 ## 影响
 
-需统一 Controller 认证、配置事务、离线资源与模型授权。Smart 编译兼容不证明运行稳定；模型与网络行为分别验收。接受产品方向不代表组件已经实现。调查身份见 [来源快照](../evidence/2026-10-12-sources.md)。
+需统一 Controller 认证、配置事务、离线资源与模型授权。Smart 编译兼容不证明运行稳定；模型与网络行为分别验收。接受产品方向不代表组件已经实现。调查身份见 [来源快照](https://github.com/Starfie1d1272/Cexing/blob/df757138/docs/evidence/2026-10-12-sources.md)。

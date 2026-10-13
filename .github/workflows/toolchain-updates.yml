@@ -12,7 +12,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   propose:
-    if: github.repository == 'Starfie1d1272/clash-OpenHarmony'
+    if: github.repository == 'Starfie1d1272/Cexing'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:

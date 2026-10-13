@@ -9,8 +9,8 @@ import tempfile
 
 REPO = 'MetaCubeX/meta-rules-dat'
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-OUT = ROOT / 'clash-openharmony/entry/src/main/resources/rawfile/geodata/geoip.metadb'
-RECORD = ROOT / 'clash-openharmony/dist/geodata-identity.json'
+OUT = ROOT / 'cexing/entry/src/main/resources/rawfile/geodata/geoip.metadb'
+RECORD = ROOT / 'cexing/dist/geodata-identity.json'
 
 
 def require(condition, message):

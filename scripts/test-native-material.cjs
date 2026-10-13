@@ -5,7 +5,7 @@ const path = require('node:path');
 const vm = require('node:vm');
 const ts = require(path.join(process.env.OHOS_SDK_HOME, 'ets/build-tools/ets-loader/node_modules/typescript'));
 const root = path.join(__dirname, '..');
-const source = fs.readFileSync(path.join(root, 'clash-openharmony/entry/src/main/ets/pages/NativeMaterial.ets'), 'utf8');
+const source = fs.readFileSync(path.join(root, 'cexing/entry/src/main/ets/pages/NativeMaterial.ets'), 'utf8');
 const code = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS,
   target: ts.ScriptTarget.ES2020 } }).outputText;
 function run(api, capable, supported) {
@@ -54,7 +54,7 @@ function luminance(hex) {
 }
 for (const variant of ['base', 'dark']) {
   const colors = Object.fromEntries(JSON.parse(fs.readFileSync(path.join(root,
-    `clash-openharmony/entry/src/main/resources/${variant}/element/color.json`), 'utf8')).color.map(c => [c.name, c.value]));
+    `cexing/entry/src/main/resources/${variant}/element/color.json`), 'utf8')).color.map(c => [c.name, c.value]));
   for (const [foreground, background] of [['ink', 'surface'], ['muted', 'surface'], ['muted', 'paper'],
     ['accent_text', 'soft'], ['error', 'paper'], ['on_accent', 'action']]) {
     const a = luminance(colors['ui_' + foreground]), b = luminance(colors['ui_' + background]);
