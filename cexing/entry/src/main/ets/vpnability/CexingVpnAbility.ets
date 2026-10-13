@@ -305,10 +305,8 @@ export default class CexingVpnAbility extends VpnExtensionAbility {
   }
 
   /**
-   * 构建 mihomo 启动配置，三级回退：
-   * 1. filesDir/profiles/ 中激活的订阅配置（配置 Tab 导入）
-   * 2. rawfile 资源 override.yaml（内置空配置：全部直连）
-   * 3. 最小硬编码 JSON（兜底）
+   * 优先读取原子发布的有效版本；其损坏时拒绝启动。
+   * 尚未迁移的旧数据依次读取 active.txt、内置 override.yaml 和最小配置。
    * 返回字符串直接作为 configJson 传给 startTun（Go 侧 yaml 解析，JSON/YAML 均兼容）。
    */
   private async buildCoreConfig(): Promise<string> {
