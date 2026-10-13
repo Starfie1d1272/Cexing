@@ -296,6 +296,10 @@ export struct ProfilePage {
     return m !== undefined ? m.updatedAt : 0;
   }
 
+  private detailKey(p: ProfileMeta): string {
+    return `${p.file}|${p.active ? '1' : '0'}|${this.metaStamp(p.file)}|${this.profileRevision}`;
+  }
+
   private isUrlProfile(file: string): boolean {
     const context = getContext(this) as common.UIAbilityContext;
     return ProfileStore.getOrigin(context, file).length > 0;
@@ -911,7 +915,7 @@ export struct ProfilePage {
       if (this.selectedFile.length > 0) {
         ForEach(this.profiles.filter((p: ProfileMeta) => p.file === this.selectedFile), (p: ProfileMeta) => {
           this.ProfileDetail(p)
-        }, (p: ProfileMeta) => p.file + '|' + (p.active ? '1' : '0') + '|' + this.metaStamp(p.file))
+        }, (p: ProfileMeta) => this.detailKey(p))
       } else {
         Row() {
           Text('订阅').fontSize(26).fontWeight(FontWeight.Bold).fontColor(UI.ink).layoutWeight(1)

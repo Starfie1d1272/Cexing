@@ -324,10 +324,16 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   partialDisable.navStack = { getAllPathName: () => [], pop() {} };
   partialDisable.aboutToAppear();
   const beforeDisable = regionLists;
+  const beforeDetailKey = partialDisable.detailKey(profiles[1]);
   await partialDisable.toggleRegion('candidate.yaml');
   assert.ok(regionLists > beforeDisable, 'partial committed disable must refresh the displayed strategy');
+  assert.notEqual(partialDisable.detailKey(profiles[1]), beforeDetailKey,
+    'partial commit must replace the detail ForEach item rather than reuse its old actions');
   assert.equal(partialDisable.savedRegion('candidate.yaml').enable, false,
     'the view must use the committed disabled version after restore fails');
+  assert.match(fs.readFileSync(path.join(pages, 'ProfilePage.ets'), 'utf8'),
+    /this\.ProfileDetail\(p\)\s*\}, \(p: ProfileMeta\) => this\.detailKey\(p\)\)/,
+    'detail ForEach must use the revision-aware key');
   assert.ok(toasts.includes('地区策略已关闭，但原选项未恢复'));
   active = 'fixture.yaml';
   controller.status = status.Connected; profile.confirmDelete(profiles[0]); dialog.secondaryButton.action();
