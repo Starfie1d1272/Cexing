@@ -92,6 +92,24 @@ process.stdout.write(context.exports.ZashboardSession.bootstrap(fixture.secret,f
             page.add_init_script("window.__cspViolations=[]; document.addEventListener('securitypolicyviolation',e=>window.__cspViolations.push(e.effectiveDirective));")
             url = f'http://127.0.0.1:9090/ui/versions/{version}/'
             page.goto(url, wait_until='networkidle')
+            page.wait_for_url('**/#/overview')
+            offline_city = page.get_by_text('City locations are unavailable in this offline panel.', exact=False)
+            offline_city.wait_for(timeout=20000)
+            assert page.get_by_label('Globe style', exact=True).inner_text().strip() == 'Space'
+            assert page.evaluate("localStorage.getItem('config/earth-visual-mode')") is None
+            assert not page.get_by_text('Checking the local city database', exact=False).count(), 'City check never completed'
+            assert page.locator('a[href="#/overview"]').count() > 0, 'Split overview default missing'
+            assert page.evaluate("localStorage.getItem('config/split-overview-page')") is None, 'Default overwrote preference'
+            screenshot_dir = os.environ.get('ZASHBOARD_SCREENSHOTS')
+            if screenshot_dir:
+                Path(screenshot_dir).mkdir(parents=True, exist_ok=True)
+                page.screenshot(path=str(Path(screenshot_dir) / 'overview-light.png'), full_page=True)
+            page.emulate_media(color_scheme='dark')
+            page.wait_for_function("() => document.documentElement.dataset.theme === 'dark'")
+            if screenshot_dir:
+                page.screenshot(path=str(Path(screenshot_dir) / 'overview-dark.png'), full_page=True)
+            page.goto(url + '#/proxies', wait_until='networkidle')
+            page.emulate_media(color_scheme='light')
             page.get_by_text('Local test', exact=False).first.wait_for(timeout=20000)
             page.wait_for_function("() => window.__OHOS_PANEL_REVOKE__ && !window.__OHOS_PANEL_BOOTSTRAP__")
             assert page.url.startswith(url) and secret not in page.url
@@ -165,12 +183,24 @@ process.stdout.write(context.exports.ZashboardSession.bootstrap(fixture.secret,f
             page.close()
             page = context.new_page()
             page.goto(url, wait_until='networkidle')
+            page.wait_for_url('**/#/overview')
+            page.goto(url + '#/proxies', wait_until='networkidle')
             page.get_by_text('Local test', exact=False).first.wait_for(timeout=20000)
             assert not page.evaluate('!!window.__OHOS_PANEL_BOOTSTRAP__')
             page.emulate_media(color_scheme='dark')
             page.wait_for_function("() => document.documentElement.dataset.theme === 'dark'")
             # Observe genuine Controller loss. ArkWeb absorbs all console messages; Chromium's
             # internal WS diagnostics can include token URLs, so never print raw console/URLs.
+            manual = browser.new_context()
+            manual.add_init_script(bootstrap)
+            manual.add_init_script("localStorage.setItem('config/split-overview-page','false'); localStorage.setItem('config/earth-visual-mode','flat')")
+            manual_page = manual.new_page()
+            manual_page.goto(url, wait_until='networkidle')
+            assert manual_page.evaluate("localStorage.getItem('config/split-overview-page')") == 'false'
+            assert manual_page.evaluate("localStorage.getItem('config/earth-visual-mode')") == 'flat'
+            assert manual_page.get_by_label('Globe style', exact=True).inner_text().strip() == 'Flat'
+            assert manual_page.locator('a[href="#/overview"]').count() == 0
+            manual.close()
             Path(str(ready)+'.stop').touch()
             process.wait(timeout=20)
             page.wait_for_timeout(1200)
@@ -179,7 +209,7 @@ process.stdout.write(context.exports.ZashboardSession.bootstrap(fixture.secret,f
         assert process.returncode == 0, 'Controller fixture cleanup failed'
         log.seek(0)
         assert secret not in log.read(), 'Controller logs exposed fixture credential'
-        print('PASS: built Zashboard on real Go Controller: light/dark/live media/manual preference/reentry, authenticated REST/traffic WS, anonymous rejection, CSP HTTP/WS/inline-script blocking, reload, actual WS reconnect after server restart, revoke/reentry, real server loss; Chromium only, no ArkWeb/device/TUN claim')
+        print('PASS: built Zashboard on real Go Controller: overview/space defaults, existing preferences, explicit offline city state, light/dark/live media/manual preference/reentry, authenticated REST/traffic WS, anonymous rejection, CSP HTTP/WS/inline-script blocking, reload, actual WS reconnect after server restart, revoke/reentry, real server loss; Chromium only, no ArkWeb/device/TUN claim')
     except Exception as error:
         print('FAIL: ' + safe(error))
         raise SystemExit(1)
