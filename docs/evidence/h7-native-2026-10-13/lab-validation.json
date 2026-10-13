@@ -1,0 +1,109 @@
+{
+  "base_main": "81215c5f5bc10c04f382d526e1b03d6484b26151",
+  "sdk": "CLT 26.0.0.851 / API26",
+  "artifacts": [
+    {
+      "state": "default",
+      "sha256": "66a06c4e2aaa22022ee953628d133252981c0758462287eb54e92797e8801f37",
+      "bytes": 46508,
+      "crc": "passed"
+    },
+    {
+      "state": "enable",
+      "sha256": "d36ba5899d0d8141dc0d5bf140f025022dcab0f10a7c797ca0729bdc8102c276",
+      "bytes": 46507,
+      "crc": "passed"
+    },
+    {
+      "state": "disable",
+      "sha256": "36057bfacb68b3cedf2582a90bb514ee0e150a2352936d5697c6b2a0ffef006b",
+      "bytes": 46508,
+      "crc": "passed"
+    }
+  ],
+  "logs": [
+    {
+      "file": "product-first-build.log",
+      "sha256": "8a49b9f4a72ab0c6e07d6b9b2e738219b14e662afc3188c1c8bbe6636e1b508d",
+      "build_result": [
+        "BUILD SUCCESSFUL in 1 s 173 ms ",
+        "BUILD SUCCESSFUL in 11 s 74 ms "
+      ],
+      "tasks": [
+        "2 tasks in total: 2 executed, 0 up-to-date",
+        "33 tasks in total: 33 executed, 0 up-to-date"
+      ],
+      "warnings": 0
+    },
+    {
+      "file": "product-verified-build.log",
+      "sha256": "b227def15acdda0f6506945ef506d64046bf735c774e9f684f4f0479a3d3521c",
+      "build_result": [
+        "BUILD SUCCESSFUL in 13 s 488 ms "
+      ],
+      "tasks": [
+        "33 tasks in total: 32 executed, 1 up-to-date"
+      ],
+      "warnings": 0
+    },
+    {
+      "file": "lab-default-build.log",
+      "sha256": "a580151686d6dd8427af448aa12cc44fca713804698049ed10cf78c4c841642e",
+      "build_result": [
+        "BUILD FAILED in 7 s 301 ms "
+      ],
+      "tasks": [
+        "26 tasks in total: 26 executed, 0 up-to-date"
+      ],
+      "warnings": 41
+    },
+    {
+      "file": "lab-default-final.log",
+      "sha256": "480e6ea6e2013cc23423ba7482d1b076892fd18d8f6c4f5f27f44eaf82325a4b",
+      "build_result": [
+        "BUILD SUCCESSFUL in 9 s 519 ms "
+      ],
+      "tasks": [
+        "34 tasks in total: 34 executed, 0 up-to-date"
+      ],
+      "warnings": 0
+    },
+    {
+      "file": "lab-enable-final.log",
+      "sha256": "df06d25876fdfe1daece19ed8ed20b4e72808663c4aa6756b81c89d026feec2c",
+      "build_result": [
+        "BUILD SUCCESSFUL in 7 s 272 ms "
+      ],
+      "tasks": [
+        "34 tasks in total: 34 executed, 0 up-to-date"
+      ],
+      "warnings": 0
+    },
+    {
+      "file": "lab-disable.log",
+      "sha256": "e1d24735adeaca0e1a19f5a64e9f11197b780ae8212c4981794b0511a79388dd",
+      "build_result": [
+        "BUILD SUCCESSFUL in 8 s 670 ms "
+      ],
+      "tasks": [
+        "34 tasks in total: 34 executed, 0 up-to-date"
+      ],
+      "warnings": 0
+    },
+    {
+      "file": "core-rebuild.log",
+      "sha256": "76241fb70260b9b84d7238de4494c9525621c8822df1a83cd452d77140621494",
+      "build_result": [],
+      "tasks": [],
+      "warnings": 0
+    },
+    {
+      "file": "hap-validation.log",
+      "sha256": "02ba15e40c724e1b6caef6a81b46dbcb850e47eff26850ceae207ba562ef2c7c",
+      "build_result": [],
+      "tasks": [],
+      "warnings": 0
+    }
+  ],
+  "native_screenshots": []
+}

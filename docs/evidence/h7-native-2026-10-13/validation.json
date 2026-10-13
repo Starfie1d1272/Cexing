@@ -1,0 +1,199 @@
+{
+  "date": "2026-10-13",
+  "timezone": "Asia/Shanghai",
+  "base_main": "81215c5f5bc10c04f382d526e1b03d6484b26151",
+  "verified_code_commit": "ac01609b05191fdf20d4cd8e7138f9c81a9a38fc",
+  "hap_sha256": "05b78b2accb2bf0eb1c8ad0551e1cabbfd0991fff2f55f9f279f04b2ecdf9cb6",
+  "native_build_identity": "build-identity.json",
+  "product_build": {
+    "log_sha256": "88487874db5b2d48e98a03caf2add5e16b878f9c19ac6661bea9950054fbe2ff",
+    "tasks": [
+      "33 tasks in total: 32 executed, 1 up-to-date"
+    ],
+    "warnings": 0,
+    "result": "passed",
+    "module_material_state": "enable"
+  },
+  "tests": {
+    "test-native-material.cjs": "passed",
+    "test-native-ui.cjs": "passed",
+    "test-smart-ui.cjs": "passed",
+    "test-smart-model-restart.cjs": "passed",
+    "test-zashboard-session.cjs": "passed",
+    "test-profile-name.cjs": "passed",
+    "test-vpn-startup.cjs": "passed",
+    "test-app-runtime.cjs": "passed",
+    "test-background-lifecycle.cjs": "passed",
+    "test-runtime-recovery-integration.cjs": "passed"
+  },
+  "scope_checks": {
+    "business_method_prefixes_unchanged": true,
+    "arkweb_policy_options_events_unchanged": true,
+    "core_lib_vpn_profile_store_pipeline_sources_unchanged": true,
+    "production_app_identity_icon_unchanged": true
+  },
+  "static_width_cases_vp": [
+    360,
+    390,
+    699,
+    700,
+    960
+  ],
+  "theme_text_contrast": "specified ink/muted/error/action resource combinations >=4.5; no runtime contrast claim",
+  "lab_variants": "lab-validation.json",
+  "native_screenshots": [],
+  "device_validated": false,
+  "power_or_performance_measured": false,
+  "retained_failures": [
+    "lab ArkTS constructor/reserved field/resource/ActionSheet errors before fix",
+    "old shallow copy library module mismatch before fresh rebuild",
+    "base accent/soft contrast 3.73 before role split"
+  ],
+  "production_inputs": [
+    {
+      "path": "clash-openharmony/entry/src/main/ets/pages/DiagnosticsPage.ets",
+      "sha256": "cf271874014afcc3a0002eec364c401552f5bad40293dc123bf4856d337a0d50"
+    },
+    {
+      "path": "clash-openharmony/entry/src/main/ets/pages/HomePage.ets",
+      "sha256": "1e5674ec1b893e4c0372e3d46ab6dfef486ce60075a5ba15e0ca866e3a19396b"
+    },
+    {
+      "path": "clash-openharmony/entry/src/main/ets/pages/Index.ets",
+      "sha256": "c605042ca1ecd715e70792e8681913f86ad9d503b73532e910dccc9327bf1d0f"
+    },
+    {
+      "path": "clash-openharmony/entry/src/main/ets/pages/NativeMaterial.ets",
+      "sha256": "73707675a295fc36d16de69e9cf67a85182fc771cd1ac07c3dc5a8ed710e3f83"
+    },
+    {
+      "path": "clash-openharmony/entry/src/main/ets/pages/NativeTheme.ets",
+      "sha256": "82583b7e580f7b924e4d918c587f9b2340cd35f62ced55c19d3085a58ade45ce"
+    },
+    {
+      "path": "clash-openharmony/entry/src/main/ets/pages/NetworkSettingsPage.ets",
+      "sha256": "8a392b381efd1671b095dc2e680bd399632f3c008dfca39649138113171b7b56"
+    },
+    {
+      "path": "clash-openharmony/entry/src/main/ets/pages/OverridePage.ets",
+      "sha256": "140fa349a527fb7cb6c0f58b896cf177e70d8f008d289d732f7dacd4df0e30a2"
+    },
+    {
+      "path": "clash-openharmony/entry/src/main/ets/pages/ProfileEditPage.ets",
+      "sha256": "2fc53423cb42fdbc63c7aeb905bb89b45eab812b5e208770e9e424398ec1cfca"
+    },
+    {
+      "path": "clash-openharmony/entry/src/main/ets/pages/ProfilePage.ets",
+      "sha256": "9a3abf683d7376f028c7fd68c7280c532a275b6024e9b5381cd0cd23f28a1b91"
+    },
+    {
+      "path": "clash-openharmony/entry/src/main/ets/pages/ProxyPage.ets",
+      "sha256": "3cded39219368293e909f161cd5b9c60a84fa96f12fda51cf1ace1033c1420ac"
+    },
+    {
+      "path": "clash-openharmony/entry/src/main/ets/pages/SettingsPage.ets",
+      "sha256": "b726619eb6737e36c22e996fe9244d29fc9937112d497c74eb0b5866bd4d23c3"
+    },
+    {
+      "path": "clash-openharmony/entry/src/main/ets/pages/SmartPage.ets",
+      "sha256": "5acae497f967612797cf90d44f9b458fd8548ec0ea3bd001466305e234eea5ce"
+    },
+    {
+      "path": "clash-openharmony/entry/src/main/ets/pages/ZashboardPage.ets",
+      "sha256": "e10d23dcfc4ed179697753552dde76041eecd8978ef343288fbb1010461a7201"
+    },
+    {
+      "path": "clash-openharmony/entry/src/main/module.json5",
+      "sha256": "deedddab3a5ba5caf21ce4b18f1ec8ecd87debe7d25f019414ebde99213236f0"
+    },
+    {
+      "path": "clash-openharmony/entry/src/main/resources/base/element/color.json",
+      "sha256": "33fe5b79fa9aab359ea593bc2aab7b880230ffd7710d20dea80b934d678cf877"
+    },
+    {
+      "path": "clash-openharmony/entry/src/main/resources/dark/element/color.json",
+      "sha256": "c84d3e3c2212300a1a0d5f60faea3047b0f6e9a99a3f60a4c27bd4fe676414cd"
+    },
+    {
+      "path": "design/h7-native-lab/.gitignore",
+      "sha256": "98bc157a05207474a8b566847cb4d6c3d357c9b556ab5fc59ed636b61b73d14e"
+    },
+    {
+      "path": "design/h7-native-lab/AppScope/app.json5",
+      "sha256": "948fc72f72a1da9ef75b00ea42110501aaf828c0274e37aaa8acee34498f02cc"
+    },
+    {
+      "path": "design/h7-native-lab/AppScope/resources/base/element/string.json",
+      "sha256": "5ae778a38861c79afb2579dad14fb78676eccc9fac49f06993cd7668b9c875e2"
+    },
+    {
+      "path": "design/h7-native-lab/README.md",
+      "sha256": "15544bc10e481270d3e015dccf3c140bdeb7a1b0b05dc29622506abac34491b9"
+    },
+    {
+      "path": "design/h7-native-lab/build-profile.json5",
+      "sha256": "578335d963886cf2889f1c454b74a600310f37928a6fa06503b1f842c807bf0f"
+    },
+    {
+      "path": "design/h7-native-lab/build.sh",
+      "sha256": "7bb25550a854f8daf93df5dd410357f27413578a37e17a88544957aba001b808"
+    },
+    {
+      "path": "design/h7-native-lab/entry/build-profile.json5",
+      "sha256": "46d1b87a9913197745942b7aad13d81bf029e71fd07436ed5cf5bfbbb15d01eb"
+    },
+    {
+      "path": "design/h7-native-lab/entry/hvigorfile.ts",
+      "sha256": "95665b4c4bf2de7066a10344cea98fb74dc9b950894eb7be6afbe00be2b528b9"
+    },
+    {
+      "path": "design/h7-native-lab/entry/oh-package.json5",
+      "sha256": "94271784948bfbf85f7f9297450314b3d926a0655483f0ad0eb8fd383d934bb9"
+    },
+    {
+      "path": "design/h7-native-lab/entry/src/main/ets/entryability/EntryAbility.ets",
+      "sha256": "03dd39da3234959694c58bf342da22ea4f3a1f084ea02ba9f65e49742e900a38"
+    },
+    {
+      "path": "design/h7-native-lab/entry/src/main/ets/pages/LabIndex.ets",
+      "sha256": "e33abb7c722908af36e98a457d587a97f47657c44b127c0f9338a17cca6296d3"
+    },
+    {
+      "path": "design/h7-native-lab/entry/src/main/module.json5",
+      "sha256": "5d4dd300cb23c0ede9a397051bf78a4a10f76b7105584644754aafacdf350a59"
+    },
+    {
+      "path": "design/h7-native-lab/entry/src/main/resources/base/element/color.json",
+      "sha256": "26f6e195ab88786f18e15ea7a9769faaf968c0a631192ed8100fd2cf17d87d97"
+    },
+    {
+      "path": "design/h7-native-lab/entry/src/main/resources/base/element/string.json",
+      "sha256": "05192df2dc2f2f325c642ea2f75eb35009a0af39fb904b03b26c369dcdb2b7f3"
+    },
+    {
+      "path": "design/h7-native-lab/entry/src/main/resources/base/profile/main_pages.json",
+      "sha256": "0a7eaabfb204614cb16027a2cc5fa7b3c974171fb96cd7cb04d4f5f2ecf301c8"
+    },
+    {
+      "path": "design/h7-native-lab/hvigor/hvigor-config.json5",
+      "sha256": "a4aa77f256fbb730fcb33368bfced06a4ed784d5b4191f7c9ba2958dac41fcd3"
+    },
+    {
+      "path": "design/h7-native-lab/hvigorfile.ts",
+      "sha256": "f547aef726240544cc196c2420bdc5169fe66a9502a7d49853e7a18a3105a770"
+    },
+    {
+      "path": "design/h7-native-lab/oh-package.json5",
+      "sha256": "2319d09536108291765411054f4c9afc60151496b7d9770f2d4909246268305b"
+    },
+    {
+      "path": "docs/reference/h7-native-ui.md",
+      "sha256": "14530d48066c3d325cd2715885067a05b6e677185165aa7e5db7d36a231f7021"
+    },
+    {
+      "path": "scripts/test-native-material.cjs",
+      "sha256": "529aad9ffe6a5bd08616dc7891e65ae825a55e0ebb14053d92d41ff283240fe0"
+    }
+  ],
+  "source_changed_after_verified_commit": false
+}
