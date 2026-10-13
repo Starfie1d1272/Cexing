@@ -206,16 +206,17 @@ export struct HomePage {
   }
 
   @Builder
-  Rate(value: string, label: string) {
+  Rate(upload: boolean, label: string) {
     Column({ space: 7 }) {
       Text(label).fontSize(12).fontColor('#C9D3D9')
       Text() {
-        Span(value.split(' ')[0]).fontSize(28).fontWeight(600)
-        Span(value.indexOf(' ') >= 0 ? ` ${value.substring(value.indexOf(' ') + 1)}` : '')
+        Span((upload ? this.upRate : this.downRate).split(' ')[0]).fontSize(28).fontWeight(600)
+        Span((upload ? this.upRate : this.downRate).indexOf(' ') >= 0 ?
+          ` ${(upload ? this.upRate : this.downRate).split(' ').slice(1).join(' ')}` : '')
           .fontSize(12).fontColor('#C9D3D9')
       }.fontColor(Color.White).fontFeature('tnum')
     }.alignItems(HorizontalAlign.Start).layoutWeight(1)
-      .accessibilityGroup(true).accessibilityText(`${label} ${value}`)
+      .accessibilityGroup(true).accessibilityText(`${label} ${upload ? this.upRate : this.downRate}`)
   }
 
   @Builder
@@ -253,9 +254,9 @@ export struct HomePage {
         .onAreaChange((_old: Area, area: Area) => { this.stageWidth = Number(area.width); })
       if (this.status === VpnStatus.Connected) {
         Row({ space: 20 }) {
-          this.Rate(this.upRate, '↑ 上传')
+          this.Rate(true, '↑ 上传')
           Divider().vertical(true).height(48).color('#52616A')
-          this.Rate(this.downRate, '↓ 下载')
+          this.Rate(false, '↓ 下载')
         }.padding({ top: 18, bottom: 18, left: 24, right: 24 }).width('100%').backgroundColor(UI.stage)
       } else {
         Text('连接后显示实时速率').fontSize(12).fontColor('#C9D3D9').width('100%')
@@ -270,7 +271,10 @@ export struct HomePage {
     Button({ type: ButtonType.Normal }) {
       Row({ space: 12 }) {
         SymbolGlyph($r('sys.symbol.chevron_right')).fontSize(18).fontColor([UI.accentText])
-        Text('Zashboard 面板').fontSize(17).fontWeight(FontWeight.Medium).layoutWeight(1)
+        Column({ space: 4 }) {
+          Text('控制面板').fontSize(17).fontWeight(FontWeight.Medium)
+          Text('Zashboard').fontSize(11).fontColor(UI.muted)
+        }.alignItems(HorizontalAlign.Start).layoutWeight(1)
       }.width('100%').padding(18)
     }.width('100%').constraintSize({ minHeight: 80 }).borderRadius(24)
       .backgroundColor(UI.soft).fontColor(UI.ink).enabled(this.status === VpnStatus.Connected)
@@ -317,6 +321,7 @@ export struct HomePage {
         .accessibilityText('检查连接状态和本机服务')
         .onClick(() => { this.navStack.pushPath({ name: 'diagnostics' }); })
     }.width(this.wide ? '48%' : '100%').alignItems(HorizontalAlign.Start)
+      .margin({ top: this.wide ? 0 : 6 })
   }
 
   build() {
