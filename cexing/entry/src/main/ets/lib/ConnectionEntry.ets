@@ -119,6 +119,10 @@ export namespace ConnectionEntry {
       changed();
       return completed ? '' : '断开未确认，请检查系统 VPN 后重试';
     }
+    if (VpnController.status === VpnStatus.Connected) {
+      await VpnController.verify(ctx);
+      if (context !== ctx || request !== expected || !ready) { return ''; }
+    }
     if (VpnController.status === VpnStatus.Connected || VpnController.status === VpnStatus.Connecting) { return ''; }
     if (VpnController.status === VpnStatus.Disconnecting) { return '正在断开，请稍后连接'; }
     if (stopUnknown || VpnController.getLastStopCompleted() === false || ProfileStore.isApplyUncertain(ctx)) {
