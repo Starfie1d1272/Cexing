@@ -11,6 +11,7 @@ const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.Modu
 const context = { exports: {} };
 vm.runInNewContext(compiled.outputText, context);
 const suggest = context.exports.suggestProfileName;
+const fromUrl = context.exports.profileNameFromUrl;
 const fallback = 'sub_123';
 const cases = [
   [{ 'content-disposition': 'attachment; filename=iKuuu_V2.yaml' }, 'iKuuu_V2'],
@@ -28,4 +29,16 @@ const cases = [
 for (const [headers, expected] of cases) {
   assert.equal(suggest(headers, fallback), expected);
 }
-console.log(`PASS: ${cases.length} profile-name cases against actual ArkTS helper`);
+const urls = [
+  ['https://example.test/path/%E4%B8%AD%E6%96%87.yml?token=hidden', '中文'],
+  ['https://example.test/path/normal.yaml#part', 'normal'],
+  ['https://example.test/sub?token=hidden', fallback],
+  ['https://example.test/%ZZ.yaml', fallback],
+  ['https://example.test/%2e%2e%2fsecret.yaml', fallback],
+  ['https://example.test/0123456789abcdef0123456789abcdef.yaml', fallback],
+  ['https://example.test/.yaml', fallback]
+];
+for (const [url, expected] of urls) {
+  assert.equal(fromUrl(url, fallback), expected);
+}
+console.log(`PASS: ${cases.length + urls.length} profile-name cases against actual ArkTS helper`);

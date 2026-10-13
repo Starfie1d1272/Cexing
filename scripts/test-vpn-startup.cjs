@@ -31,6 +31,7 @@ async function testClient(mode) {
     '@kit.NetworkKit': { vpnExtension: { startVpnExtensionAbility: async () => {}, stopVpnExtensionAbility() {} } },
     '@kit.CoreFileKit': { fileIo: {} }, './Logger': logger,
     './CoreApi': { CoreApi: { bindContext() {} } }, './Settings': { Settings: { load: () => settings, save() {} } },
+    './ProfileStore': { ProfileStore: { clearApplyUncertain() {} } },
     '@kit.IPCKit': { rpc: { MessageSequence: { create: () => ({ reclaim() {} }) }, MessageOption: class {} } }
   };
   const { VpnController: controller, VpnStatus } = load('lib/VpnController.ets', modules, timers);

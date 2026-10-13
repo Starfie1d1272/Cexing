@@ -79,6 +79,8 @@ export interface ConfigsResp {
   'log-level': string;
 }
 
+export type ConfigApplyResult = 'applied' | 'rejected' | 'unknown';
+
 interface ConnectionsResp {
   downloadTotal: number;
   uploadTotal: number;
@@ -244,6 +246,28 @@ export namespace CoreApi {
     const s = await request(http.RequestMethod.PUT, '/configs?force=true',
       JSON.stringify({ path: absPath, overrides: overrides }));
     return s !== null;
+  }
+
+
+  /** A transport failure cannot establish whether the core accepted the request. */
+  export async function applyConfigText(content: string): Promise<ConfigApplyResult> {
+    const access = getControllerAccess();
+    if (access === null) { return 'unknown'; }
+    const req = http.createHttp();
+    try {
+      const resp = await req.request(BASE + '/configs?force=true', {
+        method: http.RequestMethod.PUT,
+        header: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${access.secret}` },
+        extraData: JSON.stringify({ payload: content }),
+        connectTimeout: TIMEOUT,
+        readTimeout: TIMEOUT
+      });
+      return resp.responseCode >= 200 && resp.responseCode < 300 ? 'applied' : 'rejected';
+    } catch (_) {
+      return 'unknown';
+    } finally {
+      req.destroy();
+    }
   }
 
   export async function getSmartStatus(): Promise<SmartStatus | null> {

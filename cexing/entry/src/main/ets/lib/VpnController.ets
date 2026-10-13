@@ -11,6 +11,7 @@ import { Logger } from './Logger';
 import { CoreApi } from './CoreApi';
 import { rpc } from '@kit.IPCKit';
 import { Settings } from './Settings';
+import { ProfileStore } from './ProfileStore';
 
 const TAG = 'vpnCtrl';
 const VPN_ABILITY_NAME = 'CexingVpnAbility';
@@ -328,10 +329,12 @@ export namespace VpnController {
         vpnExtension.stopVpnExtensionAbility(want);
         serviceId = 0;
         setStatus(VpnStatus.Disconnected);
+        try { ProfileStore.clearApplyUncertain(context); } catch (_) {}
       });
     } else {
       vpnExtension.stopVpnExtensionAbility(want);
       setStatus(VpnStatus.Disconnected);
+      try { ProfileStore.clearApplyUncertain(context); } catch (_) {}
     }
   }
 }
