@@ -294,8 +294,19 @@ export namespace ProfileTransactions {
       if (plan === null || !plan.enable || plan.disabled === true) {
         ProfileStore.clearPendingRegionSelection(context, file);
         if (restore !== '') {
+          // The core may expose its first available option after the removed
+          // Smart entry disappears. Capture that choice before attempting restore.
+          try {
+            const observed = (await CoreApi.getProxies())?.[restoreSelector]?.now ?? '';
+            ProfileStore.setPreviousRegionObservation(context, file, observed);
+          } catch (_) {}
           let restored = false;
           try { restored = await CoreApi.selectProxy(restoreSelector, restore); } catch (_) {}
+          if (!restored) {
+            try {
+              restored = (await CoreApi.getProxies())?.[restoreSelector]?.now === restore;
+            } catch (_) {}
+          }
           if (!restored) {
             // The disabled version is already committed. Keep the previous choice for retry on reconnect.
             throw new Error('地区策略已关闭，但原选项未恢复；请在代理面板手动选择，或重连后重试自动恢复');
@@ -333,9 +344,10 @@ export namespace ProfileTransactions {
         ProfileStore.clearPreviousRegionSelection(context, file);
         return true;
       }
-      if (group.now !== '' && group.now !== `Cexing Smart ${plan.selector}`) {
-        // A later manual choice takes precedence over the earlier restore request.
-        ProfileStore.clearPreviousRegionSelection(context, file);
+      const observed = ProfileStore.previousRegionObservation(context, file);
+      if (group.now !== '' && group.now !== `Cexing Smart ${plan.selector}` &&
+        (observed === '' || group.now !== observed)) {
+        // This differs from the observed reload fallback; do not infer or overwrite user intent.
         return false;
       }
       const restored = await CoreApi.selectProxy(plan.selector, previous);

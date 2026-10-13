@@ -432,6 +432,23 @@ export namespace ProfileStore {
     atomicText(`${ensureDir(context)}/${file}.region-previous.json`, JSON.stringify({ name: name }));
   }
 
+  /** Controller's choice immediately after a failed disable restore; later changes are not ours to overwrite. */
+  export function previousRegionObservation(context: common.Context, file: string): string {
+    const p = `${ensureDir(context)}/${file}.region-previous.json`;
+    if (!fileIo.accessSync(p)) { return ''; }
+    const raw = JSON.parse(fileIo.readTextSync(p)) as Record<string, string>;
+    return typeof raw['observed'] === 'string' ? raw['observed'] : '';
+  }
+
+  export function setPreviousRegionObservation(context: common.Context, file: string,
+    observed: string): void {
+    const name = previousRegionSelection(context, file);
+    if (name !== '') {
+      atomicText(`${ensureDir(context)}/${file}.region-previous.json`,
+        JSON.stringify({ name: name, observed: observed }));
+    }
+  }
+
   export function clearPreviousRegionSelection(context: common.Context, file: string): void {
     const p = `${ensureDir(context)}/${file}.region-previous.json`;
     if (fileIo.accessSync(p)) { fileIo.unlinkSync(p); }
