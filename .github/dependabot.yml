@@ -1,0 +1,22 @@
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '09:00'
+      timezone: Asia/Shanghai
+    open-pull-requests-limit: 5
+  - package-ecosystem: npm
+    directory: /scripts/ci
+    schedule:
+      interval: weekly
+      day: monday
+      time: '09:00'
+      timezone: Asia/Shanghai
+    open-pull-requests-limit: 5
+    # pnpm belongs to the reviewed Zashboard build combination; runtime updater
+    # reports its latest release, but changing it requires resource compatibility.
+    ignore:
+      - dependency-name: pnpm

@@ -117,9 +117,10 @@ with zipfile.ZipFile(hap) as archive, tempfile.TemporaryDirectory() as directory
         if file.is_file():
             name = 'resources/rawfile/' + file.relative_to(raw).as_posix()
             require(sha(archive.read(name)) == sha(file.read_bytes()), 'raw resource mismatch: ' + name)
-    resource_script = (root / 'scripts/prepare-geodata.sh').read_text()
-    digest = re.search(r'^SHA=([a-f0-9]{64})$', resource_script, re.M).group(1)
-    require(sha(archive.read('resources/rawfile/geodata/geoip.metadb')) == digest, 'GeoIP pin')
+    geodata = json.loads((root / 'clash-openharmony/dist/geodata-identity.json').read_text())
+    require(geodata['policy'] == 'latest-stable', 'GeoIP latest selection policy')
+    digest = sha(archive.read('resources/rawfile/geodata/geoip.metadb'))
+    require(digest == geodata['expectedSha256'] == geodata['downloadedSha256'], 'GeoIP upstream/actual/package identity')
     require(bool(archive.read('resources/rawfile/override.yaml')), 'nonempty default configuration')
     require(not any(pathlib.PurePosixPath(n).name.casefold() == 'model.bin' for n in names), 'unlicensed bundled Model.bin')
 report.mkdir(parents=True, exist_ok=True)
@@ -135,11 +136,13 @@ identity = {
     'freshCoreSha256': sha((root / 'clash-openharmony/entry/libs/arm64-v8a/libmihomo.so').read_bytes()),
     'core': source,
     'smartSource': smart_record,
+    'geodata': geodata,
     'inputs': {file: sha((root / file).read_bytes()) for file in [
         'core/go.mod', 'core/go.sum', 'core/patches/smart-offline.patch', 'scripts/ci/patch-smart.py', 'scripts/build-core.sh', 'scripts/ci/patch-gvisor.py',
         'scripts/prepare-geodata.sh', 'scripts/build-hap.sh', 'scripts/env.sh',
         'clash-openharmony/entry/oh-package-lock.json5', 'scripts/ci/package-lock.json', 'scripts/ci/toolchain.json',
         'scripts/ci/sdk-download.json', 'scripts/ci/setup-clt.py', 'scripts/ci/go-download-cache.sh',
+        'scripts/ci/prepare-geodata.py',
         'scripts/ci/hvigor-wrapper/package-lock.json', '.github/workflows/full.yml']},
     'entries': entries,
     'signed': False,

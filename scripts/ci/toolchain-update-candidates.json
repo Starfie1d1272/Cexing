@@ -1,0 +1,13 @@
+{
+  "policy": "prefer-latest-stable; validate-upgrade-before-merge",
+  "runtimeProposals": {
+    "go": "1.27.2",
+    "node": "26.11.1",
+    "javaMajor": "27"
+  },
+  "sdkMirrorLatest": "26.0.0.821",
+  "sdkSource": "https://github.com/ErBWs/ohos-sdk/releases/tag/26.0.0.821",
+  "sdkRequiresCompatibilityReview": true,
+  "pnpmLatest": "12.11.2",
+  "pnpmRequiresSdkAndPanelCompatibilityReview": true
+}

@@ -1,0 +1,46 @@
+name: Propose stable toolchain updates
+on:
+  schedule:
+    - cron: '0 1 * * 1' # Monday 09:00 Asia/Shanghai
+  workflow_dispatch:
+permissions:
+  contents: write
+  pull-requests: write
+concurrency:
+  group: stable-toolchain-updates
+  cancel-in-progress: false
+jobs:
+  propose:
+    if: github.repository == 'Starfie1d1272/clash-OpenHarmony'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+      - run: python3 scripts/ci/check-toolchain-updates.py
+      - name: Open upgrade PR when proposals change
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [[ -z "$(git status --porcelain)" ]]; then exit 0; fi
+          existing="$(gh pr list --state open --search 'ci: propose latest stable toolchain updates in:title' --json number --jq 'length')"
+          if [[ "$existing" != 0 ]]; then
+            echo 'An upgrade PR is already open; review and validate it before proposing another.'; exit 0
+          fi
+          branch="ci/stable-toolchain-update-$GITHUB_RUN_ID"
+          git switch -c "$branch"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add scripts/ci/toolchain.json scripts/ci/toolchain-update-candidates.json .github/workflows/full.yml .github/workflows/quick.yml
+          git commit -m 'ci: propose latest stable toolchain versions'
+          gh auth setup-git
+          git push origin "$branch"
+          cat > "$RUNNER_TEMP/upgrade-body.md" <<'BODY'
+          Proposes newer stable Go/Node/JDK runtime versions and records current SDK/pnpm candidates. SDK/plugin/wrapper and Zashboard compatibility require coordinated validation before changing those versions. No automatic downgrade or merge.
+
+          Before merge, review the exact SHA and run Quick plus manual Full on this branch. A failed proposal leaves main's verified build combination unchanged. Upstream release metadata is an update signal, not build-success evidence.
+          BODY
+          gh pr create --base main --head "$branch" --title 'ci: propose latest stable toolchain updates' --body-file "$RUNNER_TEMP/upgrade-body.md"
