@@ -120,7 +120,9 @@ jobs:
           shutil.copyfile('THIRD_PARTY_NOTICES.md', report / 'THIRD_PARTY_NOTICES.md')
           shutil.copyfile('LICENSE', report / 'LICENSE')
           shutil.copyfile('core/patches/NOTICE.md', report / 'SMART-NOTICE.md')
-          files = ['entry-default-unsigned.hap', 'build-identity.json', 'module-notices.json', 'GO-NOTICES.txt', 'HOKIT-QUICKSTART.md', 'THIRD_PARTY_NOTICES.md', 'LICENSE', 'SMART-NOTICE.md']
+          shutil.copyfile('third_party/smart-model/source.json', report / 'SMART-MODEL-SOURCE.json')
+          shutil.copyfile('core/patches/smart-offline.patch', report / 'SMART-PATCH.patch')
+          files = ['entry-default-unsigned.hap', 'build-identity.json', 'module-notices.json', 'GO-NOTICES.txt', 'HOKIT-QUICKSTART.md', 'THIRD_PARTY_NOTICES.md', 'LICENSE', 'SMART-NOTICE.md', 'SMART-MODEL-SOURCE.json', 'SMART-PATCH.patch']
           (report / 'SHA256SUMS').write_text(''.join(sha(report / name) + '  ' + name + '\n' for name in files))
           PYCODE
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -136,6 +138,8 @@ jobs:
             cexing/dist/ci/THIRD_PARTY_NOTICES.md
             cexing/dist/ci/LICENSE
             cexing/dist/ci/SMART-NOTICE.md
+            cexing/dist/ci/SMART-MODEL-SOURCE.json
+            cexing/dist/ci/SMART-PATCH.patch
           compression-level: 0
           if-no-files-found: error
           retention-days: 7

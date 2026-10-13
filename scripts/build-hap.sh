@@ -3,6 +3,7 @@
 set -e
 source "$(dirname "$0")/env.sh"
 python3 "$REPO_ROOT/scripts/zashboard-assets.py" verify
+python3 "$REPO_ROOT/scripts/prepare-smart-model.py" --verify
 [ -f "$PROJECT_ROOT/entry/src/main/resources/rawfile/geodata/geoip.metadb" ] || {
   echo '[build-hap] Missing GeoIP snapshot; run bash scripts/prepare-geodata.sh first' >&2
   exit 1

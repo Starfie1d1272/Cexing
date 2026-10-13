@@ -4,7 +4,7 @@ root=Path.cwd()
 hap=root/'cexing/entry/build/default/outputs/default/entry-default-unsigned.hap'
 with tempfile.TemporaryDirectory(prefix='smart-hap-negative-') as temporary:
  d=Path(temporary)
- cases=['fake112-empty','model','empty-override']
+ cases=['fake112-empty','model','model-corrupt','model-license','empty-override']
  for case in cases:
   target=d/(case+'.hap')
   with zipfile.ZipFile(hap) as source,zipfile.ZipFile(target,'w') as out:
@@ -18,6 +18,8 @@ with tempfile.TemporaryDirectory(prefix='smart-hap-negative-') as temporary:
     elif case=='fake112-empty' and name in ['libs/arm64-v8a/libentry.so','libs/arm64-v8a/libc++_shared.so','resources/rawfile/override.yaml','resources/rawfile/geodata/geoip.metadb']:
      data=b''
     elif case=='empty-override' and name=='resources/rawfile/override.yaml':data=b''
+    elif case=='model-corrupt' and name=='resources/rawfile/smart/Model.bin':data=b'invalid model fixture'
+    elif case=='model-license' and name=='resources/rawfile/smart/LICENSE':data=b'invalid notice fixture'
     out.writestr(name,data)
    if case=='model':out.writestr('resources/rawfile/Model.bin',b'invalid forbidden test fixture')
   for optimize in ['0','1']:
@@ -25,7 +27,9 @@ with tempfile.TemporaryDirectory(prefix='smart-hap-negative-') as temporary:
    (report/'build-identity.json').write_text('old success fixture')
    run=subprocess.run([sys.executable,'scripts/ci/verify-hap.py',str(target),str(d/'report')],env={**os.environ,'PYTHONOPTIMIZE':optimize},capture_output=True,text=True)
    if run.returncode==0:raise SystemExit('unexpected accepted tamper '+case)
-   expected={'fake112-empty':'four C ABI exports','model':'unlicensed bundled Model.bin','empty-override':'raw resource mismatch'}[case]
+   expected={'fake112-empty':'four C ABI exports','model':'unreviewed bundled Model.bin path',
+             'model-corrupt':'raw resource mismatch', 'model-license':'raw resource mismatch',
+             'empty-override':'raw resource mismatch'}[case]
    if expected not in run.stdout+run.stderr:raise SystemExit('unexpected failure '+case+run.stdout+run.stderr)
    if (report/'build-identity.json').exists():raise SystemExit('stale success report remains after failure')
    print('PASS reject '+case+' optimize='+optimize,flush=True)
