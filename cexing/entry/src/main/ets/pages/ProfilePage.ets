@@ -34,6 +34,7 @@ export struct ProfilePage {
   @Consume('profileRevision') @Watch('refresh') profileRevision: number;
   @Consume('nav') navStack: NavPathStack;
   @Consume('tabJump') tabJump: number;
+  @Consume('rootVisible') @Watch('onRootVisible') rootVisible: boolean;
   @Consume('tab') @Watch('onTabVisible') currentVisibleTab: number;
   @State profiles: ProfileMeta[] = [];
   @State metas: Record<string, ProfileMetaExt> = {};
@@ -49,9 +50,45 @@ export struct ProfilePage {
   @State importedFile: string = '';
   @State inputPaste: string = '';
   @State importError: string = '';
+  private pageVisible: boolean = false;
+  private pageGeneration: number = 0;
+  private activationRequest: number = 0;
+
+  private detailOnTop(): boolean {
+    const paths = this.navStack.getAllPathName();
+    return this.pageVisible && this.detailFile.length > 0 &&
+      paths.length > 0 && paths[paths.length - 1] === 'profileDetail' &&
+      ProfileDetailBus.current === this.detailFile;
+  }
+
+  private samePath(paths: string[]): boolean {
+    const current = this.navStack.getAllPathName();
+    return paths.length === current.length && paths.every((name: string, index: number) => name === current[index]);
+  }
+
+  private activationPageCurrent(request: number, page: number, tab: number, paths: string[]): boolean {
+    return this.pageVisible && request === this.activationRequest && page === this.pageGeneration &&
+      tab === this.currentVisibleTab && this.samePath(paths) &&
+      (this.detailFile.length === 0 || this.detailOnTop());
+  }
+
+  // Called only after a definite activation success. #51's transaction result is
+  // 'applied' or 'saved'; rejection and unknown outcomes must not enter here.
+  private finishActivationNavigation(request: number, page: number, tab: number, paths: string[]): void {
+    this.profileRevision++;
+    if (!this.activationPageCurrent(request, page, tab, paths)) { return; }
+    this.refresh();
+    if (this.detailOnTop()) { this.navStack.pop(); }
+    this.tabJump = 0;
+  }
 
   private onTabVisible(): void {
+    if (this.detailFile.length === 0 && this.currentVisibleTab !== 1) { this.activationRequest++; }
     if (this.currentVisibleTab === 1) { this.refresh(); }
+  }
+
+  private onRootVisible(): void {
+    if (this.detailFile.length === 0 && !this.rootVisible) { this.activationRequest++; }
   }
 
   private changed(): void {
@@ -87,8 +124,16 @@ export struct ProfilePage {
   }
 
   aboutToAppear(): void {
+    this.pageVisible = true;
+    this.pageGeneration++;
     this.selectedFile = this.detailFile;
     this.refresh();
+  }
+
+  aboutToDisappear(): void {
+    this.pageVisible = false;
+    this.pageGeneration++;
+    this.activationRequest++;
   }
 
   private refresh(): void {
@@ -97,7 +142,7 @@ export struct ProfilePage {
     this.metas = ProfileStore.getMeta(context);
     if (this.selectedFile.length > 0 && !this.profiles.some((p: ProfileMeta) => p.file === this.selectedFile)) {
       this.selectedFile = '';
-      if (this.detailFile.length > 0) { this.navStack.pop(); }
+      if (this.detailOnTop()) { this.navStack.pop(); }
     }
   }
 
@@ -146,6 +191,11 @@ export struct ProfilePage {
   }
 
   private async activate(p: ProfileMeta): Promise<void> {
+    const request = ++this.activationRequest;
+    const page = this.pageGeneration;
+    const tab = this.currentVisibleTab;
+    const paths = this.navStack.getAllPathName();
+    const startStatus = VpnController.status;
     const context = getContext(this) as common.UIAbilityContext;
     ProfileStore.setActive(context, p.file);
     // 激活前触发一次读取：编码损坏的文件在此被修复并回写磁盘，
@@ -155,16 +205,26 @@ export struct ProfilePage {
     } catch (e) {
       Logger.warn(TAG, `activate precheck: ${(e as Error).message ?? JSON.stringify(e)}`);
     }
-    const alive = await CoreApi.isAlive();
-    if (alive) {
+    if (startStatus === VpnStatus.Connected) {
+      if (!(await CoreApi.isAlive()) || VpnController.status !== VpnStatus.Connected) {
+        if (this.activationPageCurrent(request, page, tab, paths)) { this.toast('连接状态未确认，请断开后重试'); }
+        return;
+      }
       const ok = await CoreApi.reloadConfig(ProfileStore.absPath(context, p.file));
-      this.toast(ok ? `已切换到「${p.name}」` : '热切换失败，重启 VPN 生效');
+      if (!ok || VpnController.status !== VpnStatus.Connected) {
+        if (this.activationPageCurrent(request, page, tab, paths)) { this.toast('切换结果未确认，请检查连接后重试'); }
+        return;
+      }
+      if (this.activationPageCurrent(request, page, tab, paths)) { this.toast(`已切换到「${p.name}」`); }
+    } else if (startStatus === VpnStatus.Disconnected && VpnController.status === VpnStatus.Disconnected) {
+      if (this.activationPageCurrent(request, page, tab, paths)) {
+        this.toast(`已激活「${p.name}」，启动 VPN 后生效`);
+      }
     } else {
-      this.toast(`已激活「${p.name}」，启动 VPN 后生效`);
+      if (this.activationPageCurrent(request, page, tab, paths)) { this.toast('连接状态未确认，请断开后重试'); }
+      return;
     }
-    this.changed();
-    if (this.detailFile.length > 0) { this.navStack.pop(); }
-    this.tabJump = 0;
+    this.finishActivationNavigation(request, page, tab, paths);
   }
 
   private async updateProfile(p: ProfileMeta): Promise<void> {
