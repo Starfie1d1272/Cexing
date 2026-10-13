@@ -18,10 +18,13 @@ struct Status {
     long long failCount;
 };
 
-// 以下三个函数都经专用 worker 线程进入 Go（鸿蒙 musl 主线程 TLS 布局不同，
+// 以下函数都经专用 worker 线程进入 Go（鸿蒙 musl 主线程 TLS 布局不同，
 // 主线程直进 Go c-shared 会 SIGSEGV）。返回错误串，空串 = 成功。
 std::string Init(const std::string &homeDir);
 std::string StartTun(int fd, const std::string &configJson, const std::string &overridesJson);
+std::string ValidateOffline(const std::string &homeDir, const std::string &configJson, const std::string &overridesJson);
+std::string PreviewMerge(const std::string &homeDir, const std::string &original, const std::string &overlay, const std::string &overridesJson);
+std::string VersionAction(const std::string &homeDir, const std::string &actionJson);
 std::string Stop();
 Status GetStatus();
 

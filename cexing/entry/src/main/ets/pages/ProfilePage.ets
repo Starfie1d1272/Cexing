@@ -9,6 +9,7 @@ import { util } from '@kit.ArkTS';
 import { promptAction } from '@kit.ArkUI';
 import { pasteboard } from '@kit.BasicServicesKit';
 import { ProfileStore, ProfileMeta, ProfileMetaExt } from '../lib/ProfileStore';
+import { ProfileTransactions } from '../lib/ProfileTransactions';
 import { VpnController, VpnStatus } from '../lib/VpnController';
 import { CoreApi } from '../lib/CoreApi';
 import { Logger } from '../lib/Logger';
@@ -71,16 +72,21 @@ export struct ProfilePage {
       title: '删除订阅？',
       message: p.name,
       primaryButton: { value: '保留', action: () => {} },
-      secondaryButton: { value: '删除', fontColor: UI.error, action: () => {
+      secondaryButton: { value: '删除', fontColor: UI.error, action: async () => {
         const context = getContext(this) as common.UIAbilityContext;
         if (ProfileStore.getActiveFile(context) === p.file &&
           VpnController.status !== VpnStatus.Disconnected) {
           this.toast('请先断开连接，再删除当前订阅');
           return;
         }
-        ProfileStore.deleteProfile(context, p.file);
-        this.changed();
-        this.toast(this.profiles.some((item: ProfileMeta) => item.file === p.file) ? '删除失败，请重试' : '已删除');
+        try {
+          await ProfileTransactions.remove(context, p.file);
+          this.changed();
+          this.toast('已删除');
+        } catch (_) {
+          this.refresh();
+          this.toast('删除失败，请重试');
+        }
       } }
     });
   }
@@ -146,22 +152,13 @@ export struct ProfilePage {
 
   private async activate(p: ProfileMeta): Promise<void> {
     const context = getContext(this) as common.UIAbilityContext;
-    ProfileStore.setActive(context, p.file);
-    // 激活前触发一次读取：编码损坏的文件在此被修复并回写磁盘，
-    // 保证热加载（PUT /configs 按路径读文件）拿到干净内容
     try {
-      ProfileStore.getActiveContent(context);
+      const result = await ProfileTransactions.activate(context, p.file);
+      this.toast(result === 'applied' ? `已切换到「${p.name}」` : `已选择「${p.name}」，启动 VPN 后生效`);
+      this.changed();
     } catch (e) {
-      Logger.warn(TAG, `activate precheck: ${(e as Error).message ?? JSON.stringify(e)}`);
+      this.toast((e as Error).message ?? '切换失败');
     }
-    const alive = await CoreApi.isAlive();
-    if (alive) {
-      const ok = await CoreApi.reloadConfig(ProfileStore.absPath(context, p.file));
-      this.toast(ok ? `已切换到「${p.name}」` : '热切换失败，重启 VPN 生效');
-    } else {
-      this.toast(`已激活「${p.name}」，启动 VPN 后生效`);
-    }
-    this.changed();
   }
 
   private async updateProfile(p: ProfileMeta): Promise<void> {
@@ -171,11 +168,8 @@ export struct ProfilePage {
     const context = getContext(this) as common.UIAbilityContext;
     this.updatingFile = p.file;
     try {
-      await ProfileStore.updateFromOrigin(context, p.file);
-      this.toast('已更新');
-      if (p.active && await CoreApi.isAlive()) {
-        await CoreApi.reloadConfig(ProfileStore.absPath(context, p.file));
-      }
+      const result = await ProfileTransactions.update(context, p.file);
+      this.toast(result === 'applied' ? '已更新并应用' : '已更新，启用或启动后生效');
       this.changed();
     } catch (e) {
       this.toast(`更新失败: ${(e as Error).message}`);
@@ -199,7 +193,7 @@ export struct ProfilePage {
     }
   }
 
-  private doRename(): void {
+  private async doRename(): Promise<void> {
     const context = getContext(this) as common.UIAbilityContext;
     const target = this.renameTarget;
     const input = this.renameInput.trim();
@@ -211,7 +205,7 @@ export struct ProfilePage {
       return;
     }
     try {
-      const renamed = ProfileStore.renameProfile(context, target, input);
+      const renamed = await ProfileTransactions.rename(context, target, input);
       if (this.selectedFile === target) { this.selectedFile = renamed; }
       this.toast(`已重命名为 ${renamed.replace(/\.(yaml|yml)$/, '')}`);
       this.changed();
@@ -362,10 +356,8 @@ export struct ProfilePage {
       const active = ProfileStore.getActiveFile(context);
       if (active.length > 0 && this.isUrlProfile(active)) {
         try {
-          await ProfileStore.updateFromOrigin(context, active);
-          if (await CoreApi.isAlive()) {
-            await CoreApi.reloadConfig(ProfileStore.absPath(context, active));
-          }
+          const result = await ProfileTransactions.update(context, active);
+          this.toast(result === 'applied' ? '已更新并应用' : '已更新，启用或启动后生效');
         } catch (e) {
           Logger.warn(TAG, `pull refresh update failed: ${(e as Error).message ?? JSON.stringify(e)}`);
           this.toast(`更新失败: ${(e as Error).message}`);

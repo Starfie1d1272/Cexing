@@ -49,11 +49,13 @@ type Change struct {
 	Before, After int
 }
 type Result struct {
-	Original []byte
-	Overlays [][]byte
-	YAML     []byte
-	Digest   string
-	Changes  []Change
+	Original  []byte
+	Overlays  [][]byte
+	YAML      []byte
+	Digest    string
+	Changes   []Change
+	ProfileID string
+	Metadata  string
 }
 
 func (c Compiler) Compile(ctx context.Context, r Request) (Result, error) {
@@ -131,7 +133,7 @@ func (c Compiler) Compile(ctx context.Context, r Request) (Result, error) {
 		result.Overlays = append(result.Overlays, append([]byte(nil), b...))
 	}
 	prior, _ := parse(r.Previous)
-	for _, key := range []string{"proxies", "proxy-providers", "proxy-groups", "rules", "rule-providers", "dns", "tun", "external-controller", "external-ui"} {
+	for _, key := range []string{"proxies", "proxy-providers", "proxy-groups", "listeners", "rules", "rule-providers", "dns", "hosts", "tun", "mode", "external-controller", "external-ui"} {
 		a, b := field(prior, key), field(checked, key)
 		var av, bv any
 		if a != nil {

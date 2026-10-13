@@ -28,7 +28,8 @@ function fixture() {
     '@kit.NetworkKit': { vpnExtension: {} }, '@kit.CoreFileKit': { fileIo: {} }, '@kit.IPCKit': { rpc: {} },
     './CoreApi': { CoreApi: { isAlive: () => new Promise(resolve => probes.push(resolve)) } },
     './Settings': { Settings: { load: () => settings } }, './Logger': logger,
-    './ConnectionFailure': failure
+    './ConnectionFailure': failure,
+    './ProfileStore': { ProfileStore: { clearApplyUncertain() {} } }
   }, timers);
   const runtime = load('AppRuntime', {
     './VpnController': controller, './Settings': { Settings: { load: () => settings } }, './Logger': logger,
