@@ -117,7 +117,7 @@ export namespace Settings {
       p.putSync('allowLanConfirmed', enabled);
       p.flushSync();
       lanWriteFailed = false;
-    } catch (e) {
+    } catch (_) {
       // putSync changes the Preferences cache before flushSync can fail.
       // Revoke that cached grant too; the process guard covers rollback failure.
       try {
@@ -126,7 +126,7 @@ export namespace Settings {
       } catch (_) {
         Logger.error(TAG, 'LAN consent rollback failed');
       }
-      throw e;
+      throw new Error('LAN consent could not be saved');
     }
   }
 }
