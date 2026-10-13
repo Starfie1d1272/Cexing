@@ -103,7 +103,7 @@ func diagnosticConfigSnapshot(home, text, overrides string) map[string]any {
 	}
 	out := map[string]any{"status": "projected_input", "coreVersion": constant.Version, "mode": raw.Mode.String(), "mixed-port": raw.MixedPort, "allow-lan": raw.AllowLan, "log-level": raw.LogLevel.String(), "dns": map[string]any{"enable": raw.DNS.Enable, "listen": s.object(raw.DNS.Listen), "listenEndpoint": s.endpoint("tcp://" + raw.DNS.Listen), "enhanced-mode": raw.DNS.EnhancedMode.String(), "ipv6": raw.DNS.IPv6}}
 	origins := map[string]string{}
-	for key, setting := range map[string]string{"mode": "mode", "mixed-port": "mixedPort", "allow-lan": "allowLan", "log-level": "logLevel"} {
+	for key, setting := range map[string]string{"mode": "mode", "mixed-port": "mixedPort", "log-level": "logLevel"} {
 		source := "core_default"
 		if _, ok := input[key]; ok {
 			source = "generated_profile"
@@ -113,13 +113,17 @@ func diagnosticConfigSnapshot(home, text, overrides string) map[string]any {
 		}
 		origins[key] = source
 	}
+	// The host defaults LAN to closed before applying a confirmed boolean
+	// setting. A subscription's allow-lan value never owns the final value.
+	origins["allow-lan"] = "host_default_closed"
+	if _, ok := ov["allowLan"].(bool); ok {
+		origins["allow-lan"] = "host_override"
+	}
 	origins["dns.listen"] = "core_default"
-	if dns, ok := input["dns"].(map[string]any); ok {
-		if _, exists := dns["listen"]; exists {
-			origins["dns.listen"] = "generated_profile"
-		} else if raw.DNS.Listen != "" {
-			origins["dns.listen"] = "platform_default"
-		}
+	if dns, ok := input["dns"].(map[string]any); ok && dns != nil {
+		// projectPlatformConfig overwrites this field even when the profile
+		// supplied its own listener or happened to use the same address.
+		origins["dns.listen"] = "platform_constraint"
 	}
 	origins["tun"] = "system_vpn_gvisor"
 	out["sources"] = origins
@@ -221,7 +225,7 @@ func diagnosticReadVersion(home string) map[string]any {
 	} else {
 		result["profileOverlayPresent"] = false
 	}
-	result["provenanceOrder"] = "original_then_profile_overlay_then_strategy_then_host_overrides_then_platform"
+	result["provenanceOrder"] = "original_then_global_merge_then_profile_overlay_then_strategy_then_host_overrides_then_platform"
 	result["sourceMetadata"] = "unknown"
 	data, err = os.ReadFile(filepath.Join(home, "profile-versions", state.Current.ID, "source.json"))
 	if err != nil || len(data) > 128*1024 {

@@ -287,9 +287,10 @@ func TestDiagnosticConfigSnapshotProvenanceAndPrivateFields(t *testing.T) {
 	home := t.TempDir()
 	text := `mixed-port: 9000
 mode: rule
+allow-lan: true
 dns:
   enable: true
-  listen: 127.0.0.1:1053
+  listen: 0.0.0.0:1053
   nameserver: ['https://private-dns.test/dns-query?token=dnsfake']
 proxies:
   - {name: SyntheticNode, type: ss, server: private-node.test, port: 443, password: synthetic-node-password}
@@ -305,10 +306,20 @@ proxy-providers:
 			t.Fatal("private config survived", secret)
 		}
 	}
-	if snapshot["mixed-port"] != 7890 || snapshot["sources"].(map[string]string)["mixed-port"] != "host_override" || snapshot["sources"].(map[string]string)["dns.listen"] != "generated_profile" {
+	origins := snapshot["sources"].(map[string]string)
+	if snapshot["mixed-port"] != 7890 || origins["mixed-port"] != "host_override" ||
+		snapshot["allow-lan"] != false || origins["allow-lan"] != "host_override" ||
+		origins["dns.listen"] != "platform_constraint" {
 		t.Fatal("provenance/value invalid", snapshot)
 	}
 	s, _ := getDiagnosticStore(home, "kernel")
+	if snapshot["dns"].(map[string]any)["listen"] != s.object("127.0.0.1:1053") {
+		t.Fatal("DNS listener did not reflect the platform constraint")
+	}
+	withoutHostLAN := diagnosticConfigSnapshot(home, text, `{}`)
+	if withoutHostLAN["allow-lan"] != false || withoutHostLAN["sources"].(map[string]string)["allow-lan"] != "host_default_closed" {
+		t.Fatal("profile LAN setting incorrectly credited as host consent", withoutHostLAN)
+	}
 	rows := snapshot["proxies"].([]map[string]any)
 	group := snapshot["proxy-groups"].([]map[string]any)
 	if rows[0]["name"] != s.object("SyntheticNode") || group[0]["proxies"].([]string)[0] != rows[0]["name"] {
@@ -321,6 +332,30 @@ proxy-providers:
 	defer func() { logFileMu.Lock(); homeDir = oldHome; logFileMu.Unlock() }()
 	if err := validateProviderPath("diagnostics/correlation-key"); err == nil {
 		t.Fatal("diagnostic key is a provider resource")
+	}
+}
+
+func TestDiagnosticVersionProvenanceIncludesGlobalMerge(t *testing.T) {
+	home := t.TempDir()
+	if _, err := getDiagnosticStore(home, "host"); err != nil {
+		t.Fatal(err)
+	}
+	dir := filepath.Join(home, "profile-versions", "version-synthetic")
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(home, "profile-versions", "state.json"),
+		[]byte(`{"Current":{"ID":"version-synthetic","ProfileID":"synthetic"},"GlobalMerge":"dns: {enable: true}"}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "source.json"),
+		[]byte(`{"GlobalMerge":"dns: {enable: true}"}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	version := diagnosticReadVersion(home)
+	if version["provenanceOrder"] != "original_then_global_merge_then_profile_overlay_then_strategy_then_host_overrides_then_platform" ||
+		version["sourceMetadata"] != "available" {
+		t.Fatal("effective-version provenance omitted the global layer", version)
 	}
 }
 
