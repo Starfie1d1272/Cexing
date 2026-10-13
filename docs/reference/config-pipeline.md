@@ -1,6 +1,6 @@
 # 独立配置编译与事务接口
 
-`core/configpipeline` 是独立 Go 包，尚未被生产入口引用，不改变应用名称、包名、ProfileStore 格式、自动更新或 VPN 启动路径。先满足本文接入条件，再替换现有激活路径。模块使用仓库锁定的 yaml.v3 与 Mihomo 规则拆分函数，没有新增依赖。
+`core/configpipeline` 是独立 Go 包。生产离线校验入口使用其 `InspectOffline` 做 YAML 与引用检查；Merge `Compiler`、`FileStore` 和 `Transaction` 仍未接入生产，不改变应用名称、包名或 ProfileStore 格式。先满足本文接入条件，再替换现有激活路径。模块使用仓库锁定的 yaml.v3 与 Mihomo 规则拆分函数，没有新增依赖。
 
 ## 与安全线、策略线的最小契约
 

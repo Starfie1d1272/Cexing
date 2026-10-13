@@ -3,6 +3,7 @@ import { common } from '@kit.AbilityKit';
 import { CoreApi, ConfigApplyResult } from './CoreApi';
 import { ProfileStore } from './ProfileStore';
 import { VpnController, VpnStatus } from './VpnController';
+import { CoreValidator } from './CoreValidator';
 
 export type ProfileApplyState = 'applied' | 'saved';
 
@@ -54,6 +55,7 @@ export namespace ProfileTransactions {
       const candidate = ProfileStore.getProfileContent(context, file);
       if (candidate === null) { throw new Error('目标配置不存在或读取失败'); }
       ProfileStore.prepareContent(candidate);
+      await CoreValidator.validate(context, candidate);
       const oldFile = ProfileStore.getActiveFile(context);
       if (oldFile === file) { return 'saved'; }
       const live = await running(context);
@@ -71,6 +73,7 @@ export namespace ProfileTransactions {
     enter(context);
     try {
       const candidate = ProfileStore.prepareContent(content);
+      await CoreValidator.validate(context, candidate);
       const active = ProfileStore.getActiveFile(context) === file;
       const live = active ? await running(context) : false;
       const previous = live ? ProfileStore.getProfileContent(context, file) : null;
@@ -88,6 +91,7 @@ export namespace ProfileTransactions {
     enter(context);
     try {
       const downloaded = await ProfileStore.downloadFromOrigin(context, file);
+      await CoreValidator.validate(context, downloaded.content);
       if (isCurrent !== undefined && !isCurrent()) { throw new Error('更新已取消'); }
       const active = ProfileStore.getActiveFile(context) === file;
       const live = active ? await running(context) : false;

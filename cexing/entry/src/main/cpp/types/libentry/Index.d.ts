@@ -22,5 +22,9 @@ export const startTun: (fd: number, configJson: string, overridesJson?: string) 
 /** 停止内核（关 TUN 与全部 listener）。 */
 export const stopCore: () => Promise<void>;
 
+/** Parse a candidate on the Go worker without applying it or fetching providers.
+ * Empty string means valid; fixed error codes distinguish unresolved resources. */
+export const validateOffline: (homeDir: string, configJson: string, overridesJson: string) => Promise<string>;
+
 /** 桥接层状态（库是否加载、调用计数等）。 */
 export const getBridgeStatus: () => BridgeStatus;

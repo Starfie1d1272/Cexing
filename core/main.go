@@ -8,6 +8,8 @@
 //	                                     overridesJson 为用户设置覆写（JSON，可为空串）
 //	mihomoStop()                          停止 TUN 与全部 listener
 //	mihomoFree(p *C.char)                 释放上述函数返回的 C 字符串
+//	mihomoValidateOffline(home, config, overrides) *C.char
+//	                                     无副作用候选校验；不下载 provider
 //
 // 注意: 所有导出函数必须经由桥接层 worker 线程调用（鸿蒙 musl 主线程 TLS 布局与
 // pthread 线程不同，主线程直进 Go c-shared 会 SIGSEGV，详见 docs/reference/platform.md）。
@@ -41,6 +43,15 @@ func mihomoStartTun(fd C.int, configJson *C.char, overridesJson *C.char) *C.char
 //export mihomoStop
 func mihomoStop() {
 	coreStop()
+}
+
+//export mihomoValidateOffline
+func mihomoValidateOffline(home, config, overrides *C.char) *C.char {
+	err := coreValidateOffline(C.GoString(home), C.GoString(config), C.GoString(overrides))
+	if err == nil {
+		return nil
+	}
+	return C.CString(err.Error())
 }
 
 //export mihomoFree
