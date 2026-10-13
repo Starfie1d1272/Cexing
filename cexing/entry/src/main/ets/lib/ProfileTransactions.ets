@@ -58,13 +58,13 @@ export namespace ProfileTransactions {
       ProfileStore.prepareContent(candidate);
       const receipt = await CoreValidator.validate(context, candidate);
       const oldFile = ProfileStore.getActiveFile(context);
-      if (oldFile === file) { return 'saved'; }
       const live = await running(context);
       const previous = live ? ProfileStore.getActiveContent(context) : null;
       if (receipt.length > 0 && await CoreValidator.validate(context, candidate) !== receipt) {
         throw new Error('provider 缓存已变化，请重试');
       }
       if (live) { await apply(context, candidate); }
+      if (oldFile === file) { return live ? 'applied' : 'saved'; }
       try { ProfileStore.setActive(context, file); } catch (e) {
         if (live) { await restore(context, previous); }
         throw new Error('保存当前选择失败');
