@@ -49,7 +49,7 @@ jobs:
         run: |
           echo "CI_GO_DOWNLOAD_CACHE=$RUNNER_TEMP/public-go-downloads" >> "$GITHUB_ENV"
           echo "CI_TIMINGS_FILE=$RUNNER_TEMP/build-timings.jsonl" >> "$GITHUB_ENV"
-      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: '1.27.2'
           cache: false
