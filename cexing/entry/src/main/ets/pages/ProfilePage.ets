@@ -836,6 +836,6 @@ export struct ProfilePage {
     }.width('100%').height('100%').padding({ left: 24, right: 24, bottom: 12 })
       .backgroundColor(UI.paper).constraintSize({ maxWidth: 760 }).alignSelf(ItemAlign.Center)
       .bindSheet($$this.showSheet, this.MainSheet(), { height: SheetSize.FIT_CONTENT,
-        shouldDismiss: (dismiss: SheetDismiss) => { if (!this.importing) { dismiss.dismiss(); } } })
+        shouldDismiss: (dismiss: SheetDismiss) => { if (!this.importing && !this.regionBusy) { dismiss.dismiss(); } } })
   }
 }
