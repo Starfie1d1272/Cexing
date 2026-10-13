@@ -34,7 +34,7 @@ function load(relative, modules, timers = [], clock = Date) {
   const context = { exports: {}, require: name => {
     assert.ok(name in modules, `Missing mock: ${name}`);
     return modules[name];
-  }, setTimeout: fn => { timers.push(fn); }, Date: clock, Promise, Uint8Array, Object, JSON };
+  }, setTimeout: fn => { timers.push(fn); }, clearTimeout() {}, Date: clock, Promise, Uint8Array, Object, JSON };
   vm.runInNewContext(output, context);
   return context.exports;
 }
@@ -51,7 +51,7 @@ async function testClient(mode) {
   const context = {
     filesDir: '/private', applicationInfo: { name: 'test.bundle' },
     connectServiceExtensionAbility: (want, value) => {
-      callbacks = value; session = want.parameters.SESSION_ID; activeSession = session; return 1;
+      callbacks = value; session = want.parameters.SESSION_ID; activeSession = session; return mode === 'zero' ? 0 : 1;
     },
     disconnectServiceExtensionAbility: async () => {
       stopReceipt = JSON.stringify({ session: mode === 'stale-receipt' ? 'old-session' : activeSession,
@@ -166,6 +166,10 @@ async function testExtension(failStop = false) {
   const extension = new Extension();
   extension.context = { filesDir: '/private', resourceManager: { getRawFileContent: async () => new Uint8Array(16) } };
   extension.onCreate();
+  const observed = extension.onConnect({ parameters: { RECOVER_ONLY: true } });
+  observed.onRemoteMessageRequest(1, {}, { writeBoolean: value => assert.equal(value, false), writeString() {} }, {});
+  assert.equal(destroyCount, 0);
+  assert.equal(prepared, 0, 'recovery bind never enters native initialization');
   const remote = extension.onConnect({ parameters: { VPN_CONFIG: {}, SESSION_ID: 'fixture-1' } });
   assert.ok(remote && typeof remote.then !== 'function', 'onConnect must return synchronously');
   await flush();
@@ -200,6 +204,7 @@ async function testExtension(failStop = false) {
   await testClient('error');
   await testClient('stale');
   await testClient('cancel');
+  await testClient('zero');
   await testClient('stop-failed');
   await testClient('cleanup-failed');
   await testClient('stale-receipt');

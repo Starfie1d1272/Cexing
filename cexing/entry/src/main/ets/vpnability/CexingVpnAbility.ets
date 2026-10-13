@@ -152,6 +152,11 @@ export default class CexingVpnAbility extends VpnExtensionAbility {
 
   onConnect(want: Want): rpc.RemoteObject {
     Logger.info(TAG, 'CexingVpnAbility.onConnect');
+    // A recovery bind only observes this process; it must never create a new TUN.
+    if (want.parameters?.['RECOVER_ONLY'] === true) {
+      return new CoreStatusRemote(() => this.coreStarted && !this.stopping,
+        () => this.startupError, () => this.startupSession, () => this.tunCreateObserved);
+    }
     if (this.stopping && this.starting !== null) {
       return new CoreStatusRemote(() => false, () => 'VPN 正在停止，请稍后重试',
         () => this.startupSession, () => this.tunCreateObserved);
