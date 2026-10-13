@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
-const ts = require(path.join(process.env.OHOS_SDK_HOME, 'ets/build-tools/ets-loader/node_modules/typescript'));
+const ts = require('./ci/transpile-arkts.cjs');
 const flush = () => new Promise(resolve => setImmediate(resolve));
 const logger = { Logger: { info() {}, warn() {}, error() {} } };
 function load(relative, modules, timers = []) {
@@ -86,7 +86,7 @@ async function testExtension() {
     '@kit.IPCKit': { rpc: { RemoteObject: class {} } },
     '@kit.CoreFileKit': { fileIo: { accessSync: () => false, openSync: () => ({ fd: 1 }),
       writeSync() {}, closeSync() {}, renameSync() {}, OpenMode: {} } },
-    'libentry.so': { default: { initCore: async () => { assert.ok(prepared > 0, 'Prepare static assets before Controller initialization'); return ''; }, startTun: () => pending,
+    'libentry.so': { __esModule: true, default: { initCore: async () => { assert.ok(prepared > 0, 'Prepare static assets before Controller initialization'); return ''; }, startTun: () => pending,
       stopCore: async () => { stopCount++; } } },
     '../lib/CoreApi': { CoreApi: { bindContext() {} } },
     '../lib/ZashboardAssets': { ZashboardAssets: { prepare: async () => { prepared++; return { directory: '', error: 'synthetic missing panel' }; } } },

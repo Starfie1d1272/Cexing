@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
-const ts = require(path.join(process.env.OHOS_SDK_HOME, 'ets/build-tools/ets-loader/node_modules/typescript'));
+const ts = require('./ci/transpile-arkts.cjs');
 const flush = () => new Promise(resolve => setImmediate(resolve));
 const logger = { Logger: { info() {}, warn() {}, error() {} } };
 function load(name, modules, timers) {

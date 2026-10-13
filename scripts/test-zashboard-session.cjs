@@ -1,9 +1,9 @@
-// SDK-transpiled page session observer with deterministic transport/timers; no device claim.
+// Host-transpiled page session observer with deterministic transport/timers; no device claim.
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
-const ts = require(path.join(process.env.OHOS_SDK_HOME, 'ets/build-tools/ets-loader/node_modules/typescript'));
+const ts = require('./ci/transpile-arkts.cjs');
 const version = 'a'.repeat(64), secret = 'b'.repeat(64);
 let identity = 'c'.repeat(32), status = 2, ui = true, deployment = version;
 let pending;
