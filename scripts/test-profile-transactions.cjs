@@ -31,6 +31,7 @@ const core = { CoreApi: {
 const versions = { EffectiveVersions: {
   read: () => state,
   smartConversion: () => smartCurrent,
+  regionPlan: () => null,
   stage: async (_, name, original, overlay, metadata, expected) => {
     assert.equal(expected, state.Current?.ID ?? '');
     const version = { ID: `version-${++id}`, Path: `/versions/${id}`, ProfileID: name };
