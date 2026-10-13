@@ -42,9 +42,14 @@ func compilePinnedMergeWithSmart(home, original, overlay, overrides string, smar
 
 func compilePinnedMergeWithStrategies(home, original, overlay, overrides string, smartConversion bool,
 	region *configpipeline.RegionPlan) (configpipeline.Result, string, error) {
+	return compileLayeredMerge(home, original, "", overlay, overrides, smartConversion, region)
+}
+
+func compileLayeredMerge(home, original, global, overlay, overrides string, smartConversion bool,
+	region *configpipeline.RegionPlan) (configpipeline.Result, string, error) {
 	var resolvedRegion *configpipeline.RegionPlan
 	if region != nil && !region.Disabled {
-		root, err := configpipeline.RegionMergedSource([]byte(original), []byte(overlay))
+		root, err := configpipeline.LayeredMergeSource([]byte(original), []byte(global), []byte(overlay))
 		if err != nil {
 			return configpipeline.Result{}, "", err
 		}
@@ -64,6 +69,9 @@ func compilePinnedMergeWithStrategies(home, original, overlay, overrides string,
 		if err := root.Decode(&after); err != nil {
 			return err
 		}
+		// The persistent candidate must reflect the same host settings as runtime
+		// validation, including LAN consent. Neither Merge layer can bypass them.
+		applyOverrides(after, overrides)
 		projectPlatformConfig(after)
 		keys := make([]string, 0, len(after))
 		for key := range after {
@@ -95,8 +103,10 @@ func compilePinnedMergeWithStrategies(home, original, overlay, overrides string,
 		return err
 	}
 	var overlays [][]byte
-	if overlay != "" {
-		overlays = [][]byte{[]byte(overlay)}
+	for _, layer := range []string{global, overlay} {
+		if layer != "" {
+			overlays = append(overlays, []byte(layer))
+		}
 	}
 	var strategy configpipeline.Transform
 	strategy = func(ctx context.Context, root *yaml.Node) error {
@@ -117,7 +127,11 @@ func compilePinnedMergeWithStrategies(home, original, overlay, overrides string,
 }
 
 func previewRegion(home, original, overlay string, plan configpipeline.RegionPlan) (configpipeline.RegionPreview, error) {
-	root, err := configpipeline.RegionMergedSource([]byte(original), []byte(overlay))
+	return previewLayeredRegion(home, original, "", overlay, plan)
+}
+
+func previewLayeredRegion(home, original, global, overlay string, plan configpipeline.RegionPlan) (configpipeline.RegionPreview, error) {
+	root, err := configpipeline.LayeredMergeSource([]byte(original), []byte(global), []byte(overlay))
 	if err != nil {
 		return configpipeline.RegionPreview{}, err
 	}

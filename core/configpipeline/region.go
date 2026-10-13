@@ -30,37 +30,8 @@ type RegionPreview struct {
 	Selectors       []string          `json:"selectors"`
 	Nodes           map[string]string `json:"nodes"`
 	Counts          map[string]int    `json:"counts"`
+	Regions         []string          `json:"regions"`
 	Unknown         int               `json:"unknown"`
-}
-
-var regionPatterns = []struct {
-	code string
-	re   *regexp.Regexp
-}{
-	{"香港", regexp.MustCompile(`(?i)(香港|港[区線线]|\bHK\b|Hong[ -]?Kong|🇭🇰)`)},
-	{"台湾", regexp.MustCompile(`(?i)(台湾|臺灣|台[区線线]|\bTW\b|Taiwan|🇹🇼)`)},
-	{"日本", regexp.MustCompile(`(?i)(日本|日[区線线]|\bJP\b|Japan|Tokyo|Osaka|🇯🇵)`)},
-	{"新加坡", regexp.MustCompile(`(?i)(新加坡|狮城|獅城|\bSG\b|Singapore|🇸🇬)`)},
-	{"美国", regexp.MustCompile(`(?i)(美国|美國|美[区線线]|\bUS\b|United[ -]?States|America|🇺🇸)`)},
-	{"韩国", regexp.MustCompile(`(?i)(韩国|韓國|\bKR\b|Korea|🇰🇷)`)},
-	{"英国", regexp.MustCompile(`(?i)(英国|英國|\bUK\b|Britain|London|🇬🇧)`)},
-	{"德国", regexp.MustCompile(`(?i)(德国|德國|\bDE\b|Germany|🇩🇪)`)},
-}
-
-func guessRegion(name string) string {
-	match := ""
-	for _, p := range regionPatterns {
-		if p.re.MatchString(name) {
-			if match != "" {
-				return "未知"
-			}
-			match = p.code
-		}
-	}
-	if match == "" {
-		return "未知"
-	}
-	return match
 }
 
 // RegionMergedSource gives the preview the same original plus Merge view used
@@ -95,7 +66,7 @@ func PreviewRegion(root *yaml.Node, selector string, assignments map[string]stri
 
 func PreviewRegionWithProviders(root *yaml.Node, selector string, assignments map[string]string,
 	resolved map[string][]string) (RegionPreview, error) {
-	p := RegionPreview{Selectors: []string{}, Nodes: map[string]string{}, Counts: map[string]int{}}
+	p := RegionPreview{Selectors: []string{}, Nodes: map[string]string{}, Counts: map[string]int{}, Regions: regionNames()}
 	groups, proxies := field(root, "proxy-groups"), field(root, "proxies")
 	if groups == nil || groups.Kind != yaml.SequenceNode {
 		return p, nil
@@ -370,14 +341,14 @@ func ApplyRegion(_ context.Context, root *yaml.Node, plan RegionPlan) error {
 		if len(p.Nodes) < 2 {
 			return errors.New("at least two nodes required")
 		}
-		name := base + " 全部"
+		name := "全部节点 · Smart"
 		if used[name] {
 			return errors.New("generated group name collision")
 		}
 		newGroups = append(newGroups, smartGroup(name, members, providerGroups(root, plan, p.Nodes, "")))
 		newNames = append(newNames, name)
 	} else {
-		for _, region := range []string{"香港", "台湾", "日本", "新加坡", "美国", "韩国", "英国", "德国", "未知"} {
+		for _, region := range regionNames() {
 			members := []string{}
 			for node, code := range p.Nodes {
 				if code == region && !providerNode[node] {
@@ -389,7 +360,7 @@ func ApplyRegion(_ context.Context, root *yaml.Node, plan RegionPlan) error {
 			if len(members) == 0 && len(uses) == 0 {
 				continue
 			}
-			name := base + " " + region
+			name := regionLabel(region) + " · Smart"
 			if used[name] {
 				return errors.New("generated group name collision")
 			}
