@@ -17,6 +17,8 @@ type versionAction struct {
 	Op              string                     `json:"op"`
 	ProfileID       string                     `json:"profileId"`
 	Original        string                     `json:"original"`
+	GlobalMerge     *string                    `json:"globalMerge,omitempty"`
+	UpdateGlobal    bool                       `json:"updateGlobal,omitempty"`
 	Overlay         string                     `json:"overlay"`
 	Metadata        string                     `json:"metadata"`
 	Overrides       string                     `json:"overrides"`
@@ -33,12 +35,13 @@ type versionResponse struct {
 	State         *configpipeline.Snapshot      `json:"state,omitempty"`
 	Receipt       string                        `json:"receipt,omitempty"`
 	Error         string                        `json:"error,omitempty"`
+	MergePreview  *mergePreview                 `json:"mergePreview,omitempty"`
 	RegionPreview *configpipeline.RegionPreview `json:"regionPreview,omitempty"`
 }
 
 func coreVersionAction(home, input string) string {
 	var action versionAction
-	if len(input) > maxConfigBytes*2 || json.Unmarshal([]byte(input), &action) != nil ||
+	if len(input) > maxConfigBytes*4 || json.Unmarshal([]byte(input), &action) != nil ||
 		home == "" || !filepath.IsAbs(home) {
 		return `{"error":"VERSION_INVALID"}`
 	}
@@ -70,12 +73,29 @@ func executeVersionAction(home string, action versionAction) (versionResponse, e
 	if action.Expected != currentID {
 		return versionResponse{}, errors.New("VERSION_STALE")
 	}
+	global := prior.GlobalMerge
+	if action.UpdateGlobal {
+		if action.GlobalMerge == nil || len(*action.GlobalMerge) > maxConfigBytes {
+			return versionResponse{}, errors.New("GLOBAL_MERGE_INVALID")
+		}
+		global = *action.GlobalMerge
+	}
 	switch action.Op {
+	case "merge-preview":
+		if len(action.Original) > maxConfigBytes || len(action.Overlay) > maxConfigBytes {
+			return versionResponse{}, errors.New("VERSION_INVALID")
+		}
+		result, _, err := compileLayeredMerge(home, action.Original, global, action.Overlay,
+			action.Overrides, action.SmartConversion, action.RegionPlan)
+		if err != nil {
+			return versionResponse{}, errors.New("MERGE_PREVIEW_FAILED")
+		}
+		return versionResponse{MergePreview: &mergePreview{Digest: result.Digest, Changes: result.Changes}}, nil
 	case "region-preview":
 		if action.RegionPlan == nil || len(action.Original) > maxConfigBytes || len(action.Overlay) > maxConfigBytes {
 			return versionResponse{}, errors.New("REGION_INVALID")
 		}
-		preview, err := previewRegion(home, action.Original, action.Overlay, *action.RegionPlan)
+		preview, err := previewLayeredRegion(home, action.Original, global, action.Overlay, *action.RegionPlan)
 		if err != nil {
 			return versionResponse{}, errors.New("REGION_PREVIEW_FAILED")
 		}
@@ -87,6 +107,11 @@ func executeVersionAction(home string, action versionAction) (versionResponse, e
 		content, err := os.ReadFile(filepath.Join(store.Root, action.VersionID, "config.yaml"))
 		if err != nil || len(content) > maxConfigBytes {
 			return versionResponse{}, errors.New("VERSION_INVALID")
+		}
+		var source struct{ GlobalMerge string }
+		data, err := os.ReadFile(filepath.Join(store.Root, action.VersionID, "source.json"))
+		if err != nil || json.Unmarshal(data, &source) != nil || source.GlobalMerge != global {
+			return versionResponse{}, errors.New("VERSION_GLOBAL_STALE")
 		}
 		receipt, err := validateCandidateWithReceipt(home, string(content), action.Overrides)
 		if err != nil {
@@ -103,10 +128,16 @@ func executeVersionAction(home string, action versionAction) (versionResponse, e
 		if json.Unmarshal([]byte(action.Metadata), &metadata) != nil || metadata == nil {
 			return versionResponse{}, errors.New("VERSION_INVALID")
 		}
-		result, receipt, err := compilePinnedMergeWithStrategies(home, action.Original, action.Overlay,
+		result, receipt, err := compileLayeredMerge(home, action.Original, global, action.Overlay,
 			action.Overrides, action.SmartConversion, action.RegionPlan)
 		if err != nil || len(result.YAML) > maxConfigBytes {
 			return versionResponse{}, errors.New("VERSION_COMPILE_FAILED")
+		}
+		// Keep the existing per-profile overlay file and provenance local in scope.
+		result.GlobalMerge = global
+		result.Overlays = nil
+		if action.Overlay != "" {
+			result.Overlays = [][]byte{[]byte(action.Overlay)}
 		}
 		result.ProfileID = action.ProfileID
 		result.Metadata = action.Metadata
@@ -156,7 +187,7 @@ func executeVersionAction(home string, action versionAction) (versionResponse, e
 		}
 		candidate := configpipeline.Version{ID: action.VersionID,
 			Path: filepath.Join(store.Root, action.VersionID, "config.yaml")}
-		var source struct{ ProfileID string }
+		var source struct{ ProfileID, GlobalMerge string }
 		data, err := os.ReadFile(filepath.Join(store.Root, action.VersionID, "source.json"))
 		if err != nil || json.Unmarshal(data, &source) != nil || !profileIDPattern.MatchString(source.ProfileID) {
 			return versionResponse{}, errors.New("VERSION_INVALID")
@@ -176,6 +207,18 @@ func executeVersionAction(home string, action versionAction) (versionResponse, e
 		}
 		if prior.Profiles == nil {
 			prior.Profiles = make(map[string]configpipeline.Version)
+		}
+		if action.Active {
+			if action.UpdateGlobal {
+				if source.GlobalMerge != global {
+					return versionResponse{}, errors.New("VERSION_GLOBAL_STALE")
+				}
+				prior.GlobalMerge = source.GlobalMerge
+			} else if source.GlobalMerge != prior.GlobalMerge {
+				return versionResponse{}, errors.New("VERSION_GLOBAL_STALE")
+			}
+		} else if action.UpdateGlobal {
+			return versionResponse{}, errors.New("GLOBAL_MERGE_REQUIRES_ACTIVE")
 		}
 		prior.Profiles[candidate.ProfileID] = candidate
 		if action.Active {
