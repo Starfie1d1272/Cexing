@@ -38,6 +38,7 @@ export class AppSettings {
 
 export namespace Settings {
   let store: preferences.Preferences | null = null;
+  let lanWriteFailed: boolean = false;
 
   function getStore(context: common.Context): preferences.Preferences {
     if (!store) {
@@ -53,7 +54,7 @@ export namespace Settings {
       s.keepAlive = p.getSync('keepAlive', true) as boolean;
       s.ipv6 = p.getSync('ipv6', false) as boolean;
       // Legacy true included the old default; it cannot establish consent.
-      s.allowLan = p.getSync('allowLanConfirmed', false) === true &&
+      s.allowLan = !lanWriteFailed && p.getSync('allowLanConfirmed', false) === true &&
         p.getSync('allowLan', false) === true;
       s.logLevel = p.getSync('logLevel', 'info') as string;
       s.mixedPort = p.getSync('mixedPort', 7890) as number;
@@ -106,12 +107,26 @@ export namespace Settings {
   /** Called only after explicit LAN risk confirmation, or to disable sharing. */
   export function setAllowLan(context: common.Context, enabled: boolean): void {
     const p = getStore(context);
-    // Revoke first: a partial failure cannot turn a legacy true into consent.
-    p.putSync('allowLanConfirmed', false);
-    p.flushSync();
-    p.putSync('allowLan', enabled);
-    p.flushSync();
-    p.putSync('allowLanConfirmed', enabled);
-    p.flushSync();
+    lanWriteFailed = true;
+    try {
+      // Revoke first: a partial failure cannot turn a legacy true into consent.
+      p.putSync('allowLanConfirmed', false);
+      p.flushSync();
+      p.putSync('allowLan', enabled);
+      p.flushSync();
+      p.putSync('allowLanConfirmed', enabled);
+      p.flushSync();
+      lanWriteFailed = false;
+    } catch (e) {
+      // putSync changes the Preferences cache before flushSync can fail.
+      // Revoke that cached grant too; the process guard covers rollback failure.
+      try {
+        p.putSync('allowLanConfirmed', false);
+        p.flushSync();
+      } catch (_) {
+        Logger.error(TAG, 'LAN consent rollback failed');
+      }
+      throw e;
+    }
   }
 }

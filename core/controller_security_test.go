@@ -43,6 +43,7 @@ func TestControllerSecurity(t *testing.T) {
 	}
 	version := seedSyntheticPanel(t, home)
 	cfgText := `mixed-port: 0
+bind-address: 127.0.0.1
 mode: direct
 log-level: debug
 external-controller: 0.0.0.0:9191
@@ -195,7 +196,7 @@ dns:
 		// its policy, including when the panel changes unrelated settings.
 		activeOverrides = `{"mixedPort":0,"allowLan":true}`
 		body, _ := json.Marshal(map[string]string{"payload": cfgText, "overrides": `{"logLevel":"info"}`})
-		if code, _ := request("PUT", "/configs", bearer, string(body)); code != 204 || !executor.GetGeneral().AllowLan {
+		if code, _ := request("PUT", "/configs", bearer, string(body)); code != 204 || !executor.GetGeneral().AllowLan || listener.BindAddress() != "*" {
 			t.Fatal("reload lost native LAN consent")
 		}
 		body, _ = json.Marshal(map[string]string{"payload": cfgText, "overrides": `{"allowLan":false}`})
@@ -209,7 +210,7 @@ dns:
 	if code, _ := request("PUT", "/configs?force=true", bearer, string(body)); code != 204 {
 		t.Fatalf("safe reload rejected: %d", code)
 	}
-	if tunnel.Mode() != tunnel.Direct || listener.GetTunConf().Enable || executor.GetGeneral().MixedPort != 0 {
+	if tunnel.Mode() != tunnel.Direct || listener.GetTunConf().Enable || executor.GetGeneral().MixedPort != 0 || listener.BindAddress() != "127.0.0.1" {
 		t.Fatal("reload failed to reapply final platform/setting constraints")
 	}
 	if code, _ := request("GET", "/version", "", ""); code != 401 {

@@ -189,3 +189,62 @@ rules: ['MATCH,DIRECT']`, port), `{"mixedPort":0,"allowLan":false}`)
 	}
 	t.Skip("no nonloopback IPv4 interface for external socket check")
 }
+
+func TestHostMixedBinding(t *testing.T) {
+	if err := coreInit(t.TempDir()); err != nil {
+		t.Fatal(err)
+	}
+	defer coreStop()
+	reserved, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	port := reserved.Addr().(*net.TCPAddr).Port
+	reserved.Close()
+	addresses, err := net.InterfaceAddrs()
+	if err != nil {
+		t.Fatal(err)
+	}
+	external := ""
+	for _, address := range addresses {
+		ip, ok := address.(*net.IPNet)
+		if ok && !ip.IP.IsLoopback() && ip.IP.To4() != nil {
+			external = ip.IP.String()
+			break
+		}
+	}
+	if external == "" {
+		t.Skip("no nonloopback IPv4 interface")
+	}
+	for _, allowed := range []bool{false, true, false} {
+		for _, runtime := range []bool{false, true} {
+			cfg, err := parsePlatformConfig(`bind-address: 127.0.0.1
+dns: {enable: false}
+rules: ['MATCH,DIRECT']`, fmt.Sprintf(`{"mixedPort":%d,"allowLan":%t}`, port, allowed), runtime)
+			if err != nil {
+				t.Fatal(err)
+			}
+			expected := "127.0.0.1"
+			if allowed {
+				expected = "*"
+			}
+			if cfg.General.BindAddress != expected {
+				t.Fatalf("host bind=%s expected %s", cfg.General.BindAddress, expected)
+			}
+			executor.ApplyConfig(cfg, true)
+			conn, err := net.DialTimeout("tcp", net.JoinHostPort("127.0.0.1", fmt.Sprint(port)), time.Second)
+			if err != nil {
+				t.Fatal(err)
+			}
+			conn.Close()
+			conn, err = net.DialTimeout("tcp", net.JoinHostPort(external, fmt.Sprint(port)), time.Second)
+			if conn != nil {
+				conn.Close()
+			}
+			if (err == nil) != allowed {
+				t.Fatalf("nonloopback mixed socket: allowed=%t err=%v", allowed, err)
+			}
+		}
+	}
+	t.Log("actual host mixed listener follows false/true/false consent despite subscription loopback bind")
+}

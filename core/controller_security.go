@@ -145,6 +145,12 @@ func (controllerLogWriter) Write(p []byte) (int, error) {
 // A persisted candidate must never contain either subscription or app secret.
 func projectPlatformConfig(overlay map[string]any) {
 	applyPlatformDefaults(overlay)
+	// Subscription bind-address cannot defeat a confirmed host LAN toggle.
+	if allowed, _ := overlay["allow-lan"].(bool); allowed {
+		overlay["bind-address"] = "*"
+	} else {
+		overlay["bind-address"] = "127.0.0.1"
+	}
 	// Host LAN consent shares only the host's mixed proxy. Generic inbounds
 	// have independent addresses and do not consult Mihomo's AllowLan flag.
 	for _, key := range []string{"port", "socks-port", "redir-port", "tproxy-port"} {
