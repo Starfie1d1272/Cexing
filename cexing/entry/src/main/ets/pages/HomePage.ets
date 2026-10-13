@@ -192,13 +192,13 @@ export struct HomePage {
 
   private label(): string {
     if (this.status === VpnStatus.Connected) { return '已连接'; }
-    if (this.status === VpnStatus.Connecting) { return '连接中…'; }
-    if (this.status === VpnStatus.Disconnecting) { return '断开中…'; }
+    if (this.status === VpnStatus.Connecting) { return '连接中'; }
+    if (this.status === VpnStatus.Disconnecting) { return '断开中'; }
     return this.stopUnknown ? '停止结果未知' : (this.startFailed ? '连接失败' : '未连接');
   }
 
   private stateLine(): string {
-    if (this.status === VpnStatus.Connected) { return '应用报告已连接，可检查网络'; }
+    if (this.status === VpnStatus.Connected) { return '可查看流量或检查连接'; }
     if (this.status === VpnStatus.Connecting) { return '正在建立系统连接'; }
     if (this.status === VpnStatus.Disconnecting) { return '正在结束系统会话'; }
     return this.stopUnknown ? '请检查系统 VPN 状态或前往诊断' :
@@ -344,7 +344,7 @@ export struct HomePage {
       if (this.hasProfile) {
         Button(this.status === VpnStatus.Disconnected ? '连接 VPN' :
           (this.status === VpnStatus.Connecting ? '取消连接' :
-            (this.status === VpnStatus.Disconnecting ? '断开中…' : '断开连接')))
+            (this.status === VpnStatus.Disconnecting ? '断开中' : '断开连接')))
           .width('100%').height(56).fontSize(16).fontWeight(FontWeight.Medium)
           .backgroundColor(this.status === VpnStatus.Connected ? UI.soft : UI.action)
           .fontColor(this.status === VpnStatus.Connected ? UI.accentText : UI.onAccent)
