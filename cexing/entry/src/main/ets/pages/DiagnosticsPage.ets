@@ -67,7 +67,8 @@ export struct DiagnosticsPage {
       if (!this.visible || attempt !== this.generation) { return; }
       const version = `${bundle.versionName}+${bundle.versionCode}`;
       const text = ConnectionFailures.summary(states[this.status], control,
-        VpnController.getLastStartFailure(), version);
+        VpnController.getLastStartFailure(), version, VpnController.getTunCreateObserved(),
+        VpnController.getKernelReadyReported());
       await pasteboard.getSystemPasteboard().setData(pasteboard.createData(pasteboard.MIMETYPE_TEXT_PLAIN, text));
       if (this.visible && attempt === this.generation) {
         promptAction.showToast({ message: '脱敏摘要已复制' });
