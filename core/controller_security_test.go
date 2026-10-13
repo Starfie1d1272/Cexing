@@ -180,6 +180,31 @@ dns:
 	if err := os.WriteFile(file, []byte(cfgText), 0o600); err != nil {
 		t.Fatal(err)
 	}
+	t.Run("REST cannot grant or replace host network authorization", func(t *testing.T) {
+		before := activeOverrides
+		for _, override := range []string{`{"allowLan":true}`, `{"allowLan":[]}`, `{"allowLan":{}}`, `{"mixedPort":28009}`} {
+			body, _ := json.Marshal(map[string]string{"payload": cfgText, "overrides": override})
+			if code, _ := request("PUT", "/configs", bearer, string(body)); code != 400 {
+				t.Fatalf("network override accepted: %s status=%d", override, code)
+			}
+			if activeOverrides != before || executor.GetGeneral().AllowLan {
+				t.Fatal("rejected request changed host authorization")
+			}
+		}
+		// Model confirmed native startup. Omitted network fields must preserve
+		// its policy, including when the panel changes unrelated settings.
+		activeOverrides = `{"mixedPort":0,"allowLan":true}`
+		body, _ := json.Marshal(map[string]string{"payload": cfgText, "overrides": `{"logLevel":"info"}`})
+		if code, _ := request("PUT", "/configs", bearer, string(body)); code != 204 || !executor.GetGeneral().AllowLan {
+			t.Fatal("reload lost native LAN consent")
+		}
+		body, _ = json.Marshal(map[string]string{"payload": cfgText, "overrides": `{"allowLan":false}`})
+		if code, _ := request("PUT", "/configs", bearer, string(body)); code != 400 {
+			t.Fatal("panel changed native LAN policy")
+		}
+		// Model the next native session after disabling or legacy migration.
+		activeOverrides = before
+	})
 	body, _ := json.Marshal(map[string]string{"path": file})
 	if code, _ := request("PUT", "/configs?force=true", bearer, string(body)); code != 204 {
 		t.Fatalf("safe reload rejected: %d", code)
