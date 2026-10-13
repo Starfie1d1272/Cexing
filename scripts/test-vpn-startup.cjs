@@ -78,6 +78,7 @@ async function testExtension() {
   let stopCount = 0;
   let destroyCount = 0;
   let prepared = 0;
+  let brokenPointer = false;
   const pending = new Promise(resolve => { complete = resolve; });
   const connection = { create: async () => 32, protectProcessNet: async () => {},
     destroy: async () => { destroyCount++; } };
@@ -92,6 +93,10 @@ async function testExtension() {
     '../lib/ZashboardAssets': { ZashboardAssets: { prepare: async () => { prepared++; return { directory: '', error: 'synthetic missing panel' }; } } },
     '../lib/Logger': logger,
     '../lib/ProfileStore': { ProfileStore: { getActiveContent: () => 'proxies: []' } },
+    '../lib/EffectiveVersions': { EffectiveVersions: { read: () => {
+      if (brokenPointer) throw Error('synthetic invalid effective pointer');
+      return null;
+    } } },
     '../lib/Settings': { Settings: { load: () => ({}) } }, '@kit.ArkTS': { util: {} }
   };
   const Extension = load('vpnability/CexingVpnAbility.ets', modules).default;
@@ -115,6 +120,9 @@ async function testExtension() {
   restarted.onRemoteMessageRequest(1, {}, { writeBoolean: value => { reportedReady = value; }, writeString() {} }, {});
   assert.equal(reportedReady, true, 'The same extension must allow restart after cleanup despite unavailable panel resources');
   assert.equal(prepared, 2);
+  brokenPointer = true;
+  await assert.rejects(extension.buildCoreConfig(), /invalid effective pointer/,
+    'broken effective pointer must not silently start the built-in fallback');
 }
 async function testStopKeepsUnknownUntilConfirmed() {
   for (const fail of [true, false]) {

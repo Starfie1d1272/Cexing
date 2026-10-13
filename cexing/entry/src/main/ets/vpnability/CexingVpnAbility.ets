@@ -16,6 +16,7 @@ import { fileIo } from '@kit.CoreFileKit';
 import core from 'libentry.so';
 import { Logger } from '../lib/Logger';
 import { ProfileStore } from '../lib/ProfileStore';
+import { EffectiveVersions } from '../lib/EffectiveVersions';
 import { Settings } from '../lib/Settings';
 import { CoreApi } from '../lib/CoreApi';
 
@@ -262,6 +263,13 @@ export default class CexingVpnAbility extends VpnExtensionAbility {
    * 返回字符串直接作为 configJson 传给 startTun（Go 侧 yaml 解析，JSON/YAML 均兼容）。
    */
   private async buildCoreConfig(): Promise<string> {
+    const effective = EffectiveVersions.read(this.context);
+    if (effective !== null && effective.Current !== null && effective.Current !== undefined) {
+      const selected = ProfileStore.getActiveContent(this.context);
+      if (selected === null || selected.length === 0) { throw new Error('有效配置版本不可读取'); }
+      Logger.info(TAG, `config source: effective version, ${selected.length} bytes`);
+      return selected;
+    }
     try {
       const profile: string | null = ProfileStore.getActiveContent(this.context);
       if (profile !== null && profile.length > 0) {

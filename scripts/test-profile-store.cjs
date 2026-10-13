@@ -38,6 +38,7 @@ const context = { exports: {}, require: name => {
   if (name === '@kit.ArkTS') return { util: {} };
   if (name.endsWith('Logger')) return { Logger: { info() {}, warn() {}, error() {} } };
   if (name.endsWith('ProfileName')) return {};
+  if (name.endsWith('EffectiveVersions')) return { EffectiveVersions: { read: () => null } };
   return {};
 } };
 vm.runInNewContext(js, context);

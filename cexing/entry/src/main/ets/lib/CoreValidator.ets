@@ -8,6 +8,10 @@ export interface MergeChange { section: string; before: number; after: number; }
 export interface MergePreview { digest: string; changes: MergeChange[]; }
 
 export namespace CoreValidator {
+  export async function prepareResources(context: common.Context): Promise<void> {
+    await ensureGeoData(context);
+  }
+
   async function ensureGeoData(context: common.Context): Promise<void> {
     const path = `${context.filesDir}/geoip.metadb`;
     if (fileIo.accessSync(path) && fileIo.statSync(path).size > 0) { return; }
@@ -55,4 +59,5 @@ export namespace CoreValidator {
       return { digest: parsed['digest'] as string, changes: parsed['changes'] as MergeChange[] };
     } catch (_) { throw new Error('Merge 未通过本机校验或资源未解析'); }
   }
+
 }
