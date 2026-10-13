@@ -6,7 +6,7 @@ import { ProfileStore, ProfileMetaExt } from './ProfileStore';
 import { VpnController, VpnStatus } from './VpnController';
 import { CoreValidator } from './CoreValidator';
 import { MergePreview } from './CoreValidator';
-import { EffectiveVersions, EffectiveState } from './EffectiveVersions';
+import { EffectiveVersions, EffectiveState, RegionPlan, RegionPreview } from './EffectiveVersions';
 import { Settings } from './Settings';
 
 export type ProfileApplyState = 'applied' | 'saved';
@@ -57,13 +57,16 @@ export namespace ProfileTransactions {
 
   async function publish(context: common.Context, file: string, original: string,
     overlay: string, metadata: string, select: boolean,
-    isCurrent?: () => boolean): Promise<ProfileApplyState> {
+    isCurrent?: () => boolean, regionOverride?: RegionPlan | null): Promise<ProfileApplyState> {
     const state = EffectiveVersions.read(context);
     const expected = state?.Current?.ID ?? '';
     const live = select ? await running(context) : false;
     const previous = live ? ProfileStore.getActiveContent(context) : null;
     await CoreValidator.prepareResources(context);
-    const staged = await EffectiveVersions.stage(context, file, original, overlay, metadata, expected);
+    const saved = state?.Profiles[file];
+    const region = regionOverride !== undefined ? regionOverride :
+      (saved !== undefined ? EffectiveVersions.regionPlan(context, saved) : null);
+    const staged = await EffectiveVersions.stage(context, file, original, overlay, metadata, expected, region);
     let applied = false;
     let published = false;
     try {
@@ -251,5 +254,94 @@ export namespace ProfileTransactions {
       catch (_) { markUnknown(context); }
       throw new Error((e as Error).message);
     } finally { busy = false; }
+  }
+
+  export async function previewRegion(context: common.Context, file: string,
+    plan: RegionPlan): Promise<RegionPreview> {
+    const original = ProfileStore.getProfileContent(context, file);
+    if (original === null) { throw new Error('原始配置不存在'); }
+    return await EffectiveVersions.previewRegion(context, ProfileStore.prepareContent(original),
+      ProfileStore.getEnabledMerge(context, file), plan);
+  }
+
+  export async function setRegionPlan(context: common.Context, file: string,
+    plan: RegionPlan | null, activate: boolean = false): Promise<ProfileApplyState> {
+    enter(context);
+    try {
+      const original = ProfileStore.getProfileContent(context, file);
+      if (original === null) { throw new Error('原始配置不存在'); }
+      let restore = '';
+      let restoreSelector = '';
+      if ((plan === null || !plan.enable || plan.disabled === true) &&
+        ProfileStore.getActiveFile(context) === file && VpnController.status === VpnStatus.Connected) {
+        const prior = EffectiveVersions.read(context)?.Current;
+        const selector = prior !== null && prior !== undefined ?
+          EffectiveVersions.regionPlan(context, prior)?.selector ?? '' : '';
+        if (selector !== '') {
+          const group = (await CoreApi.getProxies())?.[selector];
+          if (group?.now === `Cexing Smart ${selector}`) {
+            restoreSelector = selector;
+            restore = ProfileStore.previousRegionSelection(context, file);
+            if (restore === '' || !group.all.includes(restore)) {
+              throw new Error('原手动选项已失效，请先手动选择可用节点再关闭地区策略');
+            }
+          }
+        }
+      }
+      const result = await publish(context, file, ProfileStore.prepareContent(original),
+        ProfileStore.getEnabledMerge(context, file), metadata(context, file),
+        activate || ProfileStore.getActiveFile(context) === file, undefined, plan);
+      if (restore !== '' && !(await CoreApi.selectProxy(restoreSelector, restore))) {
+        throw new Error('原选项恢复失败，请在代理面板手动选择');
+      }
+      if (plan === null || !plan.enable || plan.disabled === true) {
+        ProfileStore.clearPendingRegionSelection(context, file);
+        if (restore !== '' || (VpnController.status === VpnStatus.Connected &&
+          ProfileStore.getActiveFile(context) === file) || plan === null) {
+          ProfileStore.clearPreviousRegionSelection(context, file);
+        }
+      } else {
+        ProfileStore.setPendingRegionSelection(context, file, plan.selector);
+        if (VpnController.status === VpnStatus.Connected &&
+          ProfileStore.getActiveFile(context) === file) {
+          await applyPendingRegionSelection(context);
+        }
+      }
+      return result;
+    } finally { busy = false; }
+  }
+
+  /** Consume only a user's explicit selection request, once Controller is ready. */
+  export async function applyPendingRegionSelection(context: common.Context): Promise<boolean> {
+    if (VpnController.status !== VpnStatus.Connected) { return false; }
+    const file = ProfileStore.getActiveFile(context);
+    if (file === '') { return false; }
+    const current = EffectiveVersions.read(context)?.Current;
+    if (current === null || current === undefined) { return false; }
+    const plan = EffectiveVersions.regionPlan(context, current);
+    if (plan !== null && (!plan.enable || plan.disabled === true)) {
+      const previous = ProfileStore.previousRegionSelection(context, file);
+      if (previous === '') { return false; }
+      const group = (await CoreApi.getProxies())?.[plan.selector];
+      if (group === undefined || !group.all.includes(previous)) { return false; }
+      const restored = await CoreApi.selectProxy(plan.selector, previous);
+      if (restored) { ProfileStore.clearPreviousRegionSelection(context, file); }
+      return restored;
+    }
+    const selector = ProfileStore.pendingRegionSelection(context, file);
+    if (selector === '') { return false; }
+    if (plan === null || plan.selector !== selector) {
+      ProfileStore.clearPendingRegionSelection(context, file);
+      return false;
+    }
+    const target = `Cexing Smart ${selector}`;
+    const group = (await CoreApi.getProxies())?.[selector];
+    if (group === undefined || !group.all.includes(target)) { return false; }
+    if (group.now !== target && group.now !== '') {
+      ProfileStore.setPreviousRegionSelection(context, file, group.now);
+    }
+    const selected = await CoreApi.selectProxy(selector, target);
+    if (selected) { ProfileStore.clearPendingRegionSelection(context, file); }
+    return selected;
   }
 }

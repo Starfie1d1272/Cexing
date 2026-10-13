@@ -57,6 +57,7 @@ type Result struct {
 	ProfileID       string
 	Metadata        string
 	SmartConversion bool
+	RegionPlan      *RegionPlan
 }
 
 func (c Compiler) Compile(ctx context.Context, r Request) (Result, error) {

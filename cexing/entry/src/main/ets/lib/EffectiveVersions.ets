@@ -11,6 +11,22 @@ export interface EffectiveState {
   Profiles: Record<string, EffectiveVersion>;
 }
 export interface StagedVersion { version: EffectiveVersion; receipt: string; }
+export interface RegionPlan {
+  mode: string;
+  selector: string;
+  enable: boolean;
+  disabled?: boolean;
+  assignments: Record<string, string>;
+}
+export interface RegionPreview {
+  eligible: boolean;
+  offerable: boolean;
+  providerPending: boolean;
+  selectors: string[];
+  nodes: Record<string, string>;
+  counts: Record<string, number>;
+  unknown: number;
+}
 interface VersionRequest {
   op: string;
   profileId?: string;
@@ -23,6 +39,7 @@ interface VersionRequest {
   active?: boolean;
   newProfileId?: string;
   smartConversion?: boolean;
+  regionPlan?: RegionPlan | null;
 }
 
 export namespace EffectiveVersions {
@@ -80,6 +97,14 @@ export namespace EffectiveVersions {
     return source['SmartConversion'] === true;
   }
 
+  export function regionPlan(context: common.Context, version: EffectiveVersion): RegionPlan | null {
+    check(context, version);
+    const source = JSON.parse(fileIo.readTextSync(
+      `${context.filesDir}/profile-versions/${version.ID}/source.json`)) as Record<string, Object>;
+    const plan = source['RegionPlan'] as RegionPlan | null;
+    return plan ?? null;
+  }
+
   async function call(context: common.Context, action: VersionRequest): Promise<Record<string, Object>> {
     const result = await core.versionAction(context.filesDir, JSON.stringify(action));
     try {
@@ -90,17 +115,29 @@ export namespace EffectiveVersions {
   }
 
   export async function stage(context: common.Context, profileId: string, original: string,
-    overlay: string, metadata: string, expected: string): Promise<StagedVersion> {
+    overlay: string, metadata: string, expected: string,
+    regionPlan: RegionPlan | null): Promise<StagedVersion> {
     const s = Settings.load(context);
     const overrides = JSON.stringify({ mixedPort: s.mixedPort, logLevel: s.logLevel,
       allowLan: s.allowLan, mode: s.mode, logToFile: s.logToFile });
     const result = await call(context, { op: 'stage', profileId: profileId, original: original,
       overlay: overlay, metadata: metadata, expected: expected, overrides: overrides,
-      smartConversion: s.smartAutoConvert });
+      smartConversion: s.smartAutoConvert, regionPlan: regionPlan });
     const version = result['version'] as EffectiveVersion;
     if (version === undefined) { throw new Error('暂存配置失败'); }
     check(context, version);
     return { version: version, receipt: result['receipt'] as string ?? '' };
+  }
+
+  export async function previewRegion(context: common.Context, original: string,
+    overlay: string, plan: RegionPlan): Promise<RegionPreview> {
+    const result = await call(context, { op: 'region-preview', original: original,
+      overlay: overlay, regionPlan: plan, expected: read(context)?.Current?.ID ?? '' });
+    const preview = result['regionPreview'] as RegionPreview;
+    if (preview === undefined || !Array.isArray(preview.selectors)) {
+      throw new Error('地区策略预览失败');
+    }
+    return preview;
   }
 
   export async function verify(context: common.Context, version: EffectiveVersion,

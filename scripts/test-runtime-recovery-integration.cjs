@@ -33,7 +33,8 @@ function fixture() {
   }, timers);
   const runtime = load('AppRuntime', {
     './VpnController': controller, './Settings': { Settings: { load: () => settings } }, './Logger': logger,
-    './ProfileTransactions': { ProfileTransactions: { ensureActiveSmartPolicy: async () => {} } },
+    './ProfileTransactions': { ProfileTransactions: { ensureActiveSmartPolicy: async () => {},
+      applyPendingRegionSelection: async () => false } },
     './LiveViewKeeper': { LiveViewKeeper: { rebindContext() {}, ensure() {},
       start: async () => { calls.backgroundStart++; return true; }, stop: async () => { calls.backgroundStop++; } } },
     './AutoUpdater': { AutoUpdater: { rebindContext() {}, checkAndRun: async () => {},

@@ -67,6 +67,8 @@ export namespace AppRuntime {
     }
     if (status === VpnStatus.Connected && !servicesStarted) {
       servicesStarted = true;
+      ProfileTransactions.applyPendingRegionSelection(ctx)
+        .catch(() => Logger.warn('runtime', 'explicit region selection pending'));
       LiveViewKeeper.start(ctx).catch(() => Logger.warn('runtime', 'background task start failed'));
       AutoUpdater.start(ctx);
       AutoUpdater.checkAndRun(ctx).catch(() => Logger.warn('runtime', 'subscription check failed'));
