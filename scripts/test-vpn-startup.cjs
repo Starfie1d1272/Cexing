@@ -13,6 +13,8 @@ const failureCode = ts.transpileModule(failureSource, { compilerOptions: {
 const failureModule = { exports: {} };
 vm.runInNewContext(failureCode, failureModule);
 const failures = failureModule.exports.ConnectionFailures;
+const phaseModule = {exports:{}};
+vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(__dirname,'../cexing/entry/src/main/ets/lib/VpnPhases.ets'),'utf8')).outputText,phaseModule);
 const secret = 'https://private.example/token?secret=abc';
 const bounded = failures.classify('core-start', `dial ${secret}: errno=111`);
 const summary = failures.summary('disconnected', 'failed', bounded, '0.1.0+1', true, false);
@@ -63,7 +65,7 @@ async function testClient(mode) {
       stopVpnExtensionAbility: async () => { if (mode === 'stop-failed') throw Error('synthetic stop failure'); } } },
     '@kit.CoreFileKit': { fileIo: { accessSync: () => stopReceipt.length > 0,
       readTextSync: () => stopReceipt } }, './Logger': logger,
-    './ConnectionFailure': failureModule.exports,
+    './ConnectionFailure': failureModule.exports, './VpnPhases': phaseModule.exports,
     './CoreApi': { CoreApi: { bindContext() {} } }, './Settings': { Settings: { load: () => settings, save() {} } },
     './ProfileStore': { ProfileStore: { clearApplyUncertain: () => { cleared++; } } },
     '@kit.IPCKit': { rpc: { MessageSequence: { create: () => ({values:[],writeString(value){this.values.push(value);},reclaim() {} }) }, MessageOption: class {} } }
@@ -158,7 +160,7 @@ async function testExtension(failStop = false, lateCreate = false) {
     '../lib/CoreApi': { CoreApi: { bindContext() {} } },
     '../lib/ZashboardAssets': { ZashboardAssets: { prepare: async () => { prepared++; return { directory: '', error: 'synthetic missing panel' }; } } },
     '../lib/SmartModelAssets': { SmartModelAssets: { prepare: async () => { modelPrepared++; return { state: 'missing', message: 'synthetic model absent' }; } } },
-    '../lib/Logger': logger, '../lib/ConnectionFailure': failureModule.exports,
+    '../lib/Logger': logger, '../lib/VpnPhases': phaseModule.exports, '../lib/ConnectionFailure': failureModule.exports,
     '../lib/ProfileStore': { ProfileStore: { getActiveContent: () => 'proxies: []' } },
     '../lib/EffectiveVersions': { EffectiveVersions: { read: () => {
       if (brokenPointer) throw Error('synthetic invalid effective pointer');
@@ -174,6 +176,10 @@ async function testExtension(failStop = false, lateCreate = false) {
   observed.onRemoteMessageRequest(1, {}, { writeBoolean: value => assert.equal(value, false), writeString() {} }, {});
   assert.equal(destroyCount, 0);
   assert.equal(prepared, 0, 'recovery bind never enters native initialization');
+  let snapshotText;
+  observed.onRemoteMessageRequest(3, {}, {writeString:value=>snapshotText=value}, {});
+  assert.equal(JSON.parse(snapshotText).events.length,0);
+
   let emptyAck;
   const emptyData = ['', 'empty-stop'];
   await observed.onRemoteMessageRequest(2, {readString:()=>emptyData.shift()},
@@ -192,6 +198,15 @@ async function testExtension(failStop = false, lateCreate = false) {
   assert.equal(reportedBooleans[0], false);
   assert.equal(reportedBooleans[1], !lateCreate, 'TUN create is observed separately from core readiness');
   assert.equal(reportedStrings[1], 'fixture-1');
+  remote.onRemoteMessageRequest(3, {}, {writeString:value=>snapshotText=value}, {});
+  const snapshot=JSON.parse(snapshotText);
+  assert.equal(snapshot.session,'fixture-1');
+  if (!lateCreate) {
+    assert.ok(snapshot.events.some(e=>e.stage==='protect'&&e.outcome==='success'));
+    assert.ok(snapshot.events.some(e=>e.stage==='smart_model_prepare'&&e.outcome==='skipped'));
+  }
+  assert.ok(snapshot.events.every(e=>phaseModule.exports.VpnPhases.valid(e)));
+
   extension.onDisconnect();
   await flush();
   assert.equal(destroyCount, 1, 'Stop must remove system VPN while initialization is pending');

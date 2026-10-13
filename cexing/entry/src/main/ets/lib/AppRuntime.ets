@@ -7,6 +7,8 @@ import { Settings } from './Settings';
 import { Logger } from './Logger';
 import { ProfileTransactions } from './ProfileTransactions';
 import { ConnectionCards } from './ConnectionCards';
+import { DiagnosticsService, DiagnosticPhase } from './DiagnosticsService';
+import { VpnPhase } from './VpnPhases';
 
 export namespace AppRuntime {
   let context: common.UIAbilityContext | null = null;
@@ -17,13 +19,32 @@ export namespace AppRuntime {
   let recoveryGeneration: number = -1;
   let healthTimer: number = -1;
   let checking: boolean = false;
+  let contextDestroyed: boolean = false;
+  let diagnosticsObserverOff: (() => void) | null = null;
+  let diagnosticsPhaseOff: (() => void) | null = null;
   let lastStatus: VpnStatus = VpnController.status;
 
   export function initialize(ctx: common.UIAbilityContext, onReady?: () => void): void {
     cancelRestore();
     const generation = restoreGeneration;
     recoveryGeneration = generation;
+    releaseDiagnostics();
     context = ctx;
+    contextDestroyed = false;
+    // Invoke initialization before recovery; evidence I/O never gates VPN control.
+    try { DiagnosticsService.initialize(ctx).catch(() => {}); } catch (_) {}
+    try { diagnosticsObserverOff = DiagnosticsService.observe(ctx); } catch (_) {}
+    diagnosticsPhaseOff = VpnController.onPhase((event: VpnPhase) => {
+      const current = context;
+      if (current !== null) {
+        try {
+          const request: DiagnosticPhase = { operation: event.operation, stage: event.stage,
+            outcome: event.outcome, object: event.object, reason: event.reason, code: event.code,
+            durationMs: event.durationMs };
+          DiagnosticsService.record(current, request).catch(() => {});
+        } catch (_) {}
+      }
+    });
     LiveViewKeeper.rebindContext(ctx);
     AutoUpdater.rebindContext(ctx);
     if (!registered) {
@@ -62,6 +83,12 @@ export namespace AppRuntime {
     }, ctx);
   }
 
+  function releaseDiagnostics(): void {
+    try { diagnosticsObserverOff?.(); } catch (_) {}
+    try { diagnosticsPhaseOff?.(); } catch (_) {}
+    diagnosticsObserverOff = null; diagnosticsPhaseOff = null;
+  }
+
   function sync(status: VpnStatus): void {
     if (status !== lastStatus) {
       if (status !== VpnStatus.Connected || recoveryGeneration !== restoreGeneration) { cancelRestore(); }
@@ -86,6 +113,7 @@ export namespace AppRuntime {
       LiveViewKeeper.stop(ctx).catch(() => Logger.warn('runtime', 'background task stop failed'));
       AutoUpdater.stop();
     }
+    if (contextDestroyed && status === VpnStatus.Disconnected && !VpnController.needsStop()) { releaseDiagnostics(); }
   }
 
   async function checkSession(): Promise<void> {
@@ -110,7 +138,9 @@ export namespace AppRuntime {
   export function abilityDestroyed(ctx: common.UIAbilityContext): void {
     // 旧 Ability 的迟到销毁不能撤销新 Ability 已安排的恢复。
     if (context === ctx) {
+      contextDestroyed = true;
       cancelRestore();
+      if (VpnController.status === VpnStatus.Disconnected && !VpnController.needsStop()) { releaseDiagnostics(); }
     }
   }
 

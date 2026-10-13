@@ -13,6 +13,7 @@ import { rpc } from '@kit.IPCKit';
 import { Settings } from './Settings';
 import { ConnectionFailure, ConnectionFailures } from './ConnectionFailure';
 import { ProfileStore } from './ProfileStore';
+import { VpnPhase, VpnPhaseOutcome, NativeVpnPhases, VpnPhases } from './VpnPhases';
 
 const TAG = 'vpnCtrl';
 const VPN_ABILITY_NAME = 'CexingVpnAbility';
@@ -148,6 +149,101 @@ export namespace VpnController {
   let startAttempt = 0;
   let startSession: string = '';
   let recoveryAttempt = 0;
+  const phaseListeners: ((phase: VpnPhase) => void)[] = [];
+  let nativeSequence: number = 0;
+  let nativeSession: string = '';
+  let nativeRemote: rpc.IRemoteObject | null = null;
+  let diagnosticUnknownObject: string = 'unidentified-vpn-session';
+  let collectingNative: boolean = false;
+  let nativeGapReported: boolean = false;
+
+  export function onPhase(listener: (phase: VpnPhase) => void): () => void {
+    phaseListeners.push(listener);
+    return (): void => {
+      const index = phaseListeners.indexOf(listener);
+      if (index >= 0) { phaseListeners.splice(index, 1); }
+    };
+  }
+
+  function phase(stage: string, outcome: VpnPhaseOutcome, session: string,
+    code: string = '', durationMs: number = 0, reason: string = '', object: string = ''): void {
+    const event: VpnPhase = { operation: 'vpn', stage, outcome,
+      object: object.length > 0 ? object : (session.length > 0 ? `vpn-session:${session}` : diagnosticUnknownObject),
+      code, reason, durationMs: Math.max(0, durationMs) };
+    for (const listener of phaseListeners) { try { listener(event); } catch (_) {} }
+  }
+
+  function nativePhases(remote: rpc.IRemoteObject, session: string, attempt: number,
+    stopSnapshot: boolean = false): (() => void) | null {
+    if (phaseListeners.length === 0) { return null; }
+    const object = session.length > 0 ? `vpn-session:${session}` : diagnosticUnknownObject;
+    if (collectingNative) {
+      if (stopSnapshot) {
+        phase('native_evidence', 'unknown', session, 'NATIVE_STOP_SNAPSHOT_PENDING', 0,
+          'snapshot_missing_at_stop_return', object);
+      }
+      return null;
+    }
+    let finished = false;
+    collectingNative = true;
+    (async (): Promise<void> => {
+      let data: rpc.MessageSequence | null = null;
+      let reply: rpc.MessageSequence | null = null;
+      try {
+        data = rpc.MessageSequence.create();
+        reply = rpc.MessageSequence.create();
+        const result = await remote.sendMessageRequest(3, data, reply, new rpc.MessageOption());
+        if (result.errCode !== 0) { throw new Error('native evidence unavailable'); }
+        const text = result.reply.readString();
+        if (text.length > 16384) { throw new Error('native evidence oversized'); }
+        const snapshot = JSON.parse(text) as NativeVpnPhases;
+        if (attempt !== startAttempt) {
+          phase('native_evidence', 'unknown', session, 'NATIVE_EVIDENCE_SUPERSEDED', 0,
+            'retired_request_not_collected', object);
+          return;
+        }
+        if (snapshot.session !== session || !Array.isArray(snapshot.events)) {
+          phase('native_evidence', 'unknown', session, 'NATIVE_EVIDENCE_SCOPE_MISMATCH', 0,
+            'native_snapshot_not_collected', object);
+          return;
+        }
+        if (nativeSession !== session || (session.length === 0 && nativeRemote !== remote)) { nativeSession = session; nativeRemote = remote; nativeSequence = 0; nativeGapReported = false; }
+        if ((snapshot.dropped > 0 || snapshot.events.length > 32) && !nativeGapReported) {
+          nativeGapReported = true;
+          phase('native_evidence', 'unknown', session, 'NATIVE_EVENTS_TRUNCATED', 0, '', object);
+        }
+        for (const event of snapshot.events.slice(0, 32)) {
+          if (!VpnPhases.valid(event)) {
+            if (!nativeGapReported) { nativeGapReported = true; phase('native_evidence', 'unknown', session, 'NATIVE_EVENT_INVALID', 0, '', object); }
+            continue;
+          }
+          if (event.sequence <= nativeSequence) { continue; }
+          phase(event.stage, event.outcome, session, event.code, event.durationMs, 'extension_event_via_ipc', object);
+          nativeSequence = event.sequence;
+        }
+      } catch (_) {
+        if (attempt !== startAttempt) {
+          phase('native_evidence', 'unknown', session, 'NATIVE_EVIDENCE_SUPERSEDED', 0,
+            'retired_request_not_collected', object);
+        } else if (!nativeGapReported) {
+          nativeGapReported = true;
+          phase('native_evidence', 'unknown', session, 'NATIVE_EVENTS_UNAVAILABLE', 0, '', object);
+        }
+      } finally {
+        try { data?.reclaim(); } catch (_) {}
+        try { reply?.reclaim(); } catch (_) {}
+        collectingNative = false;
+        finished = true;
+      }
+    })();
+    if (!stopSnapshot) { return null; }
+    return (): void => {
+      if (!finished) {
+        phase('native_evidence', 'unknown', session, 'NATIVE_STOP_SNAPSHOT_PENDING', 0,
+          'snapshot_missing_at_stop_return', object);
+      }
+    };
+  }
 
   export function onChanged(cb: StatusListener): void {
     if (listeners.indexOf(cb) < 0) {
@@ -202,10 +298,13 @@ export namespace VpnController {
       return;
     }
     const attempt = ++recoveryAttempt;
+    diagnosticUnknownObject = `vpn-recovery:${Date.now()}:${attempt}`;
+    phase('recovery_probe', 'started', '');
     if (context !== undefined) { CoreApi.bindContext(context); }
     (async (): Promise<void> => {
       const alive = await CoreApi.isAlive();
       if (attempt !== recoveryAttempt) { return; }
+      phase('recovery_probe', alive ? 'success' : 'unknown', '', alive ? '' : 'CONTROLLER_PROBE_UNCONFIRMED');
       let confirmed = false;
       if (alive && context !== undefined) {
         const remote = await bindExistingService(context);
@@ -215,6 +314,7 @@ export namespace VpnController {
             const observation = await readService(remote);
             if (attempt !== recoveryAttempt) { return; }
             startSession = observation.session;
+            nativePhases(remote, observation.session, startAttempt);
             if (observation.ready && observation.tun && observation.session.length > 0) {
               startSession = observation.session;
               tunCreateObserved = true;
@@ -230,6 +330,7 @@ export namespace VpnController {
         if (!confirmed) {
           lastStopCompleted = false;
           recordFailure(ConnectionFailures.classify('service', 'recovery unavailable'));
+          phase('recovery_validation', 'unknown', startSession, 'VPN_SESSION_UNCONFIRMED');
           notifyStatus();
         }
       }
@@ -257,6 +358,7 @@ export namespace VpnController {
     if (recoveryBinding !== null) { return recoveryBinding; }
     const attempt = startAttempt;
     serviceContext = context;
+    phase('recovery_binding', 'started', startSession);
     recoveryBinding = new Promise<rpc.IRemoteObject | null>((resolve) => {
       const timer = setTimeout(() => resolve(null), 5000);
       try {
@@ -268,6 +370,7 @@ export namespace VpnController {
             clearTimeout(timer);
             if (attempt !== startAttempt) { resolve(remote); return; }
             serviceRemote = remote;
+            phase('recovery_binding', 'success', startSession);
             resolve(remote);
           },
           onDisconnect: () => {
@@ -275,12 +378,13 @@ export namespace VpnController {
             serviceLost(attempt);
           },
           onFailed: (_code: number) => {
+            phase('recovery_binding', 'failed', startSession, `${_code}`);
             clearTimeout(timer); resolve(null);
             serviceLost(attempt);
           }
         });
         if (serviceId < 0) { clearTimeout(timer); resolve(null); }
-      } catch (_) { clearTimeout(timer); resolve(null); }
+      } catch (e) { phase('recovery_binding', 'failed', startSession, VpnPhases.code(e, 'SERVICE_BIND_FAILED')); clearTimeout(timer); resolve(null); }
     });
     const binding = recoveryBinding;
     binding.then(() => {
@@ -318,7 +422,7 @@ export namespace VpnController {
         await CoreApi.isAlive();
     } catch (_) {}
     if (attempt !== startAttempt || status !== VpnStatus.Connected || serviceRemote !== remote) { return; }
-    if (!valid) { serviceLost(attempt, false); }
+    if (!valid) { phase('runtime_validation', 'unknown', startSession, 'VPN_SESSION_UNCONFIRMED'); serviceLost(attempt, false); }
   }
 
   /** 使在途冷恢复失效；运行时取消恢复/当前 Ability 销毁可调用，不停止 VPN。 */
@@ -350,6 +454,7 @@ export namespace VpnController {
       return false;
     }
     if (needsStop() || stopPending !== null) {
+      phase('start_precondition', 'skipped', startSession, 'STOP_NOT_CONFIRMED');
       lastStartError = '请先重试断开，确认当前连接已结束';
       notifyStatus();
       return false;
@@ -364,19 +469,26 @@ export namespace VpnController {
     setStatus(VpnStatus.Connecting);
     const attempt = ++startAttempt;
     startSession = `${Date.now()}-${attempt}`;
+    const session = startSession;
+    const authorizationAt = Date.now();
+    nativeSession = session; nativeSequence = 0; nativeGapReported = false;
+    phase('authorization', 'started', session);
     const want: Want = { bundleName: context.applicationInfo.name, abilityName: VPN_ABILITY_NAME };
     Logger.info(TAG, 'startVpnExtensionAbility...');
     try { authorization = vpnExtension.startVpnExtensionAbility(want); }
     catch (e) {
+      phase('authorization', 'failed', session, VpnPhases.code(e, 'AUTHORIZATION_FAILED'), Date.now() - authorizationAt);
       recordFailure(ConnectionFailures.classify('authorization', JSON.stringify(e)));
       setStatus(VpnStatus.Disconnected);
       return false;
     }
     authorization.then(() => {
-      if (attempt !== startAttempt || status !== VpnStatus.Connecting) { return; }
+      if (attempt !== startAttempt || status !== VpnStatus.Connecting) { phase('authorization', 'cancelled', session, 'START_SUPERSEDED'); return; }
+      phase('authorization', 'success', session, '', Date.now() - authorizationAt);
       connectService(context, want);
     }).catch((e: Object) => {
       if (attempt !== startAttempt || status !== VpnStatus.Connecting) { return; }
+      phase('authorization', 'failed', session, VpnPhases.code(e, 'AUTHORIZATION_FAILED'), Date.now() - authorizationAt);
       recordFailure(ConnectionFailures.classify('authorization', JSON.stringify(e)));
       Logger.error(TAG, `startVpnExtensionAbility failed: ${lastStartError}`);
       setStatus(VpnStatus.Disconnected);
@@ -432,12 +544,15 @@ export namespace VpnController {
       parameters: params
     };
     const attempt = startAttempt;
+    const session = startSession;
+    phase('service_binding', 'started', session);
     try {
       serviceContext = context;
       serviceId = context.connectServiceExtensionAbility(connectWant, {
         onConnect: (element, remote: rpc.IRemoteObject) => {
           if (attempt !== startAttempt || status !== VpnStatus.Connecting) { return; }
           serviceRemote = remote;
+          phase('service_binding', 'success', session);
           Logger.info(TAG, 'service connected');
           waitForCore(context, remote, attempt).catch((e: Object) => {
             Logger.error(TAG, `core readiness failed: ${JSON.stringify(e)}`);
@@ -466,6 +581,7 @@ export namespace VpnController {
           }
           serviceId = -1;
           serviceRemote = null;
+          phase('service_binding', 'failed', session, `${code}`);
           Logger.error(TAG, `service connect failed: ${code}`);
           const saved = ConnectionFailures.decode(readLastStartError(context), startSession);
           recordFailure(saved ?? ConnectionFailures.systemCode('service', code));
@@ -473,6 +589,7 @@ export namespace VpnController {
         }
       });
     } catch (e) {
+      phase('service_binding', 'failed', session, VpnPhases.code(e, 'SERVICE_BIND_FAILED'));
       recordFailure(ConnectionFailures.classify('service', JSON.stringify(e)));
       Logger.error(TAG, `connectServiceExtensionAbility failed: ${lastStartError}`);
       setStatus(VpnStatus.Disconnected);
@@ -511,7 +628,9 @@ export namespace VpnController {
       if (status !== VpnStatus.Connecting || attempt !== startAttempt) {
         return;
       }
+      nativePhases(remote, startSession, attempt);
       if (ready) {
+        phase('kernel_readiness', 'success', startSession);
         kernelReadyReported = true;
         lastStartError = '';
         lastStartFailure = null;
@@ -574,6 +693,8 @@ export namespace VpnController {
     const pendingAuthorization = authorization;
     const pendingBinding = recoveryBinding;
     const boundRemote = serviceRemote;
+    const stoppingAt = Date.now();
+    phase('stop', 'started', startSession);
     let connectedService = serviceId >= 0;
     // Only a pre-binding Connecting cancellation proves native startup was never entered.
     // Lost bindings still require system stop and the retained session cleanup receipt.
@@ -602,6 +723,7 @@ export namespace VpnController {
       let extensionCompleted = nativeNotEntered;
       let remote = boundRemote;
       let disconnectedBinding = false;
+      let reportPendingNativeStop: (() => void) | null = null;
       if (remote === null && retryUnknown && serviceId < 0) {
         remote = await bindExistingService(context);
         connectedService = serviceId >= 0;
@@ -618,7 +740,7 @@ export namespace VpnController {
       // The request-scoped IPC ACK covers even an empty recovered session ID.
       // It cannot be replaced by an old file receipt or a late ACK from another stop.
       const cleanup = remote !== null ? boundedCleanup(remote, session, `${Date.now()}-stop-${attempt}`) : null;
-      if (cleanup !== null) { extensionCompleted = await cleanup; }
+      if (cleanup !== null) { extensionCompleted = await cleanup; if (remote !== null) { reportPendingNativeStop = nativePhases(remote, session, attempt, true); } }
       if (connectedService) {
         try { await stoppingContext.disconnectServiceExtensionAbility(stoppingServiceId); disconnectedBinding = true; }
         catch (_) { Logger.error(TAG, 'service disconnect failed'); }
@@ -644,8 +766,10 @@ export namespace VpnController {
       }
       // Retain the unknown result after failure; a released binding is reacquired
       // by an explicit retry. Late cleanup cannot clear this result.
+      reportPendingNativeStop?.();
       const completed = saved && extensionCompleted && systemStopped;
       lastStopCompleted = completed;
+      phase('stop', completed ? 'success' : 'unknown', session, completed ? '' : 'STOP_NOT_CONFIRMED', Date.now() - stoppingAt);
       if (completed || disconnectedBinding) {
         serviceId = -1;
         serviceContext = null;
