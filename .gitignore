@@ -4,6 +4,7 @@ cexing/entry/src/main/resources/rawfile/geodata/
 /reference/
 cexing/entry/src/main/resources/rawfile/zashboard/
 cexing/entry/src/main/resources/rawfile/zashboard-staging/
+cexing/entry/src/main/resources/rawfile/smart/
 core/third_party/
 
 # 私有配置（含节点凭据，永不入库）
@@ -22,6 +23,7 @@ cexing/dist/
 core/core
 .hvigor/
 *.log
+__pycache__/
 
 # 个人研究笔记（私有，不入库）
 RESEARCH.md

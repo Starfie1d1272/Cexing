@@ -56,7 +56,7 @@ export struct SmartPage {
       this.groupSummary = 'Controller 暂不可达';
       this.modelSummary = '尚未检查';
       this.predictions = '尚无模型参与证据';
-      if (!this.busy) { this.message = '连接 VPN 后查看状态或导入模型'; }
+      if (!this.busy) { this.message = '连接 VPN 后查看内置模型状态'; }
     } else {
       this.restartRequired = this.restartRequired || status.model.restartRequired;
       const names = Object.keys(status.groups);
@@ -146,11 +146,11 @@ export struct SmartPage {
           Text(this.message).fontSize(14).fontColor(UI.muted)
         }.padding(20).width('100%').borderRadius(24).backgroundColor(UI.surface)
           .alignItems(HorizontalAlign.Start)
-        Text('在订阅中配置 type: smart，引用至少两个节点并让规则引用该组。无模型可用统计策略。').fontSize(14).fontColor(UI.muted)
-        Button('获取官方模型').width('100%').height(48).backgroundColor(UI.soft).fontColor(UI.accentText)
+        Text('官方离线模型已随安装包提供。Smart 默认仍由当前配置决定；在订阅中配置 type: smart，引用至少两个节点并让规则引用该组。模型不可用时使用统计策略。').fontSize(14).fontColor(UI.muted)
+        Button('查看官方模型来源').width('100%').height(48).backgroundColor(UI.soft).fontColor(UI.accentText)
           .onClick(() => this.openModelSource())
-        Text('下载官方 Model.bin 后导入，应用会校验文件。').fontSize(14).fontColor(UI.muted)
-        Button(this.busy ? '处理中…' : '导入模型').width('100%').height(56)
+        Text('仅在需要手动恢复时导入官方 Model.bin；应用会校验文件。').fontSize(14).fontColor(UI.muted)
+        Button(this.busy ? '处理中…' : '手动导入模型（恢复用）').width('100%').height(56)
           .backgroundColor(UI.action).fontColor(UI.onAccent).enabled(this.ready && !this.busy).onClick(() => this.importModel())
         if (this.restartRequired) {
           Button('重启应用使模型生效').width('100%').height(56).enabled(!this.busy)

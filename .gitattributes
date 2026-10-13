@@ -1,0 +1,2 @@
+# Unified diffs require a leading context marker before tabs and blank lines.
+core/patches/*.patch whitespace=-blank-at-eol,-space-before-tab
