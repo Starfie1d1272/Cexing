@@ -10,13 +10,15 @@ source = source.slice(0, source.indexOf('  @Builder')) + '\n}';
 source = source.split('\n').map(line => line.trimStart().startsWith('@') ?
   line.replace(/@\w+(?:\([^\n)]*\))?\s*/g, '') : line).join('\n')
   .replace(/export struct /g, 'export class ');
-const timers = new Map(), drafts = new Map(), writes = [], edits = [], copies = [], toasts = [];
+const timers = new Map(), drafts = new Map(), merges = new Map(), writes = [], edits = [], copies = [], toasts = [];
 const original = '# 注释 😀\r\nproxies: []\r\nrules: [MATCH,DIRECT]\r\n\r\n';
 const originals = new Map([['first.yaml', original], ['next.yaml', 'next']]);
 let timerID = 0, failWrite = false, failClear = false, failEdit = false, finishEdit;
 const store = {
   getProfileContent: (_, file) => originals.get(file) ?? null,
-  getMergeDraft: () => '', readDraft: (_, file) => drafts.get(file) ?? null,
+  getMergeDraft: (_, file) => merges.get(file) ?? '',
+  saveMergeDraft: (_, file, text) => { if (failWrite) throw Error('disk full'); merges.set(file, text); },
+  readDraft: (_, file) => drafts.get(file) ?? null,
   writeDraft: (_, file, text) => {
     if (failWrite) throw Error('disk full');
     writes.push({ file, text }); drafts.set(file, text);
@@ -97,6 +99,44 @@ function idle() { const pending = [...timers.values()]; timers.clear(); pending.
   restored.onTextChanged('keep me'); failClear = true; restored.discardDraft(); idle();
   assert.equal(restored.editedText, 'keep me'); assert.equal(drafts.get('first.yaml'), 'keep me');
   failClear = false;
+  const merge = open(); merge.mergeOnly = true;
+  let pops = 0, replaced = '';
+  merge.navStack = { pop: () => pops++, replacePath: value => { replaced = value.name; } };
+  merge.mergeText = 'hosts: {synthetic: 192.0.2.1}\n';
+  merge.closeMerge(); assert.equal(pops, 1);
+  merge.aboutToDisappear();
+  const reopenMerge = open(); assert.equal(reopenMerge.mergeText, merge.mergeText,
+    'closing without preview preserves exact scoped override draft');
+  reopenMerge.mergeText = '# back gesture draft\n'; reopenMerge.aboutToDisappear();
+  assert.equal(open().mergeText, '# back gesture draft\n', 'navigation back also preserves override text');
+  merges.set('first.yaml', 'keep override');
+  const dirtyMerge = open(); dirtyMerge.mergeOnly = true;
+  dirtyMerge.navStack = merge.navStack;
+  dirtyMerge.onTextChanged('uncommitted original'); dirtyMerge.flushDraft();
+  dirtyMerge.mergeText = 'keep changed override';
+  dirtyMerge.openOriginalDraft();
+  assert.equal(replaced, 'profileEdit', 'dirty original has an actionable raw-editor route');
+  assert.equal(drafts.get('first.yaml'), 'uncommitted original', 'opening original must preserve its draft');
+  assert.equal(merges.get('first.yaml'), 'keep changed override');
+  const recoveredRaw = open(); assert.equal(recoveredRaw.dirty, true);
+  assert.equal(recoveredRaw.editedText, 'uncommitted original');
+  failWrite = true; dirtyMerge.mergeText = 'retry override';
+  dirtyMerge.closeMerge(); assert.equal(pops, 1, 'failed save keeps the explicit close action on page');
+  assert.equal(merges.get('first.yaml'), 'keep changed override'); failWrite = false;
+  merges.set('first.yaml', 'previous override');
+  const systemBack = open(); systemBack.mergeOnly = true;
+  systemBack.mergeText = 'unsaved override after system back';
+  failWrite = true;
+  assert.equal(ProfileEditBus.shouldBlockBack(), true, 'production back guard blocks exit when either draft cannot be saved');
+  assert.equal(systemBack.mergeText, 'unsaved override after system back');
+  assert.equal(merges.get('first.yaml'), 'previous override');
+  failWrite = false;
+  assert.equal(ProfileEditBus.shouldBlockBack(), false, 'retrying system back after recovery persists the draft before exit');
+  systemBack.aboutToDisappear();
+  assert.equal(open().mergeText, 'unsaved override after system back');
+  const routeSource = fs.readFileSync(path.join(__dirname, '../cexing/entry/src/main/ets/pages/Index.ets'), 'utf8');
+  assert.equal((routeSource.match(/onBackPressed\(\(\) => ProfileEditBus\.shouldBlockBack\(\)\)/g) || []).length, 2,
+    'raw and direct merge NavDestinations both use the production return guard');
   const missing = open('missing.yaml'); await missing.save(); assert.equal(missing.loadFailed, true);
   console.log('PASS: large-text write coalescing, stable reactive seed, exact draft/save/copy, navigation flush, discard, recovery and save races');
 })().catch(error => { console.error(error); process.exitCode = 1; });
