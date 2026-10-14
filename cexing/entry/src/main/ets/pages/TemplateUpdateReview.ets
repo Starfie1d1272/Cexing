@@ -42,6 +42,8 @@ export struct TemplateUpdateReview {
   build() {
     Column({ space: 12 }) {
       Text('更新分流方案').fontSize(22).fontWeight(FontWeight.Bold).fontColor(UI.ink)
+      Scroll() {
+      Column({ space: 12 }) {
       if (this.ready) { Text('待应用').fontSize(14).fontColor(UI.muted) }
       if (this.summary.length > 0) { Text(this.summary).fontSize(14).fontColor(UI.muted) }
       ForEach(this.conflicts, (conflict: TemplateConflict) => {
@@ -56,7 +58,8 @@ export struct TemplateUpdateReview {
         }.width('100%')
       }, (conflict: TemplateConflict) => conflict.id)
       if (this.message.length > 0) { Text(this.message).fontSize(14).fontColor(UI.muted) }
-      Blank()
+      }.width('100%')
+      }.width('100%').layoutWeight(1)
       Row({ space: 8 }) {
         Button('返回').layoutWeight(1).backgroundColor(UI.soft).fontColor(UI.ink).onClick(() => this.close())
         Button('重新预览').layoutWeight(1).backgroundColor(UI.soft).fontColor(UI.ink)

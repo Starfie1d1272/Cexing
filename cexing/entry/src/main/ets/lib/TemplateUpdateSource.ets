@@ -33,6 +33,15 @@ export function createTemplateUpdateSource(context: common.Context, profileId: s
     return reply;
   };
   return {
+    available: (templateId: string, target: string): boolean => {
+      try {
+        const version = EffectiveVersions.read(context)?.Profiles[profileId];
+        const saved = version !== undefined ? EffectiveVersions.editIntent(context, version) : null;
+        const plan = saved?.template;
+        return saved?.disabled !== true && plan !== undefined && plan.templateId !== 'original' &&
+          plan.templateId === templateId && (plan.region?.selector ?? plan.targetGroup ?? '') === target;
+      } catch (_) { return false; }
+    },
     read: async (session: EditorDraftSession): Promise<TemplateUpdateRequest> => {
       const epoch = ++generation;
       captured = null; stamp = ''; revision = '';
