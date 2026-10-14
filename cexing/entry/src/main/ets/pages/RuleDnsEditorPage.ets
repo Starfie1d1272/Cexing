@@ -198,7 +198,10 @@ export struct RuleDnsEditorPage {
       const sections = result.changes.map((change) => change.section).filter((name: string) => ['rules', 'rule-providers', 'dns', 'hosts'].includes(name));
       const labels = sections.map((name: string) => name === 'rules' ? '规则' : name === 'rule-providers' ? '规则源' : name === 'dns' ? 'DNS' : 'hosts');
       this.message = labels.length > 0 ? `${labels.join(' / ')} 已校验` : result.changes.length > 0 ? '变更已校验' : '没有变更';
-    } catch (_) { if (this.current(epoch)) { this.message = '变更未通过校验，可修改或撤销'; } }
+    } catch (error) { if (this.current(epoch)) {
+      const message = (error as Error).message;
+      this.message = /未确认|恢复|变化|正在进行|不存在/.test(message) ? message : '变更未通过校验，可修改或撤销';
+    } }
     finally { if (this.current(epoch)) { this.busy = false; } }
   }
   private edit(operation: EditOperation): void {
@@ -224,7 +227,7 @@ export struct RuleDnsEditorPage {
       if (!this.current(epoch)) { return; }
       this.message = state === 'applied' ? '已应用' : '已保存'; this.previewReady = false;
       this.ticket = ProfileTransactions.editTicket(getContext(this) as common.UIAbilityContext, this.file);
-    } catch (error) { if (this.current(epoch)) { this.message = (error as Error).message; } }
+    } catch (error) { if (this.current(epoch)) { this.previewReady = false; this.message = (error as Error).message; } }
     finally { if (this.current(epoch)) { this.busy = false; } }
   }
   private move(from: number, to: number): void {
