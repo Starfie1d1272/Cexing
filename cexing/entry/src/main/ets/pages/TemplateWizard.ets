@@ -21,7 +21,7 @@ export struct TemplateWizard {
 
   aboutToAppear(): void {
     this.visible = true; this.confirmationGeneration++; this.confirming = false;
-    const host = this.host ?? (this.editor !== undefined && this.profileId.length > 0 ?
+    const host = this.host ?? (this.profileId.length > 0 ?
       createTemplateWizardHost(getContext(this) as common.UIAbilityContext, this.profileId, this.editor) : undefined);
     if (host === undefined) { return; }
     this.model = new TemplateWizardModel(host, () => {

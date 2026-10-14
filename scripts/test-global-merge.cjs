@@ -7,9 +7,10 @@ const base = path.join(__dirname, '../cexing/entry/src/main/ets');
 const data = new Map(), calls = [], applied = [], toasts = [];
 const ctx = { filesDir: '/private' };
 let state = { Current: null, Previous: null, Profiles: {} }, id = 0;
+let draftId = 0, holdEditCheck = false, finishEditCheck;
 let response = 'applied', uncertain = false, failCommit = false, failDraft = false, failRead = false;
 const status = { Disconnected: 0, Connected: 2 };
-const controller = { status: status.Disconnected };
+const controller = { status: status.Disconnected, holdConfiguration: () => () => {}, configurationEpoch: () => 0 };
 const io = { accessSync: p => data.has(p), readTextSync: p => {
   if (failRead) throw Error('read failure'); return data.get(p);
 }, OpenMode: { READ_WRITE: 2, CREATE: 64, TRUNC: 512 }, openSync: p => ({ fd: p }),
@@ -22,6 +23,7 @@ const core = { versionAction: async (_, input) => {
   const a = JSON.parse(input); calls.push(a);
   assert.equal(a.expected, state.Current?.ID ?? '');
   const global = a.updateGlobal ? a.globalMerge : state.GlobalMerge ?? '';
+  if (a.op === 'edit-check') { if (holdEditCheck) await new Promise(resolve => { finishEditCheck = resolve; }); return '{}'; }
   if (a.op === 'stage') {
     if (global === 'invalid') throw Error('VERSION_COMPILE_FAILED');
     const version = { ID: `version-${++id}`, Path: `/private/profile-versions/version-${id}/config.yaml`, ProfileID: a.profileId };
@@ -29,7 +31,7 @@ const core = { versionAction: async (_, input) => {
     data.set(version.Path.replace('config.yaml', 'original.yaml'), a.original);
     if (a.overlay) data.set(version.Path.replace('config.yaml', 'overlay.yaml'), a.overlay);
     data.set(version.Path.replace('config.yaml', 'source.json'), JSON.stringify({
-      GlobalMerge: global, SmartConversion: a.smartConversion, RegionPlan: a.regionPlan }));
+      GlobalMerge: global, SmartConversion: a.smartConversion, RegionPlan: a.regionPlan, EditIntent: a.editIntent }));
     return JSON.stringify({ version, receipt: 'receipt' });
   }
   if (a.op === 'verify') { assert.equal(source({Path:`/private/profile-versions/${a.versionId}/config.yaml`}).GlobalMerge, global); return '{"receipt":"receipt"}'; }
@@ -47,8 +49,8 @@ const core = { versionAction: async (_, input) => {
   throw Error(a.op);
 } };
 let smart = false;
-const settings = { load: () => ({ smartAutoConvert: smart, allowLan: false }), setSmartAutoConvert: (_, value) => smart = value };
-const modules = { '@kit.CoreFileKit': { fileIo: io }, 'libentry.so': core,
+const settings = { idle: async () => {}, load: () => ({ smartAutoConvert: smart, allowLan: false }), setSmartAutoConvert: (_, value) => smart = value };
+const modules = { '@kit.ArkTS': { util: { generateRandomUUID: () => `draft-${++draftId}` } }, '@kit.CoreFileKit': { fileIo: io }, 'libentry.so': core,
   './Settings': { Settings: settings }, './NativeTheme': {},
   '@kit.ArkUI': { promptAction: { showToast: v => toasts.push(v.message) } } };
 function compile(file, page = false) {
@@ -64,7 +66,15 @@ modules['./EffectiveVersions'] = modules['../lib/EffectiveVersions'] = { Effecti
 const original = '# untouched 😀\r\nproxies: []\r\nrules: [MATCH,DIRECT]\r\n  \r\n';
 const local = 'rules: [MATCH,DIRECT]\n';
 const originals = new Map([['one.yaml', original], ['two.yaml', original]]), locals = new Map([['one.yaml', local]]);
-const store = { isApplyUncertain: () => uncertain, markApplyUncertain: () => uncertain = true,
+const editDrafts = new Map();
+const store = { updateState: (_, file) => ({ id: file }),
+  readEditDraft: (_, file) => editDrafts.get(file) ?? { revision: '', intent: null },
+  saveEditDraft: (_, file, draft, expected) => {
+    assert.equal((editDrafts.get(file)?.revision ?? ''), expected);
+    if (failDraft) throw Error('disk full');
+    editDrafts.set(file, draft);
+  },
+  isApplyUncertain: () => uncertain, markApplyUncertain: () => uncertain = true,
   getActiveFile: () => state.Current?.ProfileID ?? '', getMeta: () => ({}),
   getProfileContent: (_, file) => originals.get(file) ?? null,
   getActiveContent: () => data.get(state.Current.Path), prepareContent: text => text,
@@ -73,7 +83,7 @@ const store = { isApplyUncertain: () => uncertain, markApplyUncertain: () => unc
 modules['./ProfileStore'] = { ProfileStore: store };
 modules['./CoreValidator'] = { CoreValidator: { prepareResources: async () => {} } };
 modules['./VpnController'] = { VpnController: controller, VpnStatus: status };
-modules['./CoreApi'] = { CoreApi: { isAlive: async () => true,
+modules['./CoreApi'] = { CoreApi: { isAlive: async () => true, getControllerSession: async () => 'synthetic-session',
   applyConfigText: async text => { applied.push(text); return response; } } };
 const tx = compile('lib/ProfileTransactions.ets').ProfileTransactions;
 modules['../lib/ProfileTransactions'] = { ProfileTransactions: tx };
@@ -140,10 +150,45 @@ const Editor = compile('pages/GlobalMergeEditor.ets', true).GlobalMergeEditor;
   failRead = true; const brokenEditor = new Editor(); brokenEditor.aboutToAppear();
   assert.equal(brokenEditor.loadFailed, true); brokenEditor.changeText('do not overwrite');
   assert.equal(brokenEditor.saveDraft(), false); failRead = false; assert.equal(draft.read(ctx), '');
+  controller.status = status.Connected;
+  const editFile = state.Current.ProfileID;
+  let ticket = tx.editTicket(ctx, editFile);
+  const candidateIntent = { schemaVersion: 1, revision: 'from-ui', sourceRevision: 'private-source', operations: [] };
+  holdEditCheck = true;
+  const delayedSave = tx.saveEditDraft(ctx, ticket, candidateIntent);
+  await new Promise(resolve => setImmediate(resolve));
+  await assert.rejects(tx.saveEditDraft(ctx, ticket, candidateIntent), /正在进行/);
+  editDrafts.set(editFile, { revision: 'external-new', intent: null });
+  finishEditCheck(); await assert.rejects(delayedSave, /已变化/);
+  assert.equal(editDrafts.get(editFile).revision, 'external-new');
+  holdEditCheck = false; editDrafts.delete(editFile); ticket = tx.editTicket(ctx, editFile);
+  const editRevision = await tx.saveEditDraft(ctx, ticket, candidateIntent);
+  assert.notEqual(editRevision, candidateIntent.revision, 'host owns the new draft revision');
+  assert.equal(versions.editIntent(ctx, state.Current), null, 'draft save is inert');
+  await assert.rejects(tx.saveEditDraft(ctx, ticket, candidateIntent), /已变化/);
+  const applyTicket = tx.editTicket(ctx, editFile);
+  response = 'rejected';
+  const oldEditVersion = state.Current.ID;
+  await assert.rejects(tx.applyEditDraft(ctx, applyTicket), /拒绝/);
+  assert.equal(state.Current.ID, oldEditVersion);
+  response = 'applied';
+  await assert.rejects(tx.applyEditDraft(ctx, applyTicket, 'changed-preview'), /预览已变化/);
+  assert.equal(state.Current.ID, oldEditVersion, 'digest mismatch cannot publish');
+  await tx.applyEditDraft(ctx, applyTicket);
+  assert.equal(versions.editIntent(ctx, state.Current).revision, editRevision);
+  await tx.update(ctx, editFile);
+  assert.equal(versions.editIntent(ctx, state.Current).revision, editRevision, 'subscription update reapplies successful intent');
+  await tx.activate(ctx, editFile);
+  assert.equal(versions.editIntent(ctx, state.Current).revision, editRevision, 'switch/reconnect generation preserves successful intent');
+  failDraft = true;
+  const failedDraftTicket = tx.editTicket(ctx, editFile);
+  await assert.rejects(tx.saveEditDraft(ctx, failedDraftTicket, candidateIntent), /disk full/);
+  assert.equal(store.readEditDraft(ctx, editFile).revision, editRevision);
+  failDraft = false;
   controller.status = status.Connected; response = 'unknown';
   const beforeUnknown = JSON.stringify(state);
-  await assert.rejects(tx.applyGlobalMerge(ctx, 'unknown'), /未知/);
-  assert.equal(JSON.stringify(state), beforeUnknown); await assert.rejects(tx.activate(ctx, 'two.yaml'), /断开/);
+  await assert.rejects(tx.applyGlobalMerge(ctx, 'unknown'), /应用未确认/);
+  assert.equal(JSON.stringify(state), beforeUnknown); await assert.rejects(tx.activate(ctx, 'two.yaml'), /重连恢复/);
   assert.equal(data.get(prior.Path), priorBytes); assert.equal(originals.get('one.yaml'), original);
   const pageSource = fs.readFileSync(path.join(base, 'pages/ProfilePage.ets'), 'utf8');
   const closeBody = pageSource.match(/GlobalMergeEditor\(\{ onClose: \(\) => \{([^}]*)\}/)[1];
