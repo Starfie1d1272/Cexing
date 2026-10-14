@@ -1,5 +1,5 @@
 import { common } from '@kit.AbilityKit';
-import { preferences } from '@kit.ArkData';
+import { Settings } from './Settings';
 import { AppRuntime } from './AppRuntime';
 import { VpnController, VpnStatus } from './VpnController';
 import { AutoUpdater } from './AutoUpdater';
@@ -55,9 +55,9 @@ export namespace SmartModelRestart {
       try {
         // 应用重启前单独等待本次会话标记落盘。
         // 不改变用户的自动恢复或其他偏好，也覆盖原本已断开的情况。
-        const store = preferences.getPreferencesSync(context, { name: 'clashoh_settings' });
-        store.putSync('vpnWasConnected', false);
-        await store.flush();
+        const settings = Settings.load(context);
+        settings.vpnWasConnected = false;
+        await Settings.save(context, settings, ['vpnWasConnected']);
       } catch (e) {
         throw new Error('保存断开状态失败，请重试模型重启');
       }

@@ -50,7 +50,7 @@ func coreVersionAction(home, input string) string {
 		return coreDiagnosticAction(home, input)
 	}
 	var action versionAction
-	if len(input) > maxConfigBytes*4 || json.Unmarshal([]byte(input), &action) != nil ||
+	if len(input) > maxConfigBytes*6+2*1024*1024 || json.Unmarshal([]byte(input), &action) != nil ||
 		home == "" || !filepath.IsAbs(home) {
 		return `{"error":"VERSION_INVALID"}`
 	}
