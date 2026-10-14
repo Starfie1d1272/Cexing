@@ -21,6 +21,19 @@ export class ProfileProxyEditorModel {
 
   constructor(context: common.Context, file: string) { this.context = context; this.file = file; }
   cancel(): void { this.generation++; }
+  profileVersion(): string { return this.ticket?.profileVersion ?? ''; }
+  publishedProviderName(target: EditTarget): string {
+    const version = EffectiveVersions.read(this.context)?.Profiles[this.file];
+    const intent = version === undefined ? null : EffectiveVersions.editIntent(this.context, version);
+    let name = target.name ?? '';
+    if (intent === null || intent.disabled === true) { return name; }
+    for (const op of intent.operations) {
+      if (op.section !== 'proxy-providers' || op.target !== target.item.id) { continue; }
+      if (op.kind === 'delete') { return ''; }
+      if (op.kind === 'rename') { name = op.name ?? name; }
+    }
+    return name;
+  }
 
   private check(ticket: EditTicket): void {
     if (JSON.stringify(ProfileTransactions.editTicket(this.context, this.file)) !== JSON.stringify(ticket)) {

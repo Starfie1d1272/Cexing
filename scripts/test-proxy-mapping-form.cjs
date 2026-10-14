@@ -51,6 +51,7 @@ vm.runInNewContext(ts.transpileModule(pageSource).outputText, sandbox);
   const page = new sandbox.exports.ProxyMappingFormPage(); page.target = node; page.aboutToAppear();
   let calls = 0, rejectPreview;
   page.onDraft = () => { calls++; return new Promise((_, reject) => { rejectPreview = reject; }); };
+  page.busy = true; await page.submit(); assert.equal(calls, 0, 'provider status activity blocks overlapping form submission'); page.busy = false;
   const first = page.submit(); await page.submit(); assert.equal(calls, 1);
   page.aboutToDisappear(); rejectPreview(Error('late error')); await first;
   assert.equal(page.error, '', 'late preview cannot change a hidden form');

@@ -5,6 +5,7 @@ const vm = require('node:vm');
 const ts = require('./ci/transpile-arkts.cjs');
 let ticket = { file: 'synthetic.yaml', profileIdentity: 'identity', profileVersion: 'profile-v1',
   activeVersion: 'active-v1', activeFile: 'synthetic.yaml', draftRevision: '' };
+let publishedIntent = null;
 let draft = { intent: null }, saveCalls = 0, applyCalls = 0, revision = 0;
 let read = async () => ({ sourceRevision: 'source-v1', sections: [] });
 let target = async () => ({ item: { id: 'target' }, value: { password: 'synthetic-private' } });
@@ -21,7 +22,7 @@ const modules = {
   './ProfileTransactions': { ProfileTransactions: { editTicket: () => ({ ...ticket }),
     saveEditDraft: (...args) => { saveCalls++; return save(...args); },
     previewEditDraft: (...args) => preview(...args), applyEditDraft: (...args) => { applyCalls++; return apply(...args); } } },
-  './EffectiveVersions': { EffectiveVersions: { read: () => ({ Profiles: {} }) } }
+  './EffectiveVersions': { EffectiveVersions: { read: () => ({ Profiles: { 'synthetic.yaml': {} } }), editIntent: () => publishedIntent } }
 };
 const sandbox = { exports: {}, require: name => { assert.ok(name in modules, name); return modules[name]; } };
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('cexing/entry/src/main/ets/lib/ProfileProxyEditorModel.ets', 'utf8')).outputText, sandbox);
@@ -35,6 +36,11 @@ const Model = sandbox.exports.ProfileProxyEditorModel;
   read = async () => ({ sourceRevision: 'source-v2', sections: [] });
   const model = new Model({}, ticket.file); await model.load();
   assert.equal(await model.apply(), null, 'application requires a confirmed preview');
+  publishedIntent = { operations: [{ section: 'proxy-providers', target: 'source-id', kind: 'rename', name: 'applied-name' }] };
+  assert.equal(model.publishedProviderName({ item: { id: 'source-id' }, name: 'original-name' }), 'applied-name');
+  model.intent = { operations: [{ section: 'proxy-providers', target: 'source-id', kind: 'rename', name: 'unapplied-name' }] };
+  assert.equal(model.publishedProviderName({ item: { id: 'source-id' }, name: 'original-name' }), 'applied-name', 'runtime provider lookup follows published provenance, never an unapplied rename');
+  model.intent = null; publishedIntent = null;
   let finishTarget;
   target = () => new Promise(resolve => { finishTarget = resolve; });
   const editing = model.target('proxies', 'target'); model.cancel();

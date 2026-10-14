@@ -7,6 +7,7 @@ import { ProfileProxyEditorModel } from '../lib/ProfileProxyEditorModel';
 import { ProxyIntentEdits } from '../lib/ProxyIntentEdits';
 import { ProxyMappingDraft } from '../lib/ProxyMappingForm';
 import { ProxyMappingFormPage } from './ProxyMappingFormPage';
+import { ProxyProviderStatus } from '../lib/ProxyProviderStatus';
 
 export class ProfileProxyEditorBus { static file: string = ''; }
 
@@ -36,6 +37,8 @@ export struct ProfileProxyEditorPage {
   @State previewReady: boolean = false;
   @State disabled: boolean = false;
   @State previewText: string = '';
+  @State providerState: string = '';
+  private file: string = '';
   private model: ProfileProxyEditorModel | null = null;
   private originalTarget: EditTarget | null = null;
   private selectedAdd: string = '';
@@ -45,7 +48,8 @@ export struct ProfileProxyEditorPage {
   private active: boolean = false;
 
   aboutToAppear(): void {
-    this.model = new ProfileProxyEditorModel(getContext(this) as common.UIAbilityContext, ProfileProxyEditorBus.file);
+    this.file = ProfileProxyEditorBus.file;
+    this.model = new ProfileProxyEditorModel(getContext(this) as common.UIAbilityContext, this.file);
     this.active = this.visible;
     if (this.active) { this.load(); }
   }
@@ -119,7 +123,7 @@ export struct ProfileProxyEditorPage {
 
   private async open(row: ProxyEditorRow): Promise<void> {
     if (this.busy || this.model === null) { return; }
-    const epoch = ++this.epoch; this.busy = true;
+    const epoch = ++this.epoch; this.busy = true; this.providerState = '';
     try {
       const intent = this.model.workingIntent();
       if (row.added) {
@@ -136,6 +140,25 @@ export struct ProfileProxyEditorPage {
       }
       if (this.current(epoch)) { this.formOpen = true; this.error = ''; }
     } catch (_) { if (this.current(epoch)) { this.error = '项目读取失败，请重试'; } }
+    finally { if (this.current(epoch)) { this.busy = false; } }
+  }
+
+  private async provider(update: boolean): Promise<void> {
+    if (this.busy || this.model === null || this.originalTarget === null || this.section !== 'proxy-providers') { return; }
+    const epoch = ++this.epoch; this.busy = true;
+    try {
+      const name = this.model.publishedProviderName(this.originalTarget);
+      if (name === '') { this.error = '此来源尚未应用'; return; }
+      const observation = await ProxyProviderStatus.observe(getContext(this) as common.UIAbilityContext,
+        this.file, this.model.profileVersion(), name, update);
+      if (!this.current(epoch)) { return; }
+      this.providerState = observation.available ? `已加载 ${observation.count} 个节点` +
+        (observation.updatedAt > 0 ? ` · ${new Date(observation.updatedAt).toLocaleString()}` : '') : '';
+      this.error = observation.error;
+      if (observation.refreshed && observation.available) {
+        promptAction.showToast({ message: '来源已更新', duration: 1800 });
+      }
+    } catch (_) { if (this.current(epoch)) { this.error = '来源状态读取失败，请重试'; } }
     finally { if (this.current(epoch)) { this.busy = false; } }
   }
 
@@ -246,8 +269,15 @@ export struct ProfileProxyEditorPage {
   build() {
     Column({ space: 12 }) {
       if (this.formOpen) {
-        ProxyMappingFormPage({ section: this.section, target: this.formTarget, names: this.names, providerNames: this.providers,
-          onDraft: (draft: ProxyMappingDraft) => this.saveForm(draft), onCancel: () => { this.epoch++; this.model?.cancel(); this.formOpen = false; this.busy = false; } })
+        if (this.section === 'proxy-providers' && this.originalTarget !== null) {
+          Row({ space: 8 }) {
+            Button('查看状态').enabled(!this.busy).onClick(() => { this.provider(false); })
+            Button('更新来源').enabled(!this.busy).onClick(() => { this.provider(true); })
+          }
+          if (this.providerState !== '') { Text(this.providerState).fontSize(13).fontColor(UI.muted).width('100%') }
+        }
+        ProxyMappingFormPage({ busy: this.busy, section: this.section, target: this.formTarget, names: this.names, providerNames: this.providers,
+          onDraft: (draft: ProxyMappingDraft) => this.saveForm(draft), onCancel: () => { this.epoch++; this.model?.cancel(); this.formOpen = false; this.busy = false; } }).layoutWeight(1)
       } else {
         Row({ space: 8 }) {
           Button('节点').onClick(() => { this.section = 'proxies'; this.sync(); })

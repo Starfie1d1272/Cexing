@@ -11,6 +11,7 @@ class ProxyFormOption {
 @Component
 export struct ProxyMappingFormPage {
   @Prop section: string = 'proxies';
+  @Prop busy: boolean = false;
   @Prop target: EditTarget | null = null;
   @Prop names: string[] = [];
   @Prop providerNames: string[] = [];
@@ -57,7 +58,7 @@ export struct ProxyMappingFormPage {
   }
 
   private async submit(): Promise<void> {
-    if (this.submitting) { return; }
+    if (this.submitting || this.busy) { return; }
     const request = this.generation;
     this.submitting = true;
     try {
@@ -198,13 +199,13 @@ export struct ProxyMappingFormPage {
             })
           }
         }.width('100%')
-      }.width('100%').layoutWeight(1)
+      }.width('100%').layoutWeight(1).enabled(!this.submitting && !this.busy)
       if (this.error.length > 0) { Text(this.error).fontSize(14).fontColor(UI.error).width('100%') }
       Row({ space: 12 }) {
         Button('取消').layoutWeight(1).height(48).backgroundColor(UI.soft).fontColor(UI.ink)
           .onClick(() => { this.onCancel(); })
         Button('预览').layoutWeight(1).height(48).backgroundColor(UI.action).fontColor(UI.onAccent)
-          .enabled(!this.submitting).onClick(() => { this.submit(); })
+          .enabled(!this.submitting && !this.busy).onClick(() => { this.submit(); })
       }.width('100%')
     }.width('100%').height('100%').padding(16).backgroundColor(UI.paper)
   }
