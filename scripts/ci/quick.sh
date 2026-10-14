@@ -5,6 +5,7 @@ cd "$(dirname "$0")/../.."
 python3 scripts/test-zashboard-cache.py
 python3 scripts/test-zashboard-prepare.py
 python3 scripts/test-hap-clean.py
+python3 scripts/ci/test-private-stderr.py
 node scripts/ci/source-check.cjs
 python3 scripts/ci/abi_contract.py
 while IFS= read -r script; do bash -n "$script"; done < <(git ls-files 'scripts/*.sh' 'scripts/ci/*.sh')
