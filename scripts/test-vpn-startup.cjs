@@ -40,7 +40,7 @@ function load(relative, modules, timers = [], clock = Date) {
   vm.runInNewContext(output, context);
   return context.exports;
 }
-async function testClient(mode) {
+async function testClient(mode, accessMode = 'all', accessList = [], ipv6 = false) {
   let cleared = 0;
   let callbacks;
   let session = '';
@@ -49,10 +49,22 @@ async function testClient(mode) {
   let ready = false;
   let error = '';
   const timers = [];
-  const settings = { accessMode: 'all', accessList: [], ipv6: false, vpnWasConnected: false };
+  const settings = { accessMode, accessList, ipv6, vpnWasConnected: false };
   const context = {
     filesDir: '/private', applicationInfo: { name: 'test.bundle' },
     connectServiceExtensionAbility: (want, value) => {
+      const config = want.parameters.VPN_CONFIG;
+      assert.equal(config.isIPv6Accepted,ipv6);
+      assert.equal(config.addresses.length,ipv6 ? 2 : 1);
+      assert.equal(config.routes.some(r=>r.destination.address.family===2),ipv6);
+      if (ipv6) {
+        assert.equal(config.addresses[1].address.address,'fdfe:dcba:9876::1');
+        assert.equal(config.addresses[1].prefixLength,126);
+        assert.ok(config.dnsAddresses.includes('fdfe:dcba:9876::2'));
+      }
+      assert.ok(!(config.trustedApplications && config.blockedApplications), 'SDK application fields must be exclusive');
+      if (accessMode === 'white') assert.deepEqual(Array.from(config.trustedApplications), ['sample.app']);
+      else assert.ok(config.blockedApplications.includes('test.bundle'), 'host remains excluded');
       callbacks = value; session = want.parameters.SESSION_ID; activeSession = session; return mode === 'zero' ? 0 : 1;
     },
     disconnectServiceExtensionAbility: async () => {
@@ -66,7 +78,7 @@ async function testClient(mode) {
     '@kit.CoreFileKit': { fileIo: { accessSync: () => stopReceipt.length > 0,
       readTextSync: () => stopReceipt } }, './Logger': logger,
     './ConnectionFailure': failureModule.exports, './VpnPhases': phaseModule.exports,
-    './CoreApi': { CoreApi: { bindContext() {} } }, './Settings': { Settings: { isLanPersistenceUncertain: () => false, load: () => settings, save() {} } },
+    './CoreApi': { CoreApi: { bindContext() {} } }, './Settings': { Settings: { isLanPersistenceUncertain: () => false, idle: async () => {}, load: () => settings, save() {} } },
     './ProfileStore': { ProfileStore: { clearApplyUncertain: () => { cleared++; } } },
     '@kit.IPCKit': { rpc: { MessageSequence: { create: () => ({values:[],writeString(value){this.values.push(value);},reclaim() {} }) }, MessageOption: class {} } }
   };
@@ -136,7 +148,7 @@ async function testClient(mode) {
   }
   assert.equal(notifications, 1, 'Detached page must not receive late status changes');
 }
-async function testExtension(failStop = false, lateCreate = false) {
+async function testExtension(failStop = false, lateCreate = false, protection = 'ok') {
   let failNative = failStop;
   let completeCreate;
   let complete;
@@ -148,9 +160,10 @@ async function testExtension(failStop = false, lateCreate = false) {
   let geoPrepared = 0;
   const files = new Map();
   const pending = new Promise(resolve => { complete = resolve; });
-  const connection = { create: () => lateCreate ? new Promise(resolve => { completeCreate = resolve; }) : Promise.resolve(32), protectProcessNet: async () => {},
+  const connection = { create: () => lateCreate ? new Promise(resolve => { completeCreate = resolve; }) : Promise.resolve(32), protectProcessNet: protection === 'missing' ? undefined : async () => { if (protection === 'failed') throw Error('synthetic protection failed'); },
     destroy: async () => { destroyCount++; } };
   const modules = {
+    '@kit.BasicServicesKit': {deviceInfo:{sdkApiVersion:protection === 'old' ? 21 : 26}},
     '@kit.NetworkKit': { VpnExtensionAbility: class {}, vpnExtension: { createVpnConnection: () => connection } },
     '@kit.IPCKit': { rpc: { RemoteObject: class {} } },
     '@kit.CoreFileKit': { fileIo: { accessSync: () => false, openSync: path => ({ fd: path }),
@@ -168,7 +181,7 @@ async function testExtension(failStop = false, lateCreate = false) {
       if (brokenPointer) throw Error('synthetic invalid effective pointer');
       return null;
     } } },
-    '../lib/Settings': { Settings: { isLanPersistenceUncertain: () => false, load: () => ({}) } }, '@kit.ArkTS': { util: {} }
+    '../lib/Settings': { Settings: { isLanPersistenceUncertain: () => false, idle: async () => {}, load: () => ({}) } }, '@kit.ArkTS': { util: {} }
   };
   const Extension = load('vpnability/CexingVpnAbility.ets', modules).default;
   const extension = new Extension();
@@ -193,6 +206,13 @@ async function testExtension(failStop = false, lateCreate = false) {
   const remote = extension.onConnect({ parameters: { HOST_SETTINGS: hostSettings, VPN_CONFIG: {}, SESSION_ID: 'fixture-1' } });
   assert.ok(remote && typeof remote.then !== 'function', 'onConnect must return synchronously');
   await flush();
+  if (protection !== 'ok') {
+    assert.equal(extension.coreStarted,false);assert.equal(prepared,0);assert.equal(modelPrepared,0);
+    assert.equal(destroyCount,protection==='failed' ? 1 : 0,'created TUN is reclaimed after protection failure');
+    assert.equal(stopCount,0,'no native core enters after unavailable/failed protection');
+    assert.ok(extension.startupError.length>0);
+    return;
+  }
   let reportedReady;
   const reportedStrings = [];
   const reportedBooleans = [];
@@ -244,8 +264,36 @@ async function testExtension(failStop = false, lateCreate = false) {
   await assert.rejects(extension.buildCoreConfig(), /invalid effective pointer/,
     'broken effective pointer must not silently start the built-in fallback');
 }
+function testApplicationPolicy() {
+  const modules = {
+    '@kit.NetworkKit': {}, '@kit.CoreFileKit': {}, '@kit.IPCKit': {}, './Logger': logger,
+    './ConnectionFailure': failureModule.exports, './VpnPhases': phaseModule.exports,
+    './CoreApi': {}, './Settings': { Settings: {isLanPersistenceUncertain: () => false, idle: async () => {}, load: () => ({accessMode:'white',accessList:[]})} }, './ProfileStore': {}
+  };
+  const policy = load('lib/VpnController.ets', modules);
+  const self = 'test.bundle';
+  assert.deepEqual(Array.from(policy.buildVpnApplicationPolicy('all', ['ignored'], self).blockedApplications), [self]);
+  assert.deepEqual(Array.from(policy.buildVpnApplicationPolicy('white', [self,'sample.app','sample.app'], self).trustedApplications), ['sample.app']);
+  assert.deepEqual(Array.from(policy.buildVpnApplicationPolicy('black', [self,'sample.app','sample.app'], self).blockedApplications), [self,'sample.app']);
+  for (const list of [[], [self], ['bad'], ['foo..bar'], ['foo.bar;DROP'], ['foo.bar\n'], [null], ['x'.repeat(129)]]) {
+    assert.throws(() => policy.buildVpnApplicationPolicy('white', list, self));
+  }
+  assert.throws(() => policy.buildVpnApplicationPolicy('invalid', [], self));
+  const names = Array.from({length:64}, (_,i) => `sample.app${i}`);
+  assert.equal(policy.buildVpnApplicationPolicy('white', names, self).trustedApplications.length,64);
+  assert.throws(() => policy.buildVpnApplicationPolicy('white', [...names,'sample.extra'], self));
+  assert.equal(policy.buildVpnApplicationPolicy('black', names.slice(0,63), self).blockedApplications.length,64);
+  assert.throws(() => policy.buildVpnApplicationPolicy('black', names, self));
+  assert.equal(policy.VpnController.start({applicationInfo:{name:self}}),false,'empty whitelist refuses before authorization');
+  assert.equal(policy.VpnController.status,policy.VpnStatus.Disconnected);
+  assert.match(policy.VpnController.lastStartError,/添加/);
+}
 (async () => {
+  testApplicationPolicy();
   await testClient('ready');
+  await testClient('ready','all',[],true);
+  await testClient('ready', 'white', ['test.bundle','sample.app','sample.app']);
+  await testClient('ready', 'black', ['sample.app','sample.app']);
   await testClient('error');
   await testClient('stale');
   await testClient('cancel');
@@ -254,6 +302,9 @@ async function testExtension(failStop = false, lateCreate = false) {
   await testClient('cleanup-failed');
   await testClient('stale-receipt');
   await testExtension();
+  await testExtension(false,false,'old');
+  await testExtension(false,false,'missing');
+  await testExtension(false,false,'failed');
   await testExtension(true);
   await testExtension(false, true);
   console.log('PASS: readiness, error propagation, cancellation and extension lifecycle scenarios');

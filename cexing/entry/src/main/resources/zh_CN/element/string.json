@@ -951,6 +951,14 @@
     {
       "name": "diag_disconnecting",
       "value": "正在断开"
+    },
+    {
+      "name": "nav_profile_merge",
+      "value": "本订阅覆写"
+    },
+    {
+      "name": "nav_generated",
+      "value": "生成配置"
     }
   ]
 }

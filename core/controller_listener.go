@@ -15,10 +15,11 @@ import (
 	"github.com/metacubex/mihomo/log"
 )
 
-// The locked v1.19.32 router has no exported constructor. Bind only its exact
+// The locked Smart fork daf3ad03021c router has no exported constructor. Bind only its exact
 // factory signature so the host can own listener shutdown without copying API
 // handlers, patching module cache, changing dependencies or starting a second
-// server. An upgrade must recheck this private Go contract and build/test it.
+// server. check-controller-contract.py gates its pinned source and wrapper ABI;
+// TestControllerSecurity exercises real REST/WS authentication and session cleanup.
 //
 //go:linkname newMihomoControllerRouter github.com/metacubex/mihomo/hub/route.router
 func newMihomoControllerRouter(bool, string, string, route.Cors) *chi.Mux

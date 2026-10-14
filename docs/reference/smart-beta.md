@@ -1,6 +1,6 @@
 # Smart 首个测试版
 
-固定核心为 vernesong/mihomo `daf3ad03021cca6031f4a7303ca6d861a14d5a16`，源码 GPL-3.0、leaves MIT 与模型使用边界见 [notices](../../core/patches/NOTICE.md)。构建使用 `core/go.mod` / `go.sum`，只在专用模块缓存应用 [离线补丁](../../core/patches/smart-offline.patch)，不改变共享 Go 缓存。四个 C ABI、NAPI worker、TUN fd 所有权保持原契约。
+固定核心为 vernesong/mihomo `daf3ad03021cca6031f4a7303ca6d861a14d5a16`，源码 GPL-3.0、leaves MIT 与模型使用边界见 [notices](../../core/patches/NOTICE.md)。构建使用 `core/go.mod` / `go.sum`，只在专用模块缓存应用 [离线补丁](../../core/patches/smart-offline.patch)，不改变共享 Go 缓存。四个基础兼容 ABI、三个生产扩展 ABI、NAPI worker 和 TUN fd 所有权遵循[平台契约](platform.md#abi-与线程)。
 
 ## 启用
 
