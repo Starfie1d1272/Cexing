@@ -455,7 +455,7 @@ export struct ProfilePage {
       else { this.toast('连接未开始，请重试'); }
     } catch (_) {
       if (current()) { this.refresh(); this.toast('恢复未完成，请重试或前往连接页检查'); }
-    } finally { this.recovering = false; }
+    } finally { this.recovering = false; this.acceptExternalImport(); }
   }
 
   private async retryAutomatic(p: ProfileMeta): Promise<void> {
@@ -478,7 +478,7 @@ export struct ProfilePage {
       if (this.pageVisible && page === this.pageGeneration && this.samePath(paths)) {
         this.refresh(); this.toast('更新未完成，请重试');
       }
-    } finally { this.updatingFile = ''; }
+    } finally { this.updatingFile = ''; this.acceptExternalImport(); }
   }
 
   private async updateProfile(p: ProfileMeta): Promise<void> {
@@ -583,7 +583,7 @@ export struct ProfilePage {
   private acceptExternalImport(): void {
     if (!this.pageVisible || this.detailFile.length > 0 || !this.rootVisible ||
       this.currentVisibleTab !== 1 || this.importing || this.activating || this.scanning ||
-      this.showSheet || this.sheetMode !== SHEET_NONE || this.regionBusy ||
+      this.showSheet || this.sheetMode !== SHEET_NONE || this.regionBusy || this.recovering ||
       this.updatingFile.length > 0 || this.refreshing || ProfileTransactions.isBusy()) { return; }
     const candidate = ProfileImportInput.take();
     if (candidate === null) { return; }
