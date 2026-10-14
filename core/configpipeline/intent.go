@@ -185,6 +185,15 @@ func editNodes(root *yaml.Node, section string) ([]*yaml.Node, []string, error) 
 }
 func editableItem(section, name string, n *yaml.Node, explicit bool) EditableItem {
 	item := EditableItem{ID: targetID(section, name), Revision: fingerprint(n)}
+	if section == "rules" && n.Kind == yaml.ScalarNode {
+		tp, _, _, _ := RC.ParseRulePayload(n.Value, true)
+		for _, allowed := range strings.Fields("DOMAIN DOMAIN-SUFFIX DOMAIN-KEYWORD IP-CIDR IP-CIDR6 GEOIP GEOSITE RULE-SET MATCH AND OR NOT SUB-RULE") {
+			if tp == allowed {
+				item.Type = allowed
+				break
+			}
+		}
+	}
 	if kind := field(n, "type"); kind != nil {
 		for _, allowed := range strings.Fields("direct reject select url-test fallback load-balance smart relay http file inline ss ssr vmess vless trojan socks5 hysteria2 tuic wireguard") {
 			if kind.Value == allowed {

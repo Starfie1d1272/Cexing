@@ -104,6 +104,17 @@ func TestAIProbeConfigObserverFollowsAppliedConfigAndPublishedPointer(t *testing
 	if _, err := activeAIProbeIdentity(first.ID); err != nil {
 		t.Fatal("actual applied version not recognized", err)
 	}
+	priorIdentity, err := activeAIProbeIdentity(first.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status := reload(a, "Bearer "+controllerSecret); status != http.StatusNoContent {
+		t.Fatal("identical successful reload rejected", status)
+	}
+	nextIdentity, err := activeAIProbeIdentity(first.ID)
+	if err != nil || priorIdentity.Runtime == nextIdentity.Runtime || priorIdentity.Selection == nextIdentity.Selection {
+		t.Fatal("same-text runtime replacement retained old probe lease", err)
+	}
 	if status := reload("proxy-groups: [", "Bearer "+controllerSecret); status != 400 || observed() != digest(a) {
 		t.Fatal("rejected reload overwrote applied identity", status)
 	}
