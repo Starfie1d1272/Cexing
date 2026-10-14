@@ -7,7 +7,7 @@ function compile(source, modules) {
 }
 const strategy = compile(fs.readFileSync('cexing/entry/src/main/ets/lib/LiveViewStrategy.ets', 'utf8'), {});
 let proxies = { first: { type: 'Selector', now: 'leaf' }, 自动: { type: 'Smart' }, DIRECT: { type: 'Direct' }, REJECT: { type: 'Reject' } };
-let saved = { mainGroup: 'first' }, writes = 0, reads = 0, refreshes = 0, failSave = false, held = false;
+let saved = { mainGroup: 'first' }, writes = 0, reads = 0, refreshes = 0, failSave = false, held = false, saveWait = null;
 const waits = [];
 const api = { getProxies: () => { reads++; return held ? new Promise(resolve => waits.push(resolve)) : Promise.resolve(proxies); },
   selectProxy: () => { throw Error('Display selection must never change real policy'); }, patchMode: () => { throw Error('Display selection must never change mode'); } };
@@ -17,7 +17,7 @@ const methods = (source.slice(0, source.indexOf('  build()')) + '\n}').split('\n
 const { LiveViewStrategyPicker } = compile(methods, { '@kit.AbilityKit': {}, './NativeTheme': {},
   '../lib/VpnController': { VpnStatus: { Connected: 2, Disconnected: 0 } }, '../lib/CoreApi': { CoreApi: api },
   '../lib/LiveViewStrategy': strategy, '../lib/LiveViewKeeper': { LiveViewKeeper: { refreshDisplayGroup: async () => { refreshes++; } } },
-  '../lib/Settings': { Settings: { load: () => ({ ...saved }), save: async (_ctx, value, fields) => { assert.deepEqual(Array.from(fields), ['mainGroup']); if (failSave) throw Error('disk'); writes++; saved = value; } } } });
+  '../lib/Settings': { Settings: { load: () => ({ ...saved }), save: async (_ctx, value, fields) => { assert.deepEqual(Array.from(fields), ['mainGroup']); if (failSave) throw Error('disk'); if (saveWait !== null) await saveWait; writes++; saved = value; } } } });
 (async () => {
   const page = new LiveViewStrategyPicker(); page.status = 2; page.aboutToAppear();
   await page.open(); page.draft = '自动'; assert.equal(page.selectedIndex(), 2, 'Literal group named 自动 is distinct from default sentinel');
@@ -28,7 +28,10 @@ const { LiveViewStrategyPicker } = compile(methods, { '@kit.AbilityKit': {}, './
   assert.equal(page.editing, false, 'Returned page cannot accept an old read'); held = false;
   await page.open(); page.draft = '自动'; failSave = true; await page.apply(); assert.equal(writes, 0); assert.match(page.message, /保存失败/);
   failSave = false; held = true; const pending = page.apply(); await page.apply(); assert.equal(waits.length, 1, 'Repeated apply has one write intent');
-  waits.shift()(proxies); await pending; assert.equal(saved.mainGroup, '自动'); assert.equal(writes, 1); assert.equal(refreshes, 1);
+  let finishSave; saveWait = new Promise(resolve => finishSave = resolve);
+  waits.shift()(proxies); await new Promise(setImmediate);
+  assert.equal(writes, 0); assert.equal(refreshes, 0); assert.equal(page.busy, true, 'No refresh or success before durable save');
+  finishSave(); await pending; saveWait = null; assert.equal(saved.mainGroup, '自动'); assert.equal(writes, 1); assert.equal(refreshes, 1);
   held = false; await page.open(); page.draft = 'first'; held = true; const changed = page.apply();
   waits.shift()({ 自动: { type: 'Smart' } }); await changed; assert.equal(writes, 1); assert.match(page.message, /策略已变化/);
   page.cancel(); held = false; await page.open(); page.draft = 'first'; held = true; const late = page.apply();
