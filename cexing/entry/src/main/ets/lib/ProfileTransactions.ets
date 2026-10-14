@@ -11,6 +11,15 @@ import { Settings } from './Settings';
 
 export type ProfileApplyState = 'applied' | 'saved';
 
+export interface PreviousVersionPreview {
+  currentId: string;
+  previousId: string;
+  currentProfile: string;
+  restoredProfile: string;
+  globalMergeChanged: boolean;
+  smartPolicyChanged: boolean;
+}
+
 export namespace ProfileTransactions {
   let busy = false;
   let uncertain = false;
@@ -128,6 +137,58 @@ export namespace ProfileTransactions {
       return JSON.stringify(refreshed);
     }
     return JSON.stringify(entry);
+  }
+
+  /** The UI confirms this exact pair, then passes both IDs to restorePrevious.
+   * File names and change flags describe the effect without exposing config bytes.
+   */
+  export function previewPrevious(context: common.Context): PreviousVersionPreview {
+    enter(context);
+    try {
+      const state = EffectiveVersions.read(context);
+      if (state?.Current === null || state?.Current === undefined ||
+        state.Previous === null || state.Previous === undefined) { throw new Error('没有可恢复的版本'); }
+      return { currentId: state.Current.ID, previousId: state.Previous.ID,
+        currentProfile: state.Current.ProfileID, restoredProfile: state.Previous.ProfileID,
+        globalMergeChanged: EffectiveVersions.globalMerge(context, state.Previous) !== (state.GlobalMerge ?? ''),
+        smartPolicyChanged: EffectiveVersions.smartConversion(context, state.Previous) !== Settings.load(context).smartAutoConvert };
+    } finally { busy = false; }
+  }
+
+  /** Restage provenance through the current compiler and platform safety constraints;
+   * never copy an old generated file over a live file or activate an unverified pointer.
+   */
+  export async function restorePrevious(context: common.Context, expectedCurrent: string,
+    expectedPrevious: string): Promise<ProfileApplyState> {
+    enter(context);
+    const smart = Settings.load(context).smartAutoConvert;
+    let preferenceChanged = false;
+    try {
+      const state = EffectiveVersions.read(context);
+      const previous = state?.Previous;
+      if (state?.Current?.ID !== expectedCurrent || previous === null || previous === undefined ||
+        previous.ID !== expectedPrevious) { throw new Error('版本已变化，请重新预览'); }
+      const original = EffectiveVersions.original(context, previous);
+      const overlay = EffectiveVersions.overlay(context, previous);
+      const globalMerge = EffectiveVersions.globalMerge(context, previous);
+      const region = EffectiveVersions.regionPlan(context, previous);
+      const source = JSON.parse(fileIo.readTextSync(
+        `${context.filesDir}/profile-versions/${previous.ID}/source.json`)) as Record<string, string>;
+      const meta = source['Metadata'];
+      if (typeof meta !== 'string' || meta.length === 0) { throw new Error('上一版本资料损坏'); }
+      // Only the strategy preference is restored here. LAN consent and runtime
+      // credentials still come from the current host safety projection.
+      Settings.setSmartAutoConvert(context, EffectiveVersions.smartConversion(context, previous));
+      preferenceChanged = true;
+      return await publish(context, previous.ProfileID, original, overlay, meta, true,
+        undefined, region, globalMerge);
+    } catch (e) {
+      if (preferenceChanged) {
+        try { Settings.setSmartAutoConvert(context, smart); }
+        catch (_) { markUnknown(context); }
+      }
+      throw new Error(ProfileStore.isApplyUncertain(context) ? '应用未确认，请重连恢复' : (e as Error).message);
+    } finally { busy = false; }
   }
 
   export async function activate(context: common.Context, file: string): Promise<ProfileApplyState> {

@@ -48,6 +48,9 @@ const core = { CoreApi: {
 const versions = { EffectiveVersions: {
   read: () => state,
   smartConversion: () => smartCurrent,
+  original: (_, version) => originals[version.ProfileID],
+  overlay: () => '',
+
   globalContent: () => state.GlobalMerge ?? "",
   globalMerge: () => state.GlobalMerge ?? "",
   previewMerge: async (_, __, overlay) => {
@@ -102,6 +105,7 @@ const settings = { Settings: {
 } };
 const context = { exports: {}, require: name => {
   if (name === '@kit.CoreFileKit') return { fileIo: { readTextSync: name => {
+    if (name.endsWith('/source.json')) return JSON.stringify({ Metadata: JSON.stringify({ origin: '', sub: {}, updatedAt: 1 }) });
     const entry = staged.get(name);
     return entry.original + entry.overlay;
   } } };
@@ -245,6 +249,20 @@ const tx = context.exports.ProfileTransactions;
   assert.equal(await tx.applyPendingRegionSelection({}), true);
   assert.equal(currentProxyChoice, 'Original');
   assert.equal(previousRegionChoice, '');
+  controller.VpnController.status = 0;
+  const previewRestore = tx.previewPrevious({});
+  await assert.rejects(tx.restorePrevious({}, 'stale', previewRestore.previousId), /重新预览/);
+  const beforeRestore = state.Current.ID;
+  assert.equal(await tx.restorePrevious({}, previewRestore.currentId, previewRestore.previousId), 'saved');
+  assert.notEqual(state.Current.ID, beforeRestore, 'restore must stage a new immutable version');
+  assert.equal(state.Previous.ID, beforeRestore, 'the pre-restore version remains available');
+  controller.VpnController.status = 2;
+  const rejectedRestore = tx.previewPrevious({});
+  response = 'rejected';
+  const rejectId = state.Current.ID;
+  await assert.rejects(tx.restorePrevious({}, rejectedRestore.currentId, rejectedRestore.previousId), /拒绝/);
+  assert.equal(state.Current.ID, rejectId, 'rejected restore preserves the current pointer');
+  response = 'applied';
   pending = true;
   const priorSessionVersion = state.Current.ID;
   const oldResult = tx.update({}, 'old.yaml');

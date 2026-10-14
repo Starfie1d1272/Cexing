@@ -248,6 +248,13 @@ export namespace ProfileStore {
     const out: ProfileMeta[] = [];
     try {
       const names = fileIo.listFileSync(d);
+      // Immutable versions remain authoritative after restoration even if the
+      // old compatibility file was deleted. Keep those profiles operable in UI.
+      if (state !== null) {
+        for (const name of Object.keys(state.Profiles)) {
+          if (!names.includes(name)) { names.push(name); }
+        }
+      }
       for (const name of names) {
         if (name === ACTIVE_FILE || !/\.(yaml|yml)$/i.test(name)) {
           continue;
@@ -369,7 +376,8 @@ export namespace ProfileStore {
   }
 
   export async function deleteProfile(context: common.Context, file: string): Promise<void> {
-    await fileIo.unlink(`${dir(context)}/${file}`);
+    const rawPath = `${dir(context)}/${file}`;
+    if (fileIo.accessSync(rawPath)) { await fileIo.unlink(rawPath); }
     deleteMetaEntry(context, file);
     const originPath = `${dir(context)}/${file}.url`;
     if (fileIo.accessSync(originPath)) {
@@ -525,7 +533,9 @@ export namespace ProfileStore {
     const oldPath = `${d}/${oldFile}`;
     const newPath = `${d}/${target}`;
     if (!fileIo.accessSync(oldPath)) {
-      throw new Error('配置文件不存在');
+      const original = getProfileContent(context, oldFile);
+      if (original === null) { throw new Error('配置文件不存在'); }
+      atomicText(oldPath, original);
     }
     if (fileIo.accessSync(newPath)) {
       throw new Error(`已存在同名配置：${target}`);

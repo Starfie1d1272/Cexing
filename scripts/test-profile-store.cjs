@@ -101,6 +101,8 @@ const ctx = { filesDir: '/files' };
   assert.equal(store.getActiveContent(ctx), 'proxies: [generated]');
   assert.equal(store.getProfileContent(ctx, renamed), 'proxies: [committed-original]');
   assert.equal(store.getMeta(ctx)[renamed].origin, meta.origin);
+  data.delete(`/files/profiles/${renamed}`);
+  assert.ok(store.list(ctx).some(profile => profile.file === renamed), 'restored immutable sources remain visible without legacy files');
   invalidPointer = true;
   assert.throws(() => store.getActiveFile(ctx), /invalid pointer/);
   console.log('PASS: unique imports, uppercase YAML listing/rename, awaited deletion and effective-version precedence');
