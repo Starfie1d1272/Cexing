@@ -1,9 +1,10 @@
 import { common } from '@kit.AbilityKit';
-import { ConfigEditor, EditableSnapshot, EditIntent, EditTarget } from './ConfigEditor';
+import { ConfigEditor, EditableSnapshot, EditIntent, EditTarget, SmartGroupChange } from './ConfigEditor';
 import { ProfileStore } from './ProfileStore';
 import { ProfileTransactions, EditTicket, ProfileApplyState } from './ProfileTransactions';
 import { MergePreview } from './CoreValidator';
 import { EffectiveVersions, RegionPlan } from './EffectiveVersions';
+import { Settings } from './Settings';
 
 /** UI session over the published #164/#172 APIs. Never writes a sidecar directly. */
 export class ProfileProxyEditorModel {
@@ -90,6 +91,16 @@ export class ProfileProxyEditorModel {
     if (request !== this.generation) { return null; }
     this.check(ticket);
     return target;
+  }
+
+  async smartChoices(): Promise<SmartGroupChange[] | null> {
+    if (this.ticket === null || this.busy) { return null; }
+    const request = ++this.generation; const ticket = this.ticket;
+    this.check(ticket);
+    const choices = await ConfigEditor.smartPreview(this.context, this.original, this.overlay,
+      ticket.activeVersion, Settings.load(this.context).smartAutoConvert, this.workingIntent(), undefined, this.region);
+    if (request !== this.generation) { return null; }
+    this.check(ticket); return choices;
   }
 
   async save(intent: EditIntent | null, recordHistory: boolean = true): Promise<boolean> {

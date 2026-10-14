@@ -256,11 +256,42 @@ export struct ProfileProxyEditorPage {
     await this.save(next);
   }
 
+  private async smart(row: ProxyEditorRow): Promise<void> {
+    if (this.busy || this.model === null || row.added) { return; }
+    const epoch = ++this.epoch; this.busy = true;
+    let next: EditIntent | null = null;
+    try {
+      const choices = await this.model.smartChoices();
+      if (!this.current(epoch) || choices === null) { return; }
+      const choice = choices.find((entry) => entry.choiceId === row.id);
+      if (choice === undefined) { this.error = '此策略组不支持自动智能选择'; return; }
+      const result = await promptAction.showDialog({ title: row.label,
+        message: '智能选择', buttons: [{ text: '跟随全局', color: $r('app.color.ui_muted') },
+          { text: '启用', color: $r('app.color.ui_accent_text') }, { text: '保持原类型', color: $r('app.color.ui_muted') }] });
+      if (!this.current(epoch)) { return; }
+      next = this.model.workingIntent();
+      if (next.smartGroups === undefined) { next.smartGroups = {}; }
+      if (result.index === 0) { delete next.smartGroups[choice.choiceId]; }
+      else if (result.index === 1 || result.index === 2) { next.smartGroups[choice.choiceId] = result.index === 1; }
+      else { next = null; }
+    } catch (_) { if (this.current(epoch)) { this.error = '智能选择读取失败，请重试'; } }
+    finally { if (this.current(epoch)) { this.busy = false; } }
+    if (next !== null && this.current(epoch)) { await this.save(next); }
+  }
+
   private async undo(): Promise<void> {
     if (this.busy || this.model === null) { return; }
     const epoch = ++this.epoch; this.busy = true;
     try { await this.model.undo(); if (this.current(epoch)) { this.sync(); this.error = ''; } }
     catch (_) { if (this.current(epoch)) { this.error = '撤销未完成，请重试'; } }
+    finally { if (this.current(epoch)) { this.busy = false; } }
+  }
+
+  private async inspect(): Promise<void> {
+    if (this.busy || this.model === null) { return; }
+    const epoch = ++this.epoch; this.busy = true;
+    try { await this.model.previewSaved(); if (this.current(epoch)) { this.sync(); this.error = ''; } }
+    catch (_) { if (this.current(epoch)) { this.previewReady = false; this.error = '预览未通过，请检查修改或撤销'; } }
     finally { if (this.current(epoch)) { this.busy = false; } }
   }
 
@@ -303,6 +334,9 @@ export struct ProfileProxyEditorPage {
             ListItem() {
               Row({ space: 8 }) {
                 Button(row.label).layoutWeight(1).onClick(() => { this.open(row); })
+                if (this.section === 'proxy-groups' && !row.added) {
+                  Button('智能选择').onClick(() => { this.smart(row); })
+                }
                 Button('删除').onClick(() => { this.remove(row); })
               }.enabled(!this.busy)
             }
@@ -314,6 +348,7 @@ export struct ProfileProxyEditorPage {
           Button(this.disabled ? '启用修改' : '停用修改').enabled(!this.busy).onClick(() => {
             if (this.model !== null) { const next = this.model.workingIntent(); next.disabled = !next.disabled; this.save(next); }
           })
+          if (!this.previewReady) { Button('预览').enabled(!this.busy).onClick(() => { this.inspect(); }) }
           if (this.previewReady) { Button('应用').enabled(!this.busy).onClick(() => { this.apply(); }) }
         }
         if (this.renameReferences) { Text('名称修改会同步更新引用').fontSize(13).fontColor(UI.muted).width('100%') }

@@ -16,11 +16,13 @@ let save = async (_context, expected, intent) => {
 };
 let preview = async () => ({ digest: 'synthetic-digest', changes: [] });
 let apply = async () => 'saved';
-const editsBox = { exports: {} };
-vm.runInNewContext(ts.transpileModule(fs.readFileSync('cexing/entry/src/main/ets/lib/ProxyIntentEdits.ets', 'utf8')).outputText, editsBox);
 const modules = {
-  './ProxyIntentEdits': editsBox.exports,
-  './ConfigEditor': { ConfigEditor: { list: (...args) => read(...args), target: (...args) => target(...args) } },
+  './Settings': { Settings: { load: () => ({ smartAutoConvert: true }) } },
+  './ConfigEditor': { ConfigEditor: { list: (...args) => read(...args), target: (...args) => target(...args), smartPreview: async (_ctx, _raw, _merge, expected, enabled, intent) => {
+    assert.equal(expected, ticket.activeVersion); assert.equal(enabled, true);
+    assert.equal(intent.smartGroups?.['original-group'], false);
+    return [{ id: 'renamed-group', choiceId: 'original-group', before: 'url-test', after: 'url-test', override: true }];
+  } } },
   './ProfileStore': { ProfileStore: { getProfileContent: () => 'proxies: []', getEnabledMerge: () => '', readEditDraft: () => draft } },
   './ProfileTransactions': { ProfileTransactions: { editTicket: () => ({ ...ticket }),
     saveEditDraft: (...args) => { saveCalls++; return save(...args); },
@@ -44,6 +46,9 @@ const Model = sandbox.exports.ProfileProxyEditorModel;
   assert.equal(model.publishedProviderName({ item: { id: 'source-id' }, name: 'original-name' }), 'applied-name');
   model.intent = { operations: [{ section: 'proxy-providers', target: 'source-id', kind: 'rename', name: 'unapplied-name' }] };
   assert.equal(model.publishedProviderName({ item: { id: 'source-id' }, name: 'original-name' }), 'applied-name', 'runtime provider lookup follows published provenance, never an unapplied rename');
+  model.intent = { schemaVersion: 1, sourceRevision: 'source-v2', revision: 'draft', operations: [], smartGroups: { 'original-group': false } };
+  const choices = await model.smartChoices();
+  assert.equal(choices[0].choiceId, 'original-group', 'Smart control follows stable pre-rename identity');
   model.intent = null; publishedIntent = null;
   let finishTarget;
   target = () => new Promise(resolve => { finishTarget = resolve; });
