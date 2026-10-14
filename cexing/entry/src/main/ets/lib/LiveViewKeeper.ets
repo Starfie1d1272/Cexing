@@ -406,7 +406,7 @@ export namespace LiveViewKeeper {
         if (sel !== null && lastContext !== null) {
           const s = Settings.load(lastContext);
           s.mainGroup = group;
-          Settings.save(lastContext, s);
+          try { await Settings.save(lastContext, s, ['mainGroup']); } catch (_) { Logger.warn(TAG, 'main group preference save failed'); }
         }
       }
       if (sel !== null) {
@@ -468,7 +468,7 @@ export namespace LiveViewKeeper {
         if (sel !== null && lastContext !== null) {
           const s = Settings.load(lastContext);
           s.mainGroup = group;
-          Settings.save(lastContext, s);
+          try { await Settings.save(lastContext, s, ['mainGroup']); } catch (_) { Logger.warn(TAG, 'main group preference save failed'); }
         }
       }
       if (sel !== null) {
