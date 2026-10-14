@@ -13,6 +13,14 @@ export interface EffectiveState {
   Profiles: Record<string, EffectiveVersion>;
   GlobalMerge?: string;
 }
+export interface ProfileStorageReport {
+  versions: number;
+  bytes: number;
+  removedVersions: number;
+  removedBytes: number;
+  complete: boolean;
+  code?: string;
+}
 export interface StagedVersion { version: EffectiveVersion; receipt: string; }
 export interface RegionPlan {
   mode: string;
@@ -214,6 +222,20 @@ export namespace EffectiveVersions {
     await call(context, { op: 'commit', versionId: version.ID, profileId: version.ProfileID,
       expected: expected, active: active,
       globalMerge: globalMerge, updateGlobal: globalMerge !== undefined });
+  }
+
+  /** The transaction gate remains held until collection finishes on the single worker. */
+  export async function collect(context: common.Context, expected: string): Promise<ProfileStorageReport> {
+    const result = await call(context, { op: 'gc', expected: expected });
+    return result['storage'] as ProfileStorageReport;
+  }
+
+  /** Advanced storage UI only; missing status is unknown, never fabricated zero usage. */
+  export function storageReport(context: common.Context): ProfileStorageReport | null {
+    const path = `${context.filesDir}/profile-versions/gc-status.json`;
+    if (!fileIo.accessSync(path)) { return null; }
+    if (fileIo.statSync(path).size > 4096) { throw new Error('存储状态损坏'); }
+    return JSON.parse(fileIo.readTextSync(path)) as ProfileStorageReport;
   }
 
   export async function discard(context: common.Context, version: EffectiveVersion,

@@ -129,6 +129,9 @@ export namespace ProfileTransactions {
           throw new Error('版本发布结果未知，请断开 VPN 后检查');
         } else { throw new Error((e as Error).message); }
       }
+      // Publication is already durable; GC cannot turn success into a false
+      // rollback. Its bounded status is available only in advanced storage UI.
+      try { await EffectiveVersions.collect(context, select ? staged.version.ID : expected); } catch (_) {}
       return live ? 'applied' : 'saved';
     } catch (e) {
       if (applied && !published && !ProfileStore.isApplyUncertain(context)) {
@@ -357,6 +360,7 @@ export namespace ProfileTransactions {
         }
         throw new Error((e as Error).message);
       }
+      try { await EffectiveVersions.collect(context, EffectiveVersions.read(context)?.Current?.ID ?? ''); } catch (_) {}
     }
     finally { busy = false; }
   }

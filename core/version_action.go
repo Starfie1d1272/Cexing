@@ -34,6 +34,7 @@ type versionAction struct {
 }
 
 type versionResponse struct {
+	Storage       *storageReport                   `json:"storage,omitempty"`
 	Editable      *configpipeline.EditableSnapshot `json:"editable,omitempty"`
 	EditTarget    *configpipeline.EditTarget       `json:"editTarget,omitempty"`
 	Version       *configpipeline.Version          `json:"version,omitempty"`
@@ -97,6 +98,9 @@ func executeVersionAction(home string, action versionAction) (versionResponse, e
 		}
 	}
 	switch action.Op {
+	case "gc":
+		report := collectProfileVersions(ctx, store, prior)
+		return versionResponse{Storage: &report}, nil
 	case "edit-check":
 		return versionResponse{}, nil
 	case "edit-read", "edit-target":
