@@ -69,7 +69,7 @@ export struct ProfileProxyEditorPage {
     const model = this.model;
     if (model?.snapshot === null || model === null) { return; }
     const intent = model.workingIntent();
-    const operations = intent.disabled === true ? [] : intent.operations;
+    const operations = intent.operations;
     this.disabled = intent.disabled === true;
     let rows: ProxyEditorRow[] = [];
     const items = model.snapshot.sections.find((part) => part.section === this.section)?.items ?? [];
@@ -95,11 +95,24 @@ export struct ProfileProxyEditorPage {
       }
     }
     this.rows = rows;
-    this.names = Object.values(this.labels).concat(intent.operations.filter((op: EditOperation) =>
-      op.kind === 'add' && (op.section === 'proxies' || op.section === 'proxy-groups'))
-      .map((op: EditOperation) => op.name ?? String((op.value as Record<string, Object>)['name'] ?? '')));
-    this.providers = intent.operations.filter((op: EditOperation) => op.kind === 'add' && op.section === 'proxy-providers')
-      .map((op: EditOperation) => op.name ?? '');
+    const names: string[] = [];
+    const providers: string[] = [];
+    for (const part of model.snapshot.sections) {
+      if (!['proxies', 'proxy-groups', 'proxy-providers'].includes(part.section)) { continue; }
+      for (const item of part.items) {
+        if (operations.some((op: EditOperation) => op.kind === 'delete' && op.target === item.id)) { continue; }
+        const renamed = operations.find((op: EditOperation) => op.kind === 'rename' && op.target === item.id);
+        const name = renamed?.name ?? this.labels[item.id];
+        if (name === undefined) { continue; }
+        if (part.section === 'proxy-providers') { providers.push(name); } else { names.push(name); }
+      }
+    }
+    for (const op of operations.filter((entry: EditOperation) => entry.kind === 'add')) {
+      const name = op.name ?? String((op.value as Record<string, Object>)?.['name'] ?? '');
+      if (op.section === 'proxy-providers') { providers.push(name); }
+      else if (op.section === 'proxies' || op.section === 'proxy-groups') { names.push(name); }
+    }
+    this.names = names; this.providers = providers;
     this.previewReady = model.preview !== null;
     this.previewText = model.preview?.changes.map((change) => `${change.section} ${change.before} → ${change.after}`).join(' · ') ?? '';
   }
@@ -241,6 +254,7 @@ export struct ProfileProxyEditorPage {
           Button('订阅来源').onClick(() => { this.section = 'proxy-providers'; this.sync(); })
           Button('策略组').onClick(() => { this.section = 'proxy-groups'; this.sync(); })
         }.enabled(!this.busy)
+        if (this.disabled) { Text('修改已停用').fontSize(13).fontColor(UI.muted).width('100%') }
         Search({ value: this.query, placeholder: '搜索' }).onChange((value: string) => { this.query = value; })
         List({ space: 8 }) {
           ForEach(this.rows.filter((row: ProxyEditorRow) => row.label.includes(this.query) || row.type.includes(this.query)), (row: ProxyEditorRow) => {
