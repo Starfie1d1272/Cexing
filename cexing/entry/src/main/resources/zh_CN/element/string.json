@@ -7,6 +7,390 @@
     {
       "name": "EntryAbility_desc",
       "value": "策星原生代理客户端"
+    },
+    {
+      "name": "action_retry",
+      "value": "重试"
+    },
+    {
+      "name": "action_retrying",
+      "value": "重试中…"
+    },
+    {
+      "name": "action_cancel",
+      "value": "取消"
+    },
+    {
+      "name": "action_settings",
+      "value": "设置"
+    },
+    {
+      "name": "action_reconnect",
+      "value": "重连"
+    },
+    {
+      "name": "action_connect_vpn",
+      "value": "连接 VPN"
+    },
+    {
+      "name": "action_disconnect",
+      "value": "断开连接"
+    },
+    {
+      "name": "action_cancel_connect",
+      "value": "取消连接"
+    },
+    {
+      "name": "action_retry_disconnect",
+      "value": "重试断开"
+    },
+    {
+      "name": "action_add_profile",
+      "value": "添加订阅"
+    },
+    {
+      "name": "action_manage",
+      "value": "管理"
+    },
+    {
+      "name": "nav_connection",
+      "value": "连接"
+    },
+    {
+      "name": "nav_profiles",
+      "value": "订阅"
+    },
+    {
+      "name": "nav_traffic",
+      "value": "流量"
+    },
+    {
+      "name": "nav_diagnostics",
+      "value": "诊断"
+    },
+    {
+      "name": "nav_resources",
+      "value": "资源"
+    },
+    {
+      "name": "nav_panel",
+      "value": "控制面板"
+    },
+    {
+      "name": "nav_network",
+      "value": "网络设置"
+    },
+    {
+      "name": "nav_core",
+      "value": "内核设置"
+    },
+    {
+      "name": "nav_profile_details",
+      "value": "订阅详情"
+    },
+    {
+      "name": "nav_original",
+      "value": "原始配置"
+    },
+    {
+      "name": "state_connected",
+      "value": "已连接"
+    },
+    {
+      "name": "state_connecting",
+      "value": "连接中"
+    },
+    {
+      "name": "state_disconnecting",
+      "value": "断开中"
+    },
+    {
+      "name": "state_disconnected",
+      "value": "未连接"
+    },
+    {
+      "name": "state_connect_failed",
+      "value": "连接失败"
+    },
+    {
+      "name": "state_stop_unknown",
+      "value": "断开未确认"
+    },
+    {
+      "name": "state_not_imported",
+      "value": "未导入"
+    },
+    {
+      "name": "state_selected",
+      "value": "已选中"
+    },
+    {
+      "name": "state_ready_connect",
+      "value": "准备连接"
+    },
+    {
+      "name": "state_system_connecting",
+      "value": "正在建立系统连接"
+    },
+    {
+      "name": "state_system_disconnecting",
+      "value": "正在结束系统会话"
+    },
+    {
+      "name": "state_connected_actions",
+      "value": "可查看流量或检查连接"
+    },
+    {
+      "name": "state_retry_diagnostics",
+      "value": "可重试或前往诊断"
+    },
+    {
+      "name": "state_stop_diagnostics",
+      "value": "请重试断开，或前往诊断检查"
+    },
+    {
+      "name": "failure_stop_unknown",
+      "value": "断开未确认，请检查系统 VPN 状态后重试"
+    },
+    {
+      "name": "failure_prepare_config",
+      "value": "当前配置未能生成，请检查配置后重试"
+    },
+    {
+      "name": "failure_state_unknown",
+      "value": "连接状态待核对，请先重试断开"
+    },
+    {
+      "name": "failure_mode_change",
+      "value": "模式切换失败"
+    },
+    {
+      "name": "failure_mode_save",
+      "value": "模式已切换，保存失败，请重试"
+    },
+    {
+      "name": "failure_config_read",
+      "value": "配置读取失败，请检查后重试"
+    },
+    {
+      "name": "failure_connect_not_started",
+      "value": "连接未启动，请重试"
+    },
+    {
+      "name": "failure_save",
+      "value": "保存失败，请重试"
+    },
+    {
+      "name": "failure_settings_read",
+      "value": "设置读取失败，请重试"
+    },
+    {
+      "name": "mode_rule",
+      "value": "规则"
+    },
+    {
+      "name": "mode_global",
+      "value": "全局"
+    },
+    {
+      "name": "mode_direct",
+      "value": "直连"
+    },
+    {
+      "name": "home_connection_state",
+      "value": "连接状态"
+    },
+    {
+      "name": "home_upload",
+      "value": "↑ 上传"
+    },
+    {
+      "name": "home_download",
+      "value": "↓ 下载"
+    },
+    {
+      "name": "home_view_traffic",
+      "value": "查看流量"
+    },
+    {
+      "name": "home_current_profile",
+      "value": "当前订阅"
+    },
+    {
+      "name": "home_check_connection",
+      "value": "检查连接"
+    },
+    {
+      "name": "home_check_description",
+      "value": "检查连接状态和本机服务"
+    },
+    {
+      "name": "home_import_profile",
+      "value": "导入订阅"
+    },
+    {
+      "name": "settings_running",
+      "value": "运行"
+    },
+    {
+      "name": "settings_auto_restore",
+      "value": "打开应用自动恢复"
+    },
+    {
+      "name": "settings_background",
+      "value": "后台运行"
+    },
+    {
+      "name": "settings_background_hint",
+      "value": "关闭页面后保持会话"
+    },
+    {
+      "name": "settings_system_connection",
+      "value": "系统与连接"
+    },
+    {
+      "name": "settings_network_hint",
+      "value": "按应用分流 · IPv6"
+    },
+    {
+      "name": "settings_smart_hint",
+      "value": "统计策略 · 离线模型"
+    },
+    {
+      "name": "settings_advanced",
+      "value": "高级"
+    },
+    {
+      "name": "settings_auto_update",
+      "value": "自动更新订阅"
+    },
+    {
+      "name": "settings_update_hint",
+      "value": "VPN 运行期间检查"
+    },
+    {
+      "name": "settings_interval",
+      "value": "更新间隔"
+    },
+    {
+      "name": "settings_log_file",
+      "value": "记录内核日志"
+    },
+    {
+      "name": "settings_next_start",
+      "value": "下次启动生效"
+    },
+    {
+      "name": "settings_background_enabled",
+      "value": "已开启后台运行"
+    },
+    {
+      "name": "settings_background_denied",
+      "value": "授权失败，无法开启"
+    },
+    {
+      "name": "settings_enabled",
+      "value": "已开启"
+    },
+    {
+      "name": "settings_interval_hint",
+      "value": "自动更新订阅的检查周期"
+    },
+    {
+      "name": "settings_saved_next",
+      "value": "已保存，下次连接生效"
+    },
+    {
+      "name": "settings_reconnect_title",
+      "value": "重连应用设置？"
+    },
+    {
+      "name": "settings_reconnect_warning",
+      "value": "会短暂断开 VPN。"
+    },
+    {
+      "name": "settings_reconnecting",
+      "value": "正在重连"
+    },
+    {
+      "name": "settings_reconnect_apply",
+      "value": "重连应用"
+    },
+    {
+      "name": "background_acquired",
+      "value": "已获后台任务"
+    },
+    {
+      "name": "background_disabled",
+      "value": "后台运行已关闭"
+    },
+    {
+      "name": "background_requesting",
+      "value": "正在申请后台任务"
+    },
+    {
+      "name": "background_failed",
+      "value": "后台任务申请失败"
+    },
+    {
+      "name": "background_revoked",
+      "value": "系统已撤销后台任务"
+    },
+    {
+      "name": "background_user_stopped",
+      "value": "后台任务已由用户关闭"
+    },
+    {
+      "name": "background_suspended",
+      "value": "后台任务已暂停"
+    },
+    {
+      "name": "background_unknown",
+      "value": "后台任务尚未确认"
+    },
+    {
+      "name": "background_notification_ready",
+      "value": "实况窗已发布"
+    },
+    {
+      "name": "background_notification_failed",
+      "value": "实况窗发布失败"
+    },
+    {
+      "name": "background_notification_unknown",
+      "value": "实况窗尚未确认"
+    },
+    {
+      "name": "background_limited",
+      "value": "后台运行受限"
+    },
+    {
+      "name": "background_still_limited",
+      "value": "后台运行仍受限"
+    },
+    {
+      "name": "failure_start_detail",
+      "value": "启动失败：%s"
+    },
+    {
+      "name": "home_traffic_description",
+      "value": "流量 上传 %s 下载 %s"
+    },
+    {
+      "name": "settings_hours",
+      "value": "%d 小时"
+    },
+    {
+      "name": "a11y_loading_settings",
+      "value": "正在读取设置"
+    },
+    {
+      "name": "a11y_unsaved_settings",
+      "value": "请先保存设置"
+    },
+    {
+      "name": "a11y_current_profile",
+      "value": "当前订阅：%s"
     }
   ]
 }

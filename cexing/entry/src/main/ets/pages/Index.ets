@@ -1,3 +1,5 @@
+import { common } from '@kit.AbilityKit';
+import { UiText } from '../lib/UiText';
 import { NativeTheme as UI } from './NativeTheme';
 import { NativeMaterial, NativeTabStyle } from './NativeMaterial';
 import { SmartPage } from './SmartPage';
@@ -23,6 +25,7 @@ struct Index {
   @Provide('tabJump') @Watch('onTabJump') tabJump: number = -1;
   @State currentTab: number = 0;
   @State windowWidth: number = 390;
+  @State private fontScale: number = 1;
   @State private smartVisible: boolean = false;
   @State private zashboardVisible: boolean = false;
   @State private resourcesVisible: boolean = false;
@@ -44,7 +47,7 @@ struct Index {
   @Builder
   PageMap(name: string) {
     if (name === 'zashboard') {
-      NavDestination() { ZashboardPage({ visible: this.zashboardVisible }) }.title('控制面板')
+      NavDestination() { ZashboardPage({ visible: this.zashboardVisible }) }.title(UiText.get($r('app.string.nav_panel')))
         .onShown(() => { this.zashboardVisible = true; })
         .onHidden(() => { this.zashboardVisible = false; })
     } else if (name === 'smart') {
@@ -52,21 +55,21 @@ struct Index {
         .onShown(() => { this.smartVisible = true; })
         .onHidden(() => { this.smartVisible = false; })
     } else if (name === 'traffic') {
-      NavDestination() { TrafficPage() }.title('流量')
+      NavDestination() { TrafficPage() }.title(UiText.get($r('app.string.nav_traffic')))
     } else if (name === 'diagnostics') {
-      NavDestination() { DiagnosticsPage() }.title('诊断')
+      NavDestination() { DiagnosticsPage() }.title(UiText.get($r('app.string.nav_diagnostics')))
     } else if (name === 'resources') {
-      NavDestination() { ResourceRecoveryPage({ visible: this.resourcesVisible }) }.title('资源')
+      NavDestination() { ResourceRecoveryPage({ visible: this.resourcesVisible }) }.title(UiText.get($r('app.string.nav_resources')))
         .onShown(() => { this.resourcesVisible = true; })
         .onHidden(() => { this.resourcesVisible = false; })
     } else if (name === 'network') {
-      NavDestination() { NetworkSettingsPage() }.title('网络设置')
+      NavDestination() { NetworkSettingsPage() }.title(UiText.get($r('app.string.nav_network')))
     } else if (name === 'override') {
-      NavDestination() { OverridePage() }.title('内核设置')
+      NavDestination() { OverridePage() }.title(UiText.get($r('app.string.nav_core')))
     } else if (name === 'profileDetail') {
-      NavDestination() { ProfilePage({ detailFile: ProfileDetailBus.current }) }.title('订阅详情')
+      NavDestination() { ProfilePage({ detailFile: ProfileDetailBus.current }) }.title(UiText.get($r('app.string.nav_profile_details')))
     } else if (name === 'profileEdit') {
-      NavDestination() { ProfileEditPage() }.title('原始配置')
+      NavDestination() { ProfileEditPage() }.title(UiText.get($r('app.string.nav_original')))
     }
   }
 
@@ -77,30 +80,32 @@ struct Index {
         .fontColor([this.currentTab === index ? UI.accentText : UI.muted])
       Text(label).fontSize(12).fontWeight(FontWeight.Medium)
         .fontColor(this.currentTab === index ? UI.accentText : UI.muted)
-    }.width('100%').height(60).justifyContent(FlexAlign.Center)
+    }.width('100%').constraintSize({ minHeight: 60 }).justifyContent(FlexAlign.Center)
       .backgroundColor(this.currentTab === index ? UI.soft : Color.Transparent).borderRadius(24)
-      .accessibilityGroup(true).accessibilityText(label).accessibilityDescription(this.currentTab === index ? '已选中' : '')
+      .accessibilityRole(AccessibilityRoleType.BUTTON).accessibilitySelected(this.currentTab === index)
+      .accessibilityGroup(true).accessibilityText(label).accessibilityDescription(this.currentTab === index ? UiText.get($r('app.string.state_selected')) : '')
   }
 
   build() {
     Navigation(this.navStack) {
       Tabs({ barPosition: BarPosition.End, index: this.currentTab }) {
         TabContent() {
-          Column() { HomePage() }.width('100%').height('100%').padding({ bottom: NativeMaterial.contentInset() })
-        }.tabBar(this.TabItem('连接', $r('sys.symbol.power'), 0))
+          Column() { HomePage() }.width('100%').height('100%').padding({ bottom: NativeMaterial.contentInset(this.fontScale) })
+        }.tabBar(this.TabItem(UiText.get($r('app.string.nav_connection')), $r('sys.symbol.power'), 0))
         TabContent() {
-          Column() { ProfilePage() }.width('100%').height('100%').padding({ bottom: NativeMaterial.contentInset() })
-        }.tabBar(this.TabItem('订阅', $r('sys.symbol.doc'), 1))
+          Column() { ProfilePage() }.width('100%').height('100%').padding({ bottom: NativeMaterial.contentInset(this.fontScale) })
+        }.tabBar(this.TabItem(UiText.get($r('app.string.nav_profiles')), $r('sys.symbol.doc'), 1))
         TabContent() {
-          Column() { SettingsPage() }.width('100%').height('100%').padding({ bottom: NativeMaterial.contentInset() })
-        }.tabBar(this.TabItem('设置', $r('sys.symbol.slider_horizontal_2'), 2))
+          Column() { SettingsPage() }.width('100%').height('100%').padding({ bottom: NativeMaterial.contentInset(this.fontScale) })
+        }.tabBar(this.TabItem(UiText.get($r('app.string.action_settings')), $r('sys.symbol.slider_horizontal_2'), 2))
       }
       .width('100%')
       .height('100%')
       .scrollable(false)
       .animationDuration(0)
-      .attributeModifier(new NativeTabStyle(this.windowWidth))
-      .onAreaChange((_old: Area, area: Area) => { this.windowWidth = Number(area.width); })
+      .attributeModifier(new NativeTabStyle(this.windowWidth, this.fontScale))
+      .onAreaChange((_old: Area, area: Area) => { this.windowWidth = Number(area.width);
+        this.fontScale = (getContext(this) as common.UIAbilityContext).config.fontSizeScale ?? 1; })
       .backgroundColor(UI.paper)
       .onChange((index: number) => {
         this.currentTab = index;

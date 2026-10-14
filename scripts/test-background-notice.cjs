@@ -1,3 +1,4 @@
+const uiFixture = require('./ci/ui-fixtures.cjs');
 // Actual feedback component methods; no claim about device rendering or screen readers.
 const assert = require('node:assert/strict'), fs = require('node:fs'), vm = require('node:vm');
 const ts = require('./ci/transpile-arkts.cjs');
@@ -13,7 +14,8 @@ const modules = { './NativeTheme': {}, '../lib/VpnController': { VpnStatus: { Co
   '../lib/LiveViewKeeper': { LiveViewKeeper: { needsAttention: s => s.task === 'failed' || s.task === 'revoked' || s.suspended || s.notification === 'failed' } },
   '../lib/AppRuntime': { AppRuntime: { backgroundState: () => state, onBackgroundChanged: fn => { observer = fn; return () => { removed++; }; },
     retryBackground: () => { retries++; return new Promise(done => { resolve = done; }); } } } };
-const c = { exports: {}, require: key => modules[key] };
+const c = { exports: {}, require: key => key.endsWith('/UiText') ? uiFixture.module : modules[key] };
+Object.assign(c, uiFixture.globals);
 vm.runInNewContext(ts.transpileModule(methods).outputText, c);
 (async () => {
   const page = new c.exports.BackgroundNotice(); page.status = 2; page.aboutToAppear();

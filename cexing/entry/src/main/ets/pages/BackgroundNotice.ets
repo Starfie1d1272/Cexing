@@ -1,3 +1,4 @@
+import { UiText } from '../lib/UiText';
 import { AppRuntime } from '../lib/AppRuntime';
 import { BackgroundState, LiveViewKeeper } from '../lib/LiveViewKeeper';
 import { VpnStatus } from '../lib/VpnController';
@@ -61,18 +62,18 @@ export struct BackgroundNotice {
   }
 
   private taskLabel(): string {
-    if (this.backgroundObservation.task === 'active') { return '已获后台任务'; }
-    if (this.backgroundObservation.task === 'disabled') { return '后台运行已关闭'; }
-    if (this.backgroundObservation.task === 'requesting') { return '正在申请后台任务'; }
-    if (this.backgroundObservation.task === 'failed') { return '后台任务申请失败'; }
-    if (this.backgroundObservation.task === 'revoked') { return '系统已撤销后台任务'; }
-    if (this.backgroundObservation.task === 'user-stopped') { return '后台任务已由用户关闭'; }
-    return this.backgroundObservation.suspended ? '后台任务已暂停' : '后台任务尚未确认';
+    if (this.backgroundObservation.task === 'active') { return UiText.get($r('app.string.background_acquired')); }
+    if (this.backgroundObservation.task === 'disabled') { return UiText.get($r('app.string.background_disabled')); }
+    if (this.backgroundObservation.task === 'requesting') { return UiText.get($r('app.string.background_requesting')); }
+    if (this.backgroundObservation.task === 'failed') { return UiText.get($r('app.string.background_failed')); }
+    if (this.backgroundObservation.task === 'revoked') { return UiText.get($r('app.string.background_revoked')); }
+    if (this.backgroundObservation.task === 'user-stopped') { return UiText.get($r('app.string.background_user_stopped')); }
+    return this.backgroundObservation.suspended ? UiText.get($r('app.string.background_suspended')) : UiText.get($r('app.string.background_unknown'));
   }
 
   private notificationLabel(): string {
-    return this.backgroundObservation.notification === 'ready' ? '实况窗已发布' :
-      (this.backgroundObservation.notification === 'failed' ? '实况窗发布失败' : '实况窗尚未确认');
+    return this.backgroundObservation.notification === 'ready' ? UiText.get($r('app.string.background_notification_ready')) :
+      (this.backgroundObservation.notification === 'failed' ? UiText.get($r('app.string.background_notification_failed')) : UiText.get($r('app.string.background_notification_unknown')));
   }
 
   build() {
@@ -80,11 +81,11 @@ export struct BackgroundNotice {
     Column({ space: 8 }) {
     if (this.attention()) {
       Column({ space: 8 }) {
-        Text(this.retryFailed ? '后台运行仍受限' : '后台运行受限').fontSize(14).fontColor(UI.error).width('100%')
+        Text(this.retryFailed ? UiText.get($r('app.string.background_still_limited')) : UiText.get($r('app.string.background_limited'))).fontSize(14).fontColor(UI.error).width('100%')
         Row({ space: 12 }) {
-          Button(this.busy ? '重试中…' : '重试').constraintSize({ minHeight: 44 }).layoutWeight(1)
+          Button(this.busy ? UiText.get($r('app.string.action_retrying')) : UiText.get($r('app.string.action_retry'))).constraintSize({ minHeight: 44 }).layoutWeight(1)
             .enabled(!this.busy).backgroundColor(UI.soft).fontColor(UI.accentText).onClick(() => this.retry())
-          Button('设置').constraintSize({ minHeight: 44 }).layoutWeight(1)
+          Button(UiText.get($r('app.string.action_settings'))).constraintSize({ minHeight: 44 }).layoutWeight(1)
             .backgroundColor(UI.soft).fontColor(UI.accentText).onClick(() => this.settings())
         }.width('100%')
       }.width('100%')

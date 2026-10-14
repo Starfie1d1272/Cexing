@@ -31,6 +31,390 @@
     {
       "name": "connection_card_description",
       "value": "查看连接状态，一键连接或断开"
+    },
+    {
+      "name": "action_retry",
+      "value": "Retry"
+    },
+    {
+      "name": "action_retrying",
+      "value": "Retrying…"
+    },
+    {
+      "name": "action_cancel",
+      "value": "Cancel"
+    },
+    {
+      "name": "action_settings",
+      "value": "Settings"
+    },
+    {
+      "name": "action_reconnect",
+      "value": "Reconnect"
+    },
+    {
+      "name": "action_connect_vpn",
+      "value": "Connect VPN"
+    },
+    {
+      "name": "action_disconnect",
+      "value": "Disconnect"
+    },
+    {
+      "name": "action_cancel_connect",
+      "value": "Cancel connection"
+    },
+    {
+      "name": "action_retry_disconnect",
+      "value": "Retry disconnect"
+    },
+    {
+      "name": "action_add_profile",
+      "value": "Add subscription"
+    },
+    {
+      "name": "action_manage",
+      "value": "Manage"
+    },
+    {
+      "name": "nav_connection",
+      "value": "Connection"
+    },
+    {
+      "name": "nav_profiles",
+      "value": "Subscriptions"
+    },
+    {
+      "name": "nav_traffic",
+      "value": "Traffic"
+    },
+    {
+      "name": "nav_diagnostics",
+      "value": "Diagnostics"
+    },
+    {
+      "name": "nav_resources",
+      "value": "Resources"
+    },
+    {
+      "name": "nav_panel",
+      "value": "Dashboard"
+    },
+    {
+      "name": "nav_network",
+      "value": "Network settings"
+    },
+    {
+      "name": "nav_core",
+      "value": "Core settings"
+    },
+    {
+      "name": "nav_profile_details",
+      "value": "Subscription details"
+    },
+    {
+      "name": "nav_original",
+      "value": "Original configuration"
+    },
+    {
+      "name": "state_connected",
+      "value": "Connected"
+    },
+    {
+      "name": "state_connecting",
+      "value": "Connecting"
+    },
+    {
+      "name": "state_disconnecting",
+      "value": "Disconnecting"
+    },
+    {
+      "name": "state_disconnected",
+      "value": "Disconnected"
+    },
+    {
+      "name": "state_connect_failed",
+      "value": "Connection failed"
+    },
+    {
+      "name": "state_stop_unknown",
+      "value": "Disconnect unconfirmed"
+    },
+    {
+      "name": "state_not_imported",
+      "value": "Not imported"
+    },
+    {
+      "name": "state_selected",
+      "value": "Selected"
+    },
+    {
+      "name": "state_ready_connect",
+      "value": "Ready to connect"
+    },
+    {
+      "name": "state_system_connecting",
+      "value": "Establishing system connection"
+    },
+    {
+      "name": "state_system_disconnecting",
+      "value": "Ending system session"
+    },
+    {
+      "name": "state_connected_actions",
+      "value": "View traffic or check the connection"
+    },
+    {
+      "name": "state_retry_diagnostics",
+      "value": "Retry or open diagnostics"
+    },
+    {
+      "name": "state_stop_diagnostics",
+      "value": "Retry disconnect or open diagnostics"
+    },
+    {
+      "name": "failure_stop_unknown",
+      "value": "Disconnect unconfirmed. Check system VPN status and retry"
+    },
+    {
+      "name": "failure_prepare_config",
+      "value": "Configuration could not be prepared. Check it and retry"
+    },
+    {
+      "name": "failure_state_unknown",
+      "value": "Connection state is unconfirmed. Retry disconnect first"
+    },
+    {
+      "name": "failure_mode_change",
+      "value": "Mode change failed"
+    },
+    {
+      "name": "failure_mode_save",
+      "value": "Mode changed but could not be saved. Retry"
+    },
+    {
+      "name": "failure_config_read",
+      "value": "Configuration could not be read. Check it and retry"
+    },
+    {
+      "name": "failure_connect_not_started",
+      "value": "Connection did not start. Retry"
+    },
+    {
+      "name": "failure_save",
+      "value": "Could not save. Retry"
+    },
+    {
+      "name": "failure_settings_read",
+      "value": "Could not read settings. Retry"
+    },
+    {
+      "name": "mode_rule",
+      "value": "Rule"
+    },
+    {
+      "name": "mode_global",
+      "value": "Global"
+    },
+    {
+      "name": "mode_direct",
+      "value": "Direct"
+    },
+    {
+      "name": "home_connection_state",
+      "value": "Connection status"
+    },
+    {
+      "name": "home_upload",
+      "value": "↑ Upload"
+    },
+    {
+      "name": "home_download",
+      "value": "↓ Download"
+    },
+    {
+      "name": "home_view_traffic",
+      "value": "View traffic"
+    },
+    {
+      "name": "home_current_profile",
+      "value": "Current subscription"
+    },
+    {
+      "name": "home_check_connection",
+      "value": "Check connection"
+    },
+    {
+      "name": "home_check_description",
+      "value": "Check connection status and local service"
+    },
+    {
+      "name": "home_import_profile",
+      "value": "Import subscription"
+    },
+    {
+      "name": "settings_running",
+      "value": "Running"
+    },
+    {
+      "name": "settings_auto_restore",
+      "value": "Restore when opening the app"
+    },
+    {
+      "name": "settings_background",
+      "value": "Background operation"
+    },
+    {
+      "name": "settings_background_hint",
+      "value": "Keep the session after leaving the page"
+    },
+    {
+      "name": "settings_system_connection",
+      "value": "System and connection"
+    },
+    {
+      "name": "settings_network_hint",
+      "value": "App routing · IPv6"
+    },
+    {
+      "name": "settings_smart_hint",
+      "value": "Statistical strategy · Offline model"
+    },
+    {
+      "name": "settings_advanced",
+      "value": "Advanced"
+    },
+    {
+      "name": "settings_auto_update",
+      "value": "Update subscriptions automatically"
+    },
+    {
+      "name": "settings_update_hint",
+      "value": "Check while VPN is running"
+    },
+    {
+      "name": "settings_interval",
+      "value": "Update interval"
+    },
+    {
+      "name": "settings_log_file",
+      "value": "Record kernel logs"
+    },
+    {
+      "name": "settings_next_start",
+      "value": "Applies on next start"
+    },
+    {
+      "name": "settings_background_enabled",
+      "value": "Background operation enabled"
+    },
+    {
+      "name": "settings_background_denied",
+      "value": "Could not enable background operation"
+    },
+    {
+      "name": "settings_enabled",
+      "value": "Enabled"
+    },
+    {
+      "name": "settings_interval_hint",
+      "value": "Subscription update check interval"
+    },
+    {
+      "name": "settings_saved_next",
+      "value": "Saved. Applies on next connection"
+    },
+    {
+      "name": "settings_reconnect_title",
+      "value": "Reconnect to apply settings?"
+    },
+    {
+      "name": "settings_reconnect_warning",
+      "value": "VPN will briefly disconnect."
+    },
+    {
+      "name": "settings_reconnecting",
+      "value": "Reconnecting"
+    },
+    {
+      "name": "settings_reconnect_apply",
+      "value": "Reconnect to apply"
+    },
+    {
+      "name": "background_acquired",
+      "value": "Background task granted"
+    },
+    {
+      "name": "background_disabled",
+      "value": "Background operation disabled"
+    },
+    {
+      "name": "background_requesting",
+      "value": "Requesting background task"
+    },
+    {
+      "name": "background_failed",
+      "value": "Background task request failed"
+    },
+    {
+      "name": "background_revoked",
+      "value": "System revoked background task"
+    },
+    {
+      "name": "background_user_stopped",
+      "value": "Background task stopped by user"
+    },
+    {
+      "name": "background_suspended",
+      "value": "Background task suspended"
+    },
+    {
+      "name": "background_unknown",
+      "value": "Background task unconfirmed"
+    },
+    {
+      "name": "background_notification_ready",
+      "value": "Live view published"
+    },
+    {
+      "name": "background_notification_failed",
+      "value": "Could not publish live view"
+    },
+    {
+      "name": "background_notification_unknown",
+      "value": "Live view unconfirmed"
+    },
+    {
+      "name": "background_limited",
+      "value": "Background operation limited"
+    },
+    {
+      "name": "background_still_limited",
+      "value": "Background operation still limited"
+    },
+    {
+      "name": "failure_start_detail",
+      "value": "Start failed: %s"
+    },
+    {
+      "name": "home_traffic_description",
+      "value": "Traffic. Upload %s. Download %s"
+    },
+    {
+      "name": "settings_hours",
+      "value": "%d hours"
+    },
+    {
+      "name": "a11y_loading_settings",
+      "value": "Loading settings"
+    },
+    {
+      "name": "a11y_unsaved_settings",
+      "value": "Save settings first"
+    },
+    {
+      "name": "a11y_current_profile",
+      "value": "Current subscription: %s"
     }
   ]
 }
