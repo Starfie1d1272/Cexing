@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"reflect"
 
 	"gopkg.in/yaml.v3"
 )
@@ -32,9 +31,10 @@ type PlatformProjection func(context.Context, *yaml.Node) error
 type Validator func(context.Context, []byte) error
 
 type Compiler struct {
-	Platform PlatformProjection
-	Validate Validator
-	Template TemplateTransform
+	Platform        PlatformProjection
+	Validate        Validator
+	Template        TemplateTransform
+	PrepareTemplate TemplatePrepare
 }
 type Request struct {
 	// Empty means no successful active version; otherwise use Snapshot.Current.ID.
@@ -49,9 +49,18 @@ type Request struct {
 
 // Summary contains only fixed section names, never names, URLs or values.
 type Change struct {
-	Section string `json:"section"`
-	Before  int    `json:"before"`
-	After   int    `json:"after"`
+	Section        string        `json:"section"`
+	Before         int           `json:"before"`
+	After          int           `json:"after"`
+	Kind           string        `json:"kind"`
+	ContentChanged bool          `json:"contentChanged"`
+	Added          int           `json:"added,omitempty"`
+	Removed        int           `json:"removed,omitempty"`
+	Modified       int           `json:"modified,omitempty"`
+	Reordered      bool          `json:"reordered,omitempty"`
+	TypesChanged   int           `json:"typesChanged,omitempty"`
+	MembersChanged int           `json:"membersChanged,omitempty"`
+	Fields         []FieldChange `json:"fields,omitempty"`
 }
 type Result struct {
 	Original        []byte
@@ -60,6 +69,7 @@ type Result struct {
 	YAML            []byte
 	Digest          string
 	Changes         []Change
+	PlatformChanges []Change
 	ProfileID       string
 	Metadata        string
 	SmartConversion bool
@@ -94,18 +104,49 @@ func (c Compiler) Compile(ctx context.Context, r Request) (Result, error) {
 			return Result{}, intentError("region_failed", -1)
 		}
 	}
-	if err := applyIntentTemplate(ctx, root, r.Intent, c.Template); err != nil {
+	session, err := c.prepareIntentTemplate(ctx, root, r.Intent)
+	if err != nil {
 		return Result{}, err
 	}
-	if err := ApplyEditIntent(ctx, root, r.Intent); err != nil {
+	if err := applyBoundEditIntent(ctx, root, r.Intent, sessionTargets(session)); err != nil {
 		return Result{}, err
 	}
+	var mine *TemplateSnapshot
+	if session != nil {
+		mine, err = captureBoundTemplate(ctx, root, session)
+		if err != nil {
+			return Result{}, intentError("template_capture_failed", -1)
+		}
+		// Retain dormant tombstones when a newer authored baseline omits an ID.
+		if r.Intent.Template.Mine != nil {
+			known := map[string]bool{}
+			for _, e := range mine.Entries {
+				known[e.ID] = true
+			}
+			for _, id := range mine.Deleted {
+				known[id] = true
+			}
+			for _, id := range r.Intent.Template.Mine.Deleted {
+				if !known[id] {
+					mine.Deleted = append(mine.Deleted, id)
+					known[id] = true
+				}
+			}
+		}
+	}
+	var beforePlatform *yaml.Node
 	for _, step := range []struct {
 		name string
 		fn   Transform
 	}{{"strategy", r.Strategy}, {"platform", Transform(c.Platform)}} {
 		if err := ctx.Err(); err != nil {
 			return Result{}, err
+		}
+		if step.name == "platform" {
+			beforePlatform, err = normalize(root, map[*yaml.Node]bool{})
+			if err != nil {
+				return Result{}, errors.New("invalid transformed YAML")
+			}
 		}
 		if step.fn != nil {
 			if err := step.fn(ctx, root); err != nil {
@@ -157,23 +198,24 @@ func (c Compiler) Compile(ctx context.Context, r Request) (Result, error) {
 			return Result{}, err
 		}
 	}
+	if session != nil && result.EditIntent != nil && result.EditIntent.Template != nil {
+		result.EditIntent.Template.Baseline = session.Baseline
+		result.EditIntent.Template.Mine = mine
+		encoded, err := json.Marshal(result.EditIntent)
+		if err != nil {
+			return Result{}, intentError("invalid_template", -1)
+		}
+		result.EditIntent, err = DecodeEditIntent(encoded)
+		if err != nil {
+			return Result{}, err
+		}
+	}
 	for _, b := range r.Overlays {
 		result.Overlays = append(result.Overlays, append([]byte(nil), b...))
 	}
 	prior, _ := parse(r.Previous)
-	for _, key := range []string{"proxies", "proxy-providers", "proxy-groups", "listeners", "rules", "rule-providers", "dns", "hosts", "tun", "mode", "external-controller", "external-ui"} {
-		a, b := field(prior, key), field(checked, key)
-		var av, bv any
-		if a != nil {
-			_ = a.Decode(&av)
-		}
-		if b != nil {
-			_ = b.Decode(&bv)
-		}
-		if !reflect.DeepEqual(av, bv) {
-			result.Changes = append(result.Changes, Change{key, size(a), size(b)})
-		}
-	}
+	result.Changes = summarizeChanges(prior, checked)
+	result.PlatformChanges = summarizePlatform(beforePlatform, checked)
 	return result, nil
 }
 

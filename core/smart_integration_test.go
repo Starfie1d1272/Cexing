@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -39,16 +40,34 @@ func TestSmartRealForwarding(t *testing.T) {
 	if err = os.WriteFile(filepath.Join(home, "Model.bin"), model, 0600); err != nil {
 		t.Fatal(err)
 	}
-	origin := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	var deliveriesA, deliveriesB atomic.Int64
+	var deliveredMu sync.Mutex
+	delivered := map[string]int{}
+	var originPeers sync.Map
+	originHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		owner, _ := originPeers.Load(r.RemoteAddr)
+		node, _ := owner.(string)
+		switch node {
+		case "local-a":
+			deliveriesA.Add(1)
+		case "local-b":
+			deliveriesB.Add(1)
+		default:
+			http.Error(w, "unattributed origin request", 403)
+			return
+		}
+		deliveredMu.Lock()
+		delivered[r.URL.Path]++
+		deliveredMu.Unlock()
+		w.Header().Set("X-Cexing-Test-Proxy", node)
 		io.WriteString(w, strings.Repeat("real-local-payload", 256))
-	}))
+	})
+	origin := httptest.NewServer(originHandler)
 	defer origin.Close()
-	second := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		io.WriteString(w, strings.Repeat("real-local-payload", 256))
-	}))
+	second := httptest.NewServer(originHandler)
 	defer second.Close()
-	var hitsA, hitsB atomic.Int64
-	proxy := func(hits *atomic.Int64) *httptest.Server {
+	var hitsA, hitsB, emptyA, emptyB atomic.Int64
+	proxy := func(name string, hits, empty *atomic.Int64) *httptest.Server {
 		return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if r.Method != "CONNECT" {
 				http.Error(w, "CONNECT required", 405)
@@ -64,19 +83,30 @@ func TestSmartRealForwarding(t *testing.T) {
 				http.Error(w, "target unavailable", 502)
 				return
 			}
-			client, _, err := w.(http.Hijacker).Hijack()
+			client, buffered, err := w.(http.Hijacker).Hijack()
 			if err != nil {
 				target.Close()
 				return
 			}
+			originPeers.Store(target.LocalAddr().String(), name)
+			defer originPeers.Delete(target.LocalAddr().String())
 			hits.Add(1)
 			fmt.Fprint(client, "HTTP/1.1 200 Connection Established\r\n\r\n")
-			go func() { io.Copy(target, client); target.Close() }()
+			defer target.Close()
+			defer client.Close()
+			// A successful CONNECT is a dial attempt, not proof of an HTTP
+			// delivery. Preserve the original tunnel bytes, including buffered data.
+			go func() {
+				written, _ := io.Copy(target, buffered)
+				if written == 0 {
+					empty.Add(1)
+				}
+				target.Close()
+			}()
 			io.Copy(client, target)
-			client.Close()
 		}))
 	}
-	a, b := proxy(&hitsA), proxy(&hitsB)
+	a, b := proxy("local-a", &hitsA, &emptyA), proxy("local-b", &hitsB, &emptyB)
 	defer a.Close()
 	defer b.Close()
 	port := func(address string) string { u, _ := url.Parse(address); return u.Port() }
@@ -125,13 +155,15 @@ rules: ['MATCH,smart-real']
 		if i%2 == 1 {
 			target = second.URL
 		}
-		resp, err := client.Get(target + "/target")
+		path := fmt.Sprintf("/target/%d", i)
+		resp, err := client.Get(target + path)
 		if err != nil {
 			t.Fatal(err)
 		}
 		data, err := io.ReadAll(resp.Body)
 		resp.Body.Close()
-		if err != nil || resp.StatusCode != 200 || len(data) != len("real-local-payload")*256 {
+		node := resp.Header.Get("X-Cexing-Test-Proxy")
+		if err != nil || resp.StatusCode != 200 || string(data) != strings.Repeat("real-local-payload", 256) || (node != "local-a" && node != "local-b") {
 			t.Fatalf("forwarding: %v status=%d bytes=%d", err, resp.StatusCode, len(data))
 		}
 	}
@@ -139,22 +171,30 @@ rules: ['MATCH,smart-real']
 	for lightgbm.ModelStatus().Predictions == before && time.Now().Before(deadline) {
 		time.Sleep(50 * time.Millisecond)
 	}
-	t.Logf("real Smart chain: local-a=%d local-b=%d state=%s valid LightGBM predictions=%d", hitsA.Load(), hitsB.Load(), lightgbm.ModelStatus().State, lightgbm.ModelStatus().Predictions-before)
+	t.Logf("real Smart chain: CONNECT local-a=%d local-b=%d; delivered local-a=%d local-b=%d; empty CONNECT=%d; state=%s valid LightGBM predictions=%d", hitsA.Load(), hitsB.Load(), deliveriesA.Load(), deliveriesB.Load(), emptyA.Load()+emptyB.Load(), lightgbm.ModelStatus().State, lightgbm.ModelStatus().Predictions-before)
 	if lightgbm.ModelStatus().State != "loaded" || lightgbm.ModelStatus().Predictions <= before {
 		t.Fatal("forwarded but no LightGBM prediction participation")
 	}
-	if hitsA.Load()+hitsB.Load() != 12 {
-		t.Fatal("unexpected chain")
+	if deliveriesA.Load()+deliveriesB.Load() != 12 {
+		t.Fatalf("unexpected chain: delivered=%d, want 12 unique HTTP requests", deliveriesA.Load()+deliveriesB.Load())
 	}
+	deliveredMu.Lock()
+	for i := 0; i < 12; i++ {
+		path := fmt.Sprintf("/target/%d", i)
+		if delivered[path] != 1 {
+			t.Errorf("request %s delivered %d times", path, delivered[path])
+		}
+	}
+	deliveredMu.Unlock()
 	// Fail the previously used node; retain actual errors while checking recovery.
-	if hitsA.Load() >= hitsB.Load() {
+	if deliveriesA.Load() >= deliveriesB.Load() {
 		a.Close()
 	} else {
 		b.Close()
 	}
 	recovered := 0
 	for i := 0; i < 6; i++ {
-		resp, err := client.Get(origin.URL + "/after-node-failure")
+		resp, err := client.Get(fmt.Sprintf("%s/after-node-failure/%d", origin.URL, i))
 		if err != nil {
 			t.Logf("actual node-failure request: %v", err)
 			continue
@@ -166,7 +206,7 @@ rules: ['MATCH,smart-real']
 		}
 	}
 	t.Logf("node failure: recovered=%d local-a=%d local-b=%d", recovered, hitsA.Load(), hitsB.Load())
-	if recovered == 0 || hitsA.Load() == 0 || hitsB.Load() == 0 {
+	if recovered == 0 || deliveriesA.Load() == 0 || deliveriesB.Load() == 0 {
 		t.Fatal("no verified recovery through the second valid node")
 	}
 }

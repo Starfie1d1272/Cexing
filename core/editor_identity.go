@@ -22,25 +22,13 @@ func editorIdentity(home string, a versionAction, global string) (string, error)
 	defer runLock.Unlock()
 	constant.SetHomeDir(home)
 	homeDir = home
-	root, e := configpipeline.LayeredMergeSource([]byte(a.Original), []byte(global), []byte(a.Overlay))
-	if e != nil {
-		return "", errors.New("EDIT_READ_FAILED")
-	}
 	request, e := editorReadRequest(home, a, global)
 	if e != nil {
 		return "", errors.New("EDIT_READ_FAILED")
 	}
-	if a.EditIntent != nil && !a.EditIntent.Disabled && a.EditIntent.Template != nil {
-		if e = editorTemplate(home)(context.Background(), root, *a.EditIntent.Template); e != nil {
-			return "", errors.New("EDIT_READ_FAILED")
-		}
-	} else if request.Region != nil {
-		if e = configpipeline.ApplyRegion(context.Background(), root, *request.Region); e != nil {
-			return "", errors.New("EDIT_READ_FAILED")
-		}
-	}
-	if e = configpipeline.ApplyEditIntent(context.Background(), root, a.EditIntent); e != nil {
-		return "", e
+	root, e := (configpipeline.Compiler{Template: editorTemplate(home), PrepareTemplate: editorTemplatePrepare(home)}).EditorResourceSource(context.Background(), request)
+	if e != nil {
+		return "", errors.New("EDIT_READ_FAILED")
 	}
 	text, e := yaml.Marshal(root)
 	if e != nil {
@@ -51,11 +39,22 @@ func editorIdentity(home string, a versionAction, global string) (string, error)
 		return "", errors.New("EDIT_READ_FAILED")
 	}
 	h := sha256.New()
+	// Compiler-generated provenance changes on a successful publication; user
+	// changes still receive a new host draft revision and profile/source ticket.
+	identityIntent := a.EditIntent
+	if identityIntent != nil && identityIntent.Template != nil {
+		copied := *identityIntent
+		plan := *copied.Template
+		plan.Baseline = nil
+		plan.Mine = nil
+		copied.Template = &plan
+		identityIntent = &copied
+	}
 	input, _ := json.Marshal(struct {
 		Original, Global, Overlay, Settings string
 		Intent                              *configpipeline.EditIntent
 		Region                              *configpipeline.RegionPlan
-	}{a.Original, global, a.Overlay, a.Overrides, a.EditIntent, a.RegionPlan})
+	}{a.Original, global, a.Overlay, a.Overrides, identityIntent, a.RegionPlan})
 	h.Write(input)
 	for _, section := range []struct {
 		prefix string
