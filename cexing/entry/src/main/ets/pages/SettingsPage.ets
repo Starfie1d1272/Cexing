@@ -85,7 +85,12 @@ export struct SettingsPage {
     const context = getContext(this) as common.UIAbilityContext;
     const s = Settings.load(context);
     s.keepAlive = on;
-    Settings.save(context, s);
+    try { Settings.save(context, s); }
+    catch (_) {
+      this.aboutToAppear();
+      promptAction.showToast({ message: '保存失败，请重试', duration: 2000 });
+      return;
+    }
     if (on && VpnController.status === VpnStatus.Connected) {
       const ok = await LiveViewKeeper.start(context);
       promptAction.showToast({ message: ok ? '已开启后台运行' : '授权失败，无法开启', duration: 1500 });
@@ -99,7 +104,12 @@ export struct SettingsPage {
     const context = getContext(this) as common.UIAbilityContext;
     const s = Settings.load(context);
     s.autoUpdate = on;
-    Settings.save(context, s);
+    try { Settings.save(context, s); }
+    catch (_) {
+      this.aboutToAppear();
+      promptAction.showToast({ message: '保存失败，请重试', duration: 2000 });
+      return;
+    }
     if (on) {
       promptAction.showToast({ message: '已开启', duration: 1500 });
       // 立即补一轮检查（内核未运行/间隔未到时内部自动跳过）
@@ -119,7 +129,11 @@ export struct SettingsPage {
           const context = getContext(this) as common.UIAbilityContext;
           const s = Settings.load(context);
           s.autoUpdateIntervalHours = h;
-          Settings.save(context, s);
+          try { Settings.save(context, s); }
+          catch (_) {
+            this.aboutToAppear();
+            promptAction.showToast({ message: '保存失败，请重试', duration: 2000 });
+          }
         }
       });
     }
@@ -160,7 +174,12 @@ export struct SettingsPage {
     const context = getContext(this) as common.UIAbilityContext;
     const s = Settings.load(context);
     s.autoRestore = on;
-    Settings.save(context, s);
+    try { Settings.save(context, s); }
+    catch (_) {
+      this.aboutToAppear();
+      promptAction.showToast({ message: '保存失败，请重试', duration: 2000 });
+      return;
+    }
   }
 
   private onLogToFileChange(on: boolean): void {
@@ -168,7 +187,12 @@ export struct SettingsPage {
     const context = getContext(this) as common.UIAbilityContext;
     const s = Settings.load(context);
     s.logToFile = on;
-    Settings.save(context, s);
+    try { Settings.save(context, s); }
+    catch (_) {
+      this.aboutToAppear();
+      promptAction.showToast({ message: '保存失败，请重试', duration: 2000 });
+      return;
+    }
     promptAction.showToast({ message: '下次启动内核生效', duration: 1500 });
   }
 

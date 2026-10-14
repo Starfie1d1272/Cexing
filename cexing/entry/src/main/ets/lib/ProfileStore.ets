@@ -11,6 +11,7 @@ import { util } from '@kit.ArkTS';
 import { Logger } from './Logger';
 import { suggestProfileName, profileNameFromUrl } from './ProfileName';
 import { EffectiveVersions } from './EffectiveVersions';
+import { BoundedFileReader } from './BoundedFileReader';
 
 const TAG = 'profileStore';
 const ACTIVE_FILE = 'active.txt';
@@ -40,7 +41,41 @@ export interface ProfileMetaExt {
   updatedAt: number;
 }
 
+export interface ProfileUpdateState {
+  id: string;
+  attemptedAt: number;
+  succeededAt: number;
+  failedAt: number;
+  retryAt: number;
+}
+
 export namespace ProfileStore {
+  /** One stable identity per imported source; rename moves this sidecar too.
+   * Legacy global lastAutoUpdateMs is intentionally not attributed to any source.
+   */
+  export function updateState(context: common.Context, file: string): ProfileUpdateState {
+    if (!/^[^/\\\u0000-\u001f]{1,128}\.ya?ml$/i.test(file)) { throw new Error('无效的配置文件名'); }
+    const path = `${ensureDir(context)}/${file}.update.json`;
+    if (fileIo.accessSync(path)) {
+      const state = JSON.parse(fileIo.readTextSync(path)) as ProfileUpdateState;
+      if (typeof state.id !== 'string' || state.id.length === 0 ||
+        ![state.attemptedAt, state.succeededAt, state.failedAt, state.retryAt].every(
+          (value: number) => Number.isFinite(value) && value >= 0)) {
+        throw new Error('更新记录损坏');
+      }
+      return state;
+    }
+    const state: ProfileUpdateState = { id: util.generateRandomUUID(true), attemptedAt: 0,
+      succeededAt: 0, failedAt: 0, retryAt: 0 };
+    saveUpdateState(context, file, state);
+    return state;
+  }
+
+  export function saveUpdateState(context: common.Context, file: string, state: ProfileUpdateState): void {
+    if (!/^[^/\\\u0000-\u001f]{1,128}\.ya?ml$/i.test(file)) { throw new Error('无效的配置文件名'); }
+    atomicText(`${ensureDir(context)}/${file}.update.json`, JSON.stringify(state));
+  }
+
 
   function dir(context: common.Context): string {
     return `${context.filesDir}/profiles`;
@@ -351,6 +386,8 @@ export namespace ProfileStore {
     if (fileIo.accessSync(merge)) {
       try { await fileIo.unlink(merge); } catch (_) { /* orphan draft is not effective */ }
     }
+    const updatePath = `${dir(context)}/${file}.update.json`;
+    if (fileIo.accessSync(updatePath)) { await fileIo.unlink(updatePath); }
     clearPendingRegionSelection(context, file);
     clearPreviousRegionSelection(context, file);
     try { clearDraft(context, file); } catch (_) { /* non-effective draft */ }
@@ -499,7 +536,7 @@ export namespace ProfileStore {
     const moved: string[][] = [];
     try {
       for (const suffix of ['.url', '.last-good', '.merge.json', '.region-select.json',
-        '.region-previous.json']) {
+        '.region-previous.json', '.update.json']) {
         const from = `${oldPath}${suffix}`;
         const to = `${newPath}${suffix}`;
         if (fileIo.accessSync(from)) {
@@ -694,6 +731,7 @@ export namespace ProfileStore {
   }
 
   function validateConfig(content: string): void {
+    BoundedFileReader.checkConfigSize(content);
     if (content.length < 16) {
       throw new Error('内容为空或过短');
     }

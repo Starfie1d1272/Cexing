@@ -40,7 +40,8 @@ export struct OverridePage {
     this.portError = '';
     s.mixedPort = port;
     s.logLevel = this.logLevel;
-    Settings.save(context, s);
+    try { Settings.save(context, s); }
+    catch (_) { this.portError = '保存失败，请重试'; return; }
     promptAction.showToast({ message: '已保存，下次启动 VPN 生效', duration: 1500 });
   }
 

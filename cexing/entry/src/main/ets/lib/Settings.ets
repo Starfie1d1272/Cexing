@@ -38,6 +38,7 @@ export class AppSettings {
 
 export namespace Settings {
   let store: preferences.Preferences | null = null;
+  let failedSnapshot: AppSettings | null = null;
   let lanWriteFailed: boolean = false;
   let lanRevokeFailed: boolean = false;
 
@@ -72,29 +73,55 @@ export namespace Settings {
     } catch (e) {
       Logger.error(TAG, `load failed: ${JSON.stringify(e)}`);
     }
+    if (failedSnapshot !== null) {
+      const prior = JSON.parse(JSON.stringify(failedSnapshot)) as AppSettings;
+      prior.allowLan = s.allowLan;
+      return prior;
+    }
     return s;
   }
 
+  function write(p: preferences.Preferences, s: AppSettings): void {
+    p.putSync('keepAlive', s.keepAlive);
+    p.putSync('ipv6', s.ipv6);
+    p.putSync('logLevel', s.logLevel);
+    p.putSync('mixedPort', s.mixedPort);
+    p.putSync('accessMode', s.accessMode);
+    p.putSync('accessList', s.accessList);
+    p.putSync('mainGroup', s.mainGroup);
+    p.putSync('mode', s.mode);
+    p.putSync('autoUpdate', s.autoUpdate);
+    p.putSync('autoUpdateIntervalHours', s.autoUpdateIntervalHours);
+    p.putSync('autoRestore', s.autoRestore);
+    p.putSync('vpnWasConnected', s.vpnWasConnected);
+    p.putSync('logToFile', s.logToFile);
+    p.putSync('smartAutoConvert', s.smartAutoConvert);
+  }
+
+  /** Small preference batches complete durably before callers report success.
+   * Synchronous flush also prevents a delayed old batch from overwriting a newer one.
+   * LAN consent is deliberately absent from write().
+   */
   export function save(context: common.Context, s: AppSettings): void {
+    if (!Number.isInteger(s.mixedPort) || s.mixedPort < 1 || s.mixedPort > 65535 ||
+      !Number.isFinite(s.autoUpdateIntervalHours) || s.autoUpdateIntervalHours < 1 ||
+      !['all', 'white', 'black'].includes(s.accessMode) ||
+      !['silent', 'error', 'warning', 'info', 'debug'].includes(s.logLevel)) {
+      throw new Error('设置值无效');
+    }
+    const previous = load(context);
     const p = getStore(context);
     try {
-      p.putSync('keepAlive', s.keepAlive);
-      p.putSync('ipv6', s.ipv6);
-      p.putSync('logLevel', s.logLevel);
-      p.putSync('mixedPort', s.mixedPort);
-      p.putSync('accessMode', s.accessMode);
-      p.putSync('accessList', s.accessList);
-      p.putSync('mainGroup', s.mainGroup);
-      p.putSync('mode', s.mode);
-      p.putSync('autoUpdate', s.autoUpdate);
-      p.putSync('autoUpdateIntervalHours', s.autoUpdateIntervalHours);
-      p.putSync('autoRestore', s.autoRestore);
-      p.putSync('vpnWasConnected', s.vpnWasConnected);
-      p.putSync('logToFile', s.logToFile);
-      p.putSync('smartAutoConvert', s.smartAutoConvert);
-      p.flush();
-    } catch (e) {
-      Logger.error(TAG, `save failed: ${JSON.stringify(e)}`);
+      write(p, s);
+      p.flushSync();
+      failedSnapshot = null;
+    } catch (_) {
+      failedSnapshot = previous;
+      // Preferences mutates its cache before flush. Restore it too, so load()
+      // cannot present failed edits as saved values in this process.
+      try { write(p, previous); p.flushSync(); }
+      catch (_) { Logger.error(TAG, 'settings rollback failed'); }
+      throw new Error('保存失败，请重试');
     }
   }
 

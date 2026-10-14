@@ -61,3 +61,17 @@ for (const kind of ['put','flush']) for (const stage of kind === 'put' ? [1,2] :
   assert.equal(f.cold(),false,'successful retry revokes across processes');
 }
 console.log('PASS: separate cache/disk and process VMs; every enable/revoke put/flush stage, continuing failure, prior-consent warning and durable retry');
+
+// Ordinary batches must report every failure, restore cached reads and survive a fresh process.
+for (const kind of ['put', 'flush']) for (const stage of kind === 'put' ? [1, 5, 14] : [1]) {
+  f = fixture();
+  const s = f.settings.load({}); s.ipv6 = true; s.mixedPort = 9090;
+  f.fail({ [kind]: stage });
+  assert.throws(() => f.settings.save({}, s), /保存失败/);
+  assert.equal(f.settings.load({}).ipv6, false);
+  assert.equal(f.settings.load({}).mixedPort, 7890);
+  assert.equal(f.disk.get('ipv6'), false);
+  f.fail({}); f.settings.save({}, s);
+  assert.equal(fixture(f.disk).settings.load({}).mixedPort, 9090);
+}
+console.log('PASS: ordinary put/flush failure, rollback, durable readback and retry');

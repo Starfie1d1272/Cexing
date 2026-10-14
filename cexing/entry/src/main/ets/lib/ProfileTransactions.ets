@@ -22,7 +22,7 @@ export namespace ProfileTransactions {
     if (ProfileStore.isApplyUncertain(context)) { uncertain = true; }
     if (uncertain && VpnController.status === VpnStatus.Disconnected &&
       !ProfileStore.isApplyUncertain(context)) { uncertain = false; }
-    if (uncertain) { throw new Error('上次热加载结果未知，请明确断开 VPN 后重试'); }
+    if (uncertain) { throw new Error('应用未确认，请重连恢复'); }
     busy = true;
   }
 
@@ -44,7 +44,7 @@ export namespace ProfileTransactions {
     const result: ConfigApplyResult = await CoreApi.applyConfigText(content);
     if (result === 'unknown') {
       markUnknown(context);
-      throw new Error('热加载结果未知，原配置未改；请断开 VPN 后重试');
+      throw new Error('应用未确认，请重连恢复');
     }
     if (result === 'rejected') { throw new Error('内核拒绝候选配置，原配置未改'); }
   }
@@ -62,6 +62,10 @@ export namespace ProfileTransactions {
     const state = EffectiveVersions.read(context);
     const expected = state?.Current?.ID ?? '';
     const live = select ? await running(context) : false;
+    const session = live ? await CoreApi.getControllerSession() : null;
+    if (live && session === null) { markUnknown(context); throw new Error('应用未确认，请重连恢复'); }
+    const sameSession = async (): Promise<boolean> => !live ||
+      (VpnController.status === VpnStatus.Connected && await CoreApi.getControllerSession() === session);
     const previous = live ? ProfileStore.getActiveContent(context) : null;
     await CoreValidator.prepareResources(context);
     const saved = state?.Profiles[file];
@@ -77,7 +81,15 @@ export namespace ProfileTransactions {
         throw new Error('provider 缓存已变化，请重试');
       }
       if (isCurrent !== undefined && !isCurrent()) { throw new Error('更新已取消'); }
-      if (live) { await apply(context, candidate); applied = true; }
+      if (!(await sameSession())) { throw new Error('连接已变化，请重试'); }
+      if (live) {
+        await apply(context, candidate);
+        applied = true;
+        if (!(await sameSession())) {
+          markUnknown(context);
+          throw new Error('应用未确认，请重连恢复');
+        }
+      }
       try {
         await EffectiveVersions.commit(context, staged.version, expected, select, globalOverride);
         published = true;
@@ -95,12 +107,13 @@ export namespace ProfileTransactions {
       return live ? 'applied' : 'saved';
     } catch (e) {
       if (applied && !published && !ProfileStore.isApplyUncertain(context)) {
-        await restore(context, previous);
+        if (await sameSession()) { await restore(context, previous); }
+        else { markUnknown(context); }
       }
       if (!ProfileStore.isApplyUncertain(context)) {
         try { await EffectiveVersions.discard(context, staged.version, expected); } catch (_) {}
       }
-      throw new Error((e as Error).message);
+      throw new Error(ProfileStore.isApplyUncertain(context) ? '应用未确认，请重连恢复' : (e as Error).message);
     }
   }
 

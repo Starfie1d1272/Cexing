@@ -40,7 +40,8 @@ const context = { exports: {}, require: name => {
   if (name === '@kit.CoreFileKit') return { fileIo: io };
   if (name === '@kit.NetworkKit') return { http: {} };
   if (name === '@kit.AbilityKit') return {};
-  if (name === '@kit.ArkTS') return { util: {} };
+  if (name === '@kit.ArkTS') return { util: { generateRandomUUID: () => 'synthetic-id' } };
+  if (name.endsWith('BoundedFileReader')) return { BoundedFileReader: { checkConfigSize() {} } };
   if (name.endsWith('Logger')) return { Logger: { info() {}, warn() {}, error() {} } };
   if (name.endsWith('ProfileName')) return {};
   if (name.endsWith('EffectiveVersions')) return { EffectiveVersions: {
@@ -67,7 +68,9 @@ const ctx = { filesDir: '/files' };
   assert.equal(data.has('/files/profiles/UPPER.YAML'), false);
   store.saveMergeDraft(ctx, second, 'hosts: {synthetic.example: 192.0.2.1}');
   assert.equal(store.getMergeDraft(ctx, second), 'hosts: {synthetic.example: 192.0.2.1}');
+  const identity = store.updateState(ctx, second).id;
   const renamed = store.renameProfile(ctx, second, 'renamed');
+  assert.equal(store.updateState(ctx, renamed).id, identity);
   assert.equal(store.getMergeDraft(ctx, renamed), 'hosts: {synthetic.example: 192.0.2.1}');
   failMetaMove = true;
   assert.throws(() => store.updateProfileContent(ctx, first, 'proxies: [updated]'), /原配置已恢复/);
