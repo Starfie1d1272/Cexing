@@ -207,3 +207,34 @@ func TestIntentPublicFixtureAndMissingDNS(t *testing.T) {
 		t.Fatal("missing and null conflated")
 	}
 }
+
+func TestIntentRenameExactRuleTargetKeepsPayloadAndParams(t *testing.T) {
+	for _, old := range []string{"no", "no-resolve"} {
+		t.Run(old, func(t *testing.T) {
+			source := []byte("proxies: [{name: a, type: direct}]\nproxy-groups: [{name: " + old + ", type: select, proxies: [a]}]\nrules:\n" +
+				" - 'DOMAIN,no," + old + "'\n" +
+				" - 'IP-CIDR,192.0.2.0/24," + old + ",no-resolve'\n" +
+				" - 'IP-CIDR,192.0.2.0/24, " + old + " ,no-resolve,src'\n" +
+				" - 'AND,((DOMAIN,no),(IP-CIDR,192.0.2.0/24))," + old + "'\n" +
+				" - 'DOMAIN-REGEX,^no,no-resolve$," + old + "'\n" +
+				" - 'MATCH," + old + "'\n")
+			target := editTarget(t, source, "proxy-groups", 0)
+			plan := editPlan(t, source, EditOperation{ID: "rename", Kind: "rename", Section: "proxy-groups", Target: target.Item.ID, Expected: target.Item.Revision, Name: "renamed"})
+			r, e := editCompiler().Compile(context.Background(), Request{Original: source, Intent: plan})
+			if e != nil {
+				t.Fatal(e)
+			}
+			root, _ := parse(r.YAML)
+			rules := field(root, "rules").Content
+			expected := []string{"DOMAIN,no,renamed", "IP-CIDR,192.0.2.0/24,renamed,no-resolve", "IP-CIDR,192.0.2.0/24, renamed ,no-resolve,src", "AND,((DOMAIN,no),(IP-CIDR,192.0.2.0/24)),renamed", "DOMAIN-REGEX,^no,no-resolve$,renamed", "MATCH,renamed"}
+			for i, rule := range rules {
+				if rule.Value != expected[i] {
+					t.Fatalf("rule %d changed payload/params: %q", i, rule.Value)
+				}
+			}
+		})
+	}
+	if got := replaceRuleToken("RULE-SET, no ,group,no-resolve", 1, "no", "renamed"); got != "RULE-SET, renamed ,group,no-resolve" {
+		t.Fatal("provider token lost spaces", got)
+	}
+}

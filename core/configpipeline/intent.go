@@ -551,17 +551,34 @@ func renameReferences(root *yaml.Node, section, old, name string) {
 	for _, list := range lists {
 		if list != nil {
 			for _, rule := range list.Content {
-				tp, payload, target, _ := RC.ParseRulePayload(rule.Value, true)
+				tp, payload, target, params := RC.ParseRulePayload(rule.Value, true)
 				if (section == "proxies" || section == "proxy-groups") && tp != "SUB-RULE" && target == old {
-					at := strings.LastIndex(rule.Value, ","+old)
-					if at >= 0 {
-						rule.Value = rule.Value[:at+1] + name + rule.Value[at+1+len(old):]
+					// The locked parser reports trailing params separately. Complex
+					// payloads may contain commas, but their target is the last token;
+					// ordinary rules place it before those params. MATCH uses token 1.
+					index := len(strings.Split(rule.Value, ",")) - len(params) - 1
+					if tp == "MATCH" {
+						index = 1
 					}
+					rule.Value = replaceRuleToken(rule.Value, index, old, name)
 				}
 				if section == "rule-providers" && tp == "RULE-SET" && payload == old {
-					rule.Value = strings.Replace(rule.Value, ","+old+",", ","+name+",", 1)
+					rule.Value = replaceRuleToken(rule.Value, 1, old, name)
 				}
 			}
 		}
 	}
+}
+
+// replaceRuleToken preserves payloads, parameter text and spaces exactly. It
+// never interprets a token prefix as a reference (e.g. no versus no-resolve).
+func replaceRuleToken(raw string, index int, old, name string) string {
+	parts := strings.Split(raw, ",")
+	if index < 0 || index >= len(parts) || strings.Trim(parts[index], " ") != old {
+		return raw
+	}
+	token := parts[index]
+	start := len(token) - len(strings.TrimLeft(token, " "))
+	parts[index] = token[:start] + name + token[start+len(old):]
+	return strings.Join(parts, ",")
 }
