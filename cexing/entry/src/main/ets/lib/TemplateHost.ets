@@ -85,8 +85,10 @@ export function createTemplateWizardHost(context: common.Context, profileId: str
         JSON.stringify(plan) !== planned) { throw new Error('TEMPLATE_PREVIEW_STALE'); }
       if (inactiveEdits && confirmed !== true) { throw new Error('TEMPLATE_CONFIRMATION_REQUIRED'); }
       receipt = null;
-      const result = await editor.apply(checked);
-      return result === 'applied' ? '方案已应用' : result === 'saved' ? '已保存，启用后生效' : result;
+      try {
+        const result = await editor.apply(checked);
+        return result === 'applied' ? '方案已应用' : result === 'saved' ? '已保存，启用后生效' : result;
+      } finally { session = null; }
     }
   };
 }

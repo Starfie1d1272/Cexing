@@ -11,11 +11,13 @@ import (
 // TemplatePlan is the shared schema for #149. profiletemplates.Plan can remain
 // source-compatible as a type alias to this type, avoiding an import cycle.
 type TemplatePlan struct {
-	TemplateID   string      `json:"templateId"`
-	Version      int         `json:"version"`
-	TargetGroup  string      `json:"targetGroup,omitempty"`
-	Region       *RegionPlan `json:"region,omitempty"`
-	ReplaceRules bool        `json:"replaceRules,omitempty"`
+	TemplateID   string            `json:"templateId"`
+	Version      int               `json:"version"`
+	TargetGroup  string            `json:"targetGroup,omitempty"`
+	Region       *RegionPlan       `json:"region,omitempty"`
+	ReplaceRules bool              `json:"replaceRules,omitempty"`
+	Baseline     *TemplateSnapshot `json:"baseline,omitempty"`
+	Mine         *TemplateSnapshot `json:"mine,omitempty"`
 }
 
 // TemplateTransform is supplied by the host using profiletemplates.Apply. It
@@ -23,6 +25,9 @@ type TemplatePlan struct {
 type TemplateTransform func(context.Context, *yaml.Node, TemplatePlan) error
 
 func (p TemplatePlan) Validate() error {
+	if err := p.validateSnapshots(); err != nil {
+		return err
+	}
 	if p.Version != 1 {
 		return errors.New("TEMPLATE_VERSION_UNSUPPORTED")
 	}
