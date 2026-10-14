@@ -4,7 +4,7 @@
 
 `AppRuntime.backgroundState()` 返回快照；`onBackgroundChanged(listener)` 返回解绑函数；页面销毁只解绑观察者。`retryBackground()` 仅在当前进程上下文、VPN Connected 且持久设置 keepAlive 已开启时调用现有任务重试，不开启偏好、不重启 VPN。实况窗失败时复用已取得的任务重新发布；用户主动划掉任务后，foreground ensure 不自动恢复，只有显式重试或重新连接恢复。
 
-`BackgroundNotice` 仅在 Connected 且任务申请失败/系统撤销/暂停或实况窗发布失败时显示一句短反馈和重试、设置。未知初始状态、申请中、健康、关闭偏好及用户取消不显示故障。用于首页时传入 `status` 和 `visible: rootVisible && currentVisibleTab === 0`；放在可滚动操作区中，不能挤占底部连接按钮。诊断页已接线。首页由对应页面所有者加 `import { BackgroundNotice } from './BackgroundNotice'` 与 `BackgroundNotice({ status: this.status, visible: this.rootVisible && this.currentVisibleTab === 0 })`，不复制反馈状态或重试接口。
+`BackgroundNotice` 仅在 Connected 且任务申请失败/系统撤销/暂停或实况窗发布失败时显示一句短反馈和重试、设置。未知初始状态、申请中、健康、关闭偏好及用户取消不显示故障。用于首页时传入 `status` 和 `visible: rootVisible && currentVisibleTab === 0`；放在可滚动操作区中，不能挤占底部连接按钮。首页和诊断页已接线，不复制反馈状态或重试接口。
 
 任务申请、取消、暂停/恢复和异步通知以当前任务身份及代次过滤。关闭偏好或断开期间迟到的授权结果只清理任务，不发出新成功；重复点击不会同时申请两份任务。日志保留错误细节，默认界面不展示平台错误原文。
 
