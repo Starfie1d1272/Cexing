@@ -288,3 +288,44 @@ func TestTimeoutAndNetworkFailure(t *testing.T) {
 		t.Fatal(r)
 	}
 }
+
+func TestChallengeAndHeaderBackoffBeforeBody(t *testing.T) {
+	t.Run("challenge-brand-is-unknown", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("cf-mitigated", "challenge")
+			io.WriteString(w, "ChatGPT verify this request")
+		}))
+		defer server.Close()
+		if result := probe(context.Background(), server.Client(), endpoint{"test", server.URL, "chatgpt"}); result.State != "unknown" {
+			t.Fatal("challenge mistaken for service page", result.State)
+		}
+	})
+	t.Run("429-backoff-does-not-wait-for-body", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Retry-After", "60")
+			w.WriteHeader(429)
+			w.(http.Flusher).Flush()
+			<-r.Context().Done()
+		}))
+		defer server.Close()
+		client := server.Client()
+		client.Timeout = time.Second
+		result := probe(context.Background(), client, endpoint{"test", server.URL, "chatgpt"})
+		if result.State != "limited" || result.RetryAt == nil || result.RetryAt.Before(time.Now().Add(50*time.Second)) {
+			t.Fatal("429 lost backoff while body stalled", result.State)
+		}
+	})
+	t.Run("body-timeout", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			io.WriteString(w, "chatgpt")
+			w.(http.Flusher).Flush()
+			<-r.Context().Done()
+		}))
+		defer server.Close()
+		client := server.Client()
+		client.Timeout = 500 * time.Millisecond
+		if result := probe(context.Background(), client, endpoint{"test", server.URL, "chatgpt"}); result.State != "timeout" {
+			t.Fatal("body timeout not classified", result.State)
+		}
+	})
+}

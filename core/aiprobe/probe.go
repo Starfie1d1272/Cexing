@@ -180,10 +180,6 @@ func probe(ctx context.Context, client *http.Client, e endpoint) Result {
 		return result
 	}
 	defer response.Body.Close()
-	body, err := io.ReadAll(io.LimitReader(response.Body, 64*1024+1))
-	if err != nil {
-		return result
-	}
 	if response.StatusCode == 429 {
 		result.State = "limited"
 		wait := 5 * time.Minute
@@ -206,6 +202,18 @@ func probe(ctx context.Context, client *http.Client, e endpoint) Result {
 		}
 		at := time.Now().Add(wait).UTC()
 		result.RetryAt = &at
+		return result
+	}
+	// A challenge page can contain the service brand without being its page.
+	if strings.EqualFold(response.Header.Get("cf-mitigated"), "challenge") {
+		return result
+	}
+	body, err := io.ReadAll(io.LimitReader(response.Body, 64*1024+1))
+	if err != nil {
+		var network net.Error
+		if errors.As(err, &network) && network.Timeout() {
+			result.State = "timeout"
+		}
 		return result
 	}
 	if len(body) > 64*1024 {
