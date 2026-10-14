@@ -415,6 +415,14 @@
     {
       "name": "a11y_current_profile",
       "value": "Current subscription: %s"
+    },
+    {
+      "name": "nav_profile_merge",
+      "value": "Subscription overrides"
+    },
+    {
+      "name": "nav_generated",
+      "value": "Generated configuration"
     }
   ]
 }

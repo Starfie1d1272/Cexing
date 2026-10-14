@@ -391,6 +391,14 @@
     {
       "name": "a11y_current_profile",
       "value": "当前订阅：%s"
+    },
+    {
+      "name": "nav_profile_merge",
+      "value": "本订阅覆写"
+    },
+    {
+      "name": "nav_generated",
+      "value": "生成配置"
     }
   ]
 }

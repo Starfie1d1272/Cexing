@@ -4,7 +4,7 @@ const vm = require('node:vm');
 const ts = require('./ci/transpile-arkts.cjs');
 let ipv6 = false;
 const calls = [];
-let resourceChecks = 0;
+let resourceChecks = 0, resourceState = 'ready', restores = 0, restoreFailure = false;
 const version = { ID: 'version-test', ProfileID: 'a.yaml', Path: '/files/profile-versions/version-test/config.yaml' };
 const io = { accessSync: path => !path.endsWith('/state.json'), statSync: () => ({ size: 1 }) };
 const core = {
@@ -17,7 +17,7 @@ const core = {
 };
 function load(name) {
   const sandbox = { exports: {}, require: key => key === '@kit.CoreFileKit' ? { fileIo: io } : key === 'libentry.so' ? core :
-    key === './GeoDataAssets' ? { GeoDataAssets: { inspect: async () => { resourceChecks++; return 'ready'; }, restore: async () => { throw Error('ready resources must not be restored'); } } } :
+    key === './GeoDataAssets' ? { GeoDataAssets: { inspect: async () => { resourceChecks++; return resourceState; }, restore: async () => { assert.notEqual(resourceState, 'ready', 'ready resources must not be restored'); restores++; if (restoreFailure) throw Error('geodata unavailable'); resourceState = 'ready'; } } } :
     key === './Settings' ? { Settings: { load: () => ({ ipv6, mixedPort: 7890, logLevel: 'info', allowLan: false, mode: '', logToFile: true }) } } : {} };
   vm.runInNewContext(ts.transpileModule(fs.readFileSync(`cexing/entry/src/main/ets/lib/${name}.ets`, 'utf8')).outputText, sandbox);
   return sandbox.exports[name];
@@ -35,5 +35,10 @@ const versions = load('EffectiveVersions'), validator = load('CoreValidator'), c
     assert.ok(calls.every(([, settings]) => settings.ipv6 === flag && settings.allowLan === false), 'same explicit IPv6 setting reaches every native validation path');
   }
   assert.equal(resourceChecks, 4, 'validate and preview both prepare resources on each IPv6 path');
+  resourceState = 'missing'; calls.length = 0; await validator.validate(context, 'original');
+  assert.equal(restores, 1); assert.equal(calls.length, 1, 'validation resumes only after resource preparation');
+  resourceState = 'invalid'; restoreFailure = true; calls.length = 0;
+  await assert.rejects(validator.previewMerge(context, 'original', ''), /geodata unavailable/);
+  assert.equal(calls.length, 0, 'failed resource preparation never calls native preview');
   console.log('PASS: explicit IPv6 on/off in stage, merge preview, verify and offline validation overrides');
 })().catch(error => { console.error(error); process.exitCode = 1; });
