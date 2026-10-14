@@ -29,7 +29,7 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   const toasts = [];
   let scanCallback, scanCalls = 0;
   let readYaml = async () => 'proxies: []';
-  let importedWrites = 0;
+  let importedWrites = 0, externalPending = null, externalActive = null;
   let stopResult = async () => true;
   let smartPrepare = async () => {};
   let activeHomeFile = 'fixture.yaml';
@@ -46,7 +46,10 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
     '@kit.AbilityKit': {}, '@kit.ScanKit': { scanCore: { ScanType: { QR_CODE: 1 } }, scanBarcode: {
       startScanForResult(_context, options, callback) {
         assert.equal(options.enableAlbum, true); scanCalls++; scanCallback = callback;
-      } } }, '../lib/ProfileImportInput': { ProfileImportInput: { take: () => null,
+      } } }, '../lib/ProfileImportInput': { ProfileImportInput: { take: () => { const value = externalPending; externalPending = null;
+      if (value) externalActive = value; return value; },
+      release: value => { if (value && externalActive === value) externalActive = null; },
+      hasPending: () => externalPending !== null,
       parseText: value => value.startsWith('https://') ? { kind: 'url', value } : null } }, '@kit.CoreFileKit': {}, '@kit.ShareKit': {}, '@kit.ArkData': {},
     '../lib/DiagnosticExportSnapshots': {},
     '../lib/BoundedFileReader': { BoundedFileReader: { yaml: (...args) => readYaml(...args) } },
@@ -413,6 +416,23 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   assert.equal(importedWrites, 1); assert.equal(damagedFile.importing, false);
   assert.ok(!toasts.some(value => value.includes('private-uri')));
   console.log('PASS: shared async file helper, repeated import, late read suppression and safe failure');
+  const queuedScan = activationPage().page; queuedScan.rootVisible = true;
+  queuedScan.scanInput();
+  externalPending = { kind: 'url', value: 'https://shared.invalid/after-scan' };
+  queuedScan.acceptExternalImport(); assert.ok(externalPending, 'busy scan retains pending input');
+  scanCallback({ code: 1 }, null);
+  assert.equal(externalPending, null); assert.equal(queuedScan.inputUrl, 'https://shared.invalid/after-scan');
+  queuedScan.cancelImport(); assert.equal(externalActive, null, 'cancel releases the exact confirmation lease');
+  const queuedFile = activationPage().page; queuedFile.rootVisible = true;
+  readYaml = () => new Promise(resolve => { finishFile = resolve; });
+  const importingQueuedFile = queuedFile.importFile('file://docs/queue.yaml');
+  externalPending = { kind: 'url', value: 'https://shared.invalid/after-file' };
+  queuedFile.acceptExternalImport(); assert.ok(externalPending, 'busy file read retains pending input');
+  finishFile('proxies: []'); await importingQueuedFile;
+  assert.equal(externalPending, null); assert.equal(queuedFile.inputUrl, 'https://shared.invalid/after-file');
+  assert.equal(queuedFile.sheetMode, 2, 'new share is confirmed after file import yields its busy state');
+  queuedFile.cancelImport();
+  console.log('PASS: cancelled sharing lease, queued external input after scanner cancellation and async file import');
   function regionPage() {
     const page = activationPage().page;
     page.importedFile = 'candidate.yaml'; page.regionFromImport = true;
