@@ -451,7 +451,7 @@ export struct ProfileProxyEditorPage {
             ForEach(this.sourceNodes.filter((node: ProxyProviderNode) => node.name.includes(this.query) || node.type.includes(this.query))
               .slice(0, this.visibleCount), (node: ProxyProviderNode) => {
               ListItem() { Row({ space: 8 }) { Text(node.name).fontColor(UI.ink).layoutWeight(1); Text(node.type).fontSize(12).fontColor(UI.muted) }.width('100%').padding(12) }
-            }, (node: ProxyProviderNode) => node.name)
+            }, (_node: ProxyProviderNode, index: number) => `${this.sourceKey}:${index}`)
           }.width('100%').layoutWeight(1).onReachEnd(() => { this.moreRows(); })
         } else {
         List({ space: 8 }) {
