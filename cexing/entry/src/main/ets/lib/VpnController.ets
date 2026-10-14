@@ -157,6 +157,9 @@ export namespace VpnController {
   let collectingNative: boolean = false;
   let nativeGapReported: boolean = false;
 
+  /** Identity verified by the extension, never inferred from cumulative values. */
+  export function trafficSession(): string { return startSession; }
+
   export function onPhase(listener: (phase: VpnPhase) => void): () => void {
     phaseListeners.push(listener);
     return (): void => {

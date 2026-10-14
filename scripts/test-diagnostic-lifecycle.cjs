@@ -25,6 +25,7 @@ function runtimeFixture() {
     './VpnController':{VpnController:controller,VpnStatus:{Disconnected:0,Connecting:1,Connected:2,Disconnecting:3}},
     './DiagnosticsService':{DiagnosticsService:diagnostics},
     './ConnectionCards':{ConnectionCards:{publish(){}}},
+    './TrafficStats': { TrafficStats: { initialize() {}, sample: async () => {}, invalidate() {}, rate: () => null } },
     './LiveViewKeeper':{LiveViewKeeper:{rebindContext(){},start:async()=>true,stop:async()=>{},ensure(){}}},
     './AutoUpdater':{AutoUpdater:{rebindContext(){},start(){},stop(){},checkAndRun:async()=>{}}},
     './Settings':{Settings:{load:()=>({})}},'./Logger':{Logger:{warn(){}}},

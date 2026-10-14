@@ -10,10 +10,11 @@
 import { backgroundTaskManager } from '@kit.BackgroundTasksKit';
 import { wantAgent, common } from '@kit.AbilityKit';
 import { notificationManager } from '@kit.NotificationKit';
-import { CoreApi, TrafficMsg, ProxyInfo, formatRate } from './CoreApi';
+import { CoreApi, ProxyInfo, formatRate } from './CoreApi';
 import { Settings } from './Settings';
 import { VpnController, VpnStatus } from './VpnController';
 import { Logger } from './Logger';
+import { TrafficStats } from './TrafficStats';
 
 const TAG = 'liveview';
 
@@ -81,9 +82,6 @@ export namespace LiveViewKeeper {
     lifecycleQueue = result.catch(() => {});
     return result;
   }
-  /** 上次累计流量采样（差分求速率） */
-  let lastSample: TrafficMsg | null = null;
-  let lastSampleAt: number = 0;
   let lastUpBps: number = 0;
   let lastDownBps: number = 0;
   /** 出口节点/模式名缓存（每 5min 心跳刷新） */
@@ -267,8 +265,6 @@ export namespace LiveViewKeeper {
     notificationId = -1;
     continuousTaskId = -1;
     connectedAt = 0;
-    lastSample = null;
-    lastSampleAt = 0;
     lastUpBps = 0;
     lastDownBps = 0;
     exitNode = '';
@@ -365,27 +361,14 @@ export namespace LiveViewKeeper {
     Logger.info(TAG, 'cancel: reapply scheduled in 30s');
   }
 
-  /** 60s 周期：取累计流量差分求速率，publish 更新实况窗 */
+  /** 60s 周期：复用后台采集速率，publish 更新实况窗 */
   async function updateTick(generation: number): Promise<void> {
     if (!isCurrent(generation)) {
       return;
     }
-    const t = await CoreApi.getTraffic();
-    if (!isCurrent(generation)) {
-      return;
-    }
-    if (t !== null) {
-      const now = Date.now();
-      if (lastSample !== null && lastSampleAt > 0) {
-        const elapsedSec = (now - lastSampleAt) / 1000;
-        if (elapsedSec > 0) {
-          lastDownBps = Math.max(0, t.down - lastSample.down) / elapsedSec;
-          lastUpBps = Math.max(0, t.up - lastSample.up) / elapsedSec;
-        }
-      }
-      lastSample = t;
-      lastSampleAt = now;
-    }
+    const t = TrafficStats.rate();
+    lastUpBps = t !== null ? t.up : 0;
+    lastDownBps = t !== null ? t.down : 0;
     await publishLiveView(generation);
     Logger.info(TAG, 'live view updated rate=' + Math.round(lastDownBps + lastUpBps) + ' progress=' + progressValue());
   }

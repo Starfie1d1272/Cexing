@@ -9,6 +9,7 @@ import { ProfileTransactions } from './ProfileTransactions';
 import { ConnectionCards } from './ConnectionCards';
 import { DiagnosticsService, DiagnosticPhase } from './DiagnosticsService';
 import { VpnPhase } from './VpnPhases';
+import { TrafficStats } from './TrafficStats';
 
 export namespace AppRuntime {
   let context: common.UIAbilityContext | null = null;
@@ -45,6 +46,7 @@ export namespace AppRuntime {
         } catch (_) {}
       }
     });
+    try { TrafficStats.initialize(ctx); } catch (_) {}
     LiveViewKeeper.rebindContext(ctx);
     AutoUpdater.rebindContext(ctx);
     if (!registered) {
@@ -100,6 +102,7 @@ export namespace AppRuntime {
     }
     if (status === VpnStatus.Connected && !servicesStarted) {
       servicesStarted = true;
+      TrafficStats.sample().catch(() => {});
       healthTimer = setInterval(() => { checkSession(); }, 5000);
       ProfileTransactions.applyPendingRegionSelection(ctx)
         .catch(() => Logger.warn('runtime', 'explicit region selection pending'));
@@ -107,6 +110,7 @@ export namespace AppRuntime {
       AutoUpdater.start(ctx);
       AutoUpdater.checkAndRun(ctx).catch(() => Logger.warn('runtime', 'subscription check failed'));
     } else if (status === VpnStatus.Disconnected && servicesStarted) {
+      TrafficStats.invalidate();
       servicesStarted = false;
       clearInterval(healthTimer);
       healthTimer = -1;
@@ -123,6 +127,7 @@ export namespace AppRuntime {
     try {
       await VpnController.verify(ctx);
       if (context === ctx && VpnController.status === VpnStatus.Connected) {
+        TrafficStats.sample().catch(() => {});
         ConnectionCards.publish(ctx, '已连接', false);
       }
     } finally { checking = false; }
@@ -130,6 +135,7 @@ export namespace AppRuntime {
 
   export function foreground(): void {
     if (context !== null) {
+      try { TrafficStats.initialize(context); } catch (_) {}
       LiveViewKeeper.ensure(context);
       checkSession();
     }

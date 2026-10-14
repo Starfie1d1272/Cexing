@@ -228,7 +228,7 @@ export namespace CoreApi {
   }
 
   /**
-   * 单次 REST 取累计流量（LiveViewKeeper 差分采样用）。
+   * 单次 REST 取累计流量（TrafficStats 后台差分采样用）。
    * 注意：/traffic 是无限流式端点（mihomo 每 1s tick 持续输出，REST 单次请求永不结束），
    * 故改取 /connections 的累计总量实现同语义：up=uploadTotal, down=downloadTotal。
    */
