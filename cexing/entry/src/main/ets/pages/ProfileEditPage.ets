@@ -139,6 +139,7 @@ export struct ProfileEditPage {
   }
 
   private onTextChanged(value: string): void {
+    if (value === this.editedText) { return; }
     this.editedText = value;
     this.dirty = true;
     this.draftPersisted = false;

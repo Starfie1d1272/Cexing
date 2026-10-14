@@ -51,6 +51,9 @@ function open(file = 'first.yaml') {
 function idle() { const pending = [...timers.values()]; timers.clear(); pending.forEach(fn => fn()); }
 (async () => {
   const page = open();
+  page.onTextChanged(original); idle();
+  assert.equal(page.dirty, false, 'initial native text feedback is not an edit');
+  assert.equal(writes.length, 0);
   const large = original + '# 合成长订阅 😀\r\n'.repeat(60000);
   const seed = page.text, revision = page.editorRevision;
   for (let i = 0; i < 200; i++) page.onTextChanged(large + i);
@@ -71,6 +74,9 @@ function idle() { const pending = [...timers.values()]; timers.clear(); pending.
   assert.equal(restored.editedText, original); assert.equal(restored.text, original);
   assert.equal(restored.editorRevision, 1, 'discard must reset native text even when its seed is unchanged');
   assert.equal(restored.dirty, false); assert.equal(drafts.has('first.yaml'), false);
+  restored.onTextChanged(original); idle();
+  assert.equal(restored.dirty, false, 'discard feedback must not recreate a draft');
+  assert.equal(drafts.has('first.yaml'), false);
   failWrite = true; restored.onTextChanged(final); idle();
   assert.equal(restored.draftPersisted, false); assert.equal(restored.dirty, true);
   assert.ok(toasts.includes('草稿保存失败，请先保存配置'));
