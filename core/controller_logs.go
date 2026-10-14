@@ -117,7 +117,7 @@ func getControllerLogs(w MHTTP.ResponseWriter, req *MHTTP.Request) {
 			if event.LogLevel < level {
 				continue
 			}
-			payload := redactControllerSecret(event.Payload)
+			payload := redactOrdinaryLog(event.Payload)
 			var value any = route.Log{Type: event.Type(), Payload: payload}
 			if req.URL.Query().Get("format") == "structured" {
 				name := event.Type()
