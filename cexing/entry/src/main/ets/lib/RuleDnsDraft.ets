@@ -3,6 +3,21 @@ import { EditIntent, EditOperation } from './ConfigEditor';
 // In-memory composition only. Persistence/CAS and publication remain entirely
 // owned by ProfileTransactions.save/preview/applyEditDraft.
 export class RuleDnsDraft {
+  static moveAdded(intent: EditIntent, section: string, from: number, to: number): EditIntent {
+    const next = JSON.parse(JSON.stringify(intent)) as EditIntent;
+    const added = next.operations.filter((op: EditOperation) => op.kind === 'add' && op.section === section);
+    if (from < 0 || to < 0 || from >= added.length || to >= added.length) { throw new Error('无效的规则位置'); }
+    const moved = added[from];
+    const destination = added[to];
+    if (section === 'rules' && (typeof moved.value === 'string' && (moved.value as string).startsWith('MATCH,') ||
+      typeof destination.value === 'string' && (destination.value as string).startsWith('MATCH,'))) { throw new Error('最终规则保持在末尾'); }
+    moved.before = destination.before;
+    added.splice(from, 1); added.splice(to, 0, moved);
+    let index = 0;
+    next.operations = next.operations.map((op: EditOperation) => op.kind === 'add' && op.section === section ? added[index++] : op);
+    return next;
+  }
+
   static put(intent: EditIntent, operation: EditOperation): EditIntent {
     const next = JSON.parse(JSON.stringify(intent)) as EditIntent;
     if (operation.kind === 'delete') { next.operations = next.operations.filter((op: EditOperation) => op.target !== operation.target); }
