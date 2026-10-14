@@ -15,6 +15,8 @@ const TAG = 'profileEdit';
 /** 页面间传参总线：列表页 push 前写入，编辑页 aboutToAppear 读取 */
 export class ProfileEditBus {
   static current: string = '';
+  static backGuard: (() => boolean) | null = null;
+  static shouldBlockBack(): boolean { return ProfileEditBus.backGuard?.() ?? false; }
 }
 
 @Component
@@ -42,8 +44,11 @@ export struct ProfileEditPage {
   @State mergeSummary: string = '';
   @State mergeLoadFailed: boolean = false;
   private persistedMergeText: string = '';
+  private backGuard: (() => boolean) | null = null;
 
   aboutToAppear(): void {
+    this.backGuard = () => !this.prepareToLeave();
+    ProfileEditBus.backGuard = this.backGuard;
     this.file = ProfileEditBus.current;
     const context = getContext(this) as common.UIAbilityContext;
     const content = ProfileStore.getProfileContent(context, this.file);
@@ -75,6 +80,7 @@ export struct ProfileEditPage {
   }
 
   aboutToDisappear(): void {
+    if (ProfileEditBus.backGuard === this.backGuard) { ProfileEditBus.backGuard = null; }
     this.flushDraft();
     this.persistMergeDraft();
   }
@@ -189,6 +195,13 @@ export struct ProfileEditPage {
     } catch (e) {
       this.toast(`另存失败: ${(e as Error).message ?? JSON.stringify(e)}`);
     }
+  }
+
+  private prepareToLeave(): boolean {
+    if (this.saving || this.mergeBusy) { return false; }
+    this.flushDraft();
+    const mergeSaved = this.persistMergeDraft();
+    return mergeSaved && (!this.dirty || this.draftPersisted);
   }
 
   private persistMergeDraft(): boolean {
