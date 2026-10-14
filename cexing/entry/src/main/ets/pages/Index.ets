@@ -10,7 +10,7 @@ import { ProxyPage } from './ProxyPage';
 import { ZashboardPage } from './ZashboardPage';
 import { NetworkSettingsPage } from './NetworkSettingsPage';
 import { OverridePage } from './OverridePage';
-import { ProfileEditPage } from './ProfileEditPage';
+import { ProfileEditPage, ProfileEditBus } from './ProfileEditPage';
 import { ProfileGeneratedPage } from './ProfileGeneratedPage';
 
 @Entry
@@ -65,10 +65,12 @@ struct Index {
       NavDestination() { ProfilePage({ detailFile: ProfileDetailBus.current }) }.title('订阅详情')
     } else if (name === 'profileMerge') {
       NavDestination() { ProfileEditPage({ mergeOnly: true }) }.title('本订阅覆写')
+        .onBackPressed(() => ProfileEditBus.shouldBlockBack())
     } else if (name === 'profileGenerated') {
       NavDestination() { ProfileGeneratedPage() }.title('生成配置')
     } else if (name === 'profileEdit') {
       NavDestination() { ProfileEditPage() }.title('原始配置')
+        .onBackPressed(() => ProfileEditBus.shouldBlockBack())
     }
   }
 
