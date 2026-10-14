@@ -16,6 +16,7 @@ const state = { Current: { ID: 'version-old', Path: '/versions/old', ProfileID: 
 state.Profiles['old.yaml'] = state.Current;
 let id = 0;
 let response = 'applied';
+let commitHook = null, switchRestoreAt = -1;
 let session = 'synthetic-session';
 let resolveApply;
 let pending = false;
@@ -31,7 +32,7 @@ let previousRegionObserved = '';
 let currentProxyChoice = 'Original';
 let selectAccepted = true;
 let reloadFallbackChoice = '';
-const controller = { VpnStatus: { Disconnected: 0, Connected: 2 }, VpnController: { status: 2 } };
+const controller = { VpnStatus: { Disconnected: 0, Connected: 2 }, VpnController: { status: 2, holdConfiguration: () => () => {}, configurationEpoch: () => 0 } };
 const core = { CoreApi: {
   isAlive: async () => true,
   getControllerSession: async () => session,
@@ -40,6 +41,7 @@ const core = { CoreApi: {
   selectProxy: async (_, name) => { if (selectAccepted) currentProxyChoice = name; return selectAccepted; },
   applyConfigText: async () => {
     applies++;
+    if (applies === switchRestoreAt) session = 'third-session';
     const result = pending ? await new Promise(resolve => { resolveApply = resolve; }) : response;
     if (result === 'applied' && reloadFallbackChoice !== '') { currentProxyChoice = reloadFallbackChoice; }
     return result;
@@ -63,6 +65,7 @@ const versions = { EffectiveVersions: {
   },
   verify: async () => '',
   commit: async (_, version, expected, active) => {
+    if (commitHook) await commitHook();
     if (failCommit) throw Error('synthetic commit failure');
     assert.equal(expected, state.Current?.ID ?? '');
     const entry = staged.get(version.Path);
@@ -98,6 +101,7 @@ const store = { ProfileStore: {
 } };
 const settings = { Settings: {
   load: () => ({ smartAutoConvert }),
+  idle: async () => {},
   setSmartAutoConvert: (_, enabled) => { smartAutoConvert = enabled; }
 } };
 const context = { exports: {}, require: name => {
@@ -245,6 +249,25 @@ const tx = context.exports.ProfileTransactions;
   assert.equal(await tx.applyPendingRegionSelection({}), true);
   assert.equal(currentProxyChoice, 'Original');
   assert.equal(previousRegionChoice, '');
+  let valid = true; pending = true;
+  const cancelledVersion = state.Current.ID;
+  const cancelled = tx.update({}, 'old.yaml', () => valid);
+  await new Promise(resolve => setTimeout(resolve, 0));
+  valid = false; pending = false; resolveApply('applied');
+  await assert.rejects(cancelled, /取消/);
+  assert.equal(state.Current.ID, cancelledVersion); assert.equal(uncertain, false, 'same-session cancellation confirms rollback');
+  commitHook = async () => { session = 'commit-new-session'; };
+  const beforeCommitSwitch = state.Current.ID;
+  await assert.rejects(tx.update({}, 'old.yaml'), /应用未确认/);
+  assert.notEqual(state.Current.ID, beforeCommitSwitch, 'published pointer truth is retained after a late session change');
+  assert.equal(uncertain, true); commitHook = null;
+  controller.VpnController.status = 0; uncertain = false; await tx.activate({}, 'old.yaml'); controller.VpnController.status = 2;
+  failCommit = true; switchRestoreAt = applies + 2;
+  const beforeRestoreSwitch = state.Current.ID;
+  await assert.rejects(tx.update({}, 'old.yaml'), /应用未确认/);
+  assert.equal(state.Current.ID, beforeRestoreSwitch); assert.equal(uncertain, true);
+  failCommit = false; switchRestoreAt = -1;
+  controller.VpnController.status = 0; uncertain = false; await tx.activate({}, 'old.yaml'); controller.VpnController.status = 2;
   pending = true;
   const priorSessionVersion = state.Current.ID;
   const oldResult = tx.update({}, 'old.yaml');

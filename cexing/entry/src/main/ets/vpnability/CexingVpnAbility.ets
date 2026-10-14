@@ -18,7 +18,6 @@ import core from 'libentry.so';
 import { Logger } from '../lib/Logger';
 import { ProfileStore } from '../lib/ProfileStore';
 import { EffectiveVersions } from '../lib/EffectiveVersions';
-import { Settings } from '../lib/Settings';
 import { CoreApi } from '../lib/CoreApi';
 import { ConnectionFailures } from '../lib/ConnectionFailure';
 import { NativeVpnPhase, NativeVpnPhases, VpnPhaseOutcome, VpnPhases } from '../lib/VpnPhases';
@@ -273,7 +272,13 @@ export default class CexingVpnAbility extends VpnExtensionAbility {
       const cfg: string = await this.buildCoreConfig();
       this.diagnostic('configuration_prepare', 'success');
       // 用户覆写合并进内核配置：覆写项 > 订阅配置同名键（ipv6 只用于 VpnConfig，不传）
-      const s = Settings.load(this.context);
+      const hostSettings = want.parameters?.['HOST_SETTINGS'];
+      if (typeof hostSettings !== 'string' || hostSettings.length > 4096) { throw new Error('启动设置未确认，请重新连接'); }
+      const s = JSON.parse(hostSettings) as UserOverrides;
+      if (!Number.isInteger(s.mixedPort) || s.mixedPort < 1 || s.mixedPort > 65535 ||
+        !['silent', 'error', 'warning', 'info', 'debug'].includes(s.logLevel) ||
+        typeof s.allowLan !== 'boolean' || typeof s.logToFile !== 'boolean' ||
+        !['', 'rule', 'global', 'direct'].includes(s.mode)) { throw new Error('启动设置无效，请重新连接'); }
       const overrides: UserOverrides = {
         mixedPort: s.mixedPort,
         logLevel: s.logLevel,

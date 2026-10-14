@@ -50,6 +50,7 @@ export interface ProfileUpdateState {
 }
 
 export namespace ProfileStore {
+  let pendingImports: string[] = [];
   /** One stable identity per imported source; rename moves this sidecar too.
    * Legacy global lastAutoUpdateMs is intentionally not attributed to any source.
    */
@@ -645,14 +646,7 @@ export namespace ProfileStore {
   }
 
   function setOrigin(context: common.Context, file: string, url: string): void {
-    try {
-      const p = `${dir(context)}/${file}.url`;
-      const f = fileIo.openSync(p, fileIo.OpenMode.READ_WRITE | fileIo.OpenMode.CREATE | fileIo.OpenMode.TRUNC);
-      fileIo.writeSync(f.fd, url);
-      fileIo.closeSync(f);
-    } catch (e) {
-      Logger.warn(TAG, `setOrigin failed: ${JSON.stringify(e)}`);
-    }
+    atomicText(`${ensureDir(context)}/${file}.url`, url);
   }
 
   /** 从 URL 导入订阅，返回保存的文件名；失败抛错 */
@@ -673,10 +667,10 @@ export namespace ProfileStore {
       validateConfig(content);
       const name = suggestProfileName(resp.header as Record<string, Object>,
         profileNameFromUrl(url, '新订阅'));
-      const saved = save(context, name, content);
+      const saved = await saveAsync(context, name, content);
       setOrigin(context, saved, url);
-      setMetaEntry(context, saved, metaEntryFromResp(resp, url));
-      Logger.info(TAG, `imported ${name} (${content.length} bytes)`);
+      writeMetaEntryStrict(context, saved, metaEntryFromResp(resp, url));
+      Logger.info(TAG, 'profile imported');
       return saved;
     } finally {
       req.destroy();
@@ -688,7 +682,7 @@ export namespace ProfileStore {
     const clean = sanitizeConfigContent(content);
     validateConfig(clean);
     const file = save(context, name, clean);
-    setMetaEntry(context, file, {
+    writeMetaEntryStrict(context, file, {
       origin: '',
       sub: { upload: 0, download: 0, total: 0, expire: 0 },
       updatedAt: Math.floor(Date.now() / 1000)
@@ -742,7 +736,7 @@ export namespace ProfileStore {
     }
   }
 
-  function save(context: common.Context, name: string, content: string): string {
+  function prepareSave(context: common.Context, name: string): string {
     let file = /\.(yaml|yml)$/i.test(name) ? name : `${name}.yaml`;
     // 避免路径穿越
     file = file.replace(/[\/\\]/g, '_');
@@ -750,13 +744,84 @@ export namespace ProfileStore {
     const stem = file.replace(/\.(yaml|yml)$/i, '');
     const ext = file.substring(stem.length);
     let suffix = 2;
-    while (fileIo.accessSync(`${d}/${file}`)) {
+    const effective = EffectiveVersions.read(context);
+    while (fileIo.accessSync(`${d}/${file}`) || effective?.Profiles[file] !== undefined || pendingImports.includes(file)) {
       file = `${stem} (${suffix++})${ext}`;
     }
-    const p = `${d}/${file}`;
-    const f = fileIo.openSync(p, fileIo.OpenMode.READ_WRITE | fileIo.OpenMode.CREATE | fileIo.OpenMode.TRUNC);
-    fileIo.writeSync(f.fd, content);
-    fileIo.closeSync(f);
+    // Reset the new source before publishing its raw file. A leftover sidecar
+    // must either be neutralized or make import fail, never silently reactivate.
+    for (const suffix of ['.url', '.merge.json', '.region-select.json', '.region-previous.json']) {
+      const stale = `${d}/${file}${suffix}`;
+      if (fileIo.accessSync(stale)) { fileIo.unlinkSync(stale); }
+    }
+    const oldDraft = draftPath(context, file);
+    if (fileIo.accessSync(oldDraft)) { fileIo.unlinkSync(oldDraft); }
+    const metadata = readMetaStrict(context);
+    const kept: Record<string, ProfileMetaExt> = {};
+    for (const name of Object.keys(metadata)) { if (name !== file) { kept[name] = metadata[name]; } }
+    writeMeta(context, kept);
+    saveUpdateState(context, file, { id: util.generateRandomUUID(true), attemptedAt: 0,
+      succeededAt: 0, failedAt: 0, retryAt: 0 });
     return file;
   }
+
+  function save(context: common.Context, name: string, content: string): string {
+    const file = prepareSave(context, name);
+    const p = `${ensureDir(context)}/${file}`;
+    const f = fileIo.openSync(p, fileIo.OpenMode.READ_WRITE | fileIo.OpenMode.CREATE | fileIo.OpenMode.TRUNC);
+    try { fileIo.writeSync(f.fd, content); } finally { fileIo.closeSync(f); }
+    return file;
+  }
+  /** Picker and URL imports use bounded async writes as well as async reads. */
+  async function saveAsync(context: common.Context, name: string, content: string,
+    current?: () => boolean): Promise<string> {
+    const check = (): void => { if (current !== undefined && !current()) { throw new Error('导入已取消'); } };
+    check();
+    const file = prepareSave(context, name);
+    pendingImports.push(file);
+    const path = `${ensureDir(context)}/${file}`;
+    const temp = `${path}.import-${util.generateRandomUUID(true)}`;
+    let opened: fileIo.File | null = null;
+    try {
+      opened = await fileIo.open(temp, fileIo.OpenMode.READ_WRITE | fileIo.OpenMode.CREATE | fileIo.OpenMode.TRUNC);
+      const encoder = util.TextEncoder.create('utf-8');
+      let written = 0;
+      for (let start = 0; start < content.length;) {
+        check();
+        let end = Math.min(start + 64 * 1024, content.length);
+        if (end < content.length && content.charCodeAt(end - 1) >= 0xd800 && content.charCodeAt(end - 1) <= 0xdbff) { end--; }
+        const chunk = encoder.encodeInto(content.substring(start, end));
+        let offset = 0;
+        while (offset < chunk.byteLength) {
+          check();
+          const count = await fileIo.write(opened.fd, chunk.buffer.slice(offset), { offset: written });
+          if (!Number.isInteger(count) || count <= 0 || count > chunk.byteLength - offset) { throw new Error('配置未完整写入'); }
+          offset += count; written += count;
+        }
+        start = end;
+      }
+      check(); await fileIo.fsync(opened.fd);
+      await fileIo.close(opened); opened = null;
+      check(); await fileIo.moveFile(temp, path);
+      return file;
+    } finally {
+      try { if (opened !== null) { await fileIo.close(opened); } }
+      finally {
+        try { await fileIo.unlink(temp); } catch (_) { /* own temporary path only */ }
+        pendingImports = pendingImports.filter((name: string) => name !== file);
+      }
+    }
+  }
+
+  export async function importContentAsync(context: common.Context, name: string, content: string,
+    current?: () => boolean): Promise<string> {
+    if (current !== undefined && !current()) { throw new Error('导入已取消'); }
+    const clean = sanitizeConfigContent(content);
+    validateConfig(clean);
+    const file = await saveAsync(context, name, clean, current);
+    writeMetaEntryStrict(context, file, { origin: '',
+      sub: { upload: 0, download: 0, total: 0, expire: 0 }, updatedAt: Math.floor(Date.now() / 1000) });
+    return file;
+  }
+
 }

@@ -117,5 +117,7 @@ function fireTimer() { const [id, fn] = timers.entries().next().value; timers.de
   assert.equal(timers.size, 1, 'bounded silent stream schedules retry'); stalled.stop();
   assert.ok(!JSON.stringify(logs).includes(secret));
   assert.ok(!JSON.stringify(logs).includes(stored));
+  assert.equal(await CoreApi.applyConfigText('synthetic', 'b'.repeat(32)), 'unknown');
+  assert.equal(JSON.parse(requests.at(-1).options.extraData).expectedSession, 'b'.repeat(32), 'transaction reload binds the intended core generation');
   console.log('PASS: shared REST/WS authentication, fail-closed reads, redacted logs, reconnect and stale-session cleanup');
 })().catch(error => { console.error(error); process.exitCode = 1; });

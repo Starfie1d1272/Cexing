@@ -147,6 +147,7 @@ export namespace VpnController {
   let lastStopCompleted: boolean | null = null;
   const listeners: StatusListener[] = [];
   let startAttempt = 0;
+  let configurationHolders: number = 0;
   let startSession: string = '';
   let recoveryAttempt = 0;
   const phaseListeners: ((phase: VpnPhase) => void)[] = [];
@@ -296,6 +297,7 @@ export namespace VpnController {
    */
   export function recover(onDone?: (alive: boolean) => void,
     context?: common.UIAbilityContext): void {
+    if (configurationHolders > 0) { if (onDone !== undefined) { onDone(false); } return; }
     if (status !== VpnStatus.Disconnected) {
       if (onDone !== undefined) { onDone(status === VpnStatus.Connected); }
       return;
@@ -451,7 +453,23 @@ export namespace VpnController {
     notifyStatus();
   }
 
+  /** Prevent a new connection from overtaking an in-flight config publication.
+   * Stop remains immediate and invalidates the captured lifecycle epoch.
+   */
+  export function configurationEpoch(): number { return startAttempt; }
+  export function holdConfiguration(): () => void {
+    configurationHolders++;
+    let released = false;
+    return () => { if (!released) { released = true; configurationHolders--; } };
+  }
+
   export function start(context: common.UIAbilityContext): boolean {
+    if (Settings.isLanPersistenceUncertain()) {
+      lastStartError = '共享设置未确认，请重试保存'; notifyStatus(); return false;
+    }
+    if (configurationHolders > 0) {
+      lastStartError = '配置正在保存，请稍后重试'; notifyStatus(); return false;
+    }
     if (status !== VpnStatus.Disconnected) {
       Logger.warn(TAG, `start ignored, status=${VpnStatus[status]}`);
       return false;
@@ -540,7 +558,10 @@ export namespace VpnController {
     if (trusted.length > 0) {
       vpnConfig.trustedApplications = trusted;
     }
-    const params: Record<string, Object> = { 'VPN_CONFIG': vpnConfig, 'SESSION_ID': startSession };
+    const hostSettings = JSON.stringify({ mixedPort: s.mixedPort, logLevel: s.logLevel,
+      allowLan: s.allowLan, mode: s.mode, logToFile: s.logToFile });
+    const params: Record<string, Object> = { 'VPN_CONFIG': vpnConfig, 'SESSION_ID': startSession,
+      'HOST_SETTINGS': hostSettings };
     const connectWant: Want = {
       bundleName: want.bundleName,
       abilityName: want.abilityName,
@@ -640,7 +661,8 @@ export namespace VpnController {
         setStatus(VpnStatus.Connected);
         const settings = Settings.load(context);
         settings.vpnWasConnected = true;
-        Settings.save(context, settings);
+        try { await Settings.save(context, settings, ['vpnWasConnected']); }
+        catch (_) { Logger.error(TAG, 'connection preference save failed'); }
         return;
       }
       if (error.length > 0 || Date.now() >= deadline) {
@@ -706,15 +728,12 @@ export namespace VpnController {
     let stoppingContext = serviceContext ?? context;
     lastStopCompleted = false;
     // 用户主动停止：清除「会话曾连接」标记（冷启动不再自动恢复）
-    let saved = true;
-    try {
-      const s = Settings.load(context);
-      s.vpnWasConnected = false;
-      Settings.save(context, s);
-    } catch (_) {
-      saved = false;
-      Logger.error(TAG, 'disconnect preference save failed');
-    }
+    const preferenceSave = (async (): Promise<boolean> => {
+      try {
+        const s = Settings.load(context); s.vpnWasConnected = false;
+        await Settings.save(context, s, ['vpnWasConnected']); return true;
+      } catch (_) { Logger.error(TAG, 'disconnect preference save failed'); return false; }
+    })();
     // 用户主动停止：清除残留失败信息，避免断开回调误报
     if (!preserveFailure) {
       lastStartError = '';
@@ -770,6 +789,7 @@ export namespace VpnController {
       // Retain the unknown result after failure; a released binding is reacquired
       // by an explicit retry. Late cleanup cannot clear this result.
       reportPendingNativeStop?.();
+      const saved = await preferenceSave;
       const completed = saved && extensionCompleted && systemStopped;
       lastStopCompleted = completed;
       phase('stop', completed ? 'success' : 'unknown', session, completed ? '' : 'STOP_NOT_CONFIRMED', Date.now() - stoppingAt);

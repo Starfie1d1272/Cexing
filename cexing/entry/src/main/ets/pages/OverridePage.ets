@@ -1,3 +1,4 @@
+import { SettingsReconnectButton } from './SettingsReconnectButton';
 import { NativeTheme as UI } from './NativeTheme';
 /*
  * OverridePage.ets - 覆写（设置 → 覆写）
@@ -20,8 +21,27 @@ export struct OverridePage {
   @State portError: string = '';
   @State lanError: string = '';
   private lanDialogGeneration: number = 0;
+  private saveGeneration: number = 0;
+  private pageActive: boolean = false;
+  @State ready: boolean = false;
 
   aboutToAppear(): void {
+    this.pageActive = true;
+    this.saveGeneration++;
+    const generation = this.saveGeneration;
+    this.ready = false;
+    this.readSettings();
+    Settings.idle().then(() => {
+      if (!this.pageActive || generation !== this.saveGeneration) { return; }
+      this.readSettings(); this.ready = true;
+    }).catch(() => {
+      if (this.pageActive && generation === this.saveGeneration) {
+        promptAction.showToast({ message: '设置读取失败，请重试' });
+      }
+    });
+  }
+
+  private readSettings(): void {
     const context = getContext(this) as common.UIAbilityContext;
     const s = Settings.load(context);
     this.mixedPort = String(s.mixedPort);
@@ -29,7 +49,9 @@ export struct OverridePage {
     this.allowLan = s.allowLan;
   }
 
-  private persist(): void {
+  private async persist(): Promise<void> {
+    if (!this.pageActive || !this.ready) { return; }
+    const generation = ++this.saveGeneration;
     const context = getContext(this) as common.UIAbilityContext;
     const s = Settings.load(context);
     const port = Number(this.mixedPort);
@@ -40,23 +62,28 @@ export struct OverridePage {
     this.portError = '';
     s.mixedPort = port;
     s.logLevel = this.logLevel;
-    try { Settings.save(context, s); }
-    catch (_) { this.portError = '保存失败，请重试'; return; }
+    try { await Settings.save(context, s, ['mixedPort', 'logLevel']); }
+    catch (_) { if (!this.pageActive || generation !== this.saveGeneration) { return; } this.portError = '保存失败，请重试'; return; }
+    if (!this.pageActive || generation !== this.saveGeneration) { return; }
     promptAction.showToast({ message: '已保存，下次启动 VPN 生效', duration: 1500 });
   }
 
   aboutToDisappear(): void {
+    this.pageActive = false; this.saveGeneration++;
     this.lanDialogGeneration++;
   }
 
-  private saveAllowLan(enabled: boolean): void {
+  private async saveAllowLan(enabled: boolean): Promise<void> {
+    const generation = this.lanDialogGeneration;
     const context = getContext(this) as common.UIAbilityContext;
     try {
-      Settings.setAllowLan(context, enabled);
+      await Settings.setAllowLan(context, enabled);
+      if (!this.pageActive || generation !== this.lanDialogGeneration) { return; }
       this.allowLan = enabled;
       this.lanError = '';
       promptAction.showToast({ message: '已保存，下次启动 VPN 生效', duration: 1500 });
     } catch (_) {
+      if (!this.pageActive || generation !== this.lanDialogGeneration) { return; }
       this.allowLan = Settings.load(context).allowLan;
       this.lanError = enabled ? '开启保存失败，请重试' :
         '撤销保存失败，原授权仍可能有效，请再次关闭重试；当前共享不会自动停止';
@@ -65,6 +92,7 @@ export struct OverridePage {
   }
 
   private changeAllowLan(enabled: boolean): void {
+    if (!this.pageActive || !this.ready) { return; }
     const generation = ++this.lanDialogGeneration;
     if (!enabled) {
       this.allowLan = false;
@@ -149,10 +177,6 @@ export struct OverridePage {
           .backgroundColor(UI.surface)
           .borderRadius(24)
 
-          Text('这些设置在下次启动 VPN 时生效')
-            .fontSize(13).fontColor(UI.muted).width('100%')
-          Text('订阅 Merge 请在配置编辑页预览、应用或停用；草稿不自动生效，更新后沿用已应用 Merge')
-            .fontSize(13).fontColor(UI.muted).width('100%')
           if (this.portError.length > 0) {
             Text(this.portError).fontSize(14).fontColor(UI.error).width('100%')
           }
@@ -161,11 +185,12 @@ export struct OverridePage {
           }
         }.width('100%')
       }.layoutWeight(1).width('100%').scrollBar(BarState.Off)
+      SettingsReconnectButton()
       Button('保存').width('100%').height(56).backgroundColor(UI.action).fontColor(UI.onAccent).onClick(() => this.persist())
     }
     .width('100%')
     .height('100%')
     .padding({ left: 24, right: 24, top: 16, bottom: 16 })
-    .backgroundColor(UI.paper).constraintSize({ maxWidth: 760 }).alignSelf(ItemAlign.Center)
+    .enabled(this.ready).backgroundColor(UI.paper).constraintSize({ maxWidth: 760 }).alignSelf(ItemAlign.Center)
   }
 }
