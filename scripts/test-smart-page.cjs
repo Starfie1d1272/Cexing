@@ -20,7 +20,7 @@ vm.runInNewContext(ts.transpileModule(methods).outputText, sandbox);
   const page = new sandbox.exports.SmartPage(); page.visible = true; page.aboutToAppear();
   await page.refresh(page.generation); assert.equal(page.ready, false); assert.ok(!page.predictions.includes('0 次'));
   response = { groups: {}, model: { state: 'not-requested', predictions: 0, restartRequired: false }, message: 'unused' };
-  await page.refresh(page.generation); assert.equal(page.usage, '当前配置未使用智能选择'); assert.match(page.nextStep, /URL Test/);
+  await page.refresh(page.generation); assert.equal(page.usage, '当前配置未使用智能选择'); assert.match(page.nextStep, /订阅详情/);
   response.groups = { Synthetic: { useLightGBM: true } }; response.model.state = 'loaded';
   await page.refresh(page.generation); assert.equal(page.modelSummary, '模型已加载'); assert.match(page.predictions, /0 次/);
   assert.match(page.predictionNote, /尚未记录/); assert.equal(page.usage, '智能选择已启用');

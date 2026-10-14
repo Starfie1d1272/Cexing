@@ -102,10 +102,10 @@ export struct SmartPage {
       const names = Object.keys(status.groups);
       this.usage = names.length === 0 ? '当前配置未使用智能选择' : '智能选择已启用';
       this.nextStep = names.length === 0 ?
-        '自动转换适用于 URL Test 和负载均衡组。仅有手动选择组的订阅，可在订阅详情预览地区策略。' :
+        '可在订阅详情设置策略。' :
         '可在控制面板查看 Smart 策略组与当前选项。';
       this.groupSummary = names.length === 0 ? '请按订阅的组类型选择策略' :
-        names.map((name: string) => `${name} · ${status.groups[name].useLightGBM ? '已请求模型' : '统计策略'}`).join('\n');
+        names.map((name: string) => `${name} · ${status.groups[name].useLightGBM ? '模型策略' : '统计策略'}`).join('\n');
       const state = status.model.state;
       this.modelSummary = state === 'loaded' ? '模型已加载' :
         (state === 'missing' ? '模型缺失，使用统计策略' :
