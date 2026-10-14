@@ -40,7 +40,7 @@ function load(relative, modules, timers = [], clock = Date) {
   vm.runInNewContext(output, context);
   return context.exports;
 }
-async function testClient(mode, accessMode = 'all', accessList = []) {
+async function testClient(mode, accessMode = 'all', accessList = [], ipv6 = false) {
   let cleared = 0;
   let callbacks;
   let session = '';
@@ -49,11 +49,19 @@ async function testClient(mode, accessMode = 'all', accessList = []) {
   let ready = false;
   let error = '';
   const timers = [];
-  const settings = { accessMode, accessList, ipv6: false, vpnWasConnected: false };
+  const settings = { accessMode, accessList, ipv6, vpnWasConnected: false };
   const context = {
     filesDir: '/private', applicationInfo: { name: 'test.bundle' },
     connectServiceExtensionAbility: (want, value) => {
       const config = want.parameters.VPN_CONFIG;
+      assert.equal(config.isIPv6Accepted,ipv6);
+      assert.equal(config.addresses.length,ipv6 ? 2 : 1);
+      assert.equal(config.routes.some(r=>r.destination.address.family===2),ipv6);
+      if (ipv6) {
+        assert.equal(config.addresses[1].address.address,'fdfe:dcba:9876::1');
+        assert.equal(config.addresses[1].prefixLength,126);
+        assert.ok(config.dnsAddresses.includes('fdfe:dcba:9876::2'));
+      }
       assert.ok(!(config.trustedApplications && config.blockedApplications), 'SDK application fields must be exclusive');
       if (accessMode === 'white') assert.deepEqual(Array.from(config.trustedApplications), ['sample.app']);
       else assert.ok(config.blockedApplications.includes('test.bundle'), 'host remains excluded');
@@ -140,7 +148,7 @@ async function testClient(mode, accessMode = 'all', accessList = []) {
   }
   assert.equal(notifications, 1, 'Detached page must not receive late status changes');
 }
-async function testExtension(failStop = false, lateCreate = false) {
+async function testExtension(failStop = false, lateCreate = false, protection = 'ok') {
   let failNative = failStop;
   let completeCreate;
   let complete;
@@ -151,9 +159,10 @@ async function testExtension(failStop = false, lateCreate = false) {
   let modelPrepared = 0;
   const files = new Map();
   const pending = new Promise(resolve => { complete = resolve; });
-  const connection = { create: () => lateCreate ? new Promise(resolve => { completeCreate = resolve; }) : Promise.resolve(32), protectProcessNet: async () => {},
+  const connection = { create: () => lateCreate ? new Promise(resolve => { completeCreate = resolve; }) : Promise.resolve(32), protectProcessNet: protection === 'missing' ? undefined : async () => { if (protection === 'failed') throw Error('synthetic protection failed'); },
     destroy: async () => { destroyCount++; } };
   const modules = {
+    '@kit.BasicServicesKit': {deviceInfo:{sdkApiVersion:protection === 'old' ? 21 : 26}},
     '@kit.NetworkKit': { VpnExtensionAbility: class {}, vpnExtension: { createVpnConnection: () => connection } },
     '@kit.IPCKit': { rpc: { RemoteObject: class {} } },
     '@kit.CoreFileKit': { fileIo: { accessSync: () => false, openSync: path => ({ fd: path }),
@@ -194,6 +203,13 @@ async function testExtension(failStop = false, lateCreate = false) {
   const remote = extension.onConnect({ parameters: { VPN_CONFIG: {}, SESSION_ID: 'fixture-1' } });
   assert.ok(remote && typeof remote.then !== 'function', 'onConnect must return synchronously');
   await flush();
+  if (protection !== 'ok') {
+    assert.equal(extension.coreStarted,false);assert.equal(prepared,0);assert.equal(modelPrepared,0);
+    assert.equal(destroyCount,protection==='failed' ? 1 : 0,'created TUN is reclaimed after protection failure');
+    assert.equal(stopCount,0,'no native core enters after unavailable/failed protection');
+    assert.ok(extension.startupError.length>0);
+    return;
+  }
   let reportedReady;
   const reportedStrings = [];
   const reportedBooleans = [];
@@ -272,6 +288,7 @@ function testApplicationPolicy() {
 (async () => {
   testApplicationPolicy();
   await testClient('ready');
+  await testClient('ready','all',[],true);
   await testClient('ready', 'white', ['test.bundle','sample.app','sample.app']);
   await testClient('ready', 'black', ['sample.app','sample.app']);
   await testClient('error');
@@ -282,6 +299,9 @@ function testApplicationPolicy() {
   await testClient('cleanup-failed');
   await testClient('stale-receipt');
   await testExtension();
+  await testExtension(false,false,'old');
+  await testExtension(false,false,'missing');
+  await testExtension(false,false,'failed');
   await testExtension(true);
   await testExtension(false, true);
   console.log('PASS: readiness, error propagation, cancellation and extension lifecycle scenarios');

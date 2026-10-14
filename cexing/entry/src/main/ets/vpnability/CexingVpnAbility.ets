@@ -11,6 +11,7 @@ import { SmartModelAssets } from '../lib/SmartModelAssets';
  */
 import { vpnExtension, VpnExtensionAbility } from '@kit.NetworkKit';
 import { rpc } from '@kit.IPCKit';
+import { deviceInfo } from '@kit.BasicServicesKit';
 import { Want } from '@kit.AbilityKit';
 import { util } from '@kit.ArkTS';
 import { fileIo } from '@kit.CoreFileKit';
@@ -62,6 +63,7 @@ interface CoreConfig {
 /** 设置页用户覆写（键名与 Settings.ets 一致，Go 侧做驼峰->kebab 映射）；
  *  mode 为空串=用户未显式选择，Go 侧跳过，沿用订阅配置自带 mode */
 interface UserOverrides {
+  ipv6: boolean;
   mixedPort: number;
   logLevel: string;
   allowLan: boolean;
@@ -222,6 +224,13 @@ export default class CexingVpnAbility extends VpnExtensionAbility {
     let fd = -1;
     try {
       const config = want.parameters?.['VPN_CONFIG'] as vpnExtension.VpnConfig;
+      // Release SDK marks process protection as API 22. Never start unprotected.
+      this.startupPhase = 'protect';
+      this.startupDiagnosticStage = 'protect';
+      if (deviceInfo.sdkApiVersion < 22 || typeof this.connection.protectProcessNet !== 'function') {
+        throw new Error('process network protection unavailable');
+      }
+      const ipv6 = config.isIPv6Accepted === true;
       this.startupDiagnosticStage = 'tun_create';
       this.diagnostic('tun_create', 'started');
       fd = await this.connection.create(config);
@@ -272,9 +281,10 @@ export default class CexingVpnAbility extends VpnExtensionAbility {
       this.diagnostic('configuration_prepare', 'started');
       const cfg: string = await this.buildCoreConfig();
       this.diagnostic('configuration_prepare', 'success');
-      // 用户覆写合并进内核配置：覆写项 > 订阅配置同名键（ipv6 只用于 VpnConfig，不传）
+      // 用户覆写合并进内核配置：覆写项 > 订阅配置同名键（IPv6 使用本次系统 TUN 快照）
       const s = Settings.load(this.context);
       const overrides: UserOverrides = {
+        ipv6: ipv6,
         mixedPort: s.mixedPort,
         logLevel: s.logLevel,
         allowLan: s.allowLan,
