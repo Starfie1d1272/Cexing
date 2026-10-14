@@ -36,6 +36,35 @@ host 快照保存应用/系统/SDK/ABI 及允许的偏好值，标明“偏好�
 
 云端 fixture 验证重启、关联脱敏、失败阶段、DNS rcode、错误原因、权限码、容量和写入失败；不能代替真机 VPN、真实 DNS/TLS/转发、系统文件选择器和后台死亡验收。可定位常见问题的覆盖率是后续数据验证目标，没有 99% 已达成声明。
 
+## 普通日志与 stderr
+
+普通日志不作为可分享支持包输入，也不自动上传。分享继续使用上面的结构化 JSON 导出。
+Go 日志的 hilog、stdout、Controller `/logs` 和 `mihomo.log` 共用现有诊断脱敏器：
+保留当前、历史及失败候选的敏感值字典，URL 整体去除，凭据、节点/组标识、IP（含 IPv6）
+和路径使用脱敏值；字典不可用或达到容量时省略自由文本。文件写入前再次执行脱敏和消息长度限制。
+
+`mihomo.log` 和 `.old` 各不超过 2 MiB，文件 0600。每次写入检查七天保留期，
+下次启动产生首条日志时也会清理；应用完全不运行时不会唤醒系统执行清理。
+写入先持有非阻塞进程间锁，再重新打开当前文件，避免跨进程轮转后向旧 inode 无限追加。
+符号/硬链接、FIFO、非本 UID 文件拒绝；旧版无脱敏标头的原始日志代在首次写入时清除，
+不将旧明文带进轮转。写入失败退避 30 秒；锁竞争可以丢弃普通文件行，不等待另一进程。
+
+bridge 在首次带 homeDir 的请求、加载 Go 前，从同一应用提供的绝对目录验证真实路径、
+目录所有权及不可被组/其他用户写入的权限。stderr 使用其中的 0700 `runtime-logs`，
+各 256 KiB 的当前/旧文件均为 0600，也按写入时的七天期限清理。旧硬编码位置的原始
+`go_stderr.log` 会删除。stderr 早于 Go 字典，任意 panic 值、堆栈参数和路径均可能含敏感内容，
+因此只落时间和固定事件类别（panic、fatal、traceback 或 stderr），明确 `detail_omitted`。
+不将它描述为完整原始崩溃堆栈。捕获管道写端非阻塞，单行内存最多 512 字节；洪泛可能丢失
+stderr，磁盘工作在独立消费者线程执行，失败有退避，不阻塞 Go init/VPN worker。
+
+“记录内核日志到文件”只控制普通 `mihomo.log`，不关闭 hilog、stderr 故障类别或有界诊断 journal。
+普通日志有容量/竞争丢弃边界；需要分享完整的已保留诊断事件、原因链及省略计数时使用 JSON。
+Linux 合成回归不证明 HarmonyOS 沙箱、进程强杀或真机崩溃捕获，仍在 #92 核验。
+
+轮转参考 [lumberjack](https://github.com/natefinch/lumberjack) 的容量/保留代次设计；其单进程
+假设不能直接用于本宿主，实际锁语义依据 [flock](https://man7.org/linux/man-pages/man2/flock.2.html)，
+管道背压依据 [pipe](https://man7.org/linux/man-pages/man7/pipe.7.html)。未复制外部源码或添加日志依赖。
+
 ## 参考设计
 
 只读核对 [Mizar 支持包](https://github.com/Starfie1d1272/Mizar/blob/c5a2633d15e0d7efd0c5d4ca1bf71ff8932c7dd8/apps/companion/src/support/routes.ts) 的分源状态、原始错误码、原因链与显式省略，[Mizar 日志契约](https://github.com/Starfie1d1272/Mizar/blob/c5a2633d15e0d7efd0c5d4ca1bf71ff8932c7dd8/apps/companion/src/support/logs.ts) 的有界字段与包内身份关联；保留跨重启会话，避免只依赖当前快照和短尾摘要。内核接口按仓库锁定 Mihomo 的 resolver/adapter 生命周期使用，没有复制参考项目源码、添加依赖或执行其程序。

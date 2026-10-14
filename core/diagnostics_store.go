@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/netip"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -186,6 +187,7 @@ var diagnosticPath = regexp.MustCompile(`(?:[A-Za-z]:[\\/]|/)[^\s,;()]+`)
 var diagnosticHex = regexp.MustCompile(`(?i)\b[0-9a-f]{32,}\b`)
 var diagnosticOpaque = regexp.MustCompile(`object-[0-9a-f]{16}`)
 var diagnosticBearer = regexp.MustCompile(`(?i)\bBearer\s+[^\s,;]+`)
+var diagnosticIPv6 = regexp.MustCompile(`(?i)(?:[0-9a-f]{0,4}:){2,}[0-9a-f:.%a-z0-9_-]*`)
 
 func (s *diagnosticStore) text(input string) string {
 	// Raw URLs (including userinfo/path/query/fragment) are removed before any
@@ -202,6 +204,12 @@ func (s *diagnosticStore) text(input string) string {
 	input = diagnosticURL.ReplaceAllStringFunc(input, func(v string) string { id := s.object(v); protected[id] = true; return "url-" + id })
 	input = diagnosticBearer.ReplaceAllString(input, "Bearer [redacted]")
 	input = diagnosticCredentials.ReplaceAllString(input, "credential=[redacted]")
+	input = diagnosticIPv6.ReplaceAllStringFunc(input, func(value string) string {
+		if address, err := netip.ParseAddr(value); err == nil && address.Is6() {
+			return s.object(value)
+		}
+		return value
+	})
 	if s.privateValues != nil {
 		// Do not let a short credential or node label rewrite generated opaque
 		// IDs or URL delimiters before the whole URL has been removed.
