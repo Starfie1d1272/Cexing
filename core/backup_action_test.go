@@ -182,3 +182,27 @@ func TestBackupAbandonedPreviewAndSymlink(t *testing.T) {
 		t.Fatal("outside touched")
 	}
 }
+
+func TestBackupExportsRenamedPublishedAlias(t *testing.T) {
+	h := backupHome(t)
+	p := backupFixture(t, h)
+	backupArm(t, h, p)
+	backupDo(t, h, versionAction{Op: "backup-commit", BackupToken: p.Token})
+	backupDo(t, h, versionAction{Op: "backup-ack", BackupToken: p.Token})
+	backupDo(t, h, versionAction{Op: "backup-finish", BackupToken: p.Token})
+	state, e := executeVersionAction(h, versionAction{Op: "read"})
+	if e != nil {
+		t.Fatal(e)
+	}
+	id := state.State.Current.ID
+	if _, e = executeVersionAction(h, versionAction{Op: "rename", Expected: id, ProfileID: "one.yaml", NewProfileID: "renamed.yaml"}); e != nil {
+		t.Fatal(e)
+	}
+	prefs, _ := json.Marshal(backupPrefs())
+	export := backupDo(t, h, versionAction{Op: "backup-export", Expected: id, BackupPreferences: prefs})
+	raw, e := os.ReadFile(filepath.Join(h, "backups", export.File))
+	var m backupManifest
+	if e != nil || decodeBackupJSON(raw, &m) != nil || m.Active != "renamed.yaml" || m.Profiles[0].Name != "renamed.yaml" || m.Profiles[0].Original != backupSource {
+		t.Fatal("renamed alias lost", e)
+	}
+}

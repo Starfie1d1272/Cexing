@@ -298,7 +298,7 @@ func backupManifestFromStore(home string, prior configpipeline.Snapshot, prefs p
 				GlobalMerge                 string
 				EditIntent                  *configpipeline.EditIntent
 			}
-			if decodeBackupJSON(raw, &source) != nil || source.ProfileID != name || len(source.Overlays) > 1 {
+			if decodeBackupJSON(raw, &source) != nil || !profileIDPattern.MatchString(source.ProfileID) || len(source.Overlays) > 1 {
 				return result, errors.New("BACKUP_SOURCE_INVALID")
 			}
 			sum := sha256.Sum256(generated)
