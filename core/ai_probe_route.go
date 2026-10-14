@@ -103,8 +103,9 @@ func activeAIProbeIdentity(expected string) (aiprobe.Identity, error) {
 	defer f.Close()
 	var source struct {
 		EditIntent *struct {
-			Disabled bool `json:"disabled"`
-			Template *struct {
+			SchemaVersion int  `json:"schemaVersion"`
+			Disabled      bool `json:"disabled"`
+			Template      *struct {
 				TemplateID  string `json:"templateId"`
 				Version     int    `json:"version"`
 				TargetGroup string `json:"targetGroup"`
@@ -112,7 +113,7 @@ func activeAIProbeIdentity(expected string) (aiprobe.Identity, error) {
 		}
 	}
 	decoder := json.NewDecoder(io.LimitReader(f, maxConfigBytes*4))
-	if decoder.Decode(&source) != nil || decoder.Decode(new(any)) != io.EOF || source.EditIntent == nil || source.EditIntent.Disabled || source.EditIntent.Template == nil {
+	if decoder.Decode(&source) != nil || decoder.Decode(new(any)) != io.EOF || source.EditIntent == nil || source.EditIntent.SchemaVersion != 1 || source.EditIntent.Disabled || source.EditIntent.Template == nil {
 		return aiprobe.Identity{}, fail
 	}
 	candidate, err := os.ReadFile(state.Current.Path)

@@ -77,7 +77,7 @@ rules: ["MATCH,AI"]
 	bytes, _ := os.ReadFile(sourcePath)
 	var source map[string]any
 	json.Unmarshal(bytes, &source)
-	source["EditIntent"] = map[string]any{"template": map[string]any{"templateId": "ai", "version": 1, "targetGroup": "AI"}}
+	source["EditIntent"] = map[string]any{"schemaVersion": 1, "template": map[string]any{"templateId": "ai", "version": 1, "targetGroup": "AI"}}
 	bytes, _ = json.Marshal(source)
 	if err := os.WriteFile(sourcePath, bytes, 0600); err != nil {
 		t.Fatal(err)
