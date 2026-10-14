@@ -34,5 +34,10 @@ const reset=()=>{state={pending:''};groups={A:{now:'manual-a',all:['manual-a','m
  reset();groups.A.now='Cexing Smart A';assert.throws(()=>prepare('A','',state,groups),/PREVIOUS_UNAVAILABLE/);
  state={pending:'',previous:{selector:'A',name:'manual-a'}};groups.A.now='fallback';assert.equal(await resume('',port),'pending');
  current=false;assert.equal(await resume('',port),'stale');assert.equal(selections.length,0);
+ reset();await commit(prepare('','A',state,groups),'A',port);
+ tx=prepare('A','B',state,{});state=clone(tx.state);groups.A.now='fallback';
+ assert.equal(state.previous.observed,undefined);const beforeCount=selections.length;
+ assert.equal(await resume('B',port),'pending');assert.equal(selections.length,beforeCount);
+ assert.equal(state.pending,'B');assert.equal(state.previous.selector,'A');
  console.log('PASS: region transition/reconnect helper preserves manual choices, original selector and durable restore ordering');
 })().catch(e=>{console.error(e);process.exitCode=1});

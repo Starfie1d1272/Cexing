@@ -49,6 +49,11 @@ export function prepareRegionChoice(before: string, after: string, saved: Region
       observe = before;
     }
   }
+  if (observe !== '' && state.previous !== undefined) {
+    // An observation made before the removal belongs to the old runtime. It
+    // cannot authorize overwriting the fallback of an unseen offline reload.
+    state.previous.observed = undefined;
+  }
   state.pending = after;
   return { state: state, observeRemoved: observe };
 }
