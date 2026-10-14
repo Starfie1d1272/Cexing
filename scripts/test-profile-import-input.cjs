@@ -42,9 +42,17 @@ const external = { action: 'ohos.want.action.sendData', parameters: {
   'ohos.extra.param.key.TEXT': link, cexingConnectionAction: 'connect' } };
 input.receive(external); assert.equal(changes, 1);
 input.receive(external); assert.equal(changes, 1, 'duplicate intent must not reopen confirmation');
-assert.equal(input.take().value, link); assert.equal(input.take(), null);
-input.receive(view('https://other.invalid/sub')); assert.equal(changes, 2);
-assert.equal(input.take().value, 'https://other.invalid/sub');
+const firstLease = input.take();
+assert.equal(firstLease.value, link); assert.equal(input.take(), null);
+input.receive(external); assert.equal(changes, 1, 'visible confirmation also deduplicates repeated delivery');
+input.release(firstLease); input.receive(external);
+assert.equal(changes, 2, 'cancelled input can be shared again');
+const retriedLease = input.take(); assert.equal(retriedLease.value, link);
+input.receive(view('https://other.invalid/sub')); assert.equal(changes, 3);
+const newerLease = input.take(); assert.equal(newerLease.value, 'https://other.invalid/sub');
+input.release(retriedLease); input.receive(view('https://other.invalid/sub'));
+assert.equal(changes, 3, 'old completion cannot release a newer confirmation');
+input.release(newerLease);
 const entry = fs.readFileSync('cexing/entry/src/main/ets/entryability/EntryAbility.ets', 'utf8');
 assert.equal((entry.match(/else \{ ConnectionEntry.receive\(want\); \}/g) || []).length, 2,
   'cold/hot external input must be isolated from connection shortcuts');

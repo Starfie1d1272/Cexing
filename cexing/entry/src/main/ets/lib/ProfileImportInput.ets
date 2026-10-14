@@ -7,7 +7,7 @@ export interface ProfileImportCandidate { kind: string; value: string; }
 /** Untrusted external input is only queued for a visible, explicit confirmation. */
 export namespace ProfileImportInput {
   let pending: ProfileImportCandidate | null = null;
-  let lastValue: string = '';
+  let active: ProfileImportCandidate | null = null;
   let revision: number = 0;
   let delivery: number = 0;
 
@@ -56,8 +56,7 @@ export namespace ProfileImportInput {
   }
 
   function enqueue(candidate: ProfileImportCandidate): void {
-    if (candidate.value === lastValue) { return; }
-    lastValue = candidate.value;
+    if (candidate.value === pending?.value || candidate.value === active?.value) { return; }
     pending = candidate;
     AppStorage.setOrCreate('profileImportRequest', ++revision);
   }
@@ -90,6 +89,15 @@ export namespace ProfileImportInput {
   export function take(): ProfileImportCandidate | null {
     const result = pending;
     pending = null;
+    if (result !== null) { active = result; }
     return result;
   }
+  /** Release this exact confirmation lease on cancel, leave or successful import.
+   * A late completion cannot release a newer confirmation. */
+  export function release(candidate: ProfileImportCandidate | null): void {
+    if (candidate !== null && candidate === active) { active = null; }
+  }
+
+  export function hasPending(): boolean { return pending !== null; }
+
 }
