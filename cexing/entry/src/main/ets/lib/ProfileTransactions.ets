@@ -8,7 +8,7 @@ import { ProfileStore, ProfileMetaExt } from './ProfileStore';
 import { VpnController, VpnStatus } from './VpnController';
 import { CoreValidator } from './CoreValidator';
 import { MergePreview } from './CoreValidator';
-import { EffectiveVersions, EffectiveState, RegionPlan, RegionPreview } from './EffectiveVersions';
+import { EffectiveVersions, EffectiveState, RegionPlan, RegionPreview, ProfileStorageReport } from './EffectiveVersions';
 import { Settings } from './Settings';
 
 export type ProfileApplyState = 'applied' | 'saved';
@@ -48,6 +48,12 @@ export namespace ProfileTransactions {
     if (uncertain) { throw new Error('应用未确认，请重连恢复'); }
     busy = true;
     releaseConfiguration = VpnController.holdConfiguration();
+  }
+
+  export async function refreshStorage(context: common.Context): Promise<ProfileStorageReport> {
+    enter(context);
+    try { return await EffectiveVersions.collect(context, EffectiveVersions.read(context)?.Current?.ID ?? ''); }
+    finally { leave(); }
   }
 
   function markUnknown(context: common.Context): void {
