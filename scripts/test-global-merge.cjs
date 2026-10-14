@@ -73,7 +73,7 @@ const store = { isApplyUncertain: () => uncertain, markApplyUncertain: () => unc
 modules['./ProfileStore'] = { ProfileStore: store };
 modules['./CoreValidator'] = { CoreValidator: { prepareResources: async () => {} } };
 modules['./VpnController'] = { VpnController: controller, VpnStatus: status };
-modules['./CoreApi'] = { CoreApi: { isAlive: async () => true,
+modules['./CoreApi'] = { CoreApi: { isAlive: async () => true, getControllerSession: async () => 'synthetic-session',
   applyConfigText: async text => { applied.push(text); return response; } } };
 const tx = compile('lib/ProfileTransactions.ets').ProfileTransactions;
 modules['../lib/ProfileTransactions'] = { ProfileTransactions: tx };
@@ -142,8 +142,8 @@ const Editor = compile('pages/GlobalMergeEditor.ets', true).GlobalMergeEditor;
   assert.equal(brokenEditor.saveDraft(), false); failRead = false; assert.equal(draft.read(ctx), '');
   controller.status = status.Connected; response = 'unknown';
   const beforeUnknown = JSON.stringify(state);
-  await assert.rejects(tx.applyGlobalMerge(ctx, 'unknown'), /未知/);
-  assert.equal(JSON.stringify(state), beforeUnknown); await assert.rejects(tx.activate(ctx, 'two.yaml'), /断开/);
+  await assert.rejects(tx.applyGlobalMerge(ctx, 'unknown'), /应用未确认/);
+  assert.equal(JSON.stringify(state), beforeUnknown); await assert.rejects(tx.activate(ctx, 'two.yaml'), /重连恢复/);
   assert.equal(data.get(prior.Path), priorBytes); assert.equal(originals.get('one.yaml'), original);
   const pageSource = fs.readFileSync(path.join(base, 'pages/ProfilePage.ets'), 'utf8');
   const closeBody = pageSource.match(/GlobalMergeEditor\(\{ onClose: \(\) => \{([^}]*)\}/)[1];

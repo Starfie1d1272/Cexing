@@ -2,9 +2,8 @@
  * AutoUpdater.ets - 订阅自动更新（按设置周期拉取激活配置的来源 URL）
  * 仅对激活配置生效；本地导入（无来源 URL）自动跳过。
  * 周期检查由 AppRuntime 按 VPN 状态启动和停止；
- * 上次成功时间戳与 Settings 同 store（clashoh_settings）不同 key，互不影响。
+ * 每订阅尝试和成功记录随稳定身份保存，重命名时迁移。
  */
-import { preferences } from '@kit.ArkData';
 import { common } from '@kit.AbilityKit';
 import { Settings } from './Settings';
 import { CoreApi } from './CoreApi';
@@ -13,8 +12,6 @@ import { ProfileTransactions } from './ProfileTransactions';
 import { Logger } from './Logger';
 
 const TAG = 'autoUpdater';
-const STORE = 'clashoh_settings';
-const KEY_LAST_AUTO_UPDATE = 'lastAutoUpdateMs';
 /** 定时检查周期：每 60 分钟 */
 const CHECK_INTERVAL_MS = 60 * 60 * 1000;
 
@@ -65,20 +62,20 @@ export namespace AutoUpdater {
   }
 
   /** 单轮检查：开关/内核/间隔/来源都满足才真正更新 */
-  export async function checkAndRun(context: common.Context): Promise<void> {
+  export async function checkAndRun(context: common.Context, force: boolean = false): Promise<void> {
     if (checking) {
       return;
     }
     checking = true;
     const attempt = generation;
     try {
-      await runCheck(context, attempt);
+      await runCheck(context, attempt, force);
     } finally {
       checking = false;
     }
   }
 
-  async function runCheck(context: common.Context, attempt: number): Promise<void> {
+  async function runCheck(context: common.Context, attempt: number, force: boolean): Promise<void> {
     if (!Settings.load(context).autoUpdate) {
       return;
     }
@@ -92,37 +89,39 @@ export namespace AutoUpdater {
     if (!s.autoUpdate) {
       return;
     }
-    const p = preferences.getPreferencesSync(context, { name: STORE });
-    let last = 0;
-    try {
-      last = p.getSync(KEY_LAST_AUTO_UPDATE, 0) as number;
-    } catch (e) {
-      Logger.warn(TAG, `read lastAutoUpdateMs failed: ${JSON.stringify(e)}`);
-    }
-    const now = Date.now();
-    if (last !== 0 && now - last < s.autoUpdateIntervalHours * 3600 * 1000) {
-      return;
-    }
     const active = ProfileStore.getActiveFile(context);
-    if (active.length === 0) {
-      return;
-    }
-    if (ProfileStore.getOrigin(context, active).length === 0) {
-      return;
-    }
+    if (active.length === 0 || ProfileStore.getOrigin(context, active).length === 0) { return; }
+    const state = ProfileStore.updateState(context, active);
+    const now = Date.now();
+    const due = state.failedAt > state.succeededAt || state.attemptedAt > state.succeededAt ?
+      state.retryAt : state.succeededAt + s.autoUpdateIntervalHours * 3600 * 1000;
+    if (!force && state.attemptedAt !== 0 && now < due) { return; }
+    state.attemptedAt = now;
+    state.retryAt = now + CHECK_INTERVAL_MS;
+    ProfileStore.saveUpdateState(context, active, state);
+    const current = (): boolean => attempt === generation && Settings.load(context).autoUpdate &&
+      ProfileStore.getActiveFile(context) === active && ProfileStore.updateState(context, active).id === state.id;
     try {
-      await ProfileTransactions.update(context, active, () => attempt === generation &&
-        Settings.load(context).autoUpdate && ProfileStore.getActiveFile(context) === active);
-      try {
-        p.putSync(KEY_LAST_AUTO_UPDATE, now);
-        p.flush();
-      } catch (e) {
-        Logger.warn(TAG, `write lastAutoUpdateMs failed: ${JSON.stringify(e)}`);
-      }
-      Logger.info(TAG, `auto update done: ${active}`);
-    } catch (e) {
-      const msg = (e as Error).message ?? JSON.stringify(e);
-      Logger.warn(TAG, `auto update failed: ${msg}`);
+      await ProfileTransactions.update(context, active, current);
+      if (!current()) { return; }
+      state.succeededAt = Date.now();
+      state.failedAt = 0;
+      state.retryAt = 0;
+      ProfileStore.saveUpdateState(context, active, state);
+      Logger.info(TAG, 'auto update completed');
+    } catch (_) {
+      if (!current()) { return; }
+      state.failedAt = Date.now();
+      ProfileStore.saveUpdateState(context, active, state);
+      Logger.warn(TAG, 'auto update failed; previous profile retained');
     }
+  }
+
+  /** Explicit retry still uses the same transaction, generation and concurrency gate. */
+  export async function retry(context: common.Context): Promise<void> {
+    if (checking) { return; }
+    const active = ProfileStore.getActiveFile(context);
+    if (active === '') { return; }
+    await checkAndRun(context, true);
   }
 }

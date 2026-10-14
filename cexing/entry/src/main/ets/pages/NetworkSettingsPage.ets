@@ -33,7 +33,13 @@ export struct NetworkSettingsPage {
     s.ipv6 = this.ipv6;
     s.accessMode = ACCESS_VALUES[this.accessIndex];
     s.accessList = this.accessList;
-    Settings.save(context, s);
+    try {
+      Settings.save(context, s);
+      this.changedHint();
+    } catch (_) {
+      this.aboutToAppear();
+      promptAction.showToast({ message: '保存失败，请重试', duration: 2000 });
+    }
   }
 
   private changedHint(): void {
@@ -93,7 +99,6 @@ export struct NetworkSettingsPage {
             if (pkg.length > 0 && this.accessList.indexOf(pkg) < 0) {
               this.accessList = [...this.accessList, pkg];
               this.persist();
-              this.changedHint();
             }
             this.inputPkg = '';
             this.showAddDialog = false;
@@ -113,7 +118,6 @@ export struct NetworkSettingsPage {
           this.ToggleRow('IPv6', '下次启动生效', this.ipv6, (v: boolean) => {
             this.ipv6 = v;
             this.persist();
-            this.changedHint();
           })
         }
         .width('100%')
@@ -149,8 +153,7 @@ export struct NetworkSettingsPage {
                 .onClick(() => {
                   this.accessIndex = index;
                   this.persist();
-                  this.changedHint();
-                })
+                    })
             }, (label: string) => label)
           }
           .backgroundColor(UI.soft)

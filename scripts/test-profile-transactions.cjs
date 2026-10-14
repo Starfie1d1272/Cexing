@@ -16,6 +16,7 @@ const state = { Current: { ID: 'version-old', Path: '/versions/old', ProfileID: 
 state.Profiles['old.yaml'] = state.Current;
 let id = 0;
 let response = 'applied';
+let session = 'synthetic-session';
 let resolveApply;
 let pending = false;
 let uncertain = false;
@@ -33,6 +34,7 @@ let reloadFallbackChoice = '';
 const controller = { VpnStatus: { Disconnected: 0, Connected: 2 }, VpnController: { status: 2 } };
 const core = { CoreApi: {
   isAlive: async () => true,
+  getControllerSession: async () => session,
   getProxies: async () => ({ Main: { now: currentProxyChoice,
     all: ['Original', 'Other', 'Manual', 'Cexing Smart Main'] } }),
   selectProxy: async (_, name) => { if (selectAccepted) currentProxyChoice = name; return selectAccepted; },
@@ -125,9 +127,9 @@ const tx = context.exports.ProfileTransactions;
   await assert.rejects(tx.edit({}, 'old.yaml', 'bad'), /parse/);
   assert.equal(originals['old.yaml'], 'proxies: [old]');
   response = 'unknown';
-  await assert.rejects(tx.update({}, 'old.yaml'), /未知/);
+  await assert.rejects(tx.update({}, 'old.yaml'), /应用未确认/);
   assert.equal(state.Current.ProfileID, 'old.yaml');
-  await assert.rejects(tx.activate({}, 'new.yaml'), /断开 VPN/);
+  await assert.rejects(tx.activate({}, 'new.yaml'), /重连恢复/);
   controller.VpnController.status = 0;
   uncertain = false; // explicit confirmed stop clears the persistent marker
   assert.equal(await tx.activate({}, 'new.yaml'), 'saved');
@@ -243,5 +245,14 @@ const tx = context.exports.ProfileTransactions;
   assert.equal(await tx.applyPendingRegionSelection({}), true);
   assert.equal(currentProxyChoice, 'Original');
   assert.equal(previousRegionChoice, '');
+  pending = true;
+  const priorSessionVersion = state.Current.ID;
+  const oldResult = tx.update({}, 'old.yaml');
+  await new Promise(resolve => setTimeout(resolve, 0));
+  session = 'new-session';
+  resolveApply('applied');
+  await assert.rejects(oldResult, /应用未确认/);
+  assert.equal(state.Current.ID, priorSessionVersion, 'old runtime result cannot publish into a new session');
+  await assert.rejects(tx.activate({}, 'new.yaml'), /重连恢复/);
   console.log('PASS: rejected, unknown, staged pointer, merge reapply and concurrent profile transactions');
 })().catch(error => { console.error(error); process.exitCode = 1; });
