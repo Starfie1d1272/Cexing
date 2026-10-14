@@ -56,6 +56,15 @@ func TestGlobalMergeAtomicScopeOrderAndSource(t *testing.T) {
 	if err != nil || preview.MergePreview == nil {
 		t.Fatal("preview", err)
 	}
+	response, err := json.Marshal(preview)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var envelope map[string]json.RawMessage
+	if err := json.Unmarshal(response, &envelope); err != nil {
+		t.Fatal(err)
+	}
+	requireMergePreviewFields(t, envelope["mergePreview"])
 	unchanged, _ := os.ReadFile(filepath.Join(home, "profile-versions/state.json"))
 	if string(unchanged) != string(oldState) {
 		t.Fatal("preview published global")

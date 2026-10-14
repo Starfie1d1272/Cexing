@@ -1,11 +1,31 @@
 package main
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 )
+
+func requireMergePreviewFields(t *testing.T, data []byte) {
+	t.Helper()
+	var preview struct {
+		Digest  string           `json:"digest"`
+		Changes []map[string]any `json:"changes"`
+	}
+	if err := json.Unmarshal(data, &preview); err != nil || preview.Digest == "" || len(preview.Changes) == 0 {
+		t.Fatal("missing merge preview", err)
+	}
+	for _, change := range preview.Changes {
+		section, sectionOK := change["section"].(string)
+		_, beforeOK := change["before"].(float64)
+		_, afterOK := change["after"].(float64)
+		if len(change) != 3 || !sectionOK || section == "" || !beforeOK || !afterOK {
+			t.Fatal("merge preview fields do not match the ArkTS contract", change)
+		}
+	}
+}
 
 func TestMergePreviewUsesPinnedDialectWithoutLeakingValues(t *testing.T) {
 	home := t.TempDir()
@@ -27,6 +47,7 @@ hosts: {synthetic.example: 192.0.2.3}
 	if err != nil {
 		t.Fatal(err)
 	}
+	requireMergePreviewFields(t, []byte(first))
 	second, err := corePreviewMerge(home, base, merge, "")
 	if err != nil || first != second {
 		t.Fatal("preview is not deterministic")
