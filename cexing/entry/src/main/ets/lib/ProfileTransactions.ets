@@ -102,6 +102,7 @@ export namespace ProfileTransactions {
     globalOverride?: string, intentOverride?: EditIntent | null, expectedDigest?: string,
     guard?: (published: boolean) => Promise<void>): Promise<ProfileApplyState> {
     const epoch = VpnController.configurationEpoch();
+    Settings.load(context); await Settings.idle();
     const state = EffectiveVersions.read(context);
     const expected = state?.Current?.ID ?? '';
     const live = select ? await running(context) : false;
@@ -282,9 +283,10 @@ export namespace ProfileTransactions {
   export async function restorePrevious(context: common.Context, expectedCurrent: string,
     expectedPrevious: string): Promise<ProfileApplyState> {
     enter(context);
-    const smart = Settings.load(context).smartAutoConvert;
+    let smart = Settings.load(context).smartAutoConvert;
     let preferenceChanged = false;
     try {
+      await Settings.idle(); smart = Settings.load(context).smartAutoConvert;
       const state = EffectiveVersions.read(context);
       const previous = state?.Previous;
       if (state?.Current?.ID !== expectedCurrent || previous === null || previous === undefined ||
@@ -326,7 +328,7 @@ export namespace ProfileTransactions {
   export async function ensureActiveSmartPolicy(context: common.Context): Promise<void> {
     enter(context);
     try {
-      await Settings.idle();
+      Settings.load(context); await Settings.idle();
       if (VpnController.status !== VpnStatus.Disconnected) { return; }
       const file = ProfileStore.getActiveFile(context);
       if (file === '') { return; }

@@ -83,6 +83,7 @@ export namespace LocalBackup {
       }, async () => {
         return (await BackupJournal.call(context, JSON.stringify({ op: 'backup-status', backupToken: preview.token }))).outcome;
       }, async () => { await BackupJournal.acknowledge(context, preview.token); });
+      try { await EffectiveVersions.collect(context, expected(context)); } catch (_) {}
     });
   }
 }
