@@ -6,7 +6,7 @@
 
 DNS 推荐预设只设置 AliDNS/DNSPod 的 DoH nameserver 与 IP bootstrap，不更改 rules、hosts、DNS listener、TUN 或 Controller。默认选择撤去 DNS 编辑操作，回到最新原文与两层 Merge 的 DNS。自定义直接使用同一 DNS 表单和意图，未创建另一套预设持久化。
 
-规则拖动生成真实 move 操作；最终 MATCH 留在末尾。新增普通规则在原规则前插入。新增项与原文项分开显示，单项修改和 provider 改名仍保留原始稳定 ID。高级规则必须经过固定核心 parser/reference/完整验证后才能应用。
+已有规则拖动生成真实 move 操作；新增规则可选择插入位置，新增项间拖动重排 add 操作与原规则锚点，而非伪造编译器 target ID；最终 MATCH 留在末尾。新增普通规则在原规则前插入。新增项与原文项分开显示，单项修改和 provider 改名仍保留原始稳定 ID。高级规则必须经过固定核心 parser/reference/完整验证后才能应用。
 
 运行 provider 状态仅查询既有受认证 loopback Controller，并只在当前运行订阅中允许刷新。读取前后核对 Controller session，页面再核对同一 activeVersion。错误详情按需查看、不写日志。刷新失败重新读取仍在运行的规则源状态，保留核心 last-good；不写配置、不改 DIRECT、不触碰用户 URL。关联数从运行 /rules 的 RuleSet references 获取，不推断其他订阅或未运行状态。
 

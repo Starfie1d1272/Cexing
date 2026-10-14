@@ -1,6 +1,6 @@
 import { util } from '@kit.ArkTS';
 import { NativeTheme as UI } from './NativeTheme';
-import { EditOperation, EditTarget } from '../lib/ConfigEditor';
+import { EditOperation, EditTarget, EditableItem } from '../lib/ConfigEditor';
 import { COMMON_RULE_TYPES, RuleDnsForms, RuleFields, ProviderFields, DnsFields } from '../lib/RuleDnsForms';
 
 @Component
@@ -11,6 +11,9 @@ export struct RuleDnsEditForm {
   @Prop targets: string[] = ['DIRECT', 'REJECT'];
   @Prop isNew: boolean = false;
   @Prop matchId: string = '';
+  @Prop positions: EditableItem[] = [];
+  @Prop insertionBefore: string = '';
+  @State ruleBefore: string = '';
   onOperation: (operation: EditOperation) => void = (_: EditOperation): void => { throw new Error('编辑尚未接通'); };
   onClose: () => void = (): void => {};
   @State kind: string = 'DOMAIN-SUFFIX';
@@ -33,6 +36,7 @@ export struct RuleDnsEditForm {
   @State error: string = '';
 
   aboutToAppear(): void {
+    this.ruleBefore = this.isNew && this.selected.item.id !== '' ? this.insertionBefore : this.insertionBefore || this.positions[0]?.id || '';
     this.name = this.selected.name ?? '';
     this.advancedText = this.section === 'rules' ? this.selected.value as string : JSON.stringify(this.selected.value, null, 2);
     if (this.section === 'rules') {
@@ -68,7 +72,9 @@ export struct RuleDnsEditForm {
       } else if (this.section === 'rules') {
         const fields: RuleFields = { type: this.kind, condition: this.condition.trim(), target: this.destination, noResolve: this.noResolve };
         operation = this.isNew ? RuleDnsForms.addRule(id, fields, this.matchId) : RuleDnsForms.updateRule(id, this.selected, fields);
+        if (this.isNew && fields.type !== 'MATCH') { operation.before = this.ruleBefore; }
       } else if (this.section === 'rule-providers') {
+        if (this.providerType === 'http' && this.interval.trim() === '') { throw new Error('请输入更新间隔'); }
         const fields: ProviderFields = { name: this.name.trim(), type: this.providerType, behavior: this.behavior,
           format: this.format, location: this.location.trim(), interval: Number(this.interval) };
         const value = RuleDnsForms.providerValue(fields);
@@ -91,12 +97,34 @@ export struct RuleDnsEditForm {
     } catch (error) { this.error = (error as Error).message; }
   }
 
+  private optionLabel(label: string, value: string): string {
+    if (label === '目标') { return value === 'DIRECT' ? '直连' : value === 'REJECT' ? '拒绝' : value; }
+    if (label === '规则源') { return value; }
+    switch (value) {
+      case 'DOMAIN': return '完整域名';
+      case 'DOMAIN-SUFFIX': return '域名后缀';
+      case 'DOMAIN-KEYWORD': return '域名关键字';
+      case 'IP-CIDR': return 'IPv4 地址段';
+      case 'IP-CIDR6': return 'IPv6 地址段';
+      case 'RULE-SET': return '规则源';
+      case 'MATCH': return '最终规则';
+      case 'http': return '远程';
+      case 'file': return '本地';
+      case 'domain': return '域名';
+      case 'ipcidr': return 'IP 地址段';
+      case 'classical': return '综合规则';
+      case 'text': return '文本';
+      case 'fake-ip': return 'Fake IP';
+      case 'redir-host': return '真实 IP';
+      default: return value;
+    }
+  }
   @Builder
   choose(label: string, values: string[], current: string, changed: (value: string) => void) {
     Row({ space: 12 }) {
       Text(label).fontColor(UI.ink).layoutWeight(1)
-      Select(values.map((value: string): SelectOption => ({ value: value }))).value(current)
-        .selected(values.indexOf(current)).onSelect((_index: number, value: string) => changed(value))
+      Select(values.map((value: string): SelectOption => ({ value: this.optionLabel(label, value) }))).value(this.optionLabel(label, current))
+        .selected(values.indexOf(current)).onSelect((index: number) => changed(values[index]))
     }.width('100%')
   }
 
@@ -114,6 +142,11 @@ export struct RuleDnsEditForm {
             } else {
               TextInput({ placeholder: '匹配条件', text: this.condition }).onChange((value: string) => { this.condition = value; })
             }
+          }
+          if (this.isNew && this.kind !== 'MATCH' && this.positions.length > 0) {
+            Select(this.positions.map((_item: EditableItem, index: number): SelectOption => ({ value: `规则 ${index + 1} 之前` })))
+              .selected(this.positions.findIndex((item: EditableItem) => item.id === this.ruleBefore))
+              .onSelect((index: number) => { this.ruleBefore = this.positions[index].id; }).accessibilityText('插入位置')
           }
           this.choose('目标', this.targets, this.destination, (value: string) => { this.destination = value; })
           if (['IP-CIDR', 'IP-CIDR6', 'GEOIP'].includes(this.kind)) {

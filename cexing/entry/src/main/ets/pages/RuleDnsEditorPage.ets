@@ -7,6 +7,7 @@ import { VpnController, VpnStatus } from '../lib/VpnController';
 import { RuleProviderStatus } from '../lib/RuleProviderStatus';
 import { RuleDnsDraft } from '../lib/RuleDnsDraft';
 import { ProfileTransactions, EditTicket } from '../lib/ProfileTransactions';
+import { EffectiveVersions } from '../lib/EffectiveVersions';
 import { ProfileStore } from '../lib/ProfileStore';
 
 export class RuleDnsEditorBus { static file: string = ''; static section: string = 'rules'; }
@@ -17,6 +18,7 @@ export struct RuleDnsEditorPage {
   @State section: string = 'rules';
   @State items: EditableItem[] = [];
   @State additions: EditOperation[] = [];
+  @State insertionBefore: string = '';
   @State selected: EditTarget | null = null;
   @State isNew: boolean = false;
   @State busy: boolean = false;
@@ -39,6 +41,7 @@ export struct RuleDnsEditorPage {
   private snapshot: EditableSnapshot | null = null;
   private intent: EditIntent | null = null;
   private undo: EditIntent | null = null;
+  private liveProviderName: string = '';
 
   aboutToAppear(): void { this.file = RuleDnsEditorBus.file; this.section = RuleDnsEditorBus.section; this.active = this.visible; if (this.active) { this.load(); } }
   aboutToDisappear(): void { this.active = false; this.epoch++; this.busy = false; }
@@ -87,7 +90,7 @@ export struct RuleDnsEditorPage {
   private openAdded(op: EditOperation): void {
     if (this.busy || op.value === undefined) { return; }
     this.selected = { item: { id: op.id, revision: '' }, value: JSON.parse(JSON.stringify(op.value)) as Object, name: op.name };
-    this.isNew = true;
+    this.isNew = true; this.insertionBefore = op.before ?? '';
   }
   private removeAdded(id: string): void {
     if (this.busy || this.intent === null) { return; }
@@ -111,6 +114,12 @@ export struct RuleDnsEditorPage {
         for (const key of Object.keys(original)) { if (!(update.remove ?? []).includes(key)) { mapping[key] = original[key]; } }
         for (const key of Object.keys(update.patch)) { mapping[key] = update.patch[key]; }
         value.value = mapping;
+      }
+      if (this.section === 'rule-providers') {
+        const context = getContext(this) as common.UIAbilityContext;
+        const version = EffectiveVersions.read(context)?.Profiles[this.file];
+        const published = version !== undefined ? EffectiveVersions.editIntent(context, version) : null;
+        this.liveProviderName = published?.operations.find((op: EditOperation) => op.kind === 'rename' && op.target === item.id)?.name ?? value.name ?? '';
       }
       value.name = this.intent?.operations.find((op: EditOperation) => op.kind === 'rename' && op.target === item.id)?.name ?? value.name;
       this.selected = value; this.isNew = false; this.providerState = ''; this.providerError = ''; this.showProviderError = false;
@@ -138,16 +147,26 @@ export struct RuleDnsEditorPage {
     } catch (_) { if (this.current(epoch)) { this.message = '无法读取此选项，请重试'; } }
     finally { if (this.current(epoch)) { this.busy = false; } }
   }
+  private intentIdentity(intent: EditIntent | null): string {
+    if (intent === null || (intent.operations.length === 0 && (intent.smartGroups === undefined || Object.keys(intent.smartGroups).length === 0))) { return ''; }
+    const value = JSON.parse(JSON.stringify(intent)) as EditIntent;
+    value.revision = ''; value.sourceRevision = ''; value.disabled = value.disabled === true;
+    return JSON.stringify(value);
+  }
   private async provider(update: boolean): Promise<void> {
     if (this.busy || this.selected === null || this.selected.name === undefined) { return; }
     if (this.ticket?.activeFile !== this.file || VpnController.status !== VpnStatus.Connected || ProfileTransactions.isBusy()) { this.message = '此订阅尚未运行'; return; }
-    const epoch = ++this.epoch; const name = this.selected.name; const ticket = this.ticket; this.busy = true;
+    const context = getContext(this) as common.UIAbilityContext;
+    const version = EffectiveVersions.read(context)?.Profiles[this.file];
+    const published = version !== undefined ? EffectiveVersions.editIntent(context, version) : null;
+    if (update && this.intentIdentity(this.intent) !== this.intentIdentity(published)) { this.message = '请先应用修改'; return; }
+    const epoch = ++this.epoch; const name = this.liveProviderName; const ticket = this.ticket; this.busy = true;
     try {
       const observation = update ? await RuleProviderStatus.refresh(name) : await RuleProviderStatus.read(name);
       if (!this.current(epoch)) { return; }
       const current = ProfileTransactions.editTicket(getContext(this) as common.UIAbilityContext, this.file);
       if (current.activeVersion !== ticket.activeVersion || current.activeFile !== this.file || ProfileTransactions.isBusy()) { this.message = '运行配置已变化，请重试'; return; }
-      this.providerState = observation.available ? `已加载 ${observation.count} 条` : '运行状态未确认';
+      this.providerState = observation.available ? `${observation.count} 条规则` : '运行状态未确认';
       if (observation.available && observation.references >= 0) { this.providerState += ` · 关联 ${observation.references} 条规则`; }
       this.providerError = observation.error; this.showProviderError = false;
       if (observation.error !== '') { this.message = update ? '更新失败，可重试' : '暂无法读取运行状态'; }
@@ -162,7 +181,7 @@ export struct RuleDnsEditorPage {
     if (this.busy || this.section === 'dns') { return; }
     const empty: Record<string, Object> = {};
     this.selected = { item: { id: '', revision: '' }, value: this.section === 'rules' ? '' : empty };
-    this.isNew = true;
+    this.isNew = true; this.insertionBefore = this.items[0]?.id ?? '';
   }
   private async preview(next: EditIntent | null): Promise<void> {
     if (this.busy || !this.active || this.ticket === null) { return; }
@@ -180,7 +199,10 @@ export struct RuleDnsEditorPage {
       const sections = result.changes.map((change) => change.section).filter((name: string) => ['rules', 'rule-providers', 'dns', 'hosts'].includes(name));
       const labels = sections.map((name: string) => name === 'rules' ? '规则' : name === 'rule-providers' ? '规则源' : name === 'dns' ? 'DNS' : 'hosts');
       this.message = labels.length > 0 ? `${labels.join(' / ')} 已校验` : result.changes.length > 0 ? '变更已校验' : '没有变更';
-    } catch (_) { if (this.current(epoch)) { this.message = '变更未通过校验，可修改或撤销'; } }
+    } catch (error) { if (this.current(epoch)) {
+      const message = (error as Error).message;
+      this.message = /未确认|恢复|变化|正在进行|不存在/.test(message) ? message : '变更未通过校验，可修改或撤销';
+    } }
     finally { if (this.current(epoch)) { this.busy = false; } }
   }
   private edit(operation: EditOperation): void {
@@ -188,11 +210,12 @@ export struct RuleDnsEditorPage {
     if (operation.section === 'rules' && operation.kind === 'add' && operation.value !== undefined && RuleDnsForms.parseRule(operation.value)?.type === 'MATCH' &&
       this.items.some((item: EditableItem) => item.type === undefined)) { this.message = '无法读取最终规则，请重试'; return; }
     if (operation.section === 'rules' && operation.value !== undefined && RuleDnsForms.parseRule(operation.value)?.type === 'MATCH' &&
-      this.items.some((item: EditableItem) => item.type === 'MATCH' && item.id !== operation.target)) { this.message = '已有最终规则，请编辑它'; return; }
+      (this.items.some((item: EditableItem) => item.type === 'MATCH' && item.id !== operation.target) ||
+        this.additions.some((op: EditOperation) => RuleDnsForms.parseRule(op.value ?? '')?.type === 'MATCH' && op.id !== this.selected?.item.id))) { this.message = '已有最终规则，请编辑它'; return; }
     this.undo = JSON.parse(JSON.stringify(this.intent)) as EditIntent;
     if (this.isNew && this.selected !== null && this.selected.item.id !== '') { operation.id = this.selected!.item.id; }
     if (this.isNew && operation.section === 'rules' && operation.kind === 'add' && operation.value !== undefined &&
-      RuleDnsForms.parseRule(operation.value)?.type !== 'MATCH') {
+      RuleDnsForms.parseRule(operation.value)?.type !== 'MATCH' && operation.before === undefined) {
       // New user rules take precedence; no bulk reads of private conditions.
       operation.before = this.items[0]?.id ?? '';
     }
@@ -206,8 +229,15 @@ export struct RuleDnsEditorPage {
       if (!this.current(epoch)) { return; }
       this.message = state === 'applied' ? '已应用' : '已保存'; this.previewReady = false;
       this.ticket = ProfileTransactions.editTicket(getContext(this) as common.UIAbilityContext, this.file);
-    } catch (error) { if (this.current(epoch)) { this.message = (error as Error).message; } }
+    } catch (error) { if (this.current(epoch)) { this.previewReady = false; this.message = (error as Error).message; } }
     finally { if (this.current(epoch)) { this.busy = false; } }
+  }
+  private moveAdded(from: number, to: number): void {
+    if (this.busy || this.intent === null || this.section !== 'rules' || from === to) { return; }
+    try {
+      this.undo = JSON.parse(JSON.stringify(this.intent)) as EditIntent;
+      this.preview(RuleDnsDraft.moveAdded(this.intent, this.section, from, to));
+    } catch (error) { this.message = (error as Error).message; }
   }
   private move(from: number, to: number): void {
     if (this.busy || this.section !== 'rules' || from === to || from < 0 || to < 0 ||
@@ -265,8 +295,8 @@ export struct RuleDnsEditorPage {
           }
         }
         RuleDnsEditForm({ section: this.section, selected: this.selected, isNew: this.isNew,
-          targets: this.targets, providers: this.providers, matchId: this.items.find((item: EditableItem) => item.type === 'MATCH')?.id ?? '',
-          onOperation: (operation: EditOperation) => this.edit(operation), onClose: () => { this.selected = null; } })
+          targets: this.targets, providers: this.providers, positions: this.items, insertionBefore: this.insertionBefore, matchId: this.items.find((item: EditableItem) => item.type === 'MATCH')?.id ?? '',
+          onOperation: (operation: EditOperation) => this.edit(operation), onClose: () => { this.selected = null; } }).layoutWeight(1)
       } else {
         Row({ space: 8 }) {
           Button('规则').onClick(() => { this.section = 'rules'; this.list(); })
@@ -282,7 +312,7 @@ export struct RuleDnsEditorPage {
                 Button('删除').onClick(() => this.removeAdded(operation.id))
               }.enabled(!this.busy)
             }
-          }, (operation: EditOperation) => operation.id)
+          }, (operation: EditOperation) => operation.id).onMove((from: number, to: number) => this.moveAdded(from, to))
           ForEach(this.items, (item: EditableItem, index: number) => {
             ListItem() {
               Row() {

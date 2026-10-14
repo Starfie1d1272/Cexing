@@ -9,7 +9,8 @@ export class RuleProviderStatus {
   private static async call(name: string, method: http.RequestMethod): Promise<string> {
     const access = CoreApi.getControllerAccess();
     if (access === null || access.httpBase !== 'http://127.0.0.1:9090' || name === '') { throw new Error('控制面不可用'); }
-    return RuleProviderStatus.path(`/providers/rules/${encodeURIComponent(name)}`, method);
+    return RuleProviderStatus.path(method === http.RequestMethod.GET ? '/providers/rules' :
+      `/providers/rules/${encodeURIComponent(name)}`, method);
   }
   private static async path(path: string, method: http.RequestMethod): Promise<string> {
     const access = CoreApi.getControllerAccess();
@@ -33,7 +34,10 @@ export class RuleProviderStatus {
     try {
       const session = await CoreApi.getControllerSession();
       if (session === null) { throw new Error('运行会话未确认'); }
-      const value = JSON.parse(await RuleProviderStatus.call(name, http.RequestMethod.GET)) as Record<string, Object>;
+      const response = JSON.parse(await RuleProviderStatus.call(name, http.RequestMethod.GET)) as Record<string, Object>;
+      const providers = response['providers'] as Record<string, Object>;
+      if (typeof providers !== 'object' || providers === null || !Object.keys(providers).includes(name)) { throw new Error('规则源未加载'); }
+      const value = providers[name] as Record<string, Object>;
       if (typeof value['ruleCount'] !== 'number' || !Number.isInteger(value['ruleCount']) || (value['ruleCount'] as number) < 0) { throw new Error('无法核验规则源'); }
       let references = -1;
       try {

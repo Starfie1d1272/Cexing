@@ -98,6 +98,41 @@ x-top-level: {keep: true}
 	if _, err = compiler.Compile(context.Background(), configpipeline.Request{Original: updated, Intent: intent}); err != nil {
 		t.Fatal("unrelated subscription update", err)
 	}
+	var addedCount int
+	for _, variant := range []string{"added", "added-moved"} {
+		input, _ := json.Marshal(map[string]any{"sourceRevision": snapshot.SourceRevision, "rule": rules[1], "before": rules[0].ID, "match": rules[2].ID, "dns": dns, "variant": variant})
+		cmd := exec.Command("node", "../../scripts/emit-rule-dns-fixture.cjs")
+		cmd.Stdin = bytes.NewReader(input)
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("added form emission: %v %s", err, output)
+		}
+		plan, err := configpipeline.DecodeEditIntent(output)
+		if err != nil {
+			t.Fatal(err)
+		}
+		result, err := compiler.Compile(context.Background(), configpipeline.Request{Original: source, Intent: plan})
+		if err != nil {
+			t.Fatal(err)
+		}
+		parsed, err := config.Parse(result.YAML)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if variant == "added" {
+			addedCount = len(parsed.Rules)
+			if first(parsed.Rules) != "DIRECT" {
+				t.Fatal("added order")
+			}
+		} else {
+			if len(parsed.Rules) != addedCount || first(parsed.Rules) != "REJECT" {
+				t.Fatal("added drag did not change real matcher at equal count")
+			}
+		}
+		if parsed.Rules[len(parsed.Rules)-1].RuleType() != C.MATCH {
+			t.Fatal("added drag displaced MATCH")
+		}
+	}
 	intent.Disabled = true
 	undone, err := compiler.Compile(context.Background(), configpipeline.Request{Original: source, Intent: intent})
 	if err != nil {
