@@ -32,6 +32,19 @@ function load(file, page = false) {
  const sandbox = { exports: {}, require: name => { assert.ok(name in modules, name); return modules[name]; } };
  vm.runInNewContext(ts.transpileModule(src).outputText, sandbox); return sandbox.exports;
 }
+let successful = { ID: 'version-good', ProfileID: 'one.yaml' }, intentReads = 0;
+modules['./EffectiveVersions'] = { EffectiveVersions: {
+ read: () => ({ Current: successful }), editIntent: () => { intentReads++; return { template: { templateId: 'ai', targetGroup: 'Pick' } }; }
+} };
+const Binding = load('lib/AiProbeBinding.ets').AiProbeBinding;
+const binding = new Binding();
+assert.equal(binding.revision({}, 'one.yaml', 'Pick'), 'version-good');
+assert.equal(binding.revision({}, 'one.yaml', 'unsaved-target'), '');
+assert.equal(binding.revision({}, 'other.yaml', 'Pick'), '');
+assert.equal(intentReads, 1);
+successful = { ID: 'version-next', ProfileID: 'one.yaml' };
+assert.equal(binding.revision({}, 'one.yaml', 'Pick'), 'version-next');
+assert.equal(intentReads, 2);
 const Service = load('lib/AiProbeService.ets').AiProbeService;
 modules['../lib/AiProbeService'] = { AiProbeService: Service };
 const Page = load('pages/AiProbeStatus.ets', true).AiProbeStatus;

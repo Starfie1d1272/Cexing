@@ -101,17 +101,7 @@ func activeAIProbeIdentity(expected string) (aiprobe.Identity, error) {
 		return aiprobe.Identity{}, fail
 	}
 	defer f.Close()
-	var source struct {
-		EditIntent *struct {
-			SchemaVersion int  `json:"schemaVersion"`
-			Disabled      bool `json:"disabled"`
-			Template      *struct {
-				TemplateID  string `json:"templateId"`
-				Version     int    `json:"version"`
-				TargetGroup string `json:"targetGroup"`
-			} `json:"template"`
-		}
-	}
+	var source struct{ EditIntent *configpipeline.EditIntent }
 	decoder := json.NewDecoder(io.LimitReader(f, maxConfigBytes*4))
 	if decoder.Decode(&source) != nil || decoder.Decode(new(any)) != io.EOF || source.EditIntent == nil || source.EditIntent.SchemaVersion != 1 || source.EditIntent.Disabled || source.EditIntent.Template == nil {
 		return aiprobe.Identity{}, fail
@@ -128,11 +118,64 @@ func activeAIProbeIdentity(expected string) (aiprobe.Identity, error) {
 	if plan.TemplateID != "ai" || plan.Version != 1 || plan.TargetGroup == "" {
 		return aiprobe.Identity{}, fail
 	}
-	selected, err := probeSelection(plan.TargetGroup)
+	group, err := aiProbeTarget(source.EditIntent)
 	if err != nil {
 		return aiprobe.Identity{}, err
 	}
-	return aiprobe.Identity{Profile: state.Current.ProfileID, Revision: expected, Group: plan.TargetGroup, Selection: selected}, nil
+	selected, err := probeSelection(group)
+	if err != nil {
+		return aiprobe.Identity{}, err
+	}
+	return aiprobe.Identity{Profile: state.Current.ProfileID, Revision: expected, Group: group, Selection: selected}, nil
+}
+
+// Follow successful personal renames using the compiler's public opaque IDs.
+// Deleting the original target cannot authorize a replacement with the same name.
+func aiProbeTarget(intent *configpipeline.EditIntent) (string, error) {
+	fail := errors.New("PROBE_TARGET_UNPROVEN")
+	if intent == nil || intent.Template == nil {
+		return "", fail
+	}
+	name := intent.Template.TargetGroup
+	identity := func(name string) (string, error) {
+		data, err := json.Marshal(map[string]any{"proxy-groups": []any{map[string]any{"name": name, "type": "select", "proxies": []string{"DIRECT"}}}})
+		if err != nil {
+			return "", fail
+		}
+		snapshot, err := configpipeline.ReadEditable(data, nil, nil)
+		if err != nil {
+			return "", fail
+		}
+		for _, section := range snapshot.Sections {
+			if section.Section == "proxy-groups" && len(section.Items) == 1 {
+				return section.Items[0].ID, nil
+			}
+		}
+		return "", fail
+	}
+	id, err := identity(name)
+	if err != nil {
+		return "", fail
+	}
+	for _, operation := range intent.Operations {
+		if operation.Section != "proxy-groups" || operation.Target != id {
+			continue
+		}
+		switch operation.Kind {
+		case "delete":
+			return "", fail
+		case "rename":
+			if operation.Name == "" {
+				return "", fail
+			}
+			name = operation.Name
+			id, err = identity(name)
+			if err != nil {
+				return "", fail
+			}
+		}
+	}
+	return name, nil
 }
 
 // Snapshot only user-controlled Selector choices in the selected group's graph.

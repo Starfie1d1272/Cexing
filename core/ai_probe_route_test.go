@@ -120,3 +120,33 @@ rules: ['MATCH,Empty']
 		t.Fatal("stale revision accepted")
 	}
 }
+
+func TestAIProbeTargetFollowsRenameAndRejectsReplacement(t *testing.T) {
+	id := func(name string) string {
+		b, _ := json.Marshal(map[string]any{"proxy-groups": []any{map[string]any{"name": name, "type": "select", "proxies": []string{"DIRECT"}}}})
+		snapshot, err := configpipeline.ReadEditable(b, nil, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, section := range snapshot.Sections {
+			if section.Section == "proxy-groups" {
+				return section.Items[0].ID
+			}
+		}
+		t.Fatal("missing group")
+		return ""
+	}
+	intent := &configpipeline.EditIntent{Template: &configpipeline.TemplatePlan{TargetGroup: "AI"}, Operations: []configpipeline.EditOperation{
+		{Kind: "rename", Section: "proxy-groups", Target: id("AI"), Name: "chosen"},
+		{Kind: "add", Section: "proxy-groups", Value: json.RawMessage(`{"name":"AI","type":"select","proxies":["DIRECT"]}`)},
+		{Kind: "rename", Section: "proxy-groups", Target: id("AI"), Name: "shadow"},
+		{Kind: "rename", Section: "proxy-groups", Target: id("chosen"), Name: "final"},
+	}}
+	if group, err := aiProbeTarget(intent); err != nil || group != "final" {
+		t.Fatal("wrong renamed exit", group, err)
+	}
+	intent.Operations = append(intent.Operations, configpipeline.EditOperation{Kind: "delete", Section: "proxy-groups", Target: id("final")}, configpipeline.EditOperation{Kind: "add", Section: "proxy-groups", Value: json.RawMessage(`{"name":"final","type":"select","proxies":["DIRECT"]}`)})
+	if _, err := aiProbeTarget(intent); err == nil {
+		t.Fatal("deleted target replaced by unrelated group")
+	}
+}
