@@ -46,7 +46,7 @@ export interface EditableSection { section: string; items: EditableItem[]; }
 export interface EditableSnapshot { sourceRevision: string; missingFieldRevision: string; sections: EditableSection[]; }
 /** Sensitive; fetch only when the user explicitly opens a target for editing. */
 export interface EditTarget { item: EditableItem; missingFieldRevision: string; value: Object; name?: string; }
-export interface SmartGroupChange { id: string; before: string; after: string; override: boolean; }
+export interface SmartGroupChange { id: string; choiceId: string; before: string; after: string; override: boolean; }
 export class EditIntentFailure extends Error {
   code: string;
   operation: number;
