@@ -1,3 +1,4 @@
+import { SettingsReconnectButton } from './SettingsReconnectButton';
 import { NativeTheme as UI } from './NativeTheme';
 /*
  * 分组卡片列表（运行/连接/自动化/诊断/关于，每组带标题）
@@ -32,6 +33,8 @@ class SettingGroup {
 @Component
 export struct SettingsPage {
   @Consume('nav') navStack: NavPathStack;
+  @Consume('tab') @Watch('onVisibilityChanged') currentVisibleTab: number = 2;
+  @Consume('rootVisible') @Watch('onVisibilityChanged') rootVisible: boolean = true;
   @State keepAlive: boolean = false;
   @State autoUpdate: boolean = false;
   @State autoRestore: boolean = false;
@@ -72,15 +75,35 @@ export struct SettingsPage {
 
   private feedbackGeneration: number = 0;
   private pageActive: boolean = false;
+  @State ready: boolean = false;
 
   aboutToDisappear(): void {
     this.pageActive = false;
     this.feedbackGeneration++;
   }
 
+  private onVisibilityChanged(): void {
+    if (this.currentVisibleTab === 2 && this.rootVisible) { this.aboutToAppear(); }
+    else { this.pageActive = false; this.feedbackGeneration++; }
+  }
+
   aboutToAppear(): void {
-    this.pageActive = true;
+    this.pageActive = this.currentVisibleTab === 2 && this.rootVisible;
     this.feedbackGeneration++;
+    const generation = this.feedbackGeneration;
+    this.ready = false;
+    this.readSettings();
+    Settings.idle().then(() => {
+      if (!this.pageActive || generation !== this.feedbackGeneration) { return; }
+      this.readSettings(); this.ready = true;
+    }).catch(() => {
+      if (this.pageActive && generation === this.feedbackGeneration) {
+        promptAction.showToast({ message: '设置读取失败，请重试' });
+      }
+    });
+  }
+
+  private readSettings(): void {
     const context = getContext(this) as common.UIAbilityContext;
     const s: AppSettings = Settings.load(context);
     this.keepAlive = s.keepAlive;
@@ -96,12 +119,14 @@ export struct SettingsPage {
     const context = getContext(this) as common.UIAbilityContext;
     const s = Settings.load(context);
     s.keepAlive = on;
-    try { Settings.save(context, s); }
+    try { await Settings.save(context, s, ['keepAlive']); }
     catch (_) {
+      if (!this.pageActive || generation !== this.feedbackGeneration) { return; }
       this.aboutToAppear();
       promptAction.showToast({ message: '保存失败，请重试', duration: 2000 });
       return;
     }
+    if (this.keepAlive !== on) { return; }
     if (on && VpnController.status === VpnStatus.Connected) {
       const ok = await LiveViewKeeper.start(context);
       if (!this.pageActive || generation !== this.feedbackGeneration || !this.keepAlive) { return; }
@@ -112,18 +137,22 @@ export struct SettingsPage {
   }
 
   private async onAutoUpdateChange(on: boolean): Promise<void> {
+    const generation = ++this.feedbackGeneration;
     this.autoUpdate = on;
     const context = getContext(this) as common.UIAbilityContext;
     const s = Settings.load(context);
     s.autoUpdate = on;
-    try { Settings.save(context, s); }
+    try { await Settings.save(context, s, ['autoUpdate']); }
     catch (_) {
+      if (!this.pageActive || generation !== this.feedbackGeneration) { return; }
       this.aboutToAppear();
       promptAction.showToast({ message: '保存失败，请重试', duration: 2000 });
       return;
     }
-    if (on) {
-      promptAction.showToast({ message: '已开启', duration: 1500 });
+    if (on && this.autoUpdate === on) {
+      if (this.pageActive && generation === this.feedbackGeneration) {
+        promptAction.showToast({ message: '已开启', duration: 1500 });
+      }
       // 立即补一轮检查（内核未运行/间隔未到时内部自动跳过）
       AutoUpdater.checkAndRun(context).catch(() => {
         // fire-and-forget：忽略单轮失败
@@ -137,14 +166,16 @@ export struct SettingsPage {
     for (const h of INTERVAL_OPTIONS) {
       sheets.push({
         title: `${h} 小时`,
-        action: () => {
+        action: async () => {
           if (!this.pageActive || generation !== this.feedbackGeneration) { return; }
+          const request = ++this.feedbackGeneration;
           this.autoUpdateIntervalHours = h;
           const context = getContext(this) as common.UIAbilityContext;
           const s = Settings.load(context);
           s.autoUpdateIntervalHours = h;
-          try { Settings.save(context, s); }
+          try { await Settings.save(context, s, ['autoUpdateIntervalHours']); }
           catch (_) {
+            if (!this.pageActive || request !== this.feedbackGeneration) { return; }
             this.aboutToAppear();
             promptAction.showToast({ message: '保存失败，请重试', duration: 2000 });
           }
@@ -172,6 +203,7 @@ export struct SettingsPage {
   }
 
   private onToggleChange(row: SettingRow, on: boolean): void {
+    if (!this.pageActive || !this.ready) { return; }
     if (row.toggleKey === 'autoUpdate') {
       this.onAutoUpdateChange(on);
     } else if (row.toggleKey === 'autoRestore') {
@@ -183,31 +215,37 @@ export struct SettingsPage {
     }
   }
 
-  private onAutoRestoreChange(on: boolean): void {
+  private async onAutoRestoreChange(on: boolean): Promise<void> {
+    const generation = ++this.feedbackGeneration;
     this.autoRestore = on;
     const context = getContext(this) as common.UIAbilityContext;
     const s = Settings.load(context);
     s.autoRestore = on;
-    try { Settings.save(context, s); }
+    try { await Settings.save(context, s, ['autoRestore']); }
     catch (_) {
+      if (!this.pageActive || generation !== this.feedbackGeneration) { return; }
       this.aboutToAppear();
       promptAction.showToast({ message: '保存失败，请重试', duration: 2000 });
       return;
     }
   }
 
-  private onLogToFileChange(on: boolean): void {
+  private async onLogToFileChange(on: boolean): Promise<void> {
+    const generation = ++this.feedbackGeneration;
     this.logToFile = on;
     const context = getContext(this) as common.UIAbilityContext;
     const s = Settings.load(context);
     s.logToFile = on;
-    try { Settings.save(context, s); }
+    try { await Settings.save(context, s, ['logToFile']); }
     catch (_) {
+      if (!this.pageActive || generation !== this.feedbackGeneration) { return; }
       this.aboutToAppear();
       promptAction.showToast({ message: '保存失败，请重试', duration: 2000 });
       return;
     }
-    promptAction.showToast({ message: '下次启动内核生效', duration: 1500 });
+    if (this.pageActive && generation === this.feedbackGeneration) {
+      promptAction.showToast({ message: '已保存，下次连接生效', duration: 1500 });
+    }
   }
 
   private onRowTap(row: SettingRow): void {
@@ -293,6 +331,7 @@ export struct SettingsPage {
 
   build() {
     Column({ space: 12 }) {
+      SettingsReconnectButton()
       Row() {
         Text('设置')
           .fontSize(26)
@@ -326,6 +365,6 @@ export struct SettingsPage {
     .width('100%')
     .height('100%')
     .padding({ left: 24, right: 24 })
-    .backgroundColor(UI.paper).constraintSize({ maxWidth: 760 }).alignSelf(ItemAlign.Center)
+    .enabled(this.ready).backgroundColor(UI.paper).constraintSize({ maxWidth: 760 }).alignSelf(ItemAlign.Center)
   }
 }

@@ -9,7 +9,7 @@ const ctx = { filesDir: '/private' };
 let state = { Current: null, Previous: null, Profiles: {} }, id = 0;
 let response = 'applied', uncertain = false, failCommit = false, failDraft = false, failRead = false;
 const status = { Disconnected: 0, Connected: 2 };
-const controller = { status: status.Disconnected };
+const controller = { status: status.Disconnected, holdConfiguration: () => () => {}, configurationEpoch: () => 0 };
 const io = { accessSync: p => data.has(p), readTextSync: p => {
   if (failRead) throw Error('read failure'); return data.get(p);
 }, OpenMode: { READ_WRITE: 2, CREATE: 64, TRUNC: 512 }, openSync: p => ({ fd: p }),
@@ -47,7 +47,7 @@ const core = { versionAction: async (_, input) => {
   throw Error(a.op);
 } };
 let smart = false;
-const settings = { load: () => ({ smartAutoConvert: smart, allowLan: false }), setSmartAutoConvert: (_, value) => smart = value };
+const settings = { idle: async () => {}, load: () => ({ smartAutoConvert: smart, allowLan: false }), setSmartAutoConvert: (_, value) => smart = value };
 const modules = { '@kit.CoreFileKit': { fileIo: io }, 'libentry.so': core,
   './Settings': { Settings: settings }, './NativeTheme': {},
   '@kit.ArkUI': { promptAction: { showToast: v => toasts.push(v.message) } } };

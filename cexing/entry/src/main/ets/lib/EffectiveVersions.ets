@@ -141,7 +141,7 @@ export namespace EffectiveVersions {
     regionPlan: RegionPlan | null, globalMerge?: string): Promise<StagedVersion> {
     const s = Settings.load(context);
     const overrides = JSON.stringify({ mixedPort: s.mixedPort, logLevel: s.logLevel,
-      allowLan: s.allowLan, mode: s.mode, logToFile: s.logToFile });
+      allowLan: s.allowLan, ipv6: s.ipv6, mode: s.mode, logToFile: s.logToFile });
     const result = await call(context, { op: 'stage', profileId: profileId, original: original,
       overlay: overlay, metadata: metadata, expected: expected, overrides: overrides,
       smartConversion: s.smartAutoConvert, regionPlan: regionPlan,
@@ -156,7 +156,7 @@ export namespace EffectiveVersions {
     overlay: string, regionPlan: RegionPlan | null, globalMerge?: string): Promise<MergePreview> {
     const s = Settings.load(context);
     const overrides = JSON.stringify({ mixedPort: s.mixedPort, logLevel: s.logLevel,
-      allowLan: s.allowLan, mode: s.mode, logToFile: s.logToFile });
+      allowLan: s.allowLan, ipv6: s.ipv6, mode: s.mode, logToFile: s.logToFile });
     const result = await call(context, { op: 'merge-preview', original: original,
       overlay: overlay, regionPlan: regionPlan, smartConversion: s.smartAutoConvert,
       expected: read(context)?.Current?.ID ?? '', overrides: overrides,
@@ -183,7 +183,7 @@ export namespace EffectiveVersions {
     expected: string, globalMerge?: string): Promise<string> {
     const s = Settings.load(context);
     const overrides = JSON.stringify({ mixedPort: s.mixedPort, logLevel: s.logLevel,
-      allowLan: s.allowLan, mode: s.mode, logToFile: s.logToFile });
+      allowLan: s.allowLan, ipv6: s.ipv6, mode: s.mode, logToFile: s.logToFile });
     const result = await call(context, { op: 'verify', versionId: version.ID,
       expected: expected, overrides: overrides,
       globalMerge: globalMerge, updateGlobal: globalMerge !== undefined });
