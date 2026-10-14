@@ -14,16 +14,18 @@ export class ProxyMappingForm {
   readonly target: EditTarget | null;
   private value: Record<string, Object>;
   private invalidNumbers: string[] = [];
+  private mappingName: string = '';
 
   constructor(section: string, target: EditTarget | null = null) {
     if (!['proxies', 'proxy-providers', 'proxy-groups'].includes(section)) { throw new Error('编辑类型不可用'); }
     this.section = section;
     this.target = target;
     this.value = target === null ? {} : JSON.parse(JSON.stringify(target.value)) as Record<string, Object>;
-    if (target !== null && target.name !== undefined && section === 'proxy-providers') { this.value['name'] = target.name; }
+    if (target !== null && section === 'proxy-providers') { this.mappingName = target.name ?? ''; }
   }
 
   text(key: string): string {
+    if (this.section === 'proxy-providers' && key === 'name') { return this.mappingName; }
     const value = this.value[key];
     return typeof value === 'string' || typeof value === 'number' ? String(value) : '';
   }
@@ -34,6 +36,7 @@ export class ProxyMappingForm {
   }
 
   setText(key: string, value: string): void {
+    if (this.section === 'proxy-providers' && key === 'name') { this.mappingName = value; return; }
     if (value === '') { delete this.value[key]; } else { this.value[key] = value; }
   }
   setList(key: string, value: string[]): void { this.value[key] = value.slice(); }
@@ -108,7 +111,6 @@ export class ProxyMappingForm {
       throw new Error('请添加节点或订阅来源');
     }
     const value = JSON.parse(JSON.stringify(this.value)) as Record<string, Object>;
-    if (this.section === 'proxy-providers') { delete value['name']; }
     return { section: this.section, name: this.text('name'), target: this.target, value: value };
   }
 }

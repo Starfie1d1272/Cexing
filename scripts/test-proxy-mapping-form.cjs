@@ -35,6 +35,10 @@ provider.setNumber('interval', '3600');
 const providerResult = provider.finish();
 assert.equal(providerResult.name, 'source'); assert.equal(providerResult.value.name, undefined);
 assert.equal(providerResult.value['health-check'].interval, 60);
+const namedProvider = new Form('proxy-providers', { name: 'mapping-key', item: {}, value: {
+  name: 'unknown-advanced-name', type: 'file', path: './synthetic.yaml' } });
+assert.equal(namedProvider.text('name'), 'mapping-key');
+assert.equal(namedProvider.finish().value.name, 'unknown-advanced-name', 'provider mapping name cannot erase an unknown advanced name field');
 assert.throws(() => form.replaceAdvanced('[]'), /对象/);
 assert.throws(() => form.replaceAdvanced('{bad'), /格式/);
 let pageSource = fs.readFileSync('cexing/entry/src/main/ets/pages/ProxyMappingFormPage.ets', 'utf8');
