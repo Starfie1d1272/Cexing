@@ -13,7 +13,7 @@ bash scripts/ci/quick.sh
 
 宿主回归通过固定 TypeScript 7 CLI 转译真实 `.ets` 中可在宿主执行的逻辑，系统 API 使用既有 mocks。`transpile-arkts.cjs` 用官方命令行接口转译，**这不是 ArkTS 编译或 SDK/API 验证**。Full 重跑相同回归，并由官方 SDK 编译工程。
 
-Go 在独立临时模块/构建缓存执行 `go mod download`、`go mod verify` 和 `go test ./...`，强制 `-mod=readonly`、`GOTOOLCHAIN=local`。基线根 Go 包没有测试文件，此步骤首先提供宿主编译检查；后续独立模块的真实测试可由相同入口运行。已下载的选定模块许可证/NOTICE 的相对路径及 SHA-256 形成清单，完全缺少声明时失败；只有子目录声明的模块和未下载的扩展模块图依赖单列待审查；清单不代表 GPL 或数据源分发义务已完成。
+Go 在独立临时模块/构建缓存执行 `go mod download`、`go mod verify` 和 `go test ./...`，强制 `-mod=readonly`、`GOTOOLCHAIN=local`。`test-smart.sh` 在专用缓存应用固定 Smart 补丁，执行真实上游 Smart API/模型 fixture 和本仓 root/configpipeline 回归；Quick 可缺模型，Full 提供已校验真实模型，不能把跳过模型预测的 Quick 称作真实模型验证。已下载的选定模块许可证/NOTICE 的相对路径及 SHA-256 形成清单，完全缺少声明时失败；只有子目录声明的模块和未下载的扩展模块图依赖单列待审查；清单不代表 GPL 或数据源分发义务已完成。
 
 ## Full 的官方环境
 
@@ -52,7 +52,7 @@ Full 要求干净、已提交的 checkout。Go 解压模块、编译、npm 和 H
 - `build-identity.json`：commit/tree、固定工具组合、应用版本、输入 SHA-256、Go 实际版本/依赖图、HAP/native 和每个 ZIP entry 的摘要。
 - `module-notices.json`：已下载选定模块的许可证与 NOTICE 摘要，以及模块图中未下载和仅有子目录许可的依赖；发行授权明确标为未批准。
 
-校验 HAP CRC、路径和重复条目、证书形状文件、三个 ARM64 ELF DYN 库、四个 C ABI 及生成头文件原型、包内 Go metadata 与新编译库一致，且包内核心等于新核心经官方 `llvm-strip --strip-all` 的结果。逐项检查全部 rawfile、默认配置、固定 GeoIP 和包内应用/SDK 版本；strip 不改变内核身份的判断不能仅依赖 `/version`。
+校验 HAP CRC、路径和重复条目、证书形状文件、三个 ARM64 ELF DYN 库、全部七个生产 C ABI（四个基础兼容符号和三个扩展）及生成头文件原型、包内 Go metadata 与新编译库一致，且包内核心等于新核心经官方 `llvm-strip --strip-all` 的结果。逐项检查全部 rawfile、默认配置、固定 GeoIP 和包内应用/SDK 版本；strip 不改变内核身份的判断不能仅依赖 `/version`。
 
 这是可重复执行和可审计身份流程，**没有宣称 HAP 每次逐字节相同**。Hvigor ZIP 时间戳和 SDK 内部依赖等仍需单独研究；摘要记录实际产物，构建成功不证明 VPN 转发、后台稳定性、SDK 低版本兼容性或发行许可。
 

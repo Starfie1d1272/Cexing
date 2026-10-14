@@ -6,6 +6,7 @@ python3 scripts/test-zashboard-cache.py
 python3 scripts/test-zashboard-prepare.py
 python3 scripts/test-hap-clean.py
 node scripts/ci/source-check.cjs
+python3 scripts/ci/abi_contract.py
 while IFS= read -r script; do bash -n "$script"; done < <(git ls-files 'scripts/*.sh' 'scripts/ci/*.sh')
 git diff --check
 python3 scripts/ci/test-gvisor-patch.py
