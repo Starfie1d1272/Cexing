@@ -208,6 +208,43 @@ func TestIntentPublicFixtureAndMissingDNS(t *testing.T) {
 	}
 }
 
+func TestTemplateBeforePersonalEditsAndResultIntentSnapshot(t *testing.T) {
+	source := editFixture(t)
+	// Read the template-generated view as the personal-edit authoring baseline.
+	templateSource := strings.Replace(string(source), "  - MATCH,manual", "  - DOMAIN-SUFFIX,template.test,manual\n  - MATCH,manual", 1)
+	first := editTarget(t, []byte(templateSource), "rules", 1)
+	plan := editPlan(t, []byte(templateSource), EditOperation{ID: "personal-delete", Kind: "delete", Section: "rules", Target: first.Item.ID, Expected: first.Item.Revision})
+	plan.Template = &TemplatePlan{TemplateID: "ai", Version: 1, TargetGroup: "manual"}
+	c := editCompiler()
+	c.Template = func(_ context.Context, root *yaml.Node, p TemplatePlan) error {
+		if p.TemplateID != "ai" {
+			t.Fatal("wrong template")
+		}
+		rules := field(root, "rules")
+		rules.Content = append(rules.Content[:1], append([]*yaml.Node{scalar("DOMAIN-SUFFIX,template.test,manual")}, rules.Content[1:]...)...)
+		return nil
+	}
+	r, e := c.Compile(context.Background(), Request{Original: source, Intent: plan})
+	if e != nil {
+		t.Fatal(e)
+	}
+	if strings.Contains(string(r.YAML), "template.test") || r.EditIntent == nil {
+		t.Fatal("template overwrote personal intent")
+	}
+	plan.Template.TargetGroup = "changed"
+	plan.Operations[0].Expected = "changed"
+	if r.EditIntent.Template.TargetGroup != "manual" || r.EditIntent.Operations[0].Expected == "changed" {
+		t.Fatal("result shares mutable draft")
+	}
+	c.Template = nil
+	plan = r.EditIntent
+	r, e = c.Compile(context.Background(), Request{Original: source, Intent: plan})
+	var failure *IntentError
+	if !errors.As(e, &failure) || failure.Code != "template_unavailable" || len(r.YAML) != 0 {
+		t.Fatal("missing adapter silently skipped", e)
+	}
+}
+
 func TestIntentRenameExactRuleTargetKeepsPayloadAndParams(t *testing.T) {
 	for _, old := range []string{"no", "no-resolve"} {
 		t.Run(old, func(t *testing.T) {
@@ -236,5 +273,76 @@ func TestIntentRenameExactRuleTargetKeepsPayloadAndParams(t *testing.T) {
 	}
 	if got := replaceRuleToken("RULE-SET, no ,group,no-resolve", 1, "no", "renamed"); got != "RULE-SET, renamed ,group,no-resolve" {
 		t.Fatal("provider token lost spaces", got)
+	}
+}
+
+func TestEditorProjectionShowsDraftWithoutValidateOrPublication(t *testing.T) {
+	source := editFixture(t)
+	target := editTarget(t, source, "proxies", 0)
+	plan := editPlan(t, source, EditOperation{ID: "udp", Kind: "update", Section: "proxies", Target: target.Item.ID, Preconditions: map[string]string{"udp": target.Item.Fields["udp"]}, Patch: json.RawMessage(`{"udp":false}`)})
+	c := Compiler{Validate: func(context.Context, []byte) error { t.Fatal("read invoked full parser"); return nil }}
+	view, e := c.Editable(context.Background(), Request{Original: source, Intent: plan})
+	if e != nil {
+		t.Fatal(e)
+	}
+	if view.Sections[0].Items[0].ID != target.Item.ID {
+		t.Fatal("unrelated field changed stable ID")
+	}
+	edited, e := c.EditTarget(context.Background(), Request{Original: source, Intent: plan}, "proxies", target.Item.ID)
+	if e != nil || !strings.Contains(string(edited.Value), `"udp":false`) {
+		t.Fatal("draft view still shows original", e)
+	}
+	if strings.Contains(string(source), "udp: false") {
+		t.Fatal("source mutated")
+	}
+}
+
+func TestIntentDNSPolicyOrderParticipatesInSourceAndFieldRevision(t *testing.T) {
+	source := []byte("proxies: [{name: a, type: direct}]\ndns: {nameserver-policy: {private-a.test: 1.1.1.1, private-b.test: 8.8.8.8}}\n")
+	changed := []byte("proxies: [{name: a, type: direct}]\ndns: {nameserver-policy: {private-b.test: 8.8.8.8, private-a.test: 1.1.1.1}}\n")
+	a, e := ReadEditable(source, nil, nil)
+	if e != nil {
+		t.Fatal(e)
+	}
+	b, e := ReadEditable(changed, nil, nil)
+	if e != nil {
+		t.Fatal(e)
+	}
+	if a.SourceRevision == b.SourceRevision {
+		t.Fatal("ordered DNS policy source change not revisioned")
+	}
+	dns := editTarget(t, source, "dns", 0)
+	plan := editPlan(t, source, EditOperation{ID: "dns-policy", Kind: "update", Section: "dns", Target: dns.Item.ID, Preconditions: map[string]string{"nameserver-policy": dns.Item.Fields["nameserver-policy"]}, Patch: json.RawMessage(`{"nameserver-policy":{"private-c.test":"9.9.9.9"}}`)})
+	if _, e = editCompiler().Compile(context.Background(), Request{Original: changed, Intent: plan}); e == nil {
+		t.Fatal("upstream priority change silently overwritten")
+	}
+}
+
+func TestIntentCompoundUpdateRenameUsesOriginalGuardAndRejectsRealSourceChange(t *testing.T) {
+	source := editFixture(t)
+	target := editTarget(t, source, "proxies", 0)
+	plan := editPlan(t, source,
+		EditOperation{ID: "update", Kind: "update", Section: "proxies", Target: target.Item.ID, Preconditions: map[string]string{"udp": target.Item.Fields["udp"]}, Patch: json.RawMessage(`{"udp":false}`)},
+		EditOperation{ID: "rename", Kind: "rename", Section: "proxies", Target: target.Item.ID, Expected: target.Item.Revision, Name: "renamed-node"},
+	)
+	before, _ := json.Marshal(plan)
+	r, e := editCompiler().Compile(context.Background(), Request{Original: source, Intent: plan})
+	if e != nil {
+		t.Fatal("own update invalidates original rename guard", e)
+	}
+	if !strings.Contains(string(r.YAML), "name: renamed-node") || !strings.Contains(string(r.YAML), "udp: false") {
+		t.Fatal("compound edit lost fields")
+	}
+	again, e := editCompiler().Compile(context.Background(), Request{Original: source, Intent: plan})
+	if e != nil || again.Digest != r.Digest {
+		t.Fatal("compound recompile not idempotent", e)
+	}
+	after, _ := json.Marshal(plan)
+	if string(before) != string(after) {
+		t.Fatal("compile rewrote authored guards")
+	}
+	changed := []byte(strings.Replace(string(source), "udp: true", "udp: false", 1))
+	if _, e = editCompiler().Compile(context.Background(), Request{Original: changed, Intent: plan}); e == nil {
+		t.Fatal("real upstream conflict bypassed")
 	}
 }

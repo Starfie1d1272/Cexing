@@ -30,8 +30,7 @@ rules: ["MATCH,Main"]
 		t.Fatal(err)
 	}
 	intent := &configpipeline.EditIntent{SchemaVersion: 1, Revision: "private-draft", SourceRevision: view.SourceRevision, Operations: []configpipeline.EditOperation{{ID: "port", Kind: "update", Section: "proxies", Target: id, Preconditions: map[string]string{"port": target.Item.Fields["port"]}, Patch: json.RawMessage(`{"port":1081}`)}}}
-	data, _ := json.Marshal(intent)
-	action := versionAction{Op: "stage", ProfileID: "synthetic.yaml", Original: original, Metadata: `{}`, EditIntent: data}
+	action := versionAction{Op: "stage", ProfileID: "synthetic.yaml", Original: original, Metadata: `{}`, EditIntent: intent}
 	staged, err := executeVersionAction(home, action)
 	if err != nil {
 		t.Fatal(err)
@@ -61,16 +60,19 @@ rules: ["MATCH,Main"]
 		t.Fatal("unrelated source update must rebase", err)
 	}
 	action.Original = strings.Replace(original, "port: 1080", "port: 2080", 1)
-	if _, err = executeVersionAction(home, action); err == nil {
+	conflict, err := executeVersionAction(home, action)
+	if err == nil && (conflict.Error == "" || conflict.EditError == nil || conflict.EditError.Code != "conflict") {
 		t.Fatal("same-field update conflict accepted")
+	}
+	if conflict.Version != nil {
+		t.Fatal("conflict returned a candidate")
 	}
 	state, err := executeVersionAction(home, versionAction{Op: "read"})
 	if err != nil || state.State.Current.ID != staged.Version.ID {
 		t.Fatal("failed compile changed pointer", err)
 	}
-	action.Op = "edit-check"
-	action.EditIntent = json.RawMessage(`{"schemaVersion":1,"revision":"r","sourceRevision":"s","operations":[],"unknown":true}`)
-	if _, err = executeVersionAction(home, action); err == nil || err.Error() != "EDIT_INTENT_INVALID" {
-		t.Fatal("unknown field accepted", err)
+	invalid := coreVersionAction(home, `{"op":"edit-check","expected":"`+staged.Version.ID+`","editIntent":{"schemaVersion":1,"revision":"r","sourceRevision":"s","operations":[],"unknown":true}}`)
+	if !strings.Contains(invalid, "EDIT_INTENT_FAILED") {
+		t.Fatal("unknown field accepted", invalid)
 	}
 }
