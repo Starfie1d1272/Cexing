@@ -13,6 +13,7 @@ import { ProfileTransactions } from '../lib/ProfileTransactions';
 import { EffectiveVersions, RegionPlan, RegionPreview } from '../lib/EffectiveVersions';
 import { VpnController, VpnStatus } from '../lib/VpnController';
 import { CoreApi } from '../lib/CoreApi';
+import { AppRuntime } from '../lib/AppRuntime';
 import { Logger } from '../lib/Logger';
 import { ProfileEditBus } from './ProfileEditPage';
 import { GlobalMergeEditor } from './GlobalMergeEditor';
@@ -50,6 +51,7 @@ export struct ProfilePage {
   @State profiles: ProfileMeta[] = [];
   @State metas: Record<string, ProfileMetaExt> = {};
   @State importing: boolean = false;
+  @State activating: boolean = false;
   @State updatingFile: string = '';
   @State refreshing: boolean = false;
   @State showSheet: boolean = false;
@@ -117,41 +119,6 @@ export struct ProfilePage {
     this.changed();
     this.importedFile = file;
     this.importError = '';
-    this.prepareRegionOffer(file);
-  }
-
-  private async prepareRegionOffer(file: string): Promise<void> {
-    const context = getContext(this) as common.UIAbilityContext;
-    try {
-      const probe: RegionPlan = { mode: 'region', selector: '', enable: false, assignments: {} };
-      const first = await ProfileTransactions.previewRegion(context, file, probe);
-      if (first.offerable && first.selectors.length > 0) {
-        this.regionAssignments = {};
-        this.regionMode = 'region';
-        let pendingSelector = '';
-        for (const selector of first.selectors) {
-          this.regionSelector = selector;
-          await this.refreshRegionPreview();
-          if (this.regionPreview?.eligible === true) {
-            this.regionFromImport = true;
-            this.sheetMode = SHEET_REGION;
-            this.showSheet = true;
-            return;
-          }
-          if (this.regionPreview?.providerPending === true && pendingSelector === '') {
-            pendingSelector = selector;
-          }
-        }
-        if (pendingSelector !== '') {
-          this.regionSelector = pendingSelector;
-          await this.refreshRegionPreview();
-          this.regionFromImport = true;
-          this.sheetMode = SHEET_REGION;
-          this.showSheet = true;
-          return;
-        }
-      }
-    } catch (_) { /* ordinary import remains available if a preview cannot run */ }
     this.sheetMode = SHEET_READY;
     this.showSheet = true;
   }
@@ -337,7 +304,67 @@ export struct ProfilePage {
     return `${(p.size / 1024).toFixed(1)} KB · ${new Date(p.mtime * 1000).toLocaleDateString()}`;
   }
 
+  private activationError(error: Error): string {
+    const message = error.message ?? '';
+    if (/provider|来源资源/i.test(message)) { return '订阅来源尚未就绪，请更新订阅后重试'; }
+    if (/资源|RESOURCE/.test(message)) { return '配置资源未准备好，请重试或更新应用'; }
+    if (/空节点|没有节点/.test(message)) { return '订阅没有可用节点，请检查订阅'; }
+    if (/引用|reference|循环/i.test(message)) { return '配置引用无效，请检查原始配置'; }
+    if (/校验|解析|validate|parse/i.test(message)) { return '配置校验未通过，请检查原始配置'; }
+    if (/未知|未确认/.test(message)) { return '应用结果未确认，请返回连接页检查'; }
+    return '启用失败，请重试或检查原始配置';
+  }
+
+  private async activateAndConnect(): Promise<void> {
+    if (this.activating || this.importing) { return; }
+    if (VpnController.status !== VpnStatus.Disconnected && VpnController.status !== VpnStatus.Connected) {
+      this.importError = '连接正在切换，请稍后重试'; return;
+    }
+    if (VpnController.needsStop()) {
+      this.importError = '连接状态待核对，请返回连接页重试断开'; return;
+    }
+    const file = this.importedFile;
+    if (!this.profiles.some((p: ProfileMeta) => p.file === file)) {
+      this.importError = '订阅不存在，请重新导入'; return;
+    }
+    const request = ++this.activationRequest;
+    const page = this.pageGeneration;
+    const tab = this.currentVisibleTab;
+    const paths = this.navStack.getAllPathName();
+    const context = getContext(this) as common.UIAbilityContext;
+    this.activating = true;
+    this.importError = '';
+    AppRuntime.cancelRestore();
+    try {
+      const result = await ProfileTransactions.activate(context, file);
+      if (result !== 'applied' && result !== 'saved') { throw new Error('应用结果未确认'); }
+      this.profileRevision++;
+      if (!this.activationPageCurrent(request, page, tab, paths) || !this.showSheet ||
+        this.sheetMode !== SHEET_READY) { return; }
+      if (VpnController.status === VpnStatus.Disconnected) {
+        await ProfileTransactions.ensureActiveSmartPolicy(context);
+        if (!this.activationPageCurrent(request, page, tab, paths) || !this.showSheet ||
+          this.sheetMode !== SHEET_READY || ProfileStore.getActiveFile(context) !== file) { return; }
+        if (VpnController.status !== VpnStatus.Disconnected || VpnController.needsStop()) {
+          this.importError = '连接状态已变化，请返回连接页检查'; return;
+        }
+        if (!VpnController.start(context)) {
+          this.importError = '连接未能启动，请返回连接页重试'; return;
+        }
+      }
+      this.showSheet = false;
+      this.sheetMode = SHEET_NONE;
+      this.finishActivationNavigation(request, page, tab, paths);
+    } catch (error) {
+      if (this.activationPageCurrent(request, page, tab, paths) && this.showSheet) {
+        this.importError = this.activationError(error as Error);
+      }
+    } finally { this.activating = false; }
+  }
+
   private async activate(p: ProfileMeta): Promise<void> {
+    if (this.activating) { return; }
+    this.activating = true;
     const request = ++this.activationRequest;
     const page = this.pageGeneration;
     const tab = this.currentVisibleTab;
@@ -354,7 +381,7 @@ export struct ProfilePage {
       if (this.activationPageCurrent(request, page, tab, paths)) {
         this.toast((e as Error).message ?? '切换失败');
       }
-    }
+    } finally { this.activating = false; }
   }
 
   private async updateProfile(p: ProfileMeta): Promise<void> {
@@ -829,17 +856,20 @@ export struct ProfilePage {
   @Builder
   ReadySheet() {
     Column({ space: 20 }) {
-      Text('订阅已准备好').fontSize(24).fontWeight(FontWeight.Bold).fontColor(UI.ink)
+      Text('已导入订阅').fontSize(24).fontWeight(FontWeight.Bold).fontColor(UI.ink)
       Text(this.importedFile.replace(/\.(yaml|yml)$/, '')).fontSize(16).fontColor(UI.muted)
         .maxLines(2).textOverflow({ overflow: TextOverflow.Ellipsis })
-      Button('启用订阅').width('100%').height(56).backgroundColor(UI.action).fontColor(UI.onAccent).onClick(() => {
-        const profile = this.profiles.find((p: ProfileMeta) => p.file === this.importedFile);
-        if (profile !== undefined) { this.activate(profile); }
-        this.showSheet = false;
-        this.sheetMode = SHEET_NONE;
-      })
+      if (this.importError.length > 0) {
+        Text(this.importError).fontSize(14).fontColor(UI.error).width('100%')
+      }
+      Button(this.activating ? '启用中…' : '启用并连接')
+        .width('100%').height(56).backgroundColor(UI.action).fontColor(UI.onAccent)
+        .enabled(!this.activating).onClick(() => { this.activateAndConnect(); })
       Button('稍后启用').width('100%').height(48).backgroundColor(UI.soft).fontColor(UI.accentText)
-        .onClick(() => { this.showSheet = false; this.sheetMode = SHEET_NONE; })
+        .onClick(() => {
+          this.activationRequest++;
+          this.showSheet = false; this.sheetMode = SHEET_NONE;
+        })
     }.padding(24).width('100%')
   }
 
@@ -866,7 +896,10 @@ export struct ProfilePage {
             .fontColor(this.regionMode === 'all' ? UI.onAccent : UI.accentText)
             .onClick(() => { this.regionMode = 'all'; })
           Button('保持原样').backgroundColor(UI.soft).fontColor(UI.accentText)
-            .onClick(() => { this.showSheet = false; this.sheetMode = SHEET_NONE; })
+            .onClick(() => {
+          this.activationRequest++;
+          this.showSheet = false; this.sheetMode = SHEET_NONE;
+        })
         }
         if (this.regionPreview.providerPending) {
           Text('该 Selector 的 provider 节点尚未加载。连接或刷新 provider 后重试预览。')
