@@ -29,6 +29,7 @@ type EditIntent struct {
 	Disabled       bool            `json:"disabled,omitempty"`
 	Operations     []EditOperation `json:"operations"`
 	SmartGroups    map[string]bool `json:"smartGroups,omitempty"`
+	Template       *TemplatePlan   `json:"template,omitempty"`
 }
 type EditOperation struct {
 	ID            string            `json:"id"`
@@ -54,25 +55,29 @@ func (e *IntentError) Error() string           { return "edit intent " + e.Code 
 func intentError(code string, index int) error { return &IntentError{Code: code, Operation: index} }
 
 type EditableItem struct {
-	ID       string            `json:"id"`
-	Revision string            `json:"revision"`
-	Type     string            `json:"type,omitempty"`
-	Fields   map[string]string `json:"fields,omitempty"`
+	ID        string              `json:"id"`
+	Name      string              `json:"name,omitempty"`
+	Providers []EditorProviderRef `json:"providers,omitempty"`
+	Revision  string              `json:"revision"`
+	Type      string              `json:"type,omitempty"`
+	Fields    map[string]string   `json:"fields,omitempty"`
 }
 type EditableSection struct {
 	Section string         `json:"section"`
 	Items   []EditableItem `json:"items"`
 }
 type EditableSnapshot struct {
-	SourceRevision string            `json:"sourceRevision"`
-	Sections       []EditableSection `json:"sections"`
+	SourceRevision       string            `json:"sourceRevision"`
+	MissingFieldRevision string            `json:"missingFieldRevision"`
+	Sections             []EditableSection `json:"sections"`
 }
 
 // EditTarget contains sensitive values and is returned only on explicit edit.
 type EditTarget struct {
-	Item  EditableItem    `json:"item"`
-	Value json.RawMessage `json:"value"`
-	Name  string          `json:"name,omitempty"`
+	Item                 EditableItem    `json:"item"`
+	MissingFieldRevision string          `json:"missingFieldRevision"`
+	Value                json.RawMessage `json:"value"`
+	Name                 string          `json:"name,omitempty"`
 }
 
 var editableSections = []string{"proxies", "proxy-providers", "proxy-groups", "rules", "rule-providers", "dns", "hosts"}
@@ -93,6 +98,26 @@ func fingerprint(n *yaml.Node) string {
 	b, err := json.Marshal(v)
 	if err != nil {
 		return ""
+	}
+	// These DNS maps are consumed in insertion order by the locked parser.
+	dns := field(n, "dns")
+	if dns == nil {
+		dns = n
+	}
+	orders := [][]string{}
+	for _, key := range []string{"nameserver-policy", "proxy-server-nameserver-policy"} {
+		if policy := field(dns, key); policy != nil && policy.Kind == yaml.MappingNode {
+			orders = append(orders, mappingEditorNames(policy))
+		}
+	}
+	if len(orders) > 0 {
+		b, err = json.Marshal(struct {
+			Value any
+			Order [][]string
+		}{v, orders})
+		if err != nil {
+			return ""
+		}
 	}
 	if n == nil {
 		b = []byte("missing field")
@@ -169,7 +194,7 @@ func editableItem(section, name string, n *yaml.Node, explicit bool) EditableIte
 	if explicit && n.Kind == yaml.MappingNode {
 		item.Fields = map[string]string{}
 		for i := 0; i < len(n.Content); i += 2 {
-			item.Fields[n.Content[i].Value] = fingerprint(n.Content[i+1])
+			item.Fields[n.Content[i].Value] = fieldFingerprint(section, n.Content[i].Value, n.Content[i+1])
 		}
 	}
 	return item
@@ -184,7 +209,11 @@ func ReadEditable(original, global, local []byte) (EditableSnapshot, error) {
 	if err != nil {
 		return EditableSnapshot{}, intentError("invalid_source", -1)
 	}
-	s := EditableSnapshot{SourceRevision: fingerprint(root), Sections: []EditableSection{}}
+	return snapshotEditable(root)
+}
+
+func snapshotEditable(root *yaml.Node) (EditableSnapshot, error) {
+	s := EditableSnapshot{SourceRevision: fingerprint(root), MissingFieldRevision: MissingFieldRevision(), Sections: []EditableSection{}}
 	if s.SourceRevision == "" {
 		return EditableSnapshot{}, intentError("invalid_source", -1)
 	}
@@ -219,6 +248,13 @@ func ReadEditTarget(original, global, local []byte, section, id string) (EditTar
 	if err != nil {
 		return EditTarget{}, intentError("invalid_source", -1)
 	}
+	return editTargetFromRoot(root, section, id)
+}
+
+func editTargetFromRoot(root *yaml.Node, section, id string) (EditTarget, error) {
+	if !editSectionAllowed(section) {
+		return EditTarget{}, intentError("protected_section", -1)
+	}
 	nodes, names, err := editNodes(root, section)
 	if err != nil {
 		return EditTarget{}, intentError("invalid_source", -1)
@@ -236,7 +272,7 @@ func ReadEditTarget(original, global, local []byte, section, id string) (EditTar
 			if err != nil {
 				return EditTarget{}, intentError("invalid_source", -1)
 			}
-			return EditTarget{Item: editableItem(section, names[i], n, true), Value: b, Name: names[i]}, nil
+			return EditTarget{Item: editableItem(section, names[i], n, true), MissingFieldRevision: MissingFieldRevision(), Value: b, Name: names[i]}, nil
 		}
 	}
 	return EditTarget{}, intentError("missing_target", -1)
@@ -272,6 +308,11 @@ func CheckEditIntent(intent *EditIntent) error {
 	}
 	if intent.SchemaVersion != 1 || intent.Revision == "" || intent.SourceRevision == "" || intent.Operations == nil {
 		return intentError("invalid_schema", -1)
+	}
+	if intent.Template != nil {
+		if err := intent.Template.Validate(); err != nil {
+			return intentError("invalid_template", -1)
+		}
 	}
 	ids := map[string]bool{}
 	for i, op := range intent.Operations {
@@ -440,7 +481,7 @@ func applyEditOperation(root *yaml.Node, op EditOperation) error {
 			}
 			seen[key] = true
 			expected, ok := op.Preconditions[key]
-			if !ok || fingerprint(field(node, key)) != expected {
+			if !ok || fieldFingerprint(op.Section, key, field(node, key)) != expected {
 				return fail("conflict")
 			}
 		}
@@ -581,4 +622,197 @@ func replaceRuleToken(raw string, index int, old, name string) string {
 	start := len(token) - len(strings.TrimLeft(token, " "))
 	parts[index] = token[:start] + name + token[start+len(old):]
 	return strings.Join(parts, ",")
+}
+
+// Editable and EditTarget project saved/draft intent for the host editor using
+// the same template/region/edit order as Compile, but no full validation or I/O.
+func (c Compiler) Editable(ctx context.Context, r Request) (EditableSnapshot, error) {
+	root, err := c.editSource(ctx, r)
+	if err != nil {
+		return EditableSnapshot{}, err
+	}
+	return snapshotEditable(root)
+}
+func (c Compiler) EditTarget(ctx context.Context, r Request, section, id string) (EditTarget, error) {
+	root, err := c.editSource(ctx, r)
+	if err != nil {
+		return EditTarget{}, err
+	}
+	return editTargetFromRoot(root, section, id)
+}
+func (c Compiler) editSource(ctx context.Context, r Request) (*yaml.Node, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if len(r.Original) > MaxEditableSourceBytes {
+		return nil, intentError("limit", -1)
+	}
+	for _, layer := range r.Overlays {
+		if len(layer) > MaxEditableSourceBytes {
+			return nil, intentError("limit", -1)
+		}
+	}
+	root, err := parse(r.Original)
+	if err != nil {
+		return nil, intentError("invalid_source", -1)
+	}
+	if err := rejectRuntimeCredential(root); err != nil {
+		return nil, intentError("invalid_source", -1)
+	}
+	for _, layer := range r.Overlays {
+		patch, err := parse(layer)
+		if err != nil {
+			return nil, intentError("invalid_source", -1)
+		}
+		if err := rejectRuntimeCredential(patch); err != nil {
+			return nil, intentError("invalid_source", -1)
+		}
+		merge(root, patch)
+	}
+	if r.Region != nil && !r.Region.Disabled && (r.Intent == nil || r.Intent.Disabled || r.Intent.Template == nil) {
+		if err := ApplyRegion(ctx, root, *r.Region); err != nil {
+			return nil, intentError("region_failed", -1)
+		}
+	}
+	if err := applyIntentTemplate(ctx, root, r.Intent, c.Template); err != nil {
+		return nil, err
+	}
+	if err := supportedTags(root, false, map[*yaml.Node]bool{}); err != nil {
+		return nil, intentError("invalid_source", -1)
+	}
+	if err := rejectRuntimeCredential(root); err != nil {
+		return nil, intentError("invalid_source", -1)
+	}
+	encoded, err := yaml.Marshal(root)
+	if err != nil {
+		return nil, intentError("invalid_source", -1)
+	}
+	root, err = parse(encoded)
+	if err != nil {
+		return nil, intentError("invalid_source", -1)
+	}
+	if err := ApplyEditIntent(ctx, root, r.Intent); err != nil {
+		return nil, err
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return root, nil
+}
+
+// EditorProviderRef describes local declarations only. These states never claim
+// loaded resources, healthy nodes or successful forwarding.
+type EditorProviderRef struct {
+	ID    string `json:"id"`
+	Name  string `json:"name"`
+	Type  string `json:"type,omitempty"`
+	State string `json:"state"` // declared, inline, missing
+	Count int    `json:"count,omitempty"`
+}
+
+func providerEditorRef(root *yaml.Node, section, name string) EditorProviderRef {
+	ref := EditorProviderRef{ID: targetID(section, name), Name: name, State: "missing"}
+	n := field(field(root, section), name)
+	if n == nil {
+		return ref
+	}
+	ref.State = "declared"
+	if kind := field(n, "type"); kind != nil {
+		for _, allowed := range []string{"file", "http", "inline"} {
+			if kind.Value == allowed {
+				ref.Type = allowed
+			}
+		}
+	}
+	if ref.Type == "inline" {
+		ref.State = "inline"
+		ref.Count = size(field(n, "payload"))
+	}
+	return ref
+}
+
+// EditorList is a sensitive editing action, distinct from the default summary.
+// Names are needed for selecting targets; passwords/addresses/URLs/raw rules and
+// arbitrary YAML values remain available only through explicit EditTarget.
+func (c Compiler) EditorList(ctx context.Context, r Request) (EditableSnapshot, error) {
+	root, err := c.editSource(ctx, r)
+	if err != nil {
+		return EditableSnapshot{}, err
+	}
+	out, err := snapshotEditable(root)
+	if err != nil {
+		return EditableSnapshot{}, err
+	}
+	for si := range out.Sections {
+		section := out.Sections[si].Section
+		nodes, names, err := editNodes(root, section)
+		if err != nil {
+			return EditableSnapshot{}, intentError("invalid_source", -1)
+		}
+		for i, n := range nodes {
+			item := &out.Sections[si].Items[i]
+			item.Name = names[i]
+			if section == "rules" {
+				item.Name = fmt.Sprintf("规则 %d", i+1)
+			}
+			if section == "dns" {
+				item.Name = "DNS"
+			}
+			if section == "proxy-providers" || section == "rule-providers" {
+				item.Providers = []EditorProviderRef{providerEditorRef(root, section, names[i])}
+			}
+			if section == "proxy-groups" {
+				used := map[string]bool{}
+				if list := field(n, "use"); list != nil && list.Kind == yaml.SequenceNode {
+					for _, v := range list.Content {
+						if v.Tag == "!!str" && !used[v.Value] {
+							item.Providers = append(item.Providers, providerEditorRef(root, "proxy-providers", v.Value))
+							used[v.Value] = true
+						}
+					}
+				}
+				all, providers := field(n, "include-all"), field(n, "include-all-providers")
+				if (all != nil && all.Value == "true") || (providers != nil && providers.Value == "true") {
+					for _, name := range mappingEditorNames(field(root, "proxy-providers")) {
+						if !used[name] {
+							item.Providers = append(item.Providers, providerEditorRef(root, "proxy-providers", name))
+							used[name] = true
+						}
+					}
+				}
+			}
+		}
+	}
+	return out, nil
+}
+func mappingEditorNames(n *yaml.Node) []string {
+	names := []string{}
+	if n != nil && n.Kind == yaml.MappingNode {
+		for i := 0; i < len(n.Content); i += 2 {
+			names = append(names, n.Content[i].Value)
+		}
+	}
+	return names
+}
+
+func fieldFingerprint(section, key string, n *yaml.Node) string {
+	if n == nil {
+		return MissingFieldRevision()
+	}
+	if section != "dns" || (key != "nameserver-policy" && key != "proxy-server-nameserver-policy") {
+		return fingerprint(n)
+	}
+	var value any
+	if err := n.Decode(&value); err != nil {
+		return ""
+	}
+	data, err := json.Marshal(struct {
+		Value any
+		Order []string
+	}{value, mappingEditorNames(n)})
+	if err != nil {
+		return ""
+	}
+	sum := sha256.Sum256(data)
+	return hex.EncodeToString(sum[:])
 }

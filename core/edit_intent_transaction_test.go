@@ -30,8 +30,7 @@ rules: ["MATCH,Main"]
 		t.Fatal(err)
 	}
 	intent := &configpipeline.EditIntent{SchemaVersion: 1, Revision: "private-draft", SourceRevision: view.SourceRevision, Operations: []configpipeline.EditOperation{{ID: "port", Kind: "update", Section: "proxies", Target: id, Preconditions: map[string]string{"port": target.Item.Fields["port"]}, Patch: json.RawMessage(`{"port":1081}`)}}}
-	data, _ := json.Marshal(intent)
-	action := versionAction{Op: "stage", ProfileID: "synthetic.yaml", Original: original, Metadata: `{}`, EditIntent: data}
+	action := versionAction{Op: "stage", ProfileID: "synthetic.yaml", Original: original, Metadata: `{}`, EditIntent: intent}
 	staged, err := executeVersionAction(home, action)
 	if err != nil {
 		t.Fatal(err)
@@ -69,8 +68,13 @@ rules: ["MATCH,Main"]
 		t.Fatal("failed compile changed pointer", err)
 	}
 	action.Op = "edit-check"
-	action.EditIntent = json.RawMessage(`{"schemaVersion":1,"revision":"r","sourceRevision":"s","operations":[],"unknown":true}`)
-	if _, err = executeVersionAction(home, action); err == nil || err.Error() != "EDIT_INTENT_INVALID" {
-		t.Fatal("unknown field accepted", err)
+	wire, _ := json.Marshal(action)
+	var envelope map[string]json.RawMessage
+	_ = json.Unmarshal(wire, &envelope)
+	envelope["editIntent"] = json.RawMessage(`{"schemaVersion":1,"revision":"r","sourceRevision":"s","operations":[],"unknown":true}`)
+	wire, _ = json.Marshal(envelope)
+	var rejected versionResponse
+	if err := json.Unmarshal([]byte(coreVersionAction(home, string(wire))), &rejected); err != nil || rejected.Error == "" || rejected.EditError == nil {
+		t.Fatal("unknown field accepted at the strict worker boundary", err)
 	}
 }
