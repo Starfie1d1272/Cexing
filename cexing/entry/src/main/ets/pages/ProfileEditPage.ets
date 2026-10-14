@@ -41,6 +41,7 @@ export struct ProfileEditPage {
   @State mergeBusy: boolean = false;
   @State mergeSummary: string = '';
   @State mergeLoadFailed: boolean = false;
+  private persistedMergeText: string = '';
 
   aboutToAppear(): void {
     this.file = ProfileEditBus.current;
@@ -53,6 +54,7 @@ export struct ProfileEditPage {
     this.loadFailed = false;
     try {
       this.mergeText = ProfileStore.getMergeDraft(context, this.file);
+      this.persistedMergeText = this.mergeText;
       this.mergeLoadFailed = false;
     } catch (_) {
       this.mergeText = '';
@@ -74,6 +76,7 @@ export struct ProfileEditPage {
 
   aboutToDisappear(): void {
     this.flushDraft();
+    this.persistMergeDraft();
   }
 
   private cancelDraftTimer(): void {
@@ -188,6 +191,30 @@ export struct ProfileEditPage {
     }
   }
 
+  private persistMergeDraft(): boolean {
+    if (this.loadFailed || this.mergeLoadFailed) { return true; }
+    if (this.mergeText === this.persistedMergeText) { return true; }
+    try {
+      ProfileStore.saveMergeDraft(getContext(this) as common.UIAbilityContext, this.file, this.mergeText);
+      this.persistedMergeText = this.mergeText;
+      return true;
+    } catch (_) { this.toast('覆写草稿未能保存，请重试'); return false; }
+  }
+
+  private closeMerge(): void {
+    if (this.mergeBusy || !this.persistMergeDraft()) { return; }
+    if (this.mergeOnly) { this.navStack.pop(); }
+    else { this.showMergeSheet = false; }
+  }
+
+  private openOriginalDraft(): void {
+    if (this.mergeBusy || !this.persistMergeDraft()) { return; }
+    if (this.mergeOnly) {
+      ProfileEditBus.current = this.file;
+      this.navStack.replacePath({ name: 'profileEdit' });
+    } else { this.showMergeSheet = false; }
+  }
+
   private async previewMerge(): Promise<void> {
     if (this.mergeBusy) { return; }
     if (this.mergeLoadFailed) { this.toast('覆写草稿读取失败，请重试'); return; }
@@ -235,6 +262,11 @@ export struct ProfileEditPage {
       if (this.mergeLoadFailed) {
         Text('覆写草稿读取失败，请关闭后重试').fontSize(13).fontColor(UI.error)
       }
+      if (this.dirty) {
+        Text('原始配置有未保存修改').fontSize(13).fontColor(UI.accentText).width('100%')
+        Button('继续编辑原文').height(44).width('100%').backgroundColor(UI.soft).fontColor(UI.ink)
+          .enabled(!this.mergeBusy).onClick(() => { this.openOriginalDraft(); })
+      }
       TextArea({ text: $$this.mergeText, placeholder: '输入 YAML 覆写配置' })
         .width('100%').layoutWeight(1).fontSize(14).fontFamily('HarmonyOS Sans Mono')
         .enabled(!this.mergeBusy && !this.mergeLoadFailed)
@@ -244,17 +276,14 @@ export struct ProfileEditPage {
       }
       Row({ space: 12 }) {
         Button('关闭').height(44).layoutWeight(1).backgroundColor(UI.soft).fontColor(UI.ink)
-          .onClick(() => {
-            if (this.mergeOnly) { this.navStack.pop(); }
-            else { this.showMergeSheet = false; }
-          })
+          .enabled(!this.mergeBusy).onClick(() => { this.closeMerge(); })
         Button(this.mergeBusy ? '预览中' : '预览')
           .height(44).layoutWeight(1).backgroundColor(UI.action).fontColor(UI.onAccent)
-          .enabled(!this.mergeBusy && !this.mergeLoadFailed).onClick(() => { this.previewMerge(); })
+          .enabled(!this.mergeBusy && !this.mergeLoadFailed && !this.dirty).onClick(() => { this.previewMerge(); })
       }.width('100%')
       Button(this.mergeBusy ? '处理中' : '应用本订阅覆写')
         .height(44).width('100%').backgroundColor(UI.action).fontColor(UI.onAccent)
-        .enabled(!this.mergeBusy && !this.mergeLoadFailed)
+        .enabled(!this.mergeBusy && !this.mergeLoadFailed && !this.dirty)
         .onClick(() => { this.applyMerge(); })
     }.width('100%').height('100%').padding(20).backgroundColor(UI.surface)
   }
