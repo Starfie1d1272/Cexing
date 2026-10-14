@@ -13,7 +13,8 @@ export class AiProbeBinding {
       if (current.ID !== this.version) {
         this.version = ''; this.target = '';
         const intent = EffectiveVersions.editIntent(context, current);
-        if (intent !== null && intent.disabled !== true && intent.template?.templateId === 'ai') {
+        if (intent !== null && intent.schemaVersion === 1 && intent.disabled !== true &&
+          intent.template?.templateId === 'ai' && intent.template.version === 1) {
           this.target = intent.template.targetGroup ?? '';
         }
         this.version = current.ID;

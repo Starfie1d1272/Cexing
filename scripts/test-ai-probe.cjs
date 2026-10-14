@@ -33,8 +33,9 @@ function load(file, page = false) {
  vm.runInNewContext(ts.transpileModule(src).outputText, sandbox); return sandbox.exports;
 }
 let successful = { ID: 'version-good', ProfileID: 'one.yaml' }, intentReads = 0;
+let successfulIntent = { schemaVersion: 1, template: { templateId: 'ai', version: 1, targetGroup: 'Pick' } };
 modules['./EffectiveVersions'] = { EffectiveVersions: {
- read: () => ({ Current: successful }), editIntent: () => { intentReads++; return { template: { templateId: 'ai', targetGroup: 'Pick' } }; }
+ read: () => ({ Current: successful }), editIntent: () => { intentReads++; return successfulIntent; }
 } };
 const Binding = load('lib/AiProbeBinding.ets').AiProbeBinding;
 const binding = new Binding();
@@ -45,6 +46,15 @@ assert.equal(intentReads, 1);
 successful = { ID: 'version-next', ProfileID: 'one.yaml' };
 assert.equal(binding.revision({}, 'one.yaml', 'Pick'), 'version-next');
 assert.equal(intentReads, 2);
+for (const invalid of [
+ { schemaVersion: 2, template: { templateId: 'ai', version: 1, targetGroup: 'Pick' } },
+ { schemaVersion: 1, disabled: true, template: { templateId: 'ai', version: 1, targetGroup: 'Pick' } },
+ { schemaVersion: 1, template: { templateId: 'ai', version: 2, targetGroup: 'Pick' } },
+ { schemaVersion: 1, template: { templateId: 'original', version: 1, targetGroup: 'Pick' } }, null
+]) {
+ successful = { ID: successful.ID + '-invalid', ProfileID: 'one.yaml' }; successfulIntent = invalid;
+ assert.equal(binding.revision({}, 'one.yaml', 'Pick'), '');
+}
 const Service = load('lib/AiProbeService.ets').AiProbeService;
 modules['../lib/AiProbeService'] = { AiProbeService: Service };
 const Page = load('pages/AiProbeStatus.ets', true).AiProbeStatus;
