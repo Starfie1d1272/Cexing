@@ -33,7 +33,7 @@ export struct TemplateWizard {
       try {
         const answer = await promptAction.showDialog({ title: '替换订阅分流规则？',
           message: '本地网络直连，其余流量使用所选出口。',
-          buttons: [{ text: '取消', color: UI.muted }, { text: '替换并应用', color: UI.accentText }] });
+          buttons: [{ text: '取消', color: $r('app.color.ui_muted') }, { text: '替换并应用', color: $r('app.color.ui_accent_text') }] });
         if (!this.visible || answer.index !== 1 || this.model !== model || model.preview !== preview) { return; }
       } catch (_) { return; }
       finally { this.confirming = false; }
@@ -62,7 +62,7 @@ export struct TemplateWizard {
       if (this.view.templateId !== 'original' && this.view.ready === true) {
         Text(this.view.templateId === 'region' ? '原策略组' : '出口').fontSize(14).fontColor(UI.muted)
         Select((this.view.templateId === 'region' ? this.view.selectors :
-          this.view.groups).map((name: string) => { return { value: name }; }))
+          this.view.groups).map((name: string): SelectOption => { return { value: name }; }))
           .value(this.view.target || '请选择').width('100%').enabled(this.view.busy === false)
           .onSelect((_index: number, value: string) => this.model?.choose(this.view.templateId, value))
       }

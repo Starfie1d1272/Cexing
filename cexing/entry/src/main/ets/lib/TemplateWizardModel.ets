@@ -101,7 +101,7 @@ export class TemplateWizardModel {
     if (this.templateId === 'region') {
       // Preserve existing per-node corrections when retaining the selector.
       const previous = this.inputs.current.region;
-      const assignments = previous?.selector === this.target ? previous.assignments : {};
+      const assignments: Record<string, string> = previous?.selector === this.target ? previous.assignments : {};
       return { templateId: 'region', version: 1, region: { mode: 'region', selector: this.target,
         enable: true, assignments: assignments } };
     }
