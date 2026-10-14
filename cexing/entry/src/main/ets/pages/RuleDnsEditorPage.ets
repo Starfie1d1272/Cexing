@@ -147,7 +147,7 @@ export struct RuleDnsEditorPage {
     finally { if (this.current(epoch)) { this.busy = false; } }
   }
   private intentIdentity(intent: EditIntent | null): string {
-    if (intent === null || (intent.operations.length === 0 && Object.keys(intent.smartGroups ?? {}).length === 0)) { return ''; }
+    if (intent === null || (intent.operations.length === 0 && (intent.smartGroups === undefined || Object.keys(intent.smartGroups).length === 0))) { return ''; }
     const value = JSON.parse(JSON.stringify(intent)) as EditIntent;
     value.revision = ''; value.sourceRevision = ''; value.disabled = value.disabled === true;
     return JSON.stringify(value);

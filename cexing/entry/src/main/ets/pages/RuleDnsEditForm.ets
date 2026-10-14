@@ -91,12 +91,34 @@ export struct RuleDnsEditForm {
     } catch (error) { this.error = (error as Error).message; }
   }
 
+  private optionLabel(label: string, value: string): string {
+    if (label === '目标') { return value === 'DIRECT' ? '直连' : value === 'REJECT' ? '拒绝' : value; }
+    if (label === '规则源') { return value; }
+    switch (value) {
+      case 'DOMAIN': return '完整域名';
+      case 'DOMAIN-SUFFIX': return '域名后缀';
+      case 'DOMAIN-KEYWORD': return '域名关键字';
+      case 'IP-CIDR': return 'IPv4 地址段';
+      case 'IP-CIDR6': return 'IPv6 地址段';
+      case 'RULE-SET': return '规则源';
+      case 'MATCH': return '最终规则';
+      case 'http': return '远程';
+      case 'file': return '本地';
+      case 'domain': return '域名';
+      case 'ipcidr': return 'IP 地址段';
+      case 'classical': return '综合规则';
+      case 'text': return '文本';
+      case 'fake-ip': return 'Fake IP';
+      case 'redir-host': return '真实 IP';
+      default: return value;
+    }
+  }
   @Builder
   choose(label: string, values: string[], current: string, changed: (value: string) => void) {
     Row({ space: 12 }) {
       Text(label).fontColor(UI.ink).layoutWeight(1)
-      Select(values.map((value: string): SelectOption => ({ value: value }))).value(current)
-        .selected(values.indexOf(current)).onSelect((_index: number, value: string) => changed(value))
+      Select(values.map((value: string): SelectOption => ({ value: this.optionLabel(label, value) }))).value(this.optionLabel(label, current))
+        .selected(values.indexOf(current)).onSelect((index: number) => changed(values[index]))
     }.width('100%')
   }
 
