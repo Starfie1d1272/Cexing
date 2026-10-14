@@ -53,6 +53,9 @@ func coreVersionAction(home, input string) string {
 	if json.Unmarshal([]byte(input), &diagnostic) == nil && (diagnostic.Op == "diagnostics-record" || diagnostic.Op == "diagnostics-export") {
 		return coreDiagnosticAction(home, input)
 	}
+	if diagnostic.Op == "template-update-preview" {
+		return coreTemplateUpdateAction(input)
+	}
 	var action versionAction
 	if len(input) > maxConfigBytes*6+2*1024*1024 || json.Unmarshal([]byte(input), &action) != nil ||
 		home == "" || !filepath.IsAbs(home) {
@@ -127,7 +130,7 @@ func executeVersionAction(home string, action versionAction) (versionResponse, e
 		if err != nil {
 			return versionResponse{}, errors.New("EDIT_READ_FAILED")
 		}
-		compiler := configpipeline.Compiler{Template: editorTemplate(home)}
+		compiler := configpipeline.Compiler{Template: editorTemplate(home), PrepareTemplate: editorTemplatePrepare(home)}
 		if action.Op == "edit-target" {
 			view, err := compiler.EditTarget(ctx, request, action.EditSection, action.EditTarget)
 			if err != nil {
@@ -153,7 +156,7 @@ func executeVersionAction(home string, action versionAction) (versionResponse, e
 		if err != nil {
 			return versionResponse{}, errors.New("SMART_PREVIEW_FAILED")
 		}
-		view, err := (configpipeline.Compiler{Template: editorTemplate(home)}).SmartPreview(ctx, request, action.SmartConversion)
+		view, err := (configpipeline.Compiler{Template: editorTemplate(home), PrepareTemplate: editorTemplatePrepare(home)}).SmartPreview(ctx, request, action.SmartConversion)
 		if err != nil {
 			return editFailure(err)
 		}

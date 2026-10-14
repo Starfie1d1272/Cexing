@@ -78,7 +78,7 @@ async function testClient(mode, accessMode = 'all', accessList = [], ipv6 = fals
     '@kit.CoreFileKit': { fileIo: { accessSync: () => stopReceipt.length > 0,
       readTextSync: () => stopReceipt } }, './Logger': logger,
     './ConnectionFailure': failureModule.exports, './VpnPhases': phaseModule.exports,
-    './CoreApi': { CoreApi: { bindContext() {} } }, './Settings': { Settings: { isLanPersistenceUncertain: () => false, load: () => settings, save() {} } },
+    './CoreApi': { CoreApi: { bindContext() {} } }, './Settings': { Settings: { isLanPersistenceUncertain: () => false, idle: async () => {}, load: () => settings, save() {} } },
     './ProfileStore': { ProfileStore: { clearApplyUncertain: () => { cleared++; } } },
     '@kit.IPCKit': { rpc: { MessageSequence: { create: () => ({values:[],writeString(value){this.values.push(value);},reclaim() {} }) }, MessageOption: class {} } }
   };
@@ -179,7 +179,7 @@ async function testExtension(failStop = false, lateCreate = false, protection = 
       if (brokenPointer) throw Error('synthetic invalid effective pointer');
       return null;
     } } },
-    '../lib/Settings': { Settings: { isLanPersistenceUncertain: () => false, load: () => ({}) } }, '@kit.ArkTS': { util: {} }
+    '../lib/Settings': { Settings: { isLanPersistenceUncertain: () => false, idle: async () => {}, load: () => ({}) } }, '@kit.ArkTS': { util: {} }
   };
   const Extension = load('vpnability/CexingVpnAbility.ets', modules).default;
   const extension = new Extension();
@@ -266,7 +266,7 @@ function testApplicationPolicy() {
   const modules = {
     '@kit.NetworkKit': {}, '@kit.CoreFileKit': {}, '@kit.IPCKit': {}, './Logger': logger,
     './ConnectionFailure': failureModule.exports, './VpnPhases': phaseModule.exports,
-    './CoreApi': {}, './Settings': { Settings: {isLanPersistenceUncertain:()=>false,load: () => ({accessMode:'white',accessList:[]})} }, './ProfileStore': {}
+    './CoreApi': {}, './Settings': { Settings: {isLanPersistenceUncertain: () => false, idle: async () => {}, load: () => ({accessMode:'white',accessList:[]})} }, './ProfileStore': {}
   };
   const policy = load('lib/VpnController.ets', modules);
   const self = 'test.bundle';
