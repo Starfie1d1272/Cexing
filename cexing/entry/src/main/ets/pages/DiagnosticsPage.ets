@@ -1,3 +1,4 @@
+import { BackgroundNotice } from './BackgroundNotice';
 import { CoreApi } from '../lib/CoreApi';
 import { VpnController, VpnStatus } from '../lib/VpnController';
 import { NativeTheme as UI } from './NativeTheme';
@@ -231,6 +232,7 @@ export struct DiagnosticsPage {
     Column({ space: 20 }) {
       Scroll() {
         Column({ space: 16 }) {
+          BackgroundNotice({ status: this.status, detailsOpen: this.detailsOpen })
           Text('连接检查').fontSize(26).fontWeight(FontWeight.Bold).fontColor(UI.ink).width('100%')
           Column() {
             Row({ space: 16 }) {
@@ -241,9 +243,6 @@ export struct DiagnosticsPage {
             Column({ space: 8 }) {
               Text('本机服务').fontSize(13).fontColor(UI.muted)
               Text(this.control).fontSize(17).fontColor(UI.ink).width('100%')
-              if (this.checkedAt !== '') {
-                Text(`检查时间：${this.checkedAt}`).fontSize(12).fontColor(UI.muted).width('100%')
-              }
             }.width('100%').padding(18).alignItems(HorizontalAlign.Start)
           }.width('100%').borderRadius(24).backgroundColor(UI.surface)
           if (this.control === '检查超时') {
@@ -256,6 +255,9 @@ export struct DiagnosticsPage {
           Button(this.detailsOpen ? '收起技术详情' : '查看技术详情').height(48)
             .backgroundColor(UI.surface).fontColor(UI.accentText).onClick(() => { this.detailsOpen = !this.detailsOpen; })
           if (this.detailsOpen) {
+            if (this.checkedAt !== '') {
+              Text(`检查时间：${this.checkedAt}`).fontSize(12).fontColor(UI.muted).width('100%')
+            }
             Text('这些检查分别验证本机 API、配置的 DNS 和所选代理；网站访问与系统隧道转发仍需单独确认。')
               .fontSize(14).fontColor(UI.muted).width('100%')
             Button('检查 DNS').height(48).enabled(!this.busy).onClick(() => this.check('dns'))
@@ -273,23 +275,22 @@ export struct DiagnosticsPage {
               .fontSize(14).fontColor(UI.muted).width('100%')
             Text(VpnController.getKernelReadyReported() ? '内核已报告就绪' : '等待内核报告就绪')
               .fontSize(14).fontColor(UI.muted).width('100%')
+      Button('分享诊断包文件').width('100%').height(48).enabled(!this.busy)
+        .backgroundColor(UI.soft).fontColor(UI.accentText).onClick(() => this.exportSupport(true))
+      Button('复制简短脱敏摘要').width('100%').height(48)
+        .backgroundColor(UI.soft).fontColor(UI.accentText).onClick(() => this.copySummary())
+      Button('打开 GitHub 反馈模板').width('100%').height(48)
+        .backgroundColor(UI.soft).fontColor(UI.accentText).onClick(() => this.openFeedback())
           }
       Button(this.busy ? '处理中…' : '检查本机服务').width('100%').height(56)
         .backgroundColor(UI.action).fontColor(UI.onAccent).enabled(!this.busy).onClick(() => this.check())
       Button('保存诊断支持包').width('100%').height(48).enabled(!this.busy)
         .backgroundColor(UI.soft).fontColor(UI.accentText).onClick(() => this.exportSupport(false))
-      Button('分享诊断包文件').width('100%').height(48).enabled(!this.busy)
-        .backgroundColor(UI.soft).fontColor(UI.accentText).onClick(() => this.exportSupport(true))
       if (this.exportMessage !== '') { Text(this.exportMessage).fontSize(14).fontColor(UI.muted).width('100%') }
       if (this.bundleFacts.length > 0) {
         Text('本次诊断包的证据范围').fontSize(16).fontColor(UI.ink).width('100%')
         ForEach(this.bundleFacts, (fact: string) => { Text(fact).fontSize(13).fontColor(UI.muted).width('100%') })
       }
-      Button('复制简短脱敏摘要').width('100%').height(48)
-        .backgroundColor(UI.soft).fontColor(UI.accentText).onClick(() => this.copySummary())
-      Text('保存诊断支持包，在 GitHub 模板中补充复现步骤，审核后提交；简短摘要仅用于快速说明。').fontSize(13).fontColor(UI.muted).width('100%')
-      Button('打开 GitHub 反馈模板').width('100%').height(48)
-        .backgroundColor(UI.soft).fontColor(UI.accentText).onClick(() => this.openFeedback())
       Button('打开控制面板').width('100%').height(48)
         .backgroundColor(UI.soft).fontColor(UI.accentText).enabled(this.status === VpnStatus.Connected)
         .onClick(() => { this.navStack.pushPath({ name: 'zashboard' }); })
