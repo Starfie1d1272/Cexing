@@ -503,8 +503,11 @@ export namespace VpnController {
       setStatus(VpnStatus.Disconnected);
       return false;
     }
-    authorization.then(() => {
+    authorization.then(async () => {
       if (attempt !== startAttempt || status !== VpnStatus.Connecting) { phase('authorization', 'cancelled', session, 'START_SUPERSEDED'); return; }
+      Settings.load(context);
+      await Settings.idle();
+      if (attempt !== startAttempt || status !== VpnStatus.Connecting) { return; }
       phase('authorization', 'success', session, '', Date.now() - authorizationAt);
       connectService(context, want);
     }).catch((e: Object) => {

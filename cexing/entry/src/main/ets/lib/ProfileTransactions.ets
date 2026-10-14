@@ -50,6 +50,17 @@ export namespace ProfileTransactions {
     releaseConfiguration = VpnController.holdConfiguration();
   }
 
+  /** Reuse the publication gate for local backup snapshots and offline restore. */
+  export async function backupWork(context: common.Context, offline: boolean,
+    action: () => Promise<void>): Promise<void> {
+    enter(context);
+    try {
+      Settings.load(context); await Settings.idle();
+      if (offline && (VpnController.status !== VpnStatus.Disconnected || VpnController.needsStop())) { throw new Error('请先确认断开 VPN'); }
+      await action();
+    } finally { leave(); }
+  }
+
   function markUnknown(context: common.Context): void {
     uncertain = true;
     ProfileStore.markApplyUncertain(context);

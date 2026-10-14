@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 
 	"core/configpipeline"
 )
@@ -14,26 +15,32 @@ import (
 var profileIDPattern = regexp.MustCompile(`(?i)^[^/\\\x00-\x1f]{1,128}\.ya?ml$`)
 
 type versionAction struct {
-	EditIntent      json.RawMessage            `json:"editIntent,omitempty"`
-	Op              string                     `json:"op"`
-	EditSection     string                     `json:"editSection,omitempty"`
-	EditTarget      string                     `json:"editTarget,omitempty"`
-	ProfileID       string                     `json:"profileId"`
-	Original        string                     `json:"original"`
-	GlobalMerge     *string                    `json:"globalMerge,omitempty"`
-	UpdateGlobal    bool                       `json:"updateGlobal,omitempty"`
-	Overlay         string                     `json:"overlay"`
-	Metadata        string                     `json:"metadata"`
-	Overrides       string                     `json:"overrides"`
-	Expected        string                     `json:"expected"`
-	VersionID       string                     `json:"versionId"`
-	Active          bool                       `json:"active"`
-	NewProfileID    string                     `json:"newProfileId"`
-	SmartConversion bool                       `json:"smartConversion"`
-	RegionPlan      *configpipeline.RegionPlan `json:"regionPlan,omitempty"`
+	BackupFile        string                     `json:"backupFile,omitempty"`
+	BackupToken       string                     `json:"backupToken,omitempty"`
+	BackupPreferences json.RawMessage            `json:"backupPreferences,omitempty"`
+	BackupOwner       string                     `json:"backupOwner,omitempty"`
+	BackupAllowLan    bool                       `json:"backupAllowLan"`
+	EditIntent        json.RawMessage            `json:"editIntent,omitempty"`
+	Op                string                     `json:"op"`
+	EditSection       string                     `json:"editSection,omitempty"`
+	EditTarget        string                     `json:"editTarget,omitempty"`
+	ProfileID         string                     `json:"profileId"`
+	Original          string                     `json:"original"`
+	GlobalMerge       *string                    `json:"globalMerge,omitempty"`
+	UpdateGlobal      bool                       `json:"updateGlobal,omitempty"`
+	Overlay           string                     `json:"overlay"`
+	Metadata          string                     `json:"metadata"`
+	Overrides         string                     `json:"overrides"`
+	Expected          string                     `json:"expected"`
+	VersionID         string                     `json:"versionId"`
+	Active            bool                       `json:"active"`
+	NewProfileID      string                     `json:"newProfileId"`
+	SmartConversion   bool                       `json:"smartConversion"`
+	RegionPlan        *configpipeline.RegionPlan `json:"regionPlan,omitempty"`
 }
 
 type versionResponse struct {
+	Backup        *backupResponse                  `json:"backup,omitempty"`
 	Storage       *storageReport                   `json:"storage,omitempty"`
 	Editable      *configpipeline.EditableSnapshot `json:"editable,omitempty"`
 	EditTarget    *configpipeline.EditTarget       `json:"editTarget,omitempty"`
@@ -76,6 +83,9 @@ func executeVersionAction(home string, action versionAction) (versionResponse, e
 	currentID := ""
 	if prior.Current != nil {
 		currentID = prior.Current.ID
+	}
+	if strings.HasPrefix(action.Op, "backup-") {
+		return executeBackupAction(home, store, prior, action)
 	}
 	if action.Op == "read" {
 		return versionResponse{State: &prior}, nil

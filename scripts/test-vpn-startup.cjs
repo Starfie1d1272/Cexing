@@ -66,7 +66,7 @@ async function testClient(mode) {
     '@kit.CoreFileKit': { fileIo: { accessSync: () => stopReceipt.length > 0,
       readTextSync: () => stopReceipt } }, './Logger': logger,
     './ConnectionFailure': failureModule.exports, './VpnPhases': phaseModule.exports,
-    './CoreApi': { CoreApi: { bindContext() {} } }, './Settings': { Settings: { isLanPersistenceUncertain: () => false, load: () => settings, save() {} } },
+    './CoreApi': { CoreApi: { bindContext() {} } }, './Settings': { Settings: { isLanPersistenceUncertain: () => false, idle: async () => {}, load: () => settings, save() {} } },
     './ProfileStore': { ProfileStore: { clearApplyUncertain: () => { cleared++; } } },
     '@kit.IPCKit': { rpc: { MessageSequence: { create: () => ({values:[],writeString(value){this.values.push(value);},reclaim() {} }) }, MessageOption: class {} } }
   };
@@ -166,7 +166,7 @@ async function testExtension(failStop = false, lateCreate = false) {
       if (brokenPointer) throw Error('synthetic invalid effective pointer');
       return null;
     } } },
-    '../lib/Settings': { Settings: { isLanPersistenceUncertain: () => false, load: () => ({}) } }, '@kit.ArkTS': { util: {} }
+    '../lib/Settings': { Settings: { isLanPersistenceUncertain: () => false, idle: async () => {}, load: () => ({}) } }, '@kit.ArkTS': { util: {} }
   };
   const Extension = load('vpnability/CexingVpnAbility.ets', modules).default;
   const extension = new Extension();
