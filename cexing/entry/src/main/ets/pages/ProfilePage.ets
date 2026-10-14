@@ -108,7 +108,7 @@ export struct ProfilePage {
   // 'applied' or 'saved'; rejection and unknown outcomes must not enter here.
   private finishActivationNavigation(request: number, page: number, tab: number, paths: string[]): void {
     this.profileRevision++;
-    if (!this.activationPageCurrent(request, page, tab, paths) || ProfileImportInput.hasPending()) { return; }
+    if (!this.activationPageCurrent(request, page, tab, paths) || this.showSheet || ProfileImportInput.hasPending()) { return; }
     this.refresh();
     if (this.detailOnTop()) { this.navStack.pop(); }
     this.tabJump = 0;
@@ -375,7 +375,6 @@ export struct ProfilePage {
       const result = await ProfileTransactions.activate(context, file);
       if (result !== 'applied' && result !== 'saved') { throw new Error('应用结果未确认'); }
       this.profileRevision++;
-      if (ProfileImportInput.hasPending()) { return; }
       if (!this.activationPageCurrent(request, page, tab, paths) || !this.showSheet ||
         this.sheetMode !== SHEET_READY) { return; }
       if (VpnController.status === VpnStatus.Disconnected) {
