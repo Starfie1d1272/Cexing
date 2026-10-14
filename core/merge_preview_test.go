@@ -21,7 +21,7 @@ func requireMergePreviewFields(t *testing.T, data []byte) {
 		section, sectionOK := change["section"].(string)
 		_, beforeOK := change["before"].(float64)
 		_, afterOK := change["after"].(float64)
-		if len(change) != 3 || !sectionOK || section == "" || !beforeOK || !afterOK {
+		if !sectionOK || section == "" || !beforeOK || !afterOK || change["contentChanged"] != true || change["kind"] == nil {
 			t.Fatal("merge preview fields do not match the ArkTS contract", change)
 		}
 	}
