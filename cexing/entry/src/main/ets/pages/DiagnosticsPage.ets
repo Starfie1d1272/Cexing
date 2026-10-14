@@ -1,3 +1,4 @@
+import { LiveViewStrategyPicker } from './LiveViewStrategyPicker';
 import { BackgroundNotice } from './BackgroundNotice';
 import { CoreApi } from '../lib/CoreApi';
 import { VpnController, VpnStatus } from '../lib/VpnController';
@@ -255,6 +256,7 @@ export struct DiagnosticsPage {
           Button(this.detailsOpen ? '收起技术详情' : '查看技术详情').height(48)
             .backgroundColor(UI.surface).fontColor(UI.accentText).onClick(() => { this.detailsOpen = !this.detailsOpen; })
           if (this.detailsOpen) {
+            LiveViewStrategyPicker({ status: this.status })
             if (this.checkedAt !== '') {
               Text(`检查时间：${this.checkedAt}`).fontSize(12).fontColor(UI.muted).width('100%')
             }

@@ -42,6 +42,7 @@ function keeperFixture() {
       OperationType: { START_ABILITY: 1 }, WantAgentFlags: { UPDATE_PRESENT_FLAG: 1 } } },
     '@kit.NotificationKit': { notificationManager: { publish: async request => { publications.push(request); }, cancel: async id => { cancellations.push(id); },
       ContentType: { NOTIFICATION_CONTENT_SYSTEM_LIVE_VIEW: 1 }, SlotType: { LIVE_VIEW: 1 } } },
+    './LiveViewStrategy': { LiveViewStrategy: load('LiveViewStrategy', {}, new Map()) },
     './TrafficStats': { TrafficStats: { rate: () => null } },
     './CoreApi': { CoreApi: { getProxies: async () => ({ test: { name: 'test', type: 'Selector', now: 'DIRECT', all: ['DIRECT'] } }), getConfigs: async () => null,
       getTraffic: async () => null, isAlive: async () => true }, formatRate: () => '' },
@@ -388,9 +389,43 @@ async function testDisabledDuringAuthorization() {
   const stop = late.keeper.stop(context); late.starts[0].wait.reject(Error('late failure'));
   await pending; await stop; assert.equal(late.keeper.state().task, 'unknown', 'Cancelled old failure is not a current failure');
 }
+async function testDisplayStrategy() {
+  const f = keeperFixture(), calls = [], api = f.modules['./CoreApi'].CoreApi;
+  const policies = {
+    first: { type: 'Selector', now: 'REJECT' },
+    second: { type: 'Selector', now: 'nested' },
+    nested: { type: 'Smart', now: 'private-looking-leaf' },
+    DIRECT: { type: 'Direct' }, REJECT: { type: 'Reject' }
+  };
+  api.getProxies = async () => policies; api.getConfigs = async () => ({ mode: 'rule' });
+  api.delayTest = async group => { calls.push(group); return 42; };
+  f.modules['./Settings'].Settings.save = () => { throw Error('Read-only refresh must not persist a group'); };
+  const context = await startKeeper(f);
+  const frame = () => f.publications.at(-1);
+  assert.match(frame().template.data.fileName, /显示策略 first/);
+  assert.ok(!JSON.stringify(frame()).includes('出口')); assert.ok(!JSON.stringify(frame()).includes('REJECT'));
+  f.settings.mainGroup = 'second'; await f.keeper.refreshDisplayGroup();
+  assert.match(frame().template.data.fileName, /显示策略 second/); assert.ok(!JSON.stringify(frame()).includes('private-looking-leaf'));
+  const heartbeat = [...f.timers.values()].find(t => t.delay === 300000).fn;
+  heartbeat(); await flush(); assert.deepEqual(calls, ['second']); assert.match(frame().content.systemLiveView.text, /探测 42 ms/);
+  const now = Date.now;
+  try { Date.now = () => now() + 300001; [...f.timers.values()].find(t => t.delay === 60000).fn(); await flush();
+    assert.ok(!frame().content.systemLiveView.text.includes('42 ms'), 'Expired cached probe is omitted');
+  } finally { Date.now = now; }
+  api.delayTest = async () => null; heartbeat(); await flush(); assert.ok(!frame().content.systemLiveView.text.includes('42 ms'));
+  const delayed = deferred(); api.delayTest = () => delayed.promise; heartbeat(); await flush();
+  f.settings.mainGroup = 'first'; await f.keeper.refreshDisplayGroup(); delayed.resolve(99000); await flush();
+  assert.ok(!frame().content.systemLiveView.text.includes('99000'), 'Old group probe cannot update a changed display strategy');
+  f.settings.mainGroup = 'nested'; await f.keeper.refreshDisplayGroup(); assert.match(frame().template.data.fileName, /显示策略 nested/);
+  f.settings.mainGroup = 'missing'; await f.keeper.refreshDisplayGroup(); assert.ok(!frame().template.data.fileName.includes('显示策略'));
+  f.settings.mainGroup = 'second'; await f.keeper.refreshDisplayGroup();
+  api.getProxies = async () => null; [...f.timers.values()].find(t => t.delay === 60000).fn(); await flush();
+  assert.ok(!frame().template.data.fileName.includes('显示策略'), 'Controller loss removes stale attribution');
+  await stopKeeper(f, context);
+}
 (async () => {
   const cases = [testRapidReconnect, testKeeperContext, testUpdaterContext, testSharedTraffic, testLateHeartbeat, testPreTaskFailure, testPendingPublish,
-    testPartialListeners, testCancelProbeRace, testUserCancel, testUpdaterLateCompletion, testUpdaterQueuedTickAfterStop, testUpdaterOverlapAndRetry, testBackgroundObservations, testDisabledDuringAuthorization];
+    testPartialListeners, testCancelProbeRace, testUserCancel, testUpdaterLateCompletion, testUpdaterQueuedTickAfterStop, testUpdaterOverlapAndRetry, testBackgroundObservations, testDisabledDuringAuthorization, testDisplayStrategy];
   for (const test of cases) {
     if (!process.env.RUNTIME_CASE || process.env.RUNTIME_CASE === test.name) {
       await test();
