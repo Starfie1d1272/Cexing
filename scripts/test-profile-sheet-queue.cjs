@@ -3,6 +3,7 @@ const assert = require('node:assert/strict'), fs = require('node:fs'), vm = requ
 const ts = require('./ci/transpile-arkts.cjs');
 const root = process.argv[2] || path.resolve(__dirname, '..');
 const pages = path.join(root, 'cexing/entry/src/main/ets/pages');
+let starts = 0, active = '';
 let pending = null, takes = 0, diskFull = true, saved = '', transactionBusy = false, finishRegion;
 const modules = {
   '../lib/GlobalMergeDraft': { GlobalMergeDraft: { read: () => null, save: (_context, text) => {
@@ -10,7 +11,9 @@ const modules = {
   } } },
   '../lib/EffectiveVersions': { EffectiveVersions: { globalContent: () => 'previous', read: () => ({ Profiles: { 'one.yaml': {} } }),
     regionPlan: () => ({ mode: 'region', selector: 'main', assignments: {}, enable: false }) } },
-  '../lib/ProfileTransactions': { ProfileTransactions: { isBusy: () => transactionBusy,
+  '../lib/VpnController': { VpnStatus: { Disconnected: 0, Connected: 2 }, VpnController: { status: 0, needsStop: () => false, start: () => { starts++; return true; } } },
+  '../lib/ProfileStore': { ProfileStore: { getActiveFile: () => active } },
+  '../lib/ProfileTransactions': { ProfileTransactions: { activate: async () => { active = 'one.yaml'; return 'saved'; }, ensureActiveSmartPolicy: async () => {}, isBusy: () => transactionBusy,
     previewRegion: () => new Promise(resolve => { finishRegion = resolve; }) } },
   '../lib/ProfileImportInput': { ProfileImportInput: { take: () => { takes++; const value = pending; pending = null; return value; }, release: () => {} } },
   '@kit.ArkUI': { promptAction: { showToast() {} } }
@@ -33,7 +36,7 @@ while (depth > 0) { const char = sheet[end++]; if (char === '{') depth++; if (ch
 const disappeared = new Function('SHEET_NONE', sheet.slice(start, end - 1));
 function page() {
   const value = new Page(); value.pageVisible = true; value.rootVisible = true; value.currentVisibleTab = 1;
-  value.pageGeneration = 1; value.navStack = { getAllPathName: () => [] }; return value;
+  value.pageGeneration = 1; value.profileRevision = 0; value.tabJump = -1; value.navStack = { getAllPathName: () => [] }; return value;
 }
 (async () => {
   const parent = page(); parent.showSheet = true; parent.sheetMode = 7;
@@ -59,6 +62,17 @@ function page() {
   assert.equal(gone.showSheet, false, 'late region preview cannot reopen a hidden page');
   const busy = page(); transactionBusy = true; pending = { kind: 'url', value: 'https://example.invalid/transaction' };
   busy.acceptExternalImport(); assert.ok(pending); transactionBusy = false; busy.acceptExternalImport(); assert.equal(pending, null);
+  const lateNavigation = page(); lateNavigation.activationRequest = 2; lateNavigation.showSheet = true; lateNavigation.sheetMode = 7;
+  let refreshed = 0; lateNavigation.refresh = () => refreshed++;
+  lateNavigation.finishActivationNavigation(2, 1, 1, []);
+  assert.equal(lateNavigation.tabJump, -1, 'activation completion cannot hide a newly opened protected editor');
+  assert.equal(refreshed, 0); assert.equal(lateNavigation.showSheet, true);
+  const ready = page(); ready.showSheet = true; ready.sheetMode = 4; ready.importedFile = 'one.yaml';
+  pending = { kind: 'url', value: 'https://example.invalid/after-ready' };
+  await ready.activateAndConnect();
+  assert.equal(starts, 1, 'a queued share cannot cancel the current explicit connect decision');
+  assert.equal(ready.inputUrl, 'https://example.invalid/after-ready'); assert.equal(pending, null);
+  assert.equal(ready.sheetMode, 2); assert.equal(ready.tabJump, -1, 'the next queued confirmation stays on the subscription page');
   let clears = 0; const index = new Index(); index.navStack = { clear: () => clears++, getAllPathName: () => ['profileEdit'] };
   index.openImportEntry(); assert.equal(clears, 0, 'external import cannot bypass routed editors back/draft guards');
   assert.equal(index.currentVisibleTab, 1);
