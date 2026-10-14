@@ -101,7 +101,7 @@ export namespace ConnectionEntry {
     if (VpnController.status === VpnStatus.Disconnecting) { return '断开中'; }
     if (VpnController.status === VpnStatus.Connecting) { return '连接中'; }
     if (VpnController.status === VpnStatus.Connected) { return '已连接'; }
-    if (stopUnknown || VpnController.getLastStopCompleted() === false) { return '状态待核对'; }
+    if (stopUnknown || VpnController.getLastStopCompleted() === false) { return '断开未完成'; }
     if (VpnController.getLastStartFailure() !== null) { return '连接失败'; }
     return '未连接';
   }

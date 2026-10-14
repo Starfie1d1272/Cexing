@@ -17,6 +17,7 @@
     },
     {
       "shortcutId": "disconnect",
+      "visible": false,
       "label": "$string:shortcut_disconnect",
       "icon": "$media:app_icon",
       "wants": [

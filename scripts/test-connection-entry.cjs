@@ -64,12 +64,15 @@ async function tests(){
  const rebound=fixture();rebound.entry.receive(rebound.want('connect'));const next={};rebound.entry.bind(next);rebound.entry.recovered(next);
  rebound.entry.destroyed(rebound.ctx);await flush();assert.equal(rebound.entry.ready,true);assert.equal(rebound.calls.start,0);
   // Persistence belongs to the card adapter, not to an alternate VPN controller.
-  const files = new Map(), updates = [];
+  const files = new Map(), updates = [], visibility = [];
+  let changeVisibility = async (id, visible) => visibility.push({ id, visible });
   const io = { OpenMode: { CREATE: 1, WRITE_ONLY: 2, TRUNC: 4 },
     openSync: p => ({ fd: p }), writeSync: (p, data) => files.set(p, data), closeSync() {},
     renameSync: (a, b) => { files.set(b, files.get(a)); files.delete(a); },
     readTextSync: p => { if (!files.has(p)) throw Error('missing'); return files.get(p); } };
-  const cardModules = { '@kit.CoreFileKit': { fileIo: io }, '@kit.FormKit': {
+  const cardModules = { '@kit.AbilityKit': { shortcutManager: {
+    setShortcutVisibleForSelf: (id, visible) => changeVisibility(id, visible)
+  } }, '@kit.CoreFileKit': { fileIo: io }, '@kit.FormKit': {
     formBindingData: { createFormBindingData: data => data },
     formProvider: { updateForm: async (id, data) => updates.push({ id, data }) }
   }, './Logger': { Logger: { warn() {} } } };
@@ -78,19 +81,44 @@ async function tests(){
     '../cexing/entry/src/main/ets/lib/ConnectionCards.ets'), 'utf8')).outputText;
   vm.runInNewContext(cardsCode, host);
   const cards = host.exports.ConnectionCards, cardCtx = { filesDir: '/synthetic' };
-  assert.equal(cards.read(cardCtx).label, '状态待核对');
+  assert.equal(cards.read(cardCtx).verifiedAt, 0);
   const id = '9007199254740993';
   cards.add(cardCtx, id); cards.add(cardCtx, id);
   cards.publish(cardCtx, '停止结果未知', true);
   assert.equal(updates.length, 1, 'Multiple callbacks must retain one exact string form identity');
   assert.equal(updates[0].id, id);
   assert.equal(cards.read(cardCtx).stopUnknown, true);
-  assert.equal(cards.read(cardCtx).label, '状态待核对', 'cached connected labels never claim current runtime state');
+  assert.equal(cards.read(cardCtx).label, '停止结果未知', 'cached observations retain their state and timestamp');
+  assert.equal(cards.read(cardCtx).action, 'disconnect');
+  assert.equal(cards.read(cardCtx).verifiedAt, updates[0].data.verifiedAt);
   assert.equal(updates[0].data.label, '停止结果未知', 'live publish uses the current observation');
   assert.ok(cards.read(cardCtx).reportedAt.length > 0, 'Historical reports must include their observation time');
   cards.remove(cardCtx, id); cards.publish(cardCtx, '已确认断开', false);
   assert.equal(updates.length, 1, 'Removed forms must not receive later lifecycle reports');
   assert.equal(cards.read(cardCtx).stopUnknown, false);
+  const reportPath = '/synthetic/desktop_connection_report.json';
+  const saved = files.get(reportPath);
+  files.set(reportPath, JSON.stringify({label:'断开未完成',reportedAt:'',stopUnknown:true}));
+  assert.equal(cards.read(cardCtx).stopUnknown, true, 'legacy reports retain stop safety when their timestamp is missing');
+  assert.equal(cards.read(cardCtx).verifiedAt, 0);
+  files.set(reportPath, saved);
+  await flush();
+  assert.deepEqual(visibility.slice(-2), [{ id: 'disconnect', visible: false }, { id: 'connect', visible: true }]);
+  visibility.length = 0;
+  let releaseHide;
+  changeVisibility = (id, visible) => {
+    visibility.push({ id, visible });
+    if (visibility.length === 1) return new Promise(resolve => releaseHide = resolve);
+    return Promise.resolve();
+  };
+  cards.publish(cardCtx, '已连接', false);
+  cards.publish(cardCtx, '未连接', false);
+  releaseHide(); await flush();
+  assert.deepEqual(visibility, [{ id: 'connect', visible: false },
+    { id: 'disconnect', visible: false }, { id: 'connect', visible: true }], 'a superseded hide must restore the latest single action');
+  const count = visibility.length;
+  cards.publish(cardCtx, '未连接', false); await flush();
+  assert.equal(visibility.length, count, 'unchanged heartbeats do not rewrite shortcut visibility');
   // Execute the card's freshness logic; SDK compilation checks the form-supported TextClock.
   let cardSource = fs.readFileSync(path.join(__dirname,
     '../cexing/entry/src/main/ets/connectionform/ConnectionCard.ets'), 'utf8');
@@ -104,8 +132,15 @@ async function tests(){
   vm.runInNewContext(ts.transpileModule(cardSource).outputText, cardHost);
   const widget = new cardHost.exports.Card();
   widget.aboutToAppear(); assert.equal(widget.fresh, false);
+  assert.equal(widget.statusText(), '策星 VPN');
+  widget.label = '已连接'; widget.action = 'disconnect';
+  assert.equal(widget.buttonText(), '断开');
   widget.verifiedAt = time; widget.refreshFreshness(); assert.equal(widget.fresh, true);
+  assert.equal(widget.statusText(), '已连接');
   time += 60001; widget.refreshFreshness(); assert.equal(widget.fresh, false, 'stopped runtime heartbeat expires');
+  assert.equal(widget.statusText(), '已连接', 'the stale caption marks this as the last observation');
+  widget.label = '未连接'; widget.action = 'connect';
+  assert.equal(widget.buttonText(), '连接');
   widget.verifiedAt = time + 1; widget.refreshFreshness(); assert.equal(widget.fresh, false, 'future timestamp cannot claim current status');
   console.log('PASS: one-tap intents, cold recovery, stale/repeated preparation, profile gate and historical card protection');
 }
