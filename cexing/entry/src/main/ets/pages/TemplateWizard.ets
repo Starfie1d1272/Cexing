@@ -1,3 +1,7 @@
+import { createTemplateUpdateSource } from '../lib/TemplateUpdateSource';
+import { TemplateUpdateReview } from './TemplateUpdateReview';
+import { TemplateUpdateSource } from '../lib/TemplateUpdateHost';
+import { EditorDraftHosts } from '../lib/EditorDraftHosts';
 import { common } from '@kit.AbilityKit';
 import { EditorDraftHost } from '../lib/ConfigEditor';
 import { createTemplateWizardHost } from '../lib/TemplateHost';
@@ -10,6 +14,11 @@ import { TemplateWizardHost, TemplateWizardModel, TemplateWizardView } from '../
 export struct TemplateWizard {
   host?: TemplateWizardHost;
   editor?: EditorDraftHost;
+  updateSource?: TemplateUpdateSource;
+  private activeUpdateSource?: TemplateUpdateSource;
+  private activeEditor?: EditorDraftHost;
+  @State private reviewingUpdate: boolean = false;
+  @State private updateAvailable: boolean = false;
   @Prop profileId: string = '';
   onClose: () => void = () => {};
   @State private view: TemplateWizardView = { templateId: 'original', target: '', busy: false,
@@ -21,11 +30,20 @@ export struct TemplateWizard {
 
   aboutToAppear(): void {
     this.visible = true; this.confirmationGeneration++; this.confirming = false;
+    this.reviewingUpdate = false;
+    this.activeUpdateSource = this.updateSource ?? (this.profileId.length > 0 ?
+      createTemplateUpdateSource(getContext(this) as common.UIAbilityContext, this.profileId) : undefined);
+    this.activeEditor = this.editor ?? (this.profileId.length > 0 ?
+      EditorDraftHosts.create(getContext(this) as common.UIAbilityContext, this.profileId) : undefined);
     const host = this.host ?? (this.profileId.length > 0 ?
-      createTemplateWizardHost(getContext(this) as common.UIAbilityContext, this.profileId, this.editor) : undefined);
+      createTemplateWizardHost(getContext(this) as common.UIAbilityContext, this.profileId, this.activeEditor) : undefined);
     if (host === undefined) { return; }
     this.model = new TemplateWizardModel(host, () => {
-      if (this.model !== null) { this.view = this.model.snapshot(); }
+      if (this.model !== null) {
+        this.view = this.model.snapshot();
+        this.updateAvailable = this.view.ready && !this.view.busy &&
+          (this.activeUpdateSource?.available?.(this.view.templateId, this.view.target) ?? this.updateSource !== undefined);
+      }
     });
     this.model.load();
   }
@@ -62,12 +80,22 @@ export struct TemplateWizard {
       .onClick(() => this.model?.choose(id, ''))
   }
   build() {
+    if (this.reviewingUpdate) {
+      TemplateUpdateReview({ profileId: this.profileId, editor: this.activeEditor, source: this.activeUpdateSource,
+        onClose: () => { this.reviewingUpdate = false; this.model?.load(); } })
+    } else {
     Column({ space: 12 }) {
       Row() {
         Text('分流方案').fontSize(22).fontWeight(FontWeight.Bold).fontColor(UI.ink)
         Blank()
         Button('返回').backgroundColor(UI.soft).fontColor(UI.ink).onClick(() => this.close())
       }.width('100%')
+      Scroll() {
+      Column({ space: 12 }) {
+      if (this.updateAvailable) {
+        Button('更新方案').backgroundColor(UI.soft).fontColor(UI.ink)
+          .enabled(this.view.ready && !this.view.busy).onClick(() => { this.reviewingUpdate = true; })
+      }
       this.option('original', '保持订阅原样')
       this.option('region', '按地区智能选择')
       this.option('ai', 'AI 专用出口')
@@ -76,6 +104,7 @@ export struct TemplateWizard {
         Text(this.view.templateId === 'region' ? '原策略组' : '出口').fontSize(14).fontColor(UI.muted)
         Select((this.view.templateId === 'region' ? this.view.selectors :
           this.view.groups).map((name: string): SelectOption => { return { value: name }; }))
+          .selected(Math.max(0, (this.view.templateId === 'region' ? this.view.selectors : this.view.groups).indexOf(this.view.target)))
           .value(this.view.target || '请选择').width('100%').enabled(this.view.busy === false)
           .onSelect((_index: number, value: string) => this.model?.choose(this.view.templateId, value))
       }
@@ -94,7 +123,8 @@ export struct TemplateWizard {
       if (this.view.hasPreview) {
         Text(this.view.summary).fontSize(14).fontColor(UI.muted)
       }
-      Blank()
+      }.width('100%')
+      }.width('100%').layoutWeight(1)
       if (this.view.ready !== true && this.view.busy === false) {
         Button('重试').onClick(() => this.model?.load())
       }
@@ -103,5 +133,6 @@ export struct TemplateWizard {
         .enabled(this.view.ready === true && this.view.busy === false)
         .onClick(() => { if (this.model?.preview) { this.apply(); } else { this.model?.inspect(); } })
     }.width('100%').height('100%').padding(20).backgroundColor(UI.surface)
+    }
   }
 }
