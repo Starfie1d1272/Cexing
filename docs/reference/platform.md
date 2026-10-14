@@ -8,6 +8,25 @@
 
 系统创建 TUN fd，C++ 复制给 Go 使用；停止/失败分别回收各自所有权。扩展启动在初始化中取消时仍需回收迟到启动。listener 部分开启后失败的完整清理要独立覆盖。
 
+### 私有 Controller router 升级契约
+
+当前模块图将 `github.com/metacubex/mihomo` 替换为 Smart fork
+`github.com/vernesong/mihomo` 的 `daf3ad03021cca6031f4a7303ca6d861a14d5a16`。
+`controller_listener.go` 通过 `go:linkname` 绑定未导出的
+`router(bool, string, string, route.Cors) *chi.Mux`，由宿主拥有唯一的 Controller
+listener、HTTP 连接和升级后的 WS。没有复制上游路由实现。
+
+`scripts/ci/check-controller-contract.py` 在 Smart 补丁应用后、编译前核对模块路径、
+版本、模块摘要、完整 `hub/route/server.go` 源码（只允许已审查的 Smart 插入）及
+wrapper 声明。Quick/Full 的 `test-smart.sh` 和 `build-core.sh` 均调用此门禁；
+版本、私有签名、Cors 布局或补丁漂移会阻断。升级需重新审查并更新契约，不能只改版本锁。
+`test-controller-contract.py` 用真实固定源码的变异验证拒绝路径；
+`TestControllerSecurity` 使用真实路由验证 REST/WS 认证、停止回收、端口重绑和旧会话隔离。
+生成头文件与包内 ABI 仍由 Full 检查。这些结果不替代 #92 的真机验收。
+
+依据：[Go 编译器的 linkname 约束](https://pkg.go.dev/cmd/compile#hdr-Compiler_Directives)、
+[固定上游路由源码](https://github.com/vernesong/mihomo/blob/daf3ad03021cca6031f4a7303ca6d861a14d5a16/hub/route/server.go)。
+
 ## 构建适配
 
 - `netgo` 避免 musl/cgo DNS 类型冲突；`ohos` 选择平台实现；`cmfa` 避免 Android PackageManager/binder 路径；`with_gvisor` 包含所需栈。
