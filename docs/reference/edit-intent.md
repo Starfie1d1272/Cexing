@@ -1,6 +1,6 @@
 # 结构化编辑意图 v1
 
-本契约属于 `configpipeline`，复用 [配置编译与事务](config-pipeline.md)，不另建保存或发布系统。Go 编译、宿主草稿与版本事务共用此契约；UI 通过下述事务入口接入。草稿 JSON 采用 [schema](config-compatibility/edit-intent.schema.json)，上限 1 MiB、512 个操作。旧版本没有意图时等同 `nil`，不迁移或修改原文。
+本契约属于 `configpipeline`，复用 [配置编译与事务](config-pipeline.md)，不另建保存或发布系统。Go 编译接口与合成夹具已经实现；宿主的草稿保存、版本 provenance 与 UI 接线须共同接入后才可作为完整可视化编辑功能使用。草稿 JSON 采用 [schema](config-compatibility/edit-intent.schema.json)，上限 1 MiB、512 个操作。旧版本没有意图时等同 `nil`，不迁移或修改原文。
 
 ## 读取与编译
 
@@ -34,7 +34,7 @@ DNS 是一个 mapping 目标，缺失时提供虚拟空 mapping；通过 update 
 
 命名目标 ID 由 section 与原名生成，上游修改无关字段不会换 ID。规则 ID 使用语义内容、同内容出现序号及重复总数：重复条目数量变化时不会错删另一条。上游改名/修改规则后的 update/move/rename 返回缺失目标；delete 不猜测替代目标。重复规则仍存在但 ID 因重复数量变化失效时，delete 返回冲突。用户需重新选取发生冲突的目标。任意私有 ID/指纹也不得进入诊断或支持导出。
 
-一个意图每次从最新原文重新执行，重复编译幂等；不把生成 YAML 用作下一次原文。草稿应合并同目标同字段的 update 操作，而不是叠加相互矛盾的前置条件；移动与旧规则 ID 操作先于影响该 ID 的改名/规则替换。撤销移除该操作，停用设置 disabled；两者都重新编译最新输入。只读操作不验证外部 provider 资源，不联网、不 stage，不宣称已可运行。
+一个意图每次从最新原文重新执行，重复编译幂等；不把生成 YAML 用作下一次原文。单份意图是一次原子修改集合：同实体的后续 update/rename/delete 可使用本次编译输入的原基线指纹，也可使用前序已通过守卫的当前投影指纹，自己的前序修改不会制造假冲突。真实上游变更仍必须匹配基线/当前守卫，否则拒绝；预览不重写持久意图。草稿应合并同目标同字段的 update 操作；移动与旧规则 ID 操作先于影响该 ID 的改名/规则替换。撤销移除该操作，停用设置 disabled；两者都重新编译最新输入。只读操作不验证外部 provider 资源，不联网、不 stage，不宣称已可运行。
 
 `smartGroups` 使用 SmartGroupChange.choiceId → boolean；choiceId 是个人改名前的稳定来源实体 ID，不是改名后当前 target ID。smartPreview 同时返回当前 id（关联列表）与稳定 choiceId（写例外），撤销改名不丢选择。旧未改名实体两者相等。true 是用户明确 opt-in，false 是保留原类型。Smart 参数与转换逻辑由同一 configpipeline 提供；由 `ApplySmartPolicy` / `PreviewSmartPolicy` 接通。url-test 默认转换，load-balance 默认保留；明确 opt-in 才去除其 strategy；已存在 Smart 参数和手动 Selector 不覆盖。全局关闭时，逐订阅显式 true 仍优先；intent.disabled 只停用个人编辑/例外，不改变全局默认。
 
@@ -52,9 +52,6 @@ ArkTS 统一生产适配名为 `EditorDraftHost`（实际接口已在 `ConfigEdi
 
 宿主保存每订阅独立草稿 `{intent, expectedDraftRevision}`。成功应用通过现有 stage/verify/apply/commit，将完整 `EditIntent` 加入 `source.json`（字段名 `EditIntent`），与原文、本订阅 Merge、地区计划一起发布。Compiler 返回独立 `Result.EditIntent` 副本，可靠性组只需在既有 FileStore source 结构添加该字段，不新增版本引用或第二个成功指针。更新、切换、重启与全局 Merge 应用必须从该订阅成功版本读取意图重新编译。草稿修改不能改变成功意图。校验/应用/持久化失败均保持旧意图、旧指针和旧原版，不能先保存新意图再调用 reload。
 
-宿主保存每订阅独立草稿 `{intent, revision}`。页面在异步读取前调用 `ProfileTransactions.editTicket(context, file)` 捕获来源稳定身份、profile/current 版本、当前选择与草稿 revision；以 ticket.activeVersion 调用 ConfigEditor 读取。使用同一 ticket 调用 `saveEditDraft(context, ticket, intent)`；宿主严格校验 schema、前后比较 ticket，生成新 revision 后原子保存 `.intent.json`。该操作不应用配置。读取草稿用 `ProfileStore.readEditDraft`；无草稿时从该订阅成功版本读取意图，旧版本无字段返回 null。重命名迁移草稿和稳定身份，删除清理附属草稿。
-
-保存返回新 revision 后，页面重新捕获 ticket，再调用 `previewEditDraft` / `applyEditDraft`；不得在旧异步回调中捕获新 ticket 冒充原请求。应用失败保留草稿供修复，成功版本始终不读草稿。应用草稿为 null 表示移除成功意图，disabled 表示保留可重新启用的意图。成功应用通过现有 stage/verify/apply/commit，将完整 `EditIntent` 加入 `source.json`（字段名 `EditIntent`），与原文、本订阅 Merge、地区计划一起发布。更新、切换、重启与全局 Merge 应用必须从该订阅成功版本读取意图重新编译。草稿修改不能改变成功意图。校验/应用/持久化失败均保持旧意图、旧指针和旧原版，不能先保存新意图再调用 reload。
 
 
 GC 引用清单不新增版本引用：`sourceRevision`/`revision`/target/field fingerprints 都是私有数据标识，不是 version ID 或路径。版本仍仅由现有 Current/Previous/Profiles、可靠性组的备份/回滚引用保留。意图不持有外部文件句柄，不重写 FileStore GC。
