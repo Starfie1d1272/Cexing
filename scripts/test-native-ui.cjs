@@ -27,6 +27,7 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
 (async () => {
   let now = 1000, stream, tick, dialog, stop = 0, start = 0, cancelRestore = 0, timerCleared = 0;
   const toasts = [];
+  let scanCallback, scanCalls = 0;
   let stopResult = async () => true;
   let smartPrepare = async () => {};
   let activeHomeFile = 'fixture.yaml';
@@ -40,7 +41,11 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
     getLastStartFailure: () => null, stop: () => { stop++; return stopResult(); },
     start: () => { start++; emit(status.Connecting); return true; } };
   const common = {
-    '@kit.AbilityKit': {}, '@kit.CoreFileKit': {}, '@kit.ShareKit': {}, '@kit.ArkData': {},
+    '@kit.AbilityKit': {}, '@kit.ScanKit': { scanCore: { ScanType: { QR_CODE: 1 } }, scanBarcode: {
+      startScanForResult(_context, options, callback) {
+        assert.equal(options.enableAlbum, true); scanCalls++; scanCallback = callback;
+      } } }, '../lib/ProfileImportInput': { ProfileImportInput: { take: () => null,
+      parseText: value => value.startsWith('https://') ? { kind: 'url', value } : null } }, '@kit.CoreFileKit': {}, '@kit.ShareKit': {}, '@kit.ArkData': {},
     '../lib/DiagnosticExportSnapshots': {},
     '../lib/AppRuntime': { AppRuntime: { cancelRestore: () => cancelRestore++ } },
     '../lib/DiagnosticsBundleView': { DiagnosticsBundleView: { result: r => r.reason === 'page_check_timeout' ? '检查超时' : r.stage === 'controller_authorization' ? '连接认证失败，请断开后重新连接' : '本机服务可达', title: () => '本机服务' } },
@@ -260,11 +265,11 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
       update: async () => 'applied', rename: () => 'fixture.yaml'
     } },
     '../lib/ProfileStore': { ProfileStore: { list: () => profiles, getMeta: () => ({}),
-      getActiveFile: () => active, pendingRegionSelection: () => '',
+      getActiveFile: () => active, getOrigin: () => '', pendingRegionSelection: () => '',
       importFromUrl: async () => { if (rejectImport) throw Error('network'); return 'candidate.yaml'; } } }
-  }, { AlertDialog: { show: value => { dialog = value; } } });
+  }, { AlertDialog: { show: value => { dialog = value; } }, canIUse: () => true });
   const profile = new Profile(); profile.profileRevision = 0; profile.navStack = { pop() {} };
-  profile.showSheet = true; profile.inputUrl = 'https://example.invalid/fixture.yaml';
+  profile.pageVisible = true; profile.showSheet = true; profile.inputUrl = 'https://example.invalid/fixture.yaml';
   await profile.importUrl(); assert.equal(profile.inputUrl, 'https://example.invalid/fixture.yaml');
   assert.ok(profile.importError); assert.equal(profile.importing, false);
   rejectImport = false; await profile.importUrl();
@@ -374,6 +379,18 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   assert.match(unknownImport.importError, /重试断开/);
   lastStopCompleted = true;
   console.log('PASS: first import connect, repeated taps, cancel/leave/tab stale results, provider/resource failures and unknown-stop gate');
+  const scanned = activationPage().page;
+  scanned.scanInput(); scanned.scanInput(); assert.equal(scanCalls, 1, 'scanner launch is single-flight');
+  scanCallback(null, { originalValue: 'https://example.invalid/scanned' });
+  assert.equal(scanned.inputUrl, 'https://example.invalid/scanned');
+  assert.equal(scanned.sheetMode, 2, 'scan only prefills the confirmation form');
+  const cancelledScan = activationPage().page; cancelledScan.scanInput();
+  scanCallback({ code: 1 }, null); assert.equal(cancelledScan.showSheet, false);
+  const leftScan = activationPage().page; leftScan.scanInput(); leftScan.aboutToDisappear();
+  scanCallback(null, { originalValue: 'https://example.invalid/stale' });
+  assert.equal(leftScan.inputUrl, '', 'late scanner result cannot reopen a hidden page');
+  assert.equal(start, startsBeforeImport + 1, 'scan cannot activate or start VPN');
+  console.log('PASS: native scanner album option, single-flight, confirmation-only result, cancel and late result');
   function regionPage() {
     const page = activationPage().page;
     page.importedFile = 'candidate.yaml'; page.regionFromImport = true;

@@ -43,6 +43,23 @@
             "actions": [
               "ohos.want.action.home"
             ]
+          },
+          {
+            "actions": ["ohos.want.action.viewData"],
+            "entities": ["entity.system.browsable"],
+            "uris": [{ "scheme": "cexing", "host": "import" },
+              { "scheme": "clash", "host": "install-config" }]
+          },
+          {
+            "actions": ["ohos.want.action.sendData"],
+            "uris": [{ "scheme": "file", "utd": "general.text", "maxFileSupported": 1 },
+              { "scheme": "file", "utd": "general.hyperlink", "maxFileSupported": 1 },
+              { "scheme": "file", "utd": "general.file", "maxFileSupported": 1 }]
+          },
+          {
+            "actions": ["ohos.want.action.viewData"],
+            "uris": [{ "scheme": "file", "host": "docs", "type": "application/yaml" },
+              { "scheme": "file", "host": "docs", "type": "text/yaml" }]
           }
         ]
       }

@@ -16,6 +16,7 @@ import { ProfileGeneratedPage } from './ProfileGeneratedPage';
 @Entry
 @Component
 struct Index {
+  @StorageLink('profileImportRequest') @Watch('openImportEntry') importRequest: number = 0;
   @StorageLink('connectionEntryRequest') @Watch('openConnectionEntry') entryRequest: number = 0;
   @Provide('nav') navStack: NavPathStack = new NavPathStack();
   @Provide('profileRevision') profileRevision: number = 0;
@@ -26,6 +27,16 @@ struct Index {
   @State windowWidth: number = 390;
   @State private smartVisible: boolean = false;
   @State private zashboardVisible: boolean = false;
+
+  aboutToAppear(): void {
+    if (this.importRequest > 0) { this.openImportEntry(); }
+  }
+
+  private openImportEntry(): void {
+    this.navStack.clear();
+    this.currentTab = 1;
+    this.currentVisibleTab = 1;
+  }
 
   private openConnectionEntry(): void {
     this.navStack.clear();

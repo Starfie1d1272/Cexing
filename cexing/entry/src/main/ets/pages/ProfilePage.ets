@@ -6,6 +6,8 @@ import { NativeTheme as UI } from './NativeTheme';
 import { common } from '@kit.AbilityKit';
 import { picker, fileIo } from '@kit.CoreFileKit';
 import { util } from '@kit.ArkTS';
+import { scanBarcode, scanCore } from '@kit.ScanKit';
+import { ProfileImportInput } from '../lib/ProfileImportInput';
 import { promptAction } from '@kit.ArkUI';
 import { pasteboard } from '@kit.BasicServicesKit';
 import { ProfileStore, ProfileMeta, ProfileMetaExt } from '../lib/ProfileStore';
@@ -29,6 +31,7 @@ const SHEET_READY = 4;
 const SHEET_PASTE = 5;
 const SHEET_REGION = 6;
 const SHEET_GLOBAL = 7;
+const SHEET_SHARED_FILE = 8;
 const REGION_NAMES: string[] = ['香港', '台湾', '日本', '新加坡', '美国', '韩国', '英国', '德国', '未知'];
 
 class RegionSelectOption {
@@ -42,6 +45,7 @@ export class ProfileDetailBus {
 
 @Component
 export struct ProfilePage {
+  @StorageLink('profileImportRequest') @Watch('acceptExternalImport') importRequest: number = 0;
   @Prop detailFile: string = '';
   @Consume('profileRevision') @Watch('refresh') profileRevision: number;
   @Consume('nav') navStack: NavPathStack;
@@ -52,6 +56,9 @@ export struct ProfilePage {
   @State metas: Record<string, ProfileMetaExt> = {};
   @State importing: boolean = false;
   @State activating: boolean = false;
+  @State scanning: boolean = false;
+  private sharedFileUri: string = '';
+  private importGeneration: number = 0;
   @State updatingFile: string = '';
   @State refreshing: boolean = false;
   @State showSheet: boolean = false;
@@ -102,12 +109,13 @@ export struct ProfilePage {
   }
 
   private onTabVisible(): void {
-    if (this.detailFile.length === 0 && this.currentVisibleTab !== 1) { this.activationRequest++; }
-    if (this.currentVisibleTab === 1) { this.refresh(); }
+    if (this.detailFile.length === 0 && this.currentVisibleTab !== 1) { this.activationRequest++; this.importGeneration++; }
+    if (this.currentVisibleTab === 1) { this.refresh(); this.acceptExternalImport(); }
   }
 
   private onRootVisible(): void {
-    if (this.detailFile.length === 0 && !this.rootVisible) { this.activationRequest++; }
+    if (this.rootVisible) { this.acceptExternalImport(); }
+    if (this.detailFile.length === 0 && !this.rootVisible) { this.activationRequest++; this.importGeneration++; }
   }
 
   private changed(): void {
@@ -238,10 +246,12 @@ export struct ProfilePage {
     this.pageGeneration++;
     this.selectedFile = this.detailFile;
     this.refresh();
+    this.acceptExternalImport();
   }
 
   aboutToDisappear(): void {
     this.pageVisible = false;
+    this.importGeneration++;
     this.pageGeneration++;
     this.activationRequest++;
   }
@@ -465,31 +475,100 @@ export struct ProfilePage {
     }
   }
 
+  private acceptExternalImport(): void {
+    if (!this.pageVisible || this.detailFile.length > 0 || !this.rootVisible ||
+      this.currentVisibleTab !== 1 || this.importing || this.activating || this.scanning) { return; }
+    const candidate = ProfileImportInput.take();
+    if (candidate === null) { return; }
+    this.importGeneration++;
+    this.importError = '';
+    if (candidate.kind === 'url') {
+      this.inputUrl = candidate.value;
+      this.sheetMode = SHEET_URL;
+    } else {
+      this.sharedFileUri = candidate.value;
+      this.sheetMode = SHEET_SHARED_FILE;
+    }
+    this.showSheet = true;
+  }
+
+  private scanInput(): void {
+    if (this.scanning || this.importing || this.activating) { return; }
+    if (!canIUse('SystemCapability.Multimedia.Scan.ScanBarcode')) {
+      this.toast('当前设备不支持扫码，请使用链接或文件导入'); return;
+    }
+    const page = this.pageGeneration;
+    const tab = this.currentVisibleTab;
+    const paths = this.navStack.getAllPathName();
+    const request = ++this.importGeneration;
+    this.scanning = true;
+    this.showSheet = false;
+    this.sheetMode = SHEET_NONE;
+    const context = getContext(this) as common.UIAbilityContext;
+    try {
+      scanBarcode.startScanForResult(context, {
+        scanTypes: [scanCore.ScanType.QR_CODE], enableMultiMode: false, enableAlbum: true
+      }, (error, result) => {
+        this.scanning = false;
+        if (!this.pageVisible || page !== this.pageGeneration || request !== this.importGeneration ||
+          tab !== this.currentVisibleTab || !this.samePath(paths)) { return; }
+        if (error) {
+          // Cancellation/denied camera does not start another action. Album and
+          // ordinary import remain available on the next user request.
+          return;
+        }
+        const candidate = ProfileImportInput.parseText(result.originalValue);
+        if (candidate === null) { this.toast('未识别到订阅链接，请使用链接或文件导入'); return; }
+        this.inputUrl = candidate.value;
+        this.importError = '';
+        this.sheetMode = SHEET_URL;
+        this.showSheet = true;
+      });
+    } catch (_) {
+      this.scanning = false;
+      this.toast('扫码未能打开，请使用链接或文件导入');
+    }
+  }
+
   private async importUrl(): Promise<void> {
     const url = this.inputUrl.trim();
     if (url.length === 0) {
       return;
     }
     if (this.importing) { return; }
+    const context = getContext(this) as common.UIAbilityContext;
+    const existing = this.profiles.find((p: ProfileMeta) => ProfileStore.getOrigin(context, p.file) === url);
+    if (existing !== undefined) {
+      this.finishImport(existing.file); return;
+    }
     this.importError = '';
     this.importing = true;
-    const context = getContext(this) as common.UIAbilityContext;
+    const page = this.pageGeneration;
+    const request = ++this.importGeneration;
     try {
       const file = await ProfileStore.importFromUrl(context, url);
+      if (!this.pageVisible || page !== this.pageGeneration || request !== this.importGeneration) { return; }
       this.inputUrl = '';
       this.finishImport(file);
-    } catch (e) {
-      this.importError = '导入失败，请检查输入与网络后重试';
+    } catch (_) {
+      if (this.pageVisible && page === this.pageGeneration && request === this.importGeneration) {
+        this.importError = '导入失败，请检查输入与网络后重试';
+      }
     } finally {
       this.importing = false;
+      this.acceptExternalImport();
     }
   }
 
-  private async importFile(): Promise<void> {
+  private async importFile(sharedUri: string = ''): Promise<void> {
+    if (this.importing) { return; }
+    this.importing = true;
+    const page = this.pageGeneration;
+    const request = ++this.importGeneration;
     const context = getContext(this) as common.UIAbilityContext;
     try {
       const docPicker = new picker.DocumentViewPicker(context);
-      const uris = await docPicker.select({
+      const uris = sharedUri.length > 0 ? [sharedUri] : await docPicker.select({
         maxSelectNumber: 1,
         selectMode: picker.DocumentSelectMode.FILE,
         fileSuffixFilters: ['.yaml', '.yml']
@@ -497,11 +576,13 @@ export struct ProfilePage {
       if (!uris || uris.length === 0) {
         return;
       }
+      if (!this.pageVisible || page !== this.pageGeneration || request !== this.importGeneration) { return; }
       const uri = uris[0];
       const f = fileIo.openSync(uri, fileIo.OpenMode.READ_ONLY);
       // 循环读完整文件（readSync 单次可能短读，也避免固定 2MB 上限截断大订阅）
       const chunks: Uint8Array[] = [];
       let total = 0;
+      try {
       while (true) {
         const buf = new ArrayBuffer(1024 * 1024);
         const len = fileIo.readSync(f.fd, buf);
@@ -510,12 +591,11 @@ export struct ProfilePage {
         }
         chunks.push(new Uint8Array(buf.slice(0, len)));
         total += len;
-        if (total > 32 * 1024 * 1024) {
-          fileIo.closeSync(f);
-          throw new Error('配置文件超过 32MB 上限');
+        if (total > 15 * 1024 * 1024) {
+          throw new Error('配置文件超过 15 MiB 上限');
         }
       }
-      fileIo.closeSync(f);
+      } finally { fileIo.closeSync(f); }
       const merged = new Uint8Array(total);
       let off = 0;
       for (const c of chunks) {
@@ -528,10 +608,10 @@ export struct ProfilePage {
       const file = ProfileStore.importContent(context, name, content);
       this.finishImport(file);
     } catch (e) {
-      const msg = (e as Error).message ?? JSON.stringify(e);
-      Logger.warn(TAG, `importFile: ${msg}`);
-      this.toast(`导入失败: ${msg}`);
-    }
+      if (this.pageVisible && page === this.pageGeneration && request === this.importGeneration) {
+        this.toast('文件导入失败，请重新选择 YAML 配置');
+      }
+    } finally { this.importing = false; }
   }
 
   private async importClipboard(): Promise<void> {
@@ -720,6 +800,7 @@ export struct ProfilePage {
         .fontColor(UI.ink)
         .width('100%')
         .padding({ top: 20, left: 20, right: 20, bottom: 8 })
+      this.ImportEntry($r('sys.symbol.qrcode'), '扫码或从图片识别', () => { this.scanInput(); })
       this.ImportEntry($r('sys.symbol.link'), '订阅链接', () => {
         this.sheetMode = SHEET_URL;
       })
@@ -854,6 +935,22 @@ export struct ProfilePage {
   }
 
   @Builder
+  SharedFileSheet() {
+    Column({ space: 16 }) {
+      Text('导入配置文件？').fontSize(21).fontWeight(FontWeight.Bold).fontColor(UI.ink)
+      Button(this.importing ? '导入中…' : '导入').width('100%').height(48)
+        .enabled(!this.importing).onClick(() => { this.importFile(this.sharedFileUri); })
+      Button('取消').width('100%').height(48).backgroundColor(UI.soft).fontColor(UI.ink)
+        .onClick(() => {
+          this.importGeneration++;
+          this.sharedFileUri = '';
+          this.showSheet = false;
+          this.sheetMode = SHEET_NONE;
+        })
+    }.width('100%').padding(24)
+  }
+
+  @Builder
   ReadySheet() {
     Column({ space: 20 }) {
       Text('已导入订阅').fontSize(24).fontWeight(FontWeight.Bold).fontColor(UI.ink)
@@ -955,6 +1052,7 @@ export struct ProfilePage {
     if (this.sheetMode === SHEET_IMPORT) { this.ImportMenuSheet() }
     else if (this.sheetMode === SHEET_URL) { this.UrlImportDialog() }
     else if (this.sheetMode === SHEET_RENAME) { this.RenameSheet() }
+    else if (this.sheetMode === SHEET_SHARED_FILE) { this.SharedFileSheet() }
     else if (this.sheetMode === SHEET_READY) { this.ReadySheet() }
     else if (this.sheetMode === SHEET_PASTE) { this.PasteSheet() }
     else if (this.sheetMode === SHEET_REGION) { this.RegionSheet() }
@@ -985,6 +1083,7 @@ export struct ProfilePage {
         if (this.profiles.length === 0) {
           Column({ space: 20 }) {
             Text('导入订阅').fontSize(32).fontWeight(FontWeight.Bold).fontColor(UI.ink).width('100%')
+            this.ImportEntry($r('sys.symbol.qrcode'), '扫码或从图片识别', () => { this.scanInput(); })
             this.ImportEntry($r('sys.symbol.link'), '订阅链接', () => {
               this.sheetMode = SHEET_URL; this.showSheet = true;
             })
@@ -1006,7 +1105,10 @@ export struct ProfilePage {
       .bindSheet($$this.showSheet, this.MainSheet(), { height: this.sheetMode === SHEET_GLOBAL ? SheetSize.LARGE : SheetSize.FIT_CONTENT,
         onDisappear: () => { this.sheetMode = SHEET_NONE; },
         shouldDismiss: (dismiss: SheetDismiss) => {
-          if (this.sheetMode !== SHEET_GLOBAL && !this.importing && !this.regionBusy && !ProfileTransactions.isBusy()) { dismiss.dismiss(); }
+          if (this.sheetMode !== SHEET_GLOBAL && !this.importing && !this.activating && !this.regionBusy && !ProfileTransactions.isBusy()) {
+            this.importGeneration++; this.activationRequest++;
+            dismiss.dismiss();
+          }
         } })
   }
 }
