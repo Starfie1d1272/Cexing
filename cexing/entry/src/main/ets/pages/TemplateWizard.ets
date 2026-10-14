@@ -109,10 +109,11 @@ export struct TemplateWizard {
       if (this.view.templateId !== 'original' && this.view.ready === true) {
         Text(this.view.templateId === 'region' ? '原策略组' : '出口').fontSize(14).fontColor(UI.muted)
         Select((this.view.templateId === 'region' ? this.view.selectors :
-          this.view.groups).map((name: string): SelectOption => { return { value: name }; }))
+          this.view.groups).map((name: string): SelectOption => { return { value: this.view.labels?.[name] ?? name }; }))
           .selected(Math.max(0, (this.view.templateId === 'region' ? this.view.selectors : this.view.groups).indexOf(this.view.target)))
-          .value(this.view.target || '请选择').width('100%').enabled(this.view.busy === false)
-          .onSelect((_index: number, value: string) => this.model?.choose(this.view.templateId, value))
+          .value(this.view.labels?.[this.view.target] ?? (this.view.target || '请选择')).width('100%').enabled(this.view.busy === false)
+          .onSelect((index: number) => this.model?.choose(this.view.templateId,
+            (this.view.templateId === 'region' ? this.view.selectors : this.view.groups)[index] ?? ''))
       }
       if (this.view.templateId === 'ai') {
         Text('常用 AI 服务使用所选出口，其余流量沿用订阅。').fontSize(13).fontColor(UI.muted)

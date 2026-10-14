@@ -22,7 +22,7 @@ const modules = {
  './ConfigEditor': { ConfigEditor: {
   templatePlan: (templateId, version, targetGroup, region, replaceRules) => ({ templateId, version, targetGroup, region, replaceRules }),
   list: async () => ({ sourceRevision: 'source', missingFieldRevision: 'missing', sections: [
-   { section: 'proxy-groups', items: [{ id: 'group', name: 'Pick', type: 'select', revision: 'group-rev' }] }
+   { section: 'proxy-groups', items: [{ id: 'group', name: 'Pick', sourceName: 'Pick', type: 'select', revision: 'group-rev' }] }
   ] })
  } },
  './ProfileTransactions': { ProfileTransactions: { editTicket: ticket,

@@ -108,7 +108,7 @@ func (c Compiler) Compile(ctx context.Context, r Request) (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
-	if err := applyBoundEditIntent(ctx, root, r.Intent, sessionTargets(session)); err != nil {
+	if err := applyBoundEditIntent(ctx, root, r.Intent, sessionTargets(session), nil); err != nil {
 		return Result{}, err
 	}
 	var mine *TemplateSnapshot

@@ -28,9 +28,12 @@ type TemplateSnapshot struct {
 // TemplateSession lives only within one compiler/editor worker call. The
 // template service owns generation/capture; the common editor owns bindings.
 type TemplateSession struct {
-	Baseline *TemplateSnapshot
-	Targets  map[string]*yaml.Node
-	Capture  func(context.Context, *yaml.Node, map[string]*yaml.Node) (*TemplateSnapshot, error)
+	Baseline      *TemplateSnapshot
+	Targets       map[string]*yaml.Node
+	Retained      []TemplateEntity
+	SourceGroups  map[*yaml.Node]string
+	DisabledNodes map[*yaml.Node]bool
+	Capture       func(context.Context, *yaml.Node, map[string]*yaml.Node) (*TemplateSnapshot, error)
 }
 type TemplatePrepare func(context.Context, *yaml.Node, TemplatePlan) (*TemplateSession, error)
 
@@ -136,6 +139,15 @@ func (c Compiler) prepareIntentTemplate(ctx context.Context, root *yaml.Node, in
 		}
 		seen[n] = true
 	}
+	if intent.Template.Mine != nil {
+		for _, e := range intent.Template.Mine.Entries {
+			alias := TemplateTarget(session.Baseline.TemplateID, e.ID)
+			if _, fresh := session.Targets[alias]; !fresh {
+				session.Targets[alias] = nil
+				session.Retained = append(session.Retained, e)
+			}
+		}
+	}
 	return session, nil
 }
 func sessionTargets(s *TemplateSession) map[string]*yaml.Node {
@@ -190,6 +202,27 @@ func captureBoundTemplate(ctx context.Context, root *yaml.Node, session *Templat
 	if err != nil || validateTemplateSnapshot(mine) != nil || mine.TemplateID != session.Baseline.TemplateID || mine.Version != session.Baseline.Version {
 		return nil, intentError("template_capture_failed", -1)
 	}
+	// Mine-only retained entities enter the root only through explicit delta adds.
+	// Capture their current binding; provenance itself never applies any value.
+	for _, e := range session.Retained {
+		n := session.Targets[TemplateTarget(mine.TemplateID, e.ID)]
+		if n == nil {
+			mine.Deleted = append(mine.Deleted, e.ID)
+			continue
+		}
+		var value any
+		if n.Decode(&value) != nil {
+			return nil, intentError("template_capture_failed", -1)
+		}
+		data, err := json.Marshal(value)
+		if err != nil {
+			return nil, intentError("template_capture_failed", -1)
+		}
+		mine.Entries = append(mine.Entries, TemplateEntity{ID: e.ID, Section: e.Section, Value: data})
+	}
+	if validateTemplateSnapshot(mine) != nil {
+		return nil, intentError("template_capture_failed", -1)
+	}
 	byID := map[string]TemplateEntity{}
 	deleted := map[string]bool{}
 	for _, e := range mine.Entries {
@@ -198,10 +231,10 @@ func captureBoundTemplate(ctx context.Context, root *yaml.Node, session *Templat
 	for _, id := range mine.Deleted {
 		deleted[id] = true
 	}
-	if len(byID)+len(deleted) != len(session.Baseline.Entries) {
+	if len(byID)+len(deleted) != len(session.Baseline.Entries)+len(session.Retained) {
 		return nil, intentError("template_capture_failed", -1)
 	}
-	for _, e := range session.Baseline.Entries {
+	for _, e := range append(append([]TemplateEntity{}, session.Baseline.Entries...), session.Retained...) {
 		n := session.Targets[TemplateTarget(mine.TemplateID, e.ID)]
 		if n == nil {
 			if !deleted[e.ID] {
