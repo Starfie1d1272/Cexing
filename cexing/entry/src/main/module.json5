@@ -30,9 +30,9 @@
         "srcEntry": "./ets/entryability/EntryAbility.ets",
         "description": "$string:EntryAbility_desc",
         "backgroundModes": ["dataTransfer"],
-        "icon": "$media:app_icon",
+        "icon": "$media:app_icon_layered",
         "label": "$string:EntryAbility_label",
-        "startWindowIcon": "$media:app_icon",
+        "startWindowIcon": "$media:app_icon_foreground",
         "startWindowBackground": "$color:start_window_background",
         "exported": true,
         "skills": [
