@@ -31,6 +31,13 @@ const {RuleDnsEditorPage:Page,RuleDnsEditorBus:Bus}=load(source,modules,{getCont
  await page.preview(intent);applyFailure=true;await page.apply();assert.equal(page.previewReady,false);assert.equal(page.message,'应用未确认，请重连恢复');applyFailure=false;applies=0;
  await page.preview(intent);pending=gate();const apply=page.apply();await page.apply();assert.equal(applies,1);page.aboutToDisappear();page.message='new view';pending.resolve();await apply;assert.equal(page.message,'new view');
  pending=null;page.visible=true;page.aboutToAppear();await page.load();await page.discardDraft();assert.equal(intent.operations.length,0);
+ page.items=[{id:'first',revision:'a',type:'DOMAIN'},{id:'second',revision:'b',type:'DOMAIN-SUFFIX'},{id:'final',revision:'c',type:'MATCH'}];
+ page.move(1,0);for(let i=0;i<20;i++)await Promise.resolve();
+ assert.equal(intent.operations.at(-1).kind,'move');assert.equal(intent.operations.at(-1).target,'second');assert.equal(intent.operations.at(-1).before,'first');
+ let protectedSaves=saves;page.move(2,0);page.move(0,2);assert.equal(saves,protectedSaves,'MATCH cannot be moved or crossed');
+ page.edit({id:'duplicate-match',kind:'add',section:'rules',value:'MATCH,DIRECT'});assert.equal(saves,protectedSaves,'existing MATCH blocks duplicate');
+ page.items=[{id:'first',revision:'a',type:'DOMAIN'}];page.edit({id:'new-match',kind:'add',section:'rules',value:'MATCH,DIRECT',before:''});for(let i=0;i<20;i++)await Promise.resolve();
+ assert.equal(intent.operations.at(-1).id,'new-match');assert.equal(intent.operations.at(-1).before,'','new MATCH reaches production host save/preview when none exists');
  const savesBeforeUnknown=saves;
  page.items=[{id:'unknown',revision:'u'},{id:'other',revision:'o'}];page.move(0,1);
  assert.equal(saves,savesBeforeUnknown,'missing rule type cannot bypass MATCH order protection');

@@ -9,7 +9,8 @@ const f=host.exports.RuleDnsForms;
 const draftHost={exports:{},require:()=>({})};
 vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(__dirname,'../cexing/entry/src/main/ets/lib/RuleDnsDraft.ets'),'utf8')).outputText,draftHost);
 let intent={schemaVersion:1,revision:'forms-fixture',sourceRevision:input.sourceRevision,
- operations:input.variant==='hosts' ? [] : [f.moveRule('move',input.rule,input.before,input.match),f.recommendedDns(input.dns)]};
+ operations:input.variant==='hosts' || input.variant==='match' ? [] : [f.moveRule('move',input.rule,input.before,input.match),f.recommendedDns(input.dns)]};
+if(input.variant==='match') intent.operations=[f.addRule('added-match',{type:'MATCH',condition:'',target:'manual',noResolve:false},'')];
 if (input.variant==='added' || input.variant==='added-moved') {
  intent.operations=[f.addRule('added-direct',{type:'DOMAIN',condition:'public.test',target:'DIRECT',noResolve:false},input.before),
  f.addRule('added-reject',{type:'DOMAIN',condition:'public.test',target:'REJECT',noResolve:false},input.before)];

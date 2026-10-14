@@ -50,6 +50,9 @@ x-top-level: {keep: true}
 		}
 	}
 	input, _ := json.Marshal(map[string]any{"sourceRevision": snapshot.SourceRevision, "rule": rules[1], "before": rules[0].ID, "match": rules[2].ID, "dns": dns})
+	if rules[0].Type != "DOMAIN-SUFFIX" || rules[1].Type != "DOMAIN" || rules[2].Type != "MATCH" {
+		t.Fatal("production rule summary cannot support page order guards")
+	}
 	cmd := exec.Command("node", "../../scripts/emit-rule-dns-fixture.cjs")
 	cmd.Stdin = bytes.NewReader(input)
 	output, err := cmd.CombinedOutput()
@@ -132,6 +135,33 @@ x-top-level: {keep: true}
 		if parsed.Rules[len(parsed.Rules)-1].RuleType() != C.MATCH {
 			t.Fatal("added drag displaced MATCH")
 		}
+	}
+	withoutMatch := bytes.Replace(source, []byte(", 'MATCH,manual'"), nil, 1)
+	matchView, err := configpipeline.ReadEditable(withoutMatch, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	matchInput, _ := json.Marshal(map[string]any{"variant": "match", "sourceRevision": matchView.SourceRevision})
+	matchCmd := exec.Command("node", "../../scripts/emit-rule-dns-fixture.cjs")
+	matchCmd.Stdin = bytes.NewReader(matchInput)
+	matchOutput, err := matchCmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("MATCH emission: %v %s", err, matchOutput)
+	}
+	matchIntent, err := configpipeline.DecodeEditIntent(matchOutput)
+	if err != nil {
+		t.Fatal(err)
+	}
+	matchResult, err := compiler.Compile(context.Background(), configpipeline.Request{Original: withoutMatch, Intent: matchIntent})
+	if err != nil {
+		t.Fatal(err)
+	}
+	matchParsed, err := config.Parse(matchResult.YAML)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(matchParsed.Rules) != 3 || matchParsed.Rules[2].RuleType() != C.MATCH {
+		t.Fatal("new MATCH did not reach parser at final position")
 	}
 	intent.Disabled = true
 	undone, err := compiler.Compile(context.Background(), configpipeline.Request{Original: source, Intent: intent})
