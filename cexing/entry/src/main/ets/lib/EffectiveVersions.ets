@@ -21,7 +21,7 @@ export interface ProfileStorageReport {
   complete: boolean;
   code?: string;
 }
-export interface StagedVersion { version: EffectiveVersion; receipt: string; }
+export interface StagedVersion { version: EffectiveVersion; receipt: string; digest?: string; }
 export interface RegionPlan {
   mode: string;
   selector: string;
@@ -176,7 +176,7 @@ export namespace EffectiveVersions {
     const version = result['version'] as EffectiveVersion;
     if (version === undefined) { throw new Error('暂存配置失败'); }
     check(context, version);
-    return { version: version, receipt: result['receipt'] as string ?? '' };
+    return { version: version, receipt: result['receipt'] as string ?? '', digest: result['digest'] as string ?? '' };
   }
 
   export async function previewMerge(context: common.Context, original: string,

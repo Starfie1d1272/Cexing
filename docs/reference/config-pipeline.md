@@ -31,7 +31,7 @@ Platform 与 Validate 都必填；没有静默默认值或自动降级。策略�
 
 Mihomo v1.19.32 `config.ParseRawConfig` 会临时更新全局 General/IPv6 状态，构造代理/provider，并可能访问 geodata。不能声称它是纯校验函数，也不能在 UI/并发预览线程调用。宿主必须通过已有单 worker 串行执行，提供应用私有 home/资源上下文和清理责任，屏蔽上游包含输入的错误/日志。本模块对 callback 错误只返回固定阶段文本，原始错误不得直接进入 UI/日志。独立集成测试在一次性子进程调用锁定解析器，不启动监听器；这不证明应用运行时隔离已接入。
 
-结构化表单使用 [编辑意图 v1](edit-intent.md)，在 Merge 后、Strategy 前执行局部修改；不把整个上游数组固化成覆写。
+结构化表单使用 [编辑意图 v1](edit-intent.md)，在 Merge/模板后、Strategy 前执行局部修改；不把整个上游数组固化成覆写。
 
 ## 编译行为
 

@@ -88,7 +88,8 @@ export namespace ProfileTransactions {
   async function publish(context: common.Context, file: string, original: string,
     overlay: string, metadata: string, select: boolean,
     isCurrent?: (published?: boolean) => boolean, regionOverride?: RegionPlan | null,
-    globalOverride?: string, intentOverride?: EditIntent | null): Promise<ProfileApplyState> {
+    globalOverride?: string, intentOverride?: EditIntent | null, expectedDigest?: string,
+    guard?: (published: boolean) => Promise<void>): Promise<ProfileApplyState> {
     const epoch = VpnController.configurationEpoch();
     const state = EffectiveVersions.read(context);
     const expected = state?.Current?.ID ?? '';
@@ -114,11 +115,13 @@ export namespace ProfileTransactions {
     let applied = false;
     let published = false;
     try {
+      if (expectedDigest !== undefined && staged.digest !== expectedDigest) { throw new Error('预览已变化，请重新预览'); }
       const candidate = fileIo.readTextSync(staged.version.Path);
       if (staged.receipt.length > 0 &&
         await EffectiveVersions.verify(context, staged.version, expected, globalOverride) !== staged.receipt) {
         throw new Error('provider 缓存已变化，请重试');
       }
+      if (guard !== undefined) { await guard(false); }
       if (!current()) { throw new Error('更新已取消'); }
       if (!(await sameSession())) { throw new Error('连接已变化，请重试'); }
       if (live) {
@@ -129,6 +132,7 @@ export namespace ProfileTransactions {
           throw new Error('应用未确认，请重连恢复');
         }
       }
+      if (guard !== undefined) { await guard(false); }
       if (!current()) { throw new Error('更新已取消'); }
       if (!(await sameSession())) { markUnknown(context); throw new Error('应用未确认，请重连恢复'); }
       try {
@@ -145,10 +149,16 @@ export namespace ProfileTransactions {
           throw new Error('版本发布结果未知，请断开 VPN 后检查');
         } else { throw new Error((e as Error).message); }
       }
+      if (guard !== undefined) {
+        try { await guard(true); } catch (_) { markUnknown(context); throw new Error('应用未确认，请重连恢复'); }
+      }
       if (!(await sameSession()) || !current(true)) { markUnknown(context); throw new Error('应用未确认，请重连恢复'); }
       // Publication is already durable; GC cannot turn success into a false
       // rollback. Its bounded status is available only in advanced storage UI.
       try { await EffectiveVersions.collect(context, select ? staged.version.ID : expected); } catch (_) {}
+      if (guard !== undefined) {
+        try { await guard(true); } catch (_) { markUnknown(context); throw new Error('应用未确认，请重连恢复'); }
+      }
       if (!(await sameSession()) || !current(true)) { markUnknown(context); throw new Error('应用未确认，请重连恢复'); }
       return live ? 'applied' : 'saved';
     } catch (e) {
@@ -193,7 +203,7 @@ export namespace ProfileTransactions {
   }
 
   export async function saveEditDraft(context: common.Context, ticket: EditTicket,
-    intent: EditIntent | null): Promise<string> {
+    intent: EditIntent | null, guard?: () => Promise<void>): Promise<string> {
     enter(context);
     try {
       checkEditTicket(context, ticket);
@@ -201,6 +211,7 @@ export namespace ProfileTransactions {
       const candidate = intent === null ? null : JSON.parse(JSON.stringify(intent)) as EditIntent;
       if (candidate !== null) { candidate.revision = revision; }
       await EffectiveVersions.checkIntent(context, candidate, ticket.activeVersion);
+      if (guard !== undefined) { await guard(); }
       checkEditTicket(context, ticket);
       ProfileStore.saveEditDraft(context, ticket.file, { revision: revision, intent: candidate }, ticket.draftRevision);
       return revision;
@@ -224,7 +235,8 @@ export namespace ProfileTransactions {
     } finally { leave(); }
   }
 
-  export async function applyEditDraft(context: common.Context, ticket: EditTicket): Promise<ProfileApplyState> {
+  export async function applyEditDraft(context: common.Context, ticket: EditTicket,
+    expectedDigest?: string, guard?: (published: boolean) => Promise<void>): Promise<ProfileApplyState> {
     enter(context);
     try {
       checkEditTicket(context, ticket);
@@ -233,7 +245,7 @@ export namespace ProfileTransactions {
       const intent = ProfileStore.readEditDraft(context, ticket.file).intent;
       return await publish(context, ticket.file, original, ProfileStore.getEnabledMerge(context, ticket.file),
         metadata(context, ticket.file), ProfileStore.getActiveFile(context) === ticket.file,
-        (published?: boolean) => { checkEditTicket(context, ticket, published === true); return true; }, undefined, undefined, intent);
+        (published?: boolean) => { checkEditTicket(context, ticket, published === true); return true; }, undefined, undefined, intent, expectedDigest, guard);
     } finally { leave(); }
   }
 
