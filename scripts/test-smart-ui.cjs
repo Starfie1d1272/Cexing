@@ -57,7 +57,9 @@ function compile(file, modules, extras = {}, page = false) {
         const n = Math.min(17001, chunk.byteLength, 9345218 - offset); offset += n; return n;
       } } }
   }, { setTimeout: fn => { timers.set(++timerID, fn); return timerID; }, clearTimeout: id => timers.delete(id) }, true);
-  const page = new SmartPage(); page.visible = true; page.aboutToAppear();
+  let routes = ['smart'];
+  const page = new SmartPage(); page.navStack = { getAllPathName: () => routes };
+  page.visible = true; page.aboutToAppear();
   await new Promise(setImmediate);
   assert.equal(page.modelSummary, '模型已加载'); assert.equal(page.predictions, '本进程有效预测 0 次');
   assert.match(page.predictionNote, /尚未记录有效预测/);
@@ -70,6 +72,22 @@ function compile(file, modules, extras = {}, page = false) {
   assert.equal(uploaded, 1, 'hidden picker result cannot import');
   assert.equal(timers.size, 0);
   page.visible = true; page.onVisible(); await new Promise(setImmediate);
+  throwRead = false;
+  pending = page.importModel();
+  page.visible = false; page.onVisible();
+  page.visible = true; page.onVisible();
+  selectResolve(['synthetic.bin']); await pending;
+  assert.equal(uploaded, 2, 'returning from the system picker must finish the current page import');
+  assert.equal(closed, 3);
+  pending = page.importModel(); routes = ['smart', 'zashboard'];
+  page.visible = false; page.onVisible();
+  routes = ['smart']; page.visible = true; page.onVisible();
+  selectResolve(['synthetic.bin']); await pending;
+  assert.equal(uploaded, 2, 'navigation away invalidates an older picker even after returning');
+  pending = page.importModel(); page.aboutToDisappear(); page.aboutToAppear();
+  selectResolve(['synthetic.bin']); await pending;
+  assert.equal(uploaded, 2, 'a recreated page cannot accept an older picker');
+  await new Promise(setImmediate);
   status = null; await page.refresh(page.generation);
   assert.equal(page.ready, false); assert.equal(page.modelSummary, '尚未检查');
   page.aboutToDisappear();
