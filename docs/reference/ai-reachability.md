@@ -12,9 +12,9 @@
 
 `POST /ohos/ai-probe` 注册在既有认证 Controller 路由内，输入只有 `{revision, retry}`。服务器自行读取 Current 的成功 EditIntent.template；它必须是 AI 模板，指针和请求 revision 相同，目标组可用，实际运行配置摘要与 Current/config.yaml 相同。Caller 不能提供目标 URL/组/凭据。摘要仅在运行内存中，不构成新的发布系统。
 
-宿主需在 `coreStartTun` 的 `executor.ApplyConfig(cfg, true)` 后调用 `observeAIProbeConfig(configJson)`，在认证 reload 的同一位置调用 `observeAIProbeConfig(text)`，均在现有 `runLock` 内。该函数定义在本组新增路由文件中。未接入此观察点会保持“未检查”；不能用发布指针代替真实运行身份。reload 到 commit 的窗口因配置摘要不一致被拒绝。每次成功 ApplyConfig 都增加运行代次，即使 YAML 摘要相同也使旧缓存失效。运行中定期核对 Controller epoch、运行代次、Current、配置摘要、目标图对象身份与手动 Selector 选择；变化后取消旧任务，旧结果不缓存/回写。自动组结果归因于该组的本次路由，不永久声称某个节点。后台转发不再经上游 SpecialProxy 对可变全局代理表的无锁查找；短期会话持有组对象并在取消时关闭两端及等待 worker。依赖全局名称查找的 dialer-proxy 链暂不确认，不能将尚未固定的链路假报为目标出口。目标沿共同编译器不透明身份追踪个人重命名；删除后同名新组不能继承检测授权。
+宿主需在 `coreStartTun` 的 `executor.ApplyConfig(cfg, true)` 后调用 `observeAIProbeConfig(configJson)`，在认证 reload 的同一位置调用 `observeAIProbeConfig(text)`，均在现有 `runLock` 内。该函数定义在本组新增路由文件中。未接入此观察点会保持“未检查”；不能用发布指针代替真实运行身份。reload 到 commit 的窗口因配置摘要不一致被拒绝。每次成功 ApplyConfig 都增加运行代次，即使 YAML 摘要相同也使旧缓存失效。运行中定期核对 Controller epoch、运行代次、Current、配置摘要、目标图对象生命周期身份与手动 Selector 选择；变化后取消旧任务，旧结果不缓存/回写。自动组结果归因于该组的本次路由，不永久声称某个节点。后台转发不再经上游 SpecialProxy 对可变全局代理表的无锁查找；短期会话持有组对象并在取消时关闭两端及等待 worker。依赖全局名称查找的 dialer-proxy 链暂不确认，不能将尚未固定的链路假报为目标出口。目标沿共同编译器不透明身份追踪个人重命名；删除后同名新组不能继承检测授权。
 
-每次最多两个服务并发，整次有时限；每个 Manager 只允许一个检测租约，缓存最多十六个身份、通常两分钟。429 按 Retry-After（限定一分钟到十分钟）退避，手动重试不能绕过退避。缓存命中保留原检测时间。429 在读取正文前处理，不能因正文超时丢失退避；明确 challenge 响应保持未知，不能只凭品牌文字报可达。
+每次最多两个服务并发，整次有时限；每个 Manager 只允许一个检测租约，缓存最多十六个身份、通常两分钟。429 按 Retry-After（限定一分钟到十分钟）退避，手动重试不能绕过退避。对象身份使用 Go weak keys 的进程内代次，既不依赖可复用内存地址，也不阻止旧代理回收；登记表有硬上限。缓存命中保留原检测时间。429 在读取正文前处理，不能因正文超时丢失退避；明确 challenge 响应保持未知，不能只凭品牌文字报可达。
 
 ## 页面生命周期
 

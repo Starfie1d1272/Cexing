@@ -9,7 +9,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"reflect"
 
 	"core/aiprobe"
 	"core/configpipeline"
@@ -202,17 +201,16 @@ func probeSelection(group string) (string, error) {
 		return "", errors.New("PROBE_NOT_A_GROUP")
 	}
 	choices := map[string]string{}
-	visited := map[string]uintptr{}
+	visited := map[string]uint64{}
 	var visit func(C.Proxy) error
 	visit = func(p C.Proxy) error {
 		if p == nil {
 			return errors.New("PROBE_GROUP_MISSING")
 		}
-		object := reflect.ValueOf(p)
-		if object.Kind() != reflect.Ptr || object.IsNil() {
-			return errors.New("PROBE_ROUTE_UNPROVEN")
+		token, identityErr := aiProxyIdentities.identity(p)
+		if identityErr != nil {
+			return identityErr
 		}
-		token := object.Pointer()
 		if prior, seen := visited[p.Name()]; seen {
 			if prior != token {
 				return errors.New("PROBE_ROUTE_AMBIGUOUS")
@@ -267,7 +265,7 @@ func probeSelection(group string) (string, error) {
 	}
 	encoded, _ := json.Marshal(struct {
 		Choices map[string]string
-		Objects map[string]uintptr
+		Objects map[string]uint64
 	}{choices, visited})
 	digest := sha256.Sum256(encoded)
 	return hex.EncodeToString(digest[:]), nil
