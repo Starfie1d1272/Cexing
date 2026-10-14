@@ -85,6 +85,15 @@ export namespace ProfileTransactions {
     markUnknown(context);
   }
 
+  async function rollbackSmartPreference(context: common.Context, previous: boolean): Promise<void> {
+    // Unknown may include an already published candidate. Preserve its policy
+    // until confirmed recovery; never roll back just one half of that state.
+    // The in-memory fence also survives a concurrent stop clearing the marker.
+    if (uncertain || ProfileStore.isApplyUncertain(context)) { return; }
+    try { await Settings.setSmartAutoConvert(context, previous); }
+    catch (_) { markUnknown(context); }
+  }
+
   async function publish(context: common.Context, file: string, original: string,
     overlay: string, metadata: string, select: boolean,
     isCurrent?: (published?: boolean) => boolean, regionOverride?: RegionPlan | null,
@@ -155,11 +164,11 @@ export namespace ProfileTransactions {
       if (!(await sameSession()) || !current(true)) { markUnknown(context); throw new Error('应用未确认，请重连恢复'); }
       return live ? 'applied' : 'saved';
     } catch (e) {
-      if (applied && !published && !ProfileStore.isApplyUncertain(context)) {
+      if (applied && !published && !uncertain && !ProfileStore.isApplyUncertain(context)) {
         if (await sameSession()) { await restore(context, previous, session ?? '', sameSession); }
         else { markUnknown(context); }
       }
-      if (!ProfileStore.isApplyUncertain(context)) {
+      if (!published && !uncertain && !ProfileStore.isApplyUncertain(context)) {
         try { await EffectiveVersions.discard(context, staged.version, expected); } catch (_) {}
       }
       throw new Error(ProfileStore.isApplyUncertain(context) ? '应用未确认，请重连恢复' : (e as Error).message);
@@ -287,8 +296,7 @@ export namespace ProfileTransactions {
         undefined, region, globalMerge, EffectiveVersions.editIntent(context, previous));
     } catch (e) {
       if (preferenceChanged) {
-        try { await Settings.setSmartAutoConvert(context, smart); }
-        catch (_) { markUnknown(context); }
+        await rollbackSmartPreference(context, smart);
       }
       throw new Error(ProfileStore.isApplyUncertain(context) ? '应用未确认，请重连恢复' : (e as Error).message);
     } finally { leave(); }
@@ -464,8 +472,7 @@ export namespace ProfileTransactions {
       return await publish(context, file, ProfileStore.prepareContent(original),
         ProfileStore.getEnabledMerge(context, file), metadata(context, file), true);
     } catch (e) {
-      try { await Settings.setSmartAutoConvert(context, previous); }
-      catch (_) { markUnknown(context); }
+      await rollbackSmartPreference(context, previous);
       throw new Error((e as Error).message);
     } finally { leave(); }
   }
