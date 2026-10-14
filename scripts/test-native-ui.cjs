@@ -73,7 +73,7 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
     '../lib/ProfileStore': { ProfileStore: { getActiveFile: () => activeHomeFile } },
     '../lib/Settings': { Settings: { load: () => ({ mode: 'rule' }) } },
     '../lib/AppRuntime': { AppRuntime: { cancelRestore: () => cancelRestore++ } },
-    '../lib/ProfileTransactions': { ProfileTransactions: { ensureActiveSmartPolicy: () => smartPrepare() } },
+    '../lib/ProfileTransactions': { ProfileTransactions: { isBusy: () => false, ensureActiveSmartPolicy: () => smartPrepare() } },
     './ProfilePage': { ProfileDetailBus: { current: '' } }
   }, { Date: { now: () => now }, setInterval: cb => { tick = cb; return 1; },
     clearInterval: () => timerCleared++, AlertDialog: { show: value => { dialog = value; } } });
@@ -192,7 +192,7 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
       '../lib/ProfileStore': { ProfileStore: { getActiveFile: ()=>'fixture.yaml' } },
       '../lib/Settings': { Settings: { load: ()=>({mode:'rule'}) } },
       '../lib/AppRuntime': { AppRuntime: { cancelRestore() {} } },
-      '../lib/ProfileTransactions': { ProfileTransactions: { ensureActiveSmartPolicy: async()=>{preparations++;} } },
+      '../lib/ProfileTransactions': { ProfileTransactions: { isBusy: () => false, ensureActiveSmartPolicy: async()=>{preparations++;} } },
       './ProfilePage': { ProfileDetailBus: { current:'' } }
     }, { getContext: ()=>real.context, setInterval:()=>1, clearInterval() {} });
     const actualHome = new ActualHome();actualHome.rootVisible=true;actualHome.currentVisibleTab=0;
@@ -271,7 +271,7 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
     '@kit.CoreFileKit': {}, '@kit.ArkTS': {}, '@kit.BasicServicesKit': {}, './ProfileEditPage': {}, './ProfileTemplatePage': { ProfileTemplateBus: { file: '' } }, './ProfileProxyEditorPage': { ProfileProxyEditorBus: { file: '' } }, './RuleDnsEditorPage': { RuleDnsEditorBus: { file: '', section: '' } },
     '../lib/CoreApi': { CoreApi: {} },
     '../lib/EffectiveVersions': { EffectiveVersions: { read: () => null } },
-    '../lib/ProfileTransactions': { ProfileTransactions: {
+    '../lib/ProfileTransactions': { ProfileTransactions: { isBusy: () => false,
       remove: async () => { deleted++; }, activate: (...args) => activateResult(...args),
       setRegionPlan: (...args) => regionResult(...args),
       ensureActiveSmartPolicy: () => smartPrepare(),
@@ -473,8 +473,11 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   externalPending = { kind: 'url', value: 'https://shared.invalid/after-file' };
   queuedFile.acceptExternalImport(); assert.ok(externalPending, 'busy file read retains pending input');
   finishFile('proxies: []'); await importingQueuedFile;
+  assert.ok(externalPending, 'ready confirmation retains the modal slot');
+  assert.equal(queuedFile.sheetMode, 4);
+  queuedFile.cancelImport();
   assert.equal(externalPending, null); assert.equal(queuedFile.inputUrl, 'https://shared.invalid/after-file');
-  assert.equal(queuedFile.sheetMode, 2, 'new share is confirmed after file import yields its busy state');
+  assert.equal(queuedFile.sheetMode, 2, 'new share is confirmed after the user safely closes the ready sheet');
   queuedFile.cancelImport();
   console.log('PASS: cancelled sharing lease, queued external input after scanner cancellation and async file import');
   const editorNavigation = activationPage().page;
@@ -519,7 +522,7 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
       read: () => ({ Profiles: { 'candidate.yaml': {} } }),
       regionPlan: () => ({ mode: 'region', selector: 'Main', assignments: {}, enable: committedRegionEnabled })
     } },
-    '../lib/ProfileTransactions': { ProfileTransactions: {
+    '../lib/ProfileTransactions': { ProfileTransactions: { isBusy: () => false,
       setRegionPlan: async () => {
         committedRegionEnabled = false;
         throw Error('地区策略已关闭，但原选项未恢复');
@@ -553,7 +556,7 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   let failDraft = true;
   const Edit = load('ProfileEditPage', { ...common,
     '../lib/ProfileStore': { ProfileStore: { writeDraft: () => { if (failDraft) throw Error('disk full'); } } },
-    '../lib/ProfileTransactions': { ProfileTransactions: { edit: async () => 'applied' } }
+    '../lib/ProfileTransactions': { ProfileTransactions: { isBusy: () => false, edit: async () => 'applied' } }
   });
   const editor = new Edit(); editor.persistDraft('synthetic');
   assert.equal(editor.dirty, true); assert.equal(editor.draftPersisted, false, 'failed draft write cannot claim recovery');

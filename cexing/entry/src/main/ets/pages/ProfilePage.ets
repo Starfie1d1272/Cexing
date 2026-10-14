@@ -194,7 +194,7 @@ export struct ProfilePage {
       this.toast(enable ? (pending ? '地区策略已创建，连接后选择新入口' : '地区入口已选择') :
         '地区策略已创建，可稍后启用');
     } catch (e) { this.importError = (e as Error).message ?? '地区策略未保存'; }
-    finally { this.regionBusy = false; }
+    finally { this.regionBusy = false; this.acceptExternalImport(); }
   }
 
   private regionCanCreate(): boolean {
@@ -211,24 +211,32 @@ export struct ProfilePage {
   }
 
   private async editRegion(file: string): Promise<void> {
-    this.regionFromImport = false;
-    this.importedFile = file;
-    this.importError = '';
+    if (this.regionBusy || this.showSheet || this.sheetMode !== SHEET_NONE) { return; }
+    const page = this.pageGeneration; const request = ++this.importGeneration;
+    const tab = this.currentVisibleTab; const paths = this.navStack.getAllPathName();
+    const current = (): boolean => this.pageVisible && page === this.pageGeneration &&
+      request === this.importGeneration && tab === this.currentVisibleTab && this.samePath(paths);
+    this.regionBusy = true;
     const existing = this.savedRegion(file);
-    this.regionMode = existing?.mode ?? 'region';
-    this.regionAssignments = existing?.assignments ?? {};
-    this.regionSelector = existing?.selector ?? '';
+    const mode = existing?.mode ?? 'region';
+    const assignments: Record<string, string> = existing?.assignments ?? {};
+    let selector = existing?.selector ?? '';
     try {
       const context = getContext(this) as common.UIAbilityContext;
-      if (this.regionSelector === '') {
+      if (selector === '') {
         const probe: RegionPlan = { mode: 'region', selector: '', enable: false, assignments: {} };
         const first = await ProfileTransactions.previewRegion(context, file, probe);
-        this.regionSelector = first.selectors[0] ?? '';
+        if (!current()) { return; }
+        selector = first.selectors[0] ?? '';
       }
-      await this.refreshRegionPreview();
-      this.sheetMode = SHEET_REGION;
-      this.showSheet = true;
-    } catch (_) { this.toast('当前订阅无法创建地区策略'); }
+      const preview = await ProfileTransactions.previewRegion(context, file,
+        { mode: mode, selector: selector, enable: false, assignments: assignments });
+      if (!current()) { return; }
+      this.regionFromImport = false; this.importedFile = file; this.importError = '';
+      this.regionMode = mode; this.regionAssignments = assignments; this.regionSelector = selector;
+      this.regionPreview = preview; this.sheetMode = SHEET_REGION; this.showSheet = true;
+    } catch (_) { if (current()) { this.toast('当前订阅无法创建地区策略'); } }
+    finally { this.regionBusy = false; this.acceptExternalImport(); }
   }
 
   private async toggleRegion(file: string): Promise<void> {
@@ -472,7 +480,7 @@ export struct ProfilePage {
       else { this.toast('连接未开始，请重试'); }
     } catch (_) {
       if (current()) { this.refresh(); this.toast('恢复未完成，请重试或前往连接页检查'); }
-    } finally { this.recovering = false; }
+    } finally { this.recovering = false; this.acceptExternalImport(); }
   }
 
   private async retryAutomatic(p: ProfileMeta): Promise<void> {
@@ -495,7 +503,7 @@ export struct ProfilePage {
       if (this.pageVisible && page === this.pageGeneration && this.samePath(paths)) {
         this.refresh(); this.toast('更新未完成，请重试');
       }
-    } finally { this.updatingFile = ''; }
+    } finally { this.updatingFile = ''; this.acceptExternalImport(); }
   }
 
   private async updateProfile(p: ProfileMeta): Promise<void> {
@@ -513,6 +521,7 @@ export struct ProfilePage {
       this.toast(this.recoveryNeeded ? '应用未确认，请重连恢复' : '更新失败，请检查网络后重试');
     } finally {
       this.updatingFile = '';
+      this.acceptExternalImport();
     }
   }
 
@@ -549,7 +558,7 @@ export struct ProfilePage {
       this.changed();
     } catch (e) {
       this.toast(`重命名失败: ${(e as Error).message ?? JSON.stringify(e)}`);
-    }
+    } finally { this.acceptExternalImport(); }
   }
 
   private async exportProfile(p: ProfileMeta): Promise<void> {
@@ -598,7 +607,9 @@ export struct ProfilePage {
 
   private acceptExternalImport(): void {
     if (!this.pageVisible || this.detailFile.length > 0 || !this.rootVisible ||
-      this.currentVisibleTab !== 1 || this.importing || this.activating || this.scanning) { return; }
+      this.currentVisibleTab !== 1 || this.importing || this.activating || this.scanning ||
+      this.showSheet || this.sheetMode !== SHEET_NONE || this.regionBusy || this.recovering ||
+      this.updatingFile.length > 0 || this.refreshing || ProfileTransactions.isBusy()) { return; }
     const candidate = ProfileImportInput.take();
     if (candidate === null) { return; }
     this.externalImport = candidate;
@@ -775,6 +786,7 @@ export struct ProfilePage {
       this.refresh();
     } finally {
       this.refreshing = false;
+      this.acceptExternalImport();
     }
   }
 

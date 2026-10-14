@@ -39,7 +39,7 @@ struct Index {
   }
 
   private openImportEntry(): void {
-    this.navStack.clear();
+    // Keep routed editors mounted; their close/back guard owns unsaved data.
     this.currentTab = 1;
     this.currentVisibleTab = 1;
   }
