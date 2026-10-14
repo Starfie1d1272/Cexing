@@ -6,7 +6,7 @@ import { NativeTheme as UI } from './NativeTheme';
 import { common } from '@kit.AbilityKit';
 import { picker, fileIo } from '@kit.CoreFileKit';
 import { scanBarcode, scanCore } from '@kit.ScanKit';
-import { ProfileImportInput } from '../lib/ProfileImportInput';
+import { ProfileImportInput, ProfileImportCandidate } from '../lib/ProfileImportInput';
 import { BoundedFileReader } from '../lib/BoundedFileReader';
 import { ProfileRecovery } from '../lib/ProfileRecovery';
 import { AutoUpdater } from '../lib/AutoUpdater';
@@ -63,6 +63,7 @@ export struct ProfilePage {
   @State recovering: boolean = false;
   @State updateFeedback: Record<string, string> = {};
   private sharedFileUri: string = '';
+  private externalImport: ProfileImportCandidate | null = null;
   private importGeneration: number = 0;
   @State updatingFile: string = '';
   @State refreshing: boolean = false;
@@ -107,7 +108,7 @@ export struct ProfilePage {
   // 'applied' or 'saved'; rejection and unknown outcomes must not enter here.
   private finishActivationNavigation(request: number, page: number, tab: number, paths: string[]): void {
     this.profileRevision++;
-    if (!this.activationPageCurrent(request, page, tab, paths)) { return; }
+    if (!this.activationPageCurrent(request, page, tab, paths) || ProfileImportInput.hasPending()) { return; }
     this.refresh();
     if (this.detailOnTop()) { this.navStack.pop(); }
     this.tabJump = 0;
@@ -129,6 +130,7 @@ export struct ProfilePage {
   }
 
   private finishImport(file: string): void {
+    this.releaseExternalImport();
     this.changed();
     this.importedFile = file;
     this.importError = '';
@@ -255,6 +257,7 @@ export struct ProfilePage {
   }
 
   aboutToDisappear(): void {
+    this.releaseExternalImport();
     this.pageVisible = false;
     this.importGeneration++;
     this.pageGeneration++;
@@ -364,6 +367,7 @@ export struct ProfilePage {
       const result = await ProfileTransactions.activate(context, file);
       if (result !== 'applied' && result !== 'saved') { throw new Error('应用结果未确认'); }
       this.profileRevision++;
+      if (ProfileImportInput.hasPending()) { return; }
       if (!this.activationPageCurrent(request, page, tab, paths) || !this.showSheet ||
         this.sheetMode !== SHEET_READY) { return; }
       if (VpnController.status === VpnStatus.Disconnected) {
@@ -384,7 +388,7 @@ export struct ProfilePage {
       if (this.activationPageCurrent(request, page, tab, paths) && this.showSheet) {
         this.importError = this.activationError(error as Error);
       }
-    } finally { this.activating = false; }
+    } finally { this.activating = false; this.acceptExternalImport(); }
   }
 
   private async activate(p: ProfileMeta): Promise<void> {
@@ -407,7 +411,7 @@ export struct ProfilePage {
         this.refresh();
         this.toast(this.recoveryNeeded ? '应用未确认，请重连恢复' : this.activationError(e as Error));
       }
-    } finally { this.activating = false; }
+    } finally { this.activating = false; this.acceptExternalImport(); }
   }
 
   private confirmRecovery(): void {
@@ -551,11 +555,28 @@ export struct ProfilePage {
     }
   }
 
+  private releaseExternalImport(): void {
+    ProfileImportInput.release(this.externalImport);
+    this.externalImport = null;
+  }
+
+  private cancelImport(): void {
+    this.importGeneration++;
+    this.activationRequest++;
+    this.releaseExternalImport();
+    this.inputUrl = '';
+    this.sharedFileUri = '';
+    this.showSheet = false;
+    this.sheetMode = SHEET_NONE;
+    this.acceptExternalImport();
+  }
+
   private acceptExternalImport(): void {
     if (!this.pageVisible || this.detailFile.length > 0 || !this.rootVisible ||
       this.currentVisibleTab !== 1 || this.importing || this.activating || this.scanning) { return; }
     const candidate = ProfileImportInput.take();
     if (candidate === null) { return; }
+    this.externalImport = candidate;
     this.importGeneration++;
     this.importError = '';
     if (candidate.kind === 'url') {
@@ -585,7 +606,7 @@ export struct ProfilePage {
       scanBarcode.startScanForResult(context, {
         scanTypes: [scanCore.ScanType.QR_CODE], enableMultiMode: false, enableAlbum: true
       }, (error, result) => {
-        this.scanning = false;
+        try {
         if (!this.pageVisible || page !== this.pageGeneration || request !== this.importGeneration ||
           tab !== this.currentVisibleTab || !this.samePath(paths)) { return; }
         if (error) {
@@ -599,10 +620,12 @@ export struct ProfilePage {
         this.importError = '';
         this.sheetMode = SHEET_URL;
         this.showSheet = true;
+        } finally { this.scanning = false; this.acceptExternalImport(); }
       });
     } catch (_) {
       this.scanning = false;
       this.toast('扫码未能打开，请使用链接或文件导入');
+      this.acceptExternalImport();
     }
   }
 
@@ -669,7 +692,7 @@ export struct ProfilePage {
       if (this.pageVisible && page === this.pageGeneration && request === this.importGeneration) {
         this.toast('文件导入失败，请重新选择 YAML 配置');
       }
-    } finally { this.importing = false; }
+    } finally { this.importing = false; this.acceptExternalImport(); }
   }
 
   private async importClipboard(): Promise<void> {
@@ -910,11 +933,7 @@ export struct ProfilePage {
           .layoutWeight(1)
           .backgroundColor(UI.soft)
           .fontColor(UI.ink)
-          .onClick(() => {
-            this.showSheet = false;
-            this.sheetMode = SHEET_NONE;
-            this.inputUrl = '';
-          })
+          .onClick(() => { this.cancelImport(); })
         Button(this.importing ? '导入中…' : '导入')
           .height(48)
           .backgroundColor(UI.action).fontColor(UI.onAccent)
@@ -1007,10 +1026,7 @@ export struct ProfilePage {
         .enabled(!this.importing).onClick(() => { this.importFile(this.sharedFileUri); })
       Button('取消').width('100%').height(48).backgroundColor(UI.soft).fontColor(UI.ink)
         .onClick(() => {
-          this.importGeneration++;
-          this.sharedFileUri = '';
-          this.showSheet = false;
-          this.sheetMode = SHEET_NONE;
+          this.cancelImport();
         })
     }.width('100%').padding(24)
   }
@@ -1173,7 +1189,13 @@ export struct ProfilePage {
     }.width('100%').height('100%').padding({ left: 24, right: 24, bottom: 12 })
       .backgroundColor(UI.paper).constraintSize({ maxWidth: 760 }).alignSelf(ItemAlign.Center)
       .bindSheet($$this.showSheet, this.MainSheet(), { height: this.sheetMode === SHEET_GLOBAL ? SheetSize.LARGE : SheetSize.FIT_CONTENT,
-        onDisappear: () => { this.sheetMode = SHEET_NONE; },
+        onDisappear: () => {
+          if (!this.showSheet) {
+            this.sheetMode = SHEET_NONE;
+            this.releaseExternalImport();
+            this.acceptExternalImport();
+          }
+        },
         shouldDismiss: (dismiss: SheetDismiss) => {
           if (this.sheetMode !== SHEET_GLOBAL && !this.importing && !this.activating && !this.regionBusy && !ProfileTransactions.isBusy()) {
             this.importGeneration++; this.activationRequest++;
