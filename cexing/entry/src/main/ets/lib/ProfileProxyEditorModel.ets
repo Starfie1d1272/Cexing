@@ -1,0 +1,143 @@
+import { common } from '@kit.AbilityKit';
+import { ConfigEditor, EditableSnapshot, EditIntent, EditTarget } from './ConfigEditor';
+import { ProfileStore } from './ProfileStore';
+import { ProfileTransactions, EditTicket, ProfileApplyState } from './ProfileTransactions';
+import { MergePreview } from './CoreValidator';
+import { EffectiveVersions } from './EffectiveVersions';
+
+/** UI session over the published #164/#172 APIs. Never writes a sidecar directly. */
+export class ProfileProxyEditorModel {
+  snapshot: EditableSnapshot | null = null;
+  intent: EditIntent | null = null;
+  preview: MergePreview | null = null;
+  busy: boolean = false;
+  private context: common.Context;
+  private file: string;
+  private ticket: EditTicket | null = null;
+  private original: string = '';
+  private overlay: string = '';
+  private generation: number = 0;
+  private history: Array<EditIntent | null> = [];
+
+  constructor(context: common.Context, file: string) { this.context = context; this.file = file; }
+  cancel(): void { this.generation++; }
+
+  private check(ticket: EditTicket): void {
+    if (JSON.stringify(ProfileTransactions.editTicket(this.context, this.file)) !== JSON.stringify(ticket)) {
+      throw new Error('配置或草稿已变化，请重新打开');
+    }
+  }
+
+  async load(): Promise<boolean> {
+    const request = ++this.generation;
+    const ticket = ProfileTransactions.editTicket(this.context, this.file);
+    const original = ProfileStore.getProfileContent(this.context, this.file);
+    if (original === null) { throw new Error('原始配置读取失败'); }
+    const overlay = ProfileStore.getEnabledMerge(this.context, this.file);
+    const draft = ProfileStore.readEditDraft(this.context, this.file);
+    const snapshot = await ConfigEditor.read(this.context, original, overlay, ticket.activeVersion);
+    if (request !== this.generation) { return false; }
+    this.check(ticket);
+    this.ticket = ticket;
+    this.original = original;
+    this.overlay = overlay;
+    this.snapshot = snapshot;
+    this.intent = draft.intent;
+    this.preview = null;
+    return true;
+  }
+
+  workingIntent(): EditIntent {
+    if (this.snapshot === null) { throw new Error('请先读取配置'); }
+    return this.intent === null ? { schemaVersion: 1, revision: 'pending',
+      sourceRevision: this.snapshot.sourceRevision, operations: [] } :
+      JSON.parse(JSON.stringify(this.intent)) as EditIntent;
+  }
+
+  async target(section: string, id: string): Promise<EditTarget | null> {
+    if (this.ticket === null || this.busy) { return null; }
+    const request = ++this.generation;
+    const ticket = this.ticket;
+    this.check(ticket);
+    const target = await ConfigEditor.target(this.context, this.original, this.overlay,
+      ticket.activeVersion, section, id);
+    if (request !== this.generation) { return null; }
+    this.check(ticket);
+    return target;
+  }
+
+  async save(intent: EditIntent | null, recordHistory: boolean = true): Promise<boolean> {
+    if (this.busy || this.ticket === null) { return false; }
+    const request = ++this.generation;
+    const ticket = this.ticket;
+    this.check(ticket);
+    this.busy = true;
+    this.preview = null;
+    try {
+      const revision = await ProfileTransactions.saveEditDraft(this.context, ticket, intent);
+      if (request !== this.generation) { return false; }
+      // The next identity is derived from this request's acknowledged revision,
+      // not from an unrelated later editTicket read after the worker completes.
+      const next: EditTicket = { file: ticket.file, profileIdentity: ticket.profileIdentity,
+        profileVersion: ticket.profileVersion, activeVersion: ticket.activeVersion,
+        activeFile: ticket.activeFile, draftRevision: revision };
+      this.check(next);
+      if (recordHistory) { this.history.push(this.intent); }
+      const saved = intent === null ? null : JSON.parse(JSON.stringify(intent)) as EditIntent;
+      if (saved !== null) { saved.revision = revision; }
+      this.intent = saved;
+      this.ticket = next;
+      const preview = await ProfileTransactions.previewEditDraft(this.context, next);
+      if (request !== this.generation) { return false; }
+      this.check(next);
+      this.preview = preview;
+      return true;
+    } finally { this.busy = false; }
+  }
+
+  async previewSaved(): Promise<boolean> {
+    if (this.busy || this.ticket === null) { return false; }
+    const request = ++this.generation;
+    const ticket = this.ticket;
+    this.check(ticket);
+    this.busy = true;
+    this.preview = null;
+    try {
+      const preview = await ProfileTransactions.previewEditDraft(this.context, ticket);
+      if (request !== this.generation) { return false; }
+      this.check(ticket);
+      this.preview = preview;
+      return true;
+    } finally { this.busy = false; }
+  }
+
+  async undo(): Promise<boolean> {
+    if (this.busy || this.history.length === 0) { return false; }
+    const previous = this.history.pop() ?? null;
+    const ticket = this.ticket;
+    try { return await this.save(previous, false); }
+    catch (error) { if (this.ticket === ticket) { this.history.push(previous); } throw error; }
+  }
+
+  async reset(): Promise<boolean> {
+    if (this.busy) { return false; }
+    const version = EffectiveVersions.read(this.context)?.Profiles[this.file];
+    const intent = version === undefined ? null : EffectiveVersions.editIntent(this.context, version);
+    return await this.save(intent);
+  }
+
+  async apply(): Promise<ProfileApplyState | null> {
+    if (this.busy || this.ticket === null || this.preview === null) { return null; }
+    const request = ++this.generation;
+    const ticket = this.ticket;
+    this.check(ticket);
+    this.busy = true;
+    try {
+      const result = await ProfileTransactions.applyEditDraft(this.context, ticket);
+      if (request !== this.generation) { return null; }
+      this.preview = null;
+      this.history = [];
+      return result;
+    } finally { this.busy = false; }
+  }
+}
