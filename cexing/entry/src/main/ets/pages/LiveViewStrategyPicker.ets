@@ -60,7 +60,7 @@ export struct LiveViewStrategyPicker {
       const settings = Settings.load(context);
       settings.mainGroup = chosen;
       // Uses the durable, failure-reporting Settings.save contract from #126.
-      Settings.save(context, settings);
+      await Settings.save(context, settings, ['mainGroup']);
       await LiveViewKeeper.refreshDisplayGroup();
       if (this.current(generation)) { this.editing = false; this.message = '已更新显示策略'; }
     } catch (_) {

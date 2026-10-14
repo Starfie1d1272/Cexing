@@ -17,7 +17,7 @@ const methods = (source.slice(0, source.indexOf('  build()')) + '\n}').split('\n
 const { LiveViewStrategyPicker } = compile(methods, { '@kit.AbilityKit': {}, './NativeTheme': {},
   '../lib/VpnController': { VpnStatus: { Connected: 2, Disconnected: 0 } }, '../lib/CoreApi': { CoreApi: api },
   '../lib/LiveViewStrategy': strategy, '../lib/LiveViewKeeper': { LiveViewKeeper: { refreshDisplayGroup: async () => { refreshes++; } } },
-  '../lib/Settings': { Settings: { load: () => ({ ...saved }), save: (_ctx, value) => { if (failSave) throw Error('disk'); writes++; saved = value; } } } });
+  '../lib/Settings': { Settings: { load: () => ({ ...saved }), save: async (_ctx, value, fields) => { assert.deepEqual(Array.from(fields), ['mainGroup']); if (failSave) throw Error('disk'); writes++; saved = value; } } } });
 (async () => {
   const page = new LiveViewStrategyPicker(); page.status = 2; page.aboutToAppear();
   await page.open(); page.draft = '自动'; assert.equal(page.selectedIndex(), 2, 'Literal group named 自动 is distinct from default sentinel');

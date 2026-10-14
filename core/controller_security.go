@@ -26,6 +26,9 @@ import (
 const controllerSecretFile = "controller-security/secret"
 const maxConfigBytes = 16 * 1024 * 1024
 
+// Transport counts JSON escapes/wrapping separately; decoded YAML remains 16 MiB.
+const maxConfigRequestBytes = maxConfigBytes*6 + 64*1024
+
 var (
 	controllerSecret  string
 	secretMu          sync.RWMutex
@@ -416,11 +419,12 @@ func controllerError(w MHTTP.ResponseWriter, code int, message string) {
 func reloadPlatformConfig(w MHTTP.ResponseWriter, req *MHTTP.Request) {
 	epoch := controllerEpoch.Load()
 	var body struct {
-		Path      string  `json:"path"`
-		Payload   string  `json:"payload"`
-		Overrides *string `json:"overrides"`
+		ExpectedSession string  `json:"expectedSession"`
+		Path            string  `json:"path"`
+		Payload         string  `json:"payload"`
+		Overrides       *string `json:"overrides"`
 	}
-	decoder := json.NewDecoder(io.LimitReader(req.Body, maxConfigBytes+1))
+	decoder := json.NewDecoder(io.LimitReader(req.Body, maxConfigRequestBytes+1))
 	decoder.DisallowUnknownFields()
 	if decoder.Decode(&body) != nil || decoder.Decode(new(any)) != io.EOF || (body.Path == "") == (body.Payload == "") {
 		controllerError(w, 400, "provide one configuration path or payload")
@@ -462,7 +466,8 @@ func reloadPlatformConfig(w MHTTP.ResponseWriter, req *MHTTP.Request) {
 	}
 	runLock.Lock()
 	defer runLock.Unlock()
-	if !initialized || !controllerRunning.Load() || epoch != controllerEpoch.Load() {
+	if !initialized || !controllerRunning.Load() || epoch != controllerEpoch.Load() ||
+		(body.ExpectedSession != "" && body.ExpectedSession != controllerSession) {
 		controllerError(w, 409, "core session is not active")
 		return
 	}
