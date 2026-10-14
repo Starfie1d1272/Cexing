@@ -6,7 +6,6 @@ import { TrafficPage } from './TrafficPage';
 import { HomePage } from './HomePage';
 import { ProfilePage, ProfileDetailBus } from './ProfilePage';
 import { SettingsPage } from './SettingsPage';
-import { ProxyPage } from './ProxyPage';
 import { ZashboardPage } from './ZashboardPage';
 import { ResourceRecoveryPage } from './ResourceRecoveryPage';
 import { NetworkSettingsPage } from './NetworkSettingsPage';
@@ -44,9 +43,7 @@ struct Index {
 
   @Builder
   PageMap(name: string) {
-    if (name === 'proxies') {
-      NavDestination() { ProxyPage() }.title('代理组')
-    } else if (name === 'zashboard') {
+    if (name === 'zashboard') {
       NavDestination() { ZashboardPage({ visible: this.zashboardVisible }) }.title('控制面板')
         .onShown(() => { this.zashboardVisible = true; })
         .onHidden(() => { this.zashboardVisible = false; })
