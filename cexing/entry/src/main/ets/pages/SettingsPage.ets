@@ -70,7 +70,17 @@ export struct SettingsPage {
     }
   ];
 
+  private feedbackGeneration: number = 0;
+  private pageActive: boolean = false;
+
+  aboutToDisappear(): void {
+    this.pageActive = false;
+    this.feedbackGeneration++;
+  }
+
   aboutToAppear(): void {
+    this.pageActive = true;
+    this.feedbackGeneration++;
     const context = getContext(this) as common.UIAbilityContext;
     const s: AppSettings = Settings.load(context);
     this.keepAlive = s.keepAlive;
@@ -81,6 +91,7 @@ export struct SettingsPage {
   }
 
   private async onKeepAliveChange(on: boolean): Promise<void> {
+    const generation = ++this.feedbackGeneration;
     this.keepAlive = on;
     const context = getContext(this) as common.UIAbilityContext;
     const s = Settings.load(context);
@@ -93,6 +104,7 @@ export struct SettingsPage {
     }
     if (on && VpnController.status === VpnStatus.Connected) {
       const ok = await LiveViewKeeper.start(context);
+      if (!this.pageActive || generation !== this.feedbackGeneration || !this.keepAlive) { return; }
       promptAction.showToast({ message: ok ? '已开启后台运行' : '授权失败，无法开启', duration: 1500 });
     } else if (!on) {
       await LiveViewKeeper.stop(context);
@@ -120,11 +132,13 @@ export struct SettingsPage {
   }
 
   private onIntervalTap(): void {
+    const generation = this.feedbackGeneration;
     const sheets: SheetInfo[] = [];
     for (const h of INTERVAL_OPTIONS) {
       sheets.push({
         title: `${h} 小时`,
         action: () => {
+          if (!this.pageActive || generation !== this.feedbackGeneration) { return; }
           this.autoUpdateIntervalHours = h;
           const context = getContext(this) as common.UIAbilityContext;
           const s = Settings.load(context);
