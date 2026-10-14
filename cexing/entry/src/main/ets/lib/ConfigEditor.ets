@@ -1,6 +1,8 @@
 /* Private structured-editor reads on the existing C++ single worker. */
 import { common } from '@kit.AbilityKit';
 import core from 'libentry.so';
+import { MergePreview } from './CoreValidator';
+import { RegionPlan } from './EffectiveVersions';
 
 export interface EditOperation {
   id: string;
@@ -15,6 +17,13 @@ export interface EditOperation {
   before?: string;
   name?: string;
 }
+export interface TemplatePlan {
+  templateId: string;
+  version: number;
+  targetGroup?: string;
+  region?: RegionPlan;
+  replaceRules?: boolean;
+}
 export interface EditIntent {
   schemaVersion: number;
   revision: string;
@@ -22,6 +31,7 @@ export interface EditIntent {
   disabled?: boolean;
   operations: EditOperation[];
   smartGroups?: Record<string, boolean>;
+  template?: TemplatePlan;
 }
 export interface EditableItem {
   id: string;
@@ -33,6 +43,14 @@ export interface EditableSection { section: string; items: EditableItem[]; }
 export interface EditableSnapshot { sourceRevision: string; sections: EditableSection[]; }
 /** Sensitive; fetch only when the user explicitly opens a target for editing. */
 export interface EditTarget { item: EditableItem; value: Object; name?: string; }
+export interface SmartGroupChange { id: string; before: string; after: string; override: boolean; }
+export class EditIntentFailure extends Error {
+  code: string;
+  operation: number;
+  constructor(code: string, operation: number) {
+    super('EDIT_INTENT_FAILED'); this.code = code; this.operation = operation;
+  }
+}
 interface EditorReadRequest {
   op: string;
   original: string;
@@ -42,12 +60,46 @@ interface EditorReadRequest {
   updateGlobal: boolean;
   editSection?: string;
   editTarget?: string;
+  smartConversion?: boolean;
+  editIntent?: EditIntent;
+  regionPlan?: RegionPlan | null;
+  overrides?: string;
 }
 export namespace ConfigEditor {
+  export async function smartPreview(context: common.Context, original: string, overlay: string,
+    expected: string, defaultEnabled: boolean, intent?: EditIntent, globalMerge?: string): Promise<SmartGroupChange[]> {
+    const response = await call(context, { op: 'smart-preview', original: original, overlay: overlay,
+      expected: expected, smartConversion: defaultEnabled, editIntent: intent, globalMerge: globalMerge,
+      updateGlobal: globalMerge !== undefined });
+    const view = response['smartPreview'] as SmartGroupChange[];
+    if (!Array.isArray(view)) { throw new Error('SMART_PREVIEW_FAILED'); }
+    return view;
+  }
+
+  /** Settings/provider identity must be rechecked by the transaction on apply. */
+  export async function preview(context: common.Context, original: string, overlay: string,
+    expected: string, overrides: string, defaultEnabled: boolean, intent: EditIntent,
+    regionPlan: RegionPlan | null, globalMerge?: string): Promise<MergePreview> {
+    const response = await call(context, { op: 'edit-preview', original: original, overlay: overlay,
+      expected: expected, overrides: overrides, smartConversion: defaultEnabled, editIntent: intent,
+      regionPlan: regionPlan, globalMerge: globalMerge, updateGlobal: globalMerge !== undefined });
+    const view = response['mergePreview'] as MergePreview;
+    if (view === undefined || typeof view.digest !== 'string' || !Array.isArray(view.changes)) {
+      throw new Error('EDIT_PREVIEW_FAILED');
+    }
+    return view;
+  }
+
   async function call(context: common.Context, request: EditorReadRequest): Promise<Record<string, Object>> {
     const raw = await core.versionAction(context.filesDir, JSON.stringify(request));
     const response = JSON.parse(raw) as Record<string, Object>;
-    if (typeof response['error'] === 'string') { throw new Error(response['error'] as string); }
+    if (typeof response['error'] === 'string') {
+      const failure = response['editError'] as Record<string, Object>;
+      if (failure !== undefined && typeof failure['code'] === 'string' && typeof failure['operation'] === 'number') {
+        throw new EditIntentFailure(failure['code'] as string, failure['operation'] as number);
+      }
+      throw new Error(response['error'] as string);
+    }
     return response;
   }
 
@@ -75,4 +127,26 @@ export namespace ConfigEditor {
     }
     return view;
   }
+}
+
+/** Shared #146 host contract. The reliability group implements this inside the
+ * existing transaction gate; UI components never create their own file store. */
+export interface EditorDraftSession {
+  profileId: string;
+  revision: string;
+  intent: EditIntent | null;
+  snapshot: EditableSnapshot;
+}
+export interface EditorDraftPreview {
+  revision: string;
+  digest: string;
+  changes: MergePreview;
+}
+export interface EditorDraftHost {
+  load: () => Promise<EditorDraftSession>;
+  target: (section: string, id: string, revision: string) => Promise<EditTarget>;
+  save: (intent: EditIntent, expectedRevision: string) => Promise<EditorDraftSession>;
+  preview: (expectedRevision: string) => Promise<EditorDraftPreview>;
+  apply: (preview: EditorDraftPreview) => Promise<string>;
+  undo: (expectedRevision: string) => Promise<EditorDraftSession>;
 }

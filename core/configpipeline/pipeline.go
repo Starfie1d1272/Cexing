@@ -6,6 +6,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"io"
 	"reflect"
@@ -33,6 +34,7 @@ type Validator func(context.Context, []byte) error
 type Compiler struct {
 	Platform PlatformProjection
 	Validate Validator
+	Template TemplateTransform
 }
 type Request struct {
 	// Empty means no successful active version; otherwise use Snapshot.Current.ID.
@@ -41,6 +43,7 @@ type Request struct {
 	Overlays               [][]byte
 	Strategy               Transform
 	Intent                 *EditIntent
+	Region                 *RegionPlan
 	Previous               []byte
 }
 
@@ -61,6 +64,7 @@ type Result struct {
 	Metadata        string
 	SmartConversion bool
 	RegionPlan      *RegionPlan
+	EditIntent      *EditIntent
 }
 
 func (c Compiler) Compile(ctx context.Context, r Request) (Result, error) {
@@ -83,6 +87,15 @@ func (c Compiler) Compile(ctx context.Context, r Request) (Result, error) {
 			return Result{}, err
 		}
 		merge(root, patch)
+	}
+	// A selected template owns its region choice; do not also apply legacy region.
+	if r.Region != nil && !r.Region.Disabled && (r.Intent == nil || r.Intent.Disabled || r.Intent.Template == nil) {
+		if err := ApplyRegion(ctx, root, *r.Region); err != nil {
+			return Result{}, intentError("region_failed", -1)
+		}
+	}
+	if err := applyIntentTemplate(ctx, root, r.Intent, c.Template); err != nil {
+		return Result{}, err
 	}
 	if err := ApplyEditIntent(ctx, root, r.Intent); err != nil {
 		return Result{}, err
@@ -137,6 +150,13 @@ func (c Compiler) Compile(ctx context.Context, r Request) (Result, error) {
 	}
 	sum := sha256.Sum256(output)
 	result := Result{Original: append([]byte(nil), r.Original...), YAML: output, Digest: hex.EncodeToString(sum[:])}
+	if r.Intent != nil {
+		encoded, _ := json.Marshal(r.Intent)
+		result.EditIntent, err = DecodeEditIntent(encoded)
+		if err != nil {
+			return Result{}, err
+		}
+	}
 	for _, b := range r.Overlays {
 		result.Overlays = append(result.Overlays, append([]byte(nil), b...))
 	}

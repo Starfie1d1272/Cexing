@@ -47,6 +47,17 @@ func compilePinnedMergeWithStrategies(home, original, overlay, overrides string,
 
 func compileLayeredMerge(home, original, global, overlay, overrides string, smartConversion bool,
 	region *configpipeline.RegionPlan) (configpipeline.Result, string, error) {
+	return compileLayeredMergeWithIntent(home, original, global, overlay, overrides, smartConversion, region, nil)
+}
+
+func compileLayeredMergeWithIntent(home, original, global, overlay, overrides string, smartConversion bool,
+	region *configpipeline.RegionPlan, intent *configpipeline.EditIntent) (configpipeline.Result, string, error) {
+	if err := configpipeline.CheckEditIntent(intent); err != nil {
+		return configpipeline.Result{}, "", err
+	}
+	if intent != nil && !intent.Disabled && intent.Template != nil {
+		region = nil
+	}
 	var resolvedRegion *configpipeline.RegionPlan
 	if region != nil && !region.Disabled {
 		root, err := configpipeline.LayeredMergeSource([]byte(original), []byte(global), []byte(overlay))
@@ -110,19 +121,11 @@ func compileLayeredMerge(home, original, global, overlay, overrides string, smar
 	}
 	var strategy configpipeline.Transform
 	strategy = func(ctx context.Context, root *yaml.Node) error {
-		if smartConversion {
-			if err := configpipeline.SmartAuto(ctx, root); err != nil {
-				return err
-			}
-		}
-		if resolvedRegion != nil {
-			return configpipeline.ApplyRegion(ctx, root, *resolvedRegion)
-		}
-		return nil
+		return configpipeline.ApplySmartPolicy(ctx, root, smartConversion, intent)
 	}
 	result, err := (configpipeline.Compiler{Platform: project, Validate: validator}).Compile(
 		context.Background(), configpipeline.Request{Original: []byte(original), Overlays: overlays,
-			Strategy: strategy, Previous: []byte(original)})
+			Strategy: strategy, Intent: intent, Region: resolvedRegion, Previous: []byte(original)})
 	return result, receipt, err
 }
 

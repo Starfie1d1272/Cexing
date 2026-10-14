@@ -40,3 +40,17 @@ func TestEditorBridgeIsReadOnlyPrivateAndRevisionChecked(t *testing.T) {
 		t.Fatal("editor read wrote versions", err)
 	}
 }
+
+func TestSmartPreviewReturnsEmptySuccessAndStrictIntentSchema(t *testing.T) {
+	home := t.TempDir()
+	input := `{"op":"smart-preview","original":"proxies: [{name: a, type: direct}]\n","smartConversion":true}`
+	result := coreVersionAction(home, input)
+	if !strings.Contains(result, `"smartPreview":[]`) || strings.Contains(result, `"error"`) {
+		t.Fatal("no eligible groups reported as failure", result)
+	}
+	input = `{"op":"smart-preview","original":"proxies: [{name: a, type: direct}]\n","editIntent":{"schemaVersion":1,"revision":"d","sourceRevision":"s","operations":[],"private-unknown":"secret"}}`
+	result = coreVersionAction(home, input)
+	if !strings.Contains(result, `"code":"invalid_schema"`) || strings.Contains(result, "secret") || strings.Contains(result, "private-unknown") {
+		t.Fatal("schema boundary leak", result)
+	}
+}

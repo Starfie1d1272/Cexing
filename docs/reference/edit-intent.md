@@ -6,12 +6,12 @@
 
 - `ReadEditable(original, global, local)`：读取原文与两层 Merge 的当前基线，返回 `sourceRevision` 和固定七个 section 的有序 `items`；每项只有不透明 `id`、`revision`、允许列出的类型。无原始名称、域名、URL 或任意 mapping 键。
 - `ReadEditTarget(original, global, local, section, id)`：用户明确进入单项编辑后调用，返回该目标的私有 JSON `value`、原始 `name` 及 `item.fields` 各字段指纹。它不适用于默认预览、日志或支持包。未知高级键仍保留，可以在高级编辑中按字段修改。
-- `Request.Intent`：在双层 Merge 后、`Request.Strategy` 前执行。Strategy 内由宿主依次执行地区/模板，再执行 Smart；平台最后执行，随后既有引用检查及完整 Validate。模板组使用同一 Transform，不新造数组 Merge 方言。
+- `Request.Intent`：在双层 Merge 及模板后、`Request.Strategy` 前执行。先调用 `Compiler.Template` 注册的模板转换（或 `Request.Region` 的旧地区计划），再执行个人编辑，最后由 Strategy 执行 Smart；平台最后执行，随后既有引用检查及完整 Validate。模板组使用同一 Transform，不新造数组 Merge 方言。
 - `DecodeEditIntent`：严格拒绝未知 schema 字段、尾随内容、不支持版本与超量；`IntentError{code, operation}` 只返回固定类别和操作下标。取消、parser/引用/Validate 失败不返回候选。
 
 `sourceRevision` 标记编辑时的语义基线，不是把整个订阅锁死的条件；`revision` 是宿主生成的草稿修订标识。宿主必须在保存/提交的串行临界区比较之前读取的草稿 revision 与当前 revision，同时保留现有 profile/source/selection ticket 和 active-version 比较。不能在异步工作结束后读取新 revision 伪装请求身份。
 
-ArkTS 接口定义位于 `lib/ConfigEditor.ets`：`ConfigEditor.read(context, original, overlay, expected, globalMerge?)` 与 `ConfigEditor.target(context, original, overlay, expected, section, id, globalMerge?)`。两者复用现有 `core.versionAction` 单 worker，分别调用 `edit-read` / `edit-target`，只读返回 `editable` / `editTarget`。expected 必须在异步工作前捕获；页面还需用请求身份拒绝迟到结果。此基础批不提供另一个写入入口，保存通过可靠性组接入现有事务。
+ArkTS 接口定义位于 `lib/ConfigEditor.ets`：`ConfigEditor.read(context, original, overlay, expected, globalMerge?)` 与 `ConfigEditor.target(context, original, overlay, expected, section, id, globalMerge?)`。两者复用现有 `core.versionAction` 单 worker，分别调用 `edit-read` / `edit-target`，只读返回 `editable` / `editTarget`。expected 必须在异步工作前捕获；页面还需用请求身份拒绝迟到结果。追加 `smartPreview(..., defaultEnabled, intent?, globalMerge?)` 提供组类型/例外的只读数据，`preview(..., overrides, defaultEnabled, intent, regionPlan, globalMerge?)` 使用相同完整编译链。worker stage 的可选 `editIntent` 与现有调用兼容；保存草稿、持久化 provenance 及生产更新传递由可靠性组接入。`EditIntentFailure` 保留固定错误类别与操作下标，无输入值。
 
 ## 操作
 
@@ -30,11 +30,21 @@ DNS 是一个 mapping 目标，缺失时提供虚拟空 mapping；通过 update 
 
 一个意图每次从最新原文重新执行，重复编译幂等；不把生成 YAML 用作下一次原文。草稿应合并同目标同字段的 update 操作，而不是叠加相互矛盾的前置条件；移动与旧规则 ID 操作先于影响该 ID 的改名/规则替换。撤销移除该操作，停用设置 disabled；两者都重新编译最新输入。只读操作不验证外部 provider 资源，不联网、不 stage，不宣称已可运行。
 
-`smartGroups` 使用组的 target ID → boolean，true 是用户明确 opt-in，false 是保留原类型。Smart 参数与转换逻辑由同一 configpipeline 提供；本基础批定义字段，后续 Smart 转换批接通行为。
+`smartGroups` 使用组的 target ID → boolean，true 是用户明确 opt-in，false 是保留原类型。Smart 参数与转换逻辑由同一 configpipeline 提供；由 `ApplySmartPolicy` / `PreviewSmartPolicy` 接通。url-test 默认转换，load-balance 默认保留；明确 opt-in 才去除其 strategy；已存在 Smart 参数和手动 Selector 不覆盖。全局关闭时，逐订阅显式 true 仍优先；intent.disabled 只停用个人编辑/例外，不改变全局默认。
+
+## 模板与固定顺序
+
+统一字段 `EditIntent.template` / `configpipeline.TemplatePlan` 与 PR #159 的 `profiletemplates.Plan` 完全同形。模板组最小接线是 `type Plan = configpipeline.TemplatePlan`，其 Validate 由共享类型提供；不得在另一种 provenance 中另存同一个模板。ArkTS `TemplateWizardModel.TemplatePlan` 同理可从 `ConfigEditor` re-export。
+
+固定顺序：最新原文 → 全局 Merge → 本订阅 Merge → 模板（地区模板复用一次 RegionPlan）→ 个人操作 → Smart 默认/例外 → 平台 → 引用/完整 Validate。原有 RegionPlan 通过 `Request.Region` 在个人操作前运行；有显式 template 时由 template 接管地区选择，不再重复旧地区变换。original 模板不生成规则/地区，个人修改仍可保留；停用整个 intent 重新采用全局默认与旧地区计划。
+
+`Compiler.Template` 类型为 `func(context.Context,*yaml.Node,TemplatePlan) error`；宿主绑定 #159 的 `profiletemplates.Apply`。非 original 模板若无适配明确返回 `template_unavailable`，不会假装编译成功。模板层是个人编辑的 authoring 基线，不能把模板生成规则写回原订阅。
 
 ## 事务与可靠性组接线契约
 
-宿主保存每订阅独立草稿 `{intent, expectedDraftRevision}`。成功应用通过现有 stage/verify/apply/commit，将完整 `EditIntent` 加入 `source.json`（字段名 `EditIntent`），与原文、本订阅 Merge、地区计划一起发布。更新、切换、重启与全局 Merge 应用必须从该订阅成功版本读取意图重新编译。草稿修改不能改变成功意图。校验/应用/持久化失败均保持旧意图、旧指针和旧原版，不能先保存新意图再调用 reload。
+ArkTS 统一生产适配名为 `EditorDraftHost`（实际接口已在 `ConfigEditor.ets`）：`load()` 返回 profileId、revision、intent、snapshot；`target(section,id,revision)` 明确取单项私有值；`save(intent,expectedRevision)` 保存私有草稿并返回新 session；`preview(expectedRevision)` 返回 `{revision,digest,changes}`；`apply(preview)` 重新编译/核对 revision+digest 后走既有事务；`undo(expectedRevision)` 丢弃未发布草稿，恢复该订阅成功版本的意图并增加 revision。每个 host 绑定一个稳定 profile；UI 不传当前选择来替换它。revision 是宿主绑定来源、草稿、两层 Merge、设置与 provider 快照的私有不透明身份，不能仅用 active version ID。过期均拒绝，不写盘/不应用。此处接口供可靠性组实现，当前不宣称已经有生产适配对象。
+
+宿主保存每订阅独立草稿 `{intent, expectedDraftRevision}`。成功应用通过现有 stage/verify/apply/commit，将完整 `EditIntent` 加入 `source.json`（字段名 `EditIntent`），与原文、本订阅 Merge、地区计划一起发布。Compiler 返回独立 `Result.EditIntent` 副本，可靠性组只需在既有 FileStore source 结构添加该字段，不新增版本引用或第二个成功指针。更新、切换、重启与全局 Merge 应用必须从该订阅成功版本读取意图重新编译。草稿修改不能改变成功意图。校验/应用/持久化失败均保持旧意图、旧指针和旧原版，不能先保存新意图再调用 reload。
 
 GC 引用清单不新增版本引用：`sourceRevision`/`revision`/target/field fingerprints 都是私有数据标识，不是 version ID 或路径。版本仍仅由现有 Current/Previous/Profiles、可靠性组的备份/回滚引用保留。意图不持有外部文件句柄，不重写 FileStore GC。
 

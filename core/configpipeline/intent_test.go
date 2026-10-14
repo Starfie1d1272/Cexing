@@ -208,6 +208,43 @@ func TestIntentPublicFixtureAndMissingDNS(t *testing.T) {
 	}
 }
 
+func TestTemplateBeforePersonalEditsAndResultIntentSnapshot(t *testing.T) {
+	source := editFixture(t)
+	// Read the template-generated view as the personal-edit authoring baseline.
+	templateSource := strings.Replace(string(source), "  - MATCH,manual", "  - DOMAIN-SUFFIX,template.test,manual\n  - MATCH,manual", 1)
+	first := editTarget(t, []byte(templateSource), "rules", 1)
+	plan := editPlan(t, []byte(templateSource), EditOperation{ID: "personal-delete", Kind: "delete", Section: "rules", Target: first.Item.ID, Expected: first.Item.Revision})
+	plan.Template = &TemplatePlan{TemplateID: "ai", Version: 1, TargetGroup: "manual"}
+	c := editCompiler()
+	c.Template = func(_ context.Context, root *yaml.Node, p TemplatePlan) error {
+		if p.TemplateID != "ai" {
+			t.Fatal("wrong template")
+		}
+		rules := field(root, "rules")
+		rules.Content = append(rules.Content[:1], append([]*yaml.Node{scalar("DOMAIN-SUFFIX,template.test,manual")}, rules.Content[1:]...)...)
+		return nil
+	}
+	r, e := c.Compile(context.Background(), Request{Original: source, Intent: plan})
+	if e != nil {
+		t.Fatal(e)
+	}
+	if strings.Contains(string(r.YAML), "template.test") || r.EditIntent == nil {
+		t.Fatal("template overwrote personal intent")
+	}
+	plan.Template.TargetGroup = "changed"
+	plan.Operations[0].Expected = "changed"
+	if r.EditIntent.Template.TargetGroup != "manual" || r.EditIntent.Operations[0].Expected == "changed" {
+		t.Fatal("result shares mutable draft")
+	}
+	c.Template = nil
+	plan = r.EditIntent
+	r, e = c.Compile(context.Background(), Request{Original: source, Intent: plan})
+	var failure *IntentError
+	if !errors.As(e, &failure) || failure.Code != "template_unavailable" || len(r.YAML) != 0 {
+		t.Fatal("missing adapter silently skipped", e)
+	}
+}
+
 func TestIntentRenameExactRuleTargetKeepsPayloadAndParams(t *testing.T) {
 	for _, old := range []string{"no", "no-resolve"} {
 		t.Run(old, func(t *testing.T) {

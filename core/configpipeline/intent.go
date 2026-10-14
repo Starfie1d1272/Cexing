@@ -29,6 +29,7 @@ type EditIntent struct {
 	Disabled       bool            `json:"disabled,omitempty"`
 	Operations     []EditOperation `json:"operations"`
 	SmartGroups    map[string]bool `json:"smartGroups,omitempty"`
+	Template       *TemplatePlan   `json:"template,omitempty"`
 }
 type EditOperation struct {
 	ID            string            `json:"id"`
@@ -272,6 +273,11 @@ func CheckEditIntent(intent *EditIntent) error {
 	}
 	if intent.SchemaVersion != 1 || intent.Revision == "" || intent.SourceRevision == "" || intent.Operations == nil {
 		return intentError("invalid_schema", -1)
+	}
+	if intent.Template != nil {
+		if err := intent.Template.Validate(); err != nil {
+			return intentError("invalid_template", -1)
+		}
 	}
 	ids := map[string]bool{}
 	for i, op := range intent.Operations {
