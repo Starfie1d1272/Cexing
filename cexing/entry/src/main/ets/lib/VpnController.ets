@@ -36,6 +36,36 @@ export enum VpnStatus {
 
 type StatusListener = (s: VpnStatus) => void;
 
+// API 22 accepts up to 64 entries; black mode reserves one for this bundle.
+export const VPN_APPLICATION_LIMIT = 64;
+
+export interface VpnApplicationPolicy {
+  trustedApplications?: string[];
+  blockedApplications?: string[];
+}
+
+export function validVpnBundleName(value: string): boolean {
+  return value.length >= 3 && value.length <= 128 && /^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z0-9_]+)+$/.test(value);
+}
+
+export function buildVpnApplicationPolicy(mode: string, list: string[], self: string): VpnApplicationPolicy {
+  if (mode === 'all') { return { blockedApplications: [self] }; }
+  if (mode !== 'white' && mode !== 'black') { throw new Error('请重新选择应用范围'); }
+  const names: string[] = [];
+  for (const value of list) {
+    if (typeof value !== 'string' || !validVpnBundleName(value)) { throw new Error('请检查应用包名'); }
+    if (value !== self && names.indexOf(value) < 0) { names.push(value); }
+  }
+  if (names.length + (mode === 'black' ? 1 : 0) > VPN_APPLICATION_LIMIT) {
+    throw new Error('应用数量超过上限');
+  }
+  if (mode === 'white') {
+    if (names.length === 0) { throw new Error('请先添加要连接的应用'); }
+    return { trustedApplications: names };
+  }
+  return { blockedApplications: [self, ...names] };
+}
+
 /**
  * 构建 VpnConfig.routes（FlClash 实证方案）：
  * 1. 显式默认路由 0.0.0.0/0（IPv6 开启时追加 ::/0）——保证 VPN 成为应用的解析网络，
@@ -462,6 +492,14 @@ export namespace VpnController {
       notifyStatus();
       return false;
     }
+    try {
+      const settings = Settings.load(context);
+      buildVpnApplicationPolicy(settings.accessMode, settings.accessList, context.applicationInfo.name);
+    } catch (e) {
+      lastStartError = (e as Error).message;
+      notifyStatus();
+      return false;
+    }
     cancelRecovery();
     lastStopCompleted = null;
     lastStartError = '';
@@ -504,24 +542,13 @@ export namespace VpnController {
       address: { address: '172.19.0.1', family: 1 },
       prefixLength: 30
     };
-    // 按应用分流（设置→网络设置）：all=全部走 VPN（仅自身排除）；
-    // white=仅名单内走；black=名单内不走。本应用始终直连（订阅下载/REST 不绕路）。
     const s = Settings.load(context);
-    const self = context.applicationInfo.name;
-    const blocked: string[] = [self];
-    const trusted: string[] = [];
-    if (s.accessMode === 'black') {
-      for (const pkg of s.accessList) {
-        if (pkg !== self) {
-          blocked.push(pkg);
-        }
-      }
-    } else if (s.accessMode === 'white') {
-      for (const pkg of s.accessList) {
-        if (pkg !== self) {
-          trusted.push(pkg);
-        }
-      }
+    let applications: VpnApplicationPolicy;
+    try { applications = buildVpnApplicationPolicy(s.accessMode, s.accessList, context.applicationInfo.name); }
+    catch (e) {
+      lastStartError = (e as Error).message;
+      setStatus(VpnStatus.Disconnected);
+      return;
     }
     const vpnConfig: vpnExtension.VpnConfig = {
       addresses: [linkAddr],
@@ -532,14 +559,11 @@ export namespace VpnController {
       // 显式默认路由 + 华为 HTTPDNS 排除路由（FlClash 方案，修复 ArkWeb 浏览器
       // 空代理 x.x.x → ERR_PROXY_CONNECTION_FAILED）
       routes: buildVpnRoutes(s.ipv6),
-      blockedApplications: blocked,
       isIPv6Accepted: s.ipv6
     };
-    // 仅白名单模式且名单非空时才下发 trustedApplications；
-    // 空数组会被系统当作有效配置，干扰 excluded 路由（实证：:vpn 进程直连被断）
-    if (trusted.length > 0) {
-      vpnConfig.trustedApplications = trusted;
-    }
+    if (applications.trustedApplications !== undefined) {
+      vpnConfig.trustedApplications = applications.trustedApplications;
+    } else { vpnConfig.blockedApplications = applications.blockedApplications; }
     const params: Record<string, Object> = { 'VPN_CONFIG': vpnConfig, 'SESSION_ID': startSession };
     const connectWant: Want = {
       bundleName: want.bundleName,
