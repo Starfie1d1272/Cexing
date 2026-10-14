@@ -8,7 +8,7 @@ import { ProfileStore, ProfileMetaExt } from './ProfileStore';
 import { VpnController, VpnStatus } from './VpnController';
 import { CoreValidator } from './CoreValidator';
 import { MergePreview } from './CoreValidator';
-import { EffectiveVersions, EffectiveState, RegionPlan, RegionPreview } from './EffectiveVersions';
+import { EffectiveVersions, EffectiveState, RegionPlan, RegionPreview, ProfileStorageReport } from './EffectiveVersions';
 import { Settings } from './Settings';
 
 export type ProfileApplyState = 'applied' | 'saved';
@@ -59,6 +59,12 @@ export namespace ProfileTransactions {
       if (offline && (VpnController.status !== VpnStatus.Disconnected || VpnController.needsStop())) { throw new Error('请先确认断开 VPN'); }
       await action();
     } finally { leave(); }
+  }
+
+  export async function refreshStorage(context: common.Context): Promise<ProfileStorageReport> {
+    enter(context);
+    try { return await EffectiveVersions.collect(context, EffectiveVersions.read(context)?.Current?.ID ?? ''); }
+    finally { leave(); }
   }
 
   function markUnknown(context: common.Context): void {

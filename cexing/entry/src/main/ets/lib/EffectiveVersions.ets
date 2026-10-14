@@ -235,7 +235,11 @@ export namespace EffectiveVersions {
     const path = `${context.filesDir}/profile-versions/gc-status.json`;
     if (!fileIo.accessSync(path)) { return null; }
     if (fileIo.statSync(path).size > 4096) { throw new Error('存储状态损坏'); }
-    return JSON.parse(fileIo.readTextSync(path)) as ProfileStorageReport;
+    const report = JSON.parse(fileIo.readTextSync(path)) as ProfileStorageReport;
+    if (![report.versions, report.bytes, report.removedVersions, report.removedBytes].every((value: number) =>
+      Number.isSafeInteger(value) && value >= 0) || typeof report.complete !== 'boolean' ||
+      (report.code !== undefined && !/^[A-Z0-9_]{1,80}$/.test(report.code))) { throw new Error('存储状态损坏'); }
+    return report;
   }
 
   export async function discard(context: common.Context, version: EffectiveVersion,
