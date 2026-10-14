@@ -11,6 +11,7 @@ const modules = {
   } } },
   '../lib/EffectiveVersions': { EffectiveVersions: { globalContent: () => 'previous', read: () => ({ Profiles: { 'one.yaml': {} } }),
     regionPlan: () => ({ mode: 'region', selector: 'main', assignments: {}, enable: false }) } },
+  '../lib/AppRuntime': { AppRuntime: { cancelRestore() {} } },
   '../lib/VpnController': { VpnStatus: { Disconnected: 0, Connected: 2 }, VpnController: { status: 0, needsStop: () => false, start: () => { starts++; return true; } } },
   '../lib/ProfileStore': { ProfileStore: { getActiveFile: () => active } },
   '../lib/ProfileTransactions': { ProfileTransactions: { activate: async () => { active = 'one.yaml'; return 'saved'; }, ensureActiveSmartPolicy: async () => {}, isBusy: () => transactionBusy,
@@ -67,7 +68,7 @@ function page() {
   lateNavigation.finishActivationNavigation(2, 1, 1, []);
   assert.equal(lateNavigation.tabJump, -1, 'activation completion cannot hide a newly opened protected editor');
   assert.equal(refreshed, 0); assert.equal(lateNavigation.showSheet, true);
-  const ready = page(); ready.showSheet = true; ready.sheetMode = 4; ready.importedFile = 'one.yaml';
+  const ready = page(); ready.showSheet = true; ready.sheetMode = 4; ready.importedFile = 'one.yaml'; ready.profiles = [{ file: 'one.yaml' }];
   pending = { kind: 'url', value: 'https://example.invalid/after-ready' };
   await ready.activateAndConnect();
   assert.equal(starts, 1, 'a queued share cannot cancel the current explicit connect decision');
