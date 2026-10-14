@@ -60,7 +60,7 @@ rules: ["MATCH,Main"]
 		t.Fatal("unrelated source update must rebase", err)
 	}
 	action.Original = strings.Replace(original, "port: 1080", "port: 2080", 1)
-	if _, err = executeVersionAction(home, action); err == nil {
+	if rejected, failure := executeVersionAction(home, action); failure == nil && (rejected.EditError == nil || rejected.EditError.Code != "conflict") {
 		t.Fatal("same-field update conflict accepted")
 	}
 	state, err := executeVersionAction(home, versionAction{Op: "read"})

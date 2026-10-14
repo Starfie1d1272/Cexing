@@ -3,7 +3,7 @@ import { ConfigEditor, EditableSnapshot, EditIntent, EditTarget } from './Config
 import { ProfileStore } from './ProfileStore';
 import { ProfileTransactions, EditTicket, ProfileApplyState } from './ProfileTransactions';
 import { MergePreview } from './CoreValidator';
-import { EffectiveVersions } from './EffectiveVersions';
+import { EffectiveVersions, RegionPlan } from './EffectiveVersions';
 
 /** UI session over the published #164/#172 APIs. Never writes a sidecar directly. */
 export class ProfileProxyEditorModel {
@@ -16,6 +16,7 @@ export class ProfileProxyEditorModel {
   private ticket: EditTicket | null = null;
   private original: string = '';
   private overlay: string = '';
+  private region: RegionPlan | undefined = undefined;
   private generation: number = 0;
   private history: Array<EditIntent | null> = [];
 
@@ -48,12 +49,18 @@ export class ProfileProxyEditorModel {
     if (original === null) { throw new Error('原始配置读取失败'); }
     const overlay = ProfileStore.getEnabledMerge(this.context, this.file);
     const draft = ProfileStore.readEditDraft(this.context, this.file);
-    const snapshot = await ConfigEditor.read(this.context, original, overlay, ticket.activeVersion);
+    const version = EffectiveVersions.read(this.context)?.Profiles[this.file];
+    const region = version === undefined ? undefined : EffectiveVersions.regionPlan(this.context, version) ?? undefined;
+    const baseline = draft.intent === null ? undefined : JSON.parse(JSON.stringify(draft.intent)) as EditIntent;
+    if (baseline !== undefined) { baseline.operations = []; baseline.disabled = false; }
+    const snapshot = await ConfigEditor.list(this.context, original, overlay, ticket.activeVersion,
+      undefined, baseline, region);
     if (request !== this.generation) { return false; }
     this.check(ticket);
     this.ticket = ticket;
     this.original = original;
     this.overlay = overlay;
+    this.region = region;
     this.snapshot = snapshot;
     this.intent = draft.intent;
     this.preview = null;
@@ -67,13 +74,19 @@ export class ProfileProxyEditorModel {
       JSON.parse(JSON.stringify(this.intent)) as EditIntent;
   }
 
+  private baseline(): EditIntent | undefined {
+    if (this.intent === null) { return undefined; }
+    const intent = this.workingIntent(); intent.operations = []; intent.disabled = false;
+    return intent;
+  }
+
   async target(section: string, id: string): Promise<EditTarget | null> {
     if (this.ticket === null || this.busy) { return null; }
     const request = ++this.generation;
     const ticket = this.ticket;
     this.check(ticket);
     const target = await ConfigEditor.target(this.context, this.original, this.overlay,
-      ticket.activeVersion, section, id);
+      ticket.activeVersion, section, id, undefined, this.baseline(), this.region);
     if (request !== this.generation) { return null; }
     this.check(ticket);
     return target;
@@ -87,6 +100,8 @@ export class ProfileProxyEditorModel {
     this.busy = true;
     this.preview = null;
     try {
+      if (request !== this.generation) { return false; }
+      this.check(ticket);
       const revision = await ProfileTransactions.saveEditDraft(this.context, ticket, intent);
       if (request !== this.generation) { return false; }
       // The next identity is derived from this request's acknowledged revision,

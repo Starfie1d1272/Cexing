@@ -85,13 +85,14 @@ export struct ProfileProxyEditorPage {
     const intent = model.workingIntent();
     const operations = intent.operations;
     this.disabled = intent.disabled === true;
+    this.missingRevision = model.snapshot.missingFieldRevision;
     let rows: ProxyEditorRow[] = [];
     const items = model.snapshot.sections.find((part) => part.section === this.section)?.items ?? [];
     for (let index = 0; index < items.length; index++) {
       const item = items[index];
       const renamed = operations.find((op: EditOperation) => op.kind === 'rename' && op.target === item.id);
       const deleted = operations.some((op: EditOperation) => op.kind === 'delete' && op.target === item.id);
-      if (!deleted) { rows.push(new ProxyEditorRow(item.id, renamed?.name ?? this.labels[item.id] ??
+      if (!deleted) { rows.push(new ProxyEditorRow(item.id, renamed?.name ?? item.name ?? this.labels[item.id] ??
         `${item.type ?? '项目'} ${index + 1}`, item.type ?? '', false)); }
     }
     for (const op of operations.filter((entry: EditOperation) => entry.section === this.section)) {
@@ -116,7 +117,7 @@ export struct ProfileProxyEditorPage {
       for (const item of part.items) {
         if (operations.some((op: EditOperation) => op.kind === 'delete' && op.target === item.id)) { continue; }
         const renamed = operations.find((op: EditOperation) => op.kind === 'rename' && op.target === item.id);
-        const name = renamed?.name ?? this.labels[item.id];
+        const name = renamed?.name ?? item.name ?? this.labels[item.id];
         if (name === undefined) { continue; }
         if (part.section === 'proxy-providers') { providers.push(name); } else { names.push(name); }
       }
@@ -141,7 +142,7 @@ export struct ProfileProxyEditorPage {
         const operation = intent.operations.find((op: EditOperation) => op.id === row.id);
         if (operation?.value === undefined) { return; }
         this.selectedAdd = row.id; this.originalTarget = null;
-        this.formTarget = { item: { id: row.id, revision: '' }, name: operation.name, value: operation.value };
+        this.formTarget = { item: { id: row.id, revision: '' }, missingFieldRevision: this.missingRevision, name: operation.name, value: operation.value };
       } else {
         const target = await this.model.target(this.section, row.id);
         if (!this.current(epoch) || target === null) { return; }
