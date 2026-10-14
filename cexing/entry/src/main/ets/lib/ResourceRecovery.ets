@@ -38,7 +38,7 @@ export class ResourceRecovery {
         }
       } else if (id === 'model') {
         const result = await SmartModelAssets.prepare(context);
-        if (result.state !== 'ready') { throw new Error('模型恢复失败，请检查安装包与可用空间'); }
+        if (result.state !== 'ready' || (await SmartModelAssets.inspect(context)).state !== 'ready') { throw new Error('模型恢复失败，请检查安装包与可用空间'); }
       } else if (id === 'panel') {
         const result = await ZashboardAssets.prepare(context);
         if (result.directory === '' || result.fallback) { throw new Error('面板恢复失败，已保留可用版本'); }

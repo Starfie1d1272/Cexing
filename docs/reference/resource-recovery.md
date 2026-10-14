@@ -4,13 +4,13 @@
 
 GeoData 从受信安装包读取；构建阶段 `prepare-geodata.py` 核验上游公开大小和 SHA-256 并记录来源身份。运行时比较入包与已安装文件的摘要，暂存文件写入/fsync 后重新读取核验，再原子 rename。写入、校验、取消、连接状态变化或发布失败均保留原文件。路径固定在应用私有目录，拒绝符号链接。无需在线下载，因此离线和下载取消不会损坏资源。
 
-恢复入口应在内核已停止时使用。`canRestore` 在排队后调用，GeoData 在提交前再次调用；模型和面板复用其原有安装事务。取消令牌阻止排队中的操作；GeoData 支持提交前取消。模型/面板一旦进入既有安装器，完成的是其原子安装事务，页面返回仅忽略旧结果，不宣称已经撤销提交。资源不改变正在运行的模型或 Controller；下次启动采用恢复资源。
+恢复入口应在内核已停止时使用。`canRestore` 在排队后调用，GeoData 在提交前再次调用；模型和面板复用其原有安装事务。模型准备同进程串行并使用私有文件锁；暂存和发布后均重新检查固定大小/SHA，失败恢复旧路径并清理暂存。恢复服务再确认最终目标经校验可用，不能仅信任安装器的 ready 返回。取消令牌阻止排队中的操作；GeoData 支持提交前取消。模型/面板一旦进入既有安装器，完成的是其原子安装事务，页面返回仅忽略旧结果，不宣称已经撤销提交。资源不改变正在运行的模型或 Controller；下次启动采用恢复资源。
 
 ## 页面接线契约
 
 UI 整合者导入 `ResourceRecoveryPage`，在高级设置提供“资源”入口，在对应 NavDestination 中渲染此组件。传入 `visible` 状态，并在 NavDestination 的 onShown/onHidden 更新它，覆盖导航缓存与页面切换。组件使用 `NativeTheme`；没有自行注册路由或更改 SettingsPage。列表显示状态与恢复操作，失败显示短反馈。重复点击、返回/重开和旧异步结果由页面 epoch 与服务队列保护。
 
-GeoData 铺盘整合者可在既有资源准备处调用：
+`CoreValidator.ensureGeoData` 与 VPN Extension 的 `seedGeoData` 已接入相同服务，替换原先只检查非空的路径：
 
 ```typescript
 if (await GeoDataAssets.inspect(context) !== 'ready') {

@@ -40,10 +40,10 @@ vm.runInNewContext(ts.transpileModule(source).outputText, sandbox);
   await page.restore('model'); assert.equal(page.message, '已恢复');
 
   // Exercise the real service: queued cancellation, stop gate and last-good failure.
-  let finish = deferred(), restores = 0;
+  let finish = deferred(), restores = 0, modelReady = false;
   const assets = {
     './GeoDataAssets': { GeoDataAssets: { inspect: async () => 'ready', restore: async () => { restores++; await finish.promise; } } },
-    './SmartModelAssets': { SmartModelAssets: { inspect: async () => ({ state: 'missing' }), prepare: async () => ({ state: 'invalid' }) } },
+    './SmartModelAssets': { SmartModelAssets: { inspect: async () => ({ state: 'missing' }), prepare: async () => ({ state: modelReady ? 'ready' : 'invalid' }) } },
     './ZashboardAssets': { ZashboardAssets: { inspect: async () => 'ready', prepare: async () => ({ directory: '/private/ui', fallback: true }) } }
   };
   const host = { exports: {}, require: n => assets[n] };
@@ -57,6 +57,8 @@ vm.runInNewContext(ts.transpileModule(source).outputText, sandbox);
   await assert.rejects(queued, /已取消/); assert.equal(restores, 1);
   await assert.rejects(service.restore({}, 'geodata', { cancelled: false }, () => false), /先断开/);
   await assert.rejects(service.restore({}, 'model', { cancelled: false }, () => true), /恢复失败/);
+  modelReady = true;
+  await assert.rejects(service.restore({}, 'model', { cancelled: false }, () => true), /恢复失败/, 'ready return without verified final target must fail');
   await assert.rejects(service.restore({}, 'panel', { cancelled: false }, () => true), /保留可用版本/);
   console.log('PASS: recovery stop gate, queued cancellation, last-good failures, repeat click, return/reopen and stale result');
 })().catch(e => { console.error(e); process.exitCode = 1; });
