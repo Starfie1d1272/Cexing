@@ -1,3 +1,4 @@
+const { resourceContext } = require('./ci/mock-profile-resources.cjs');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
@@ -24,9 +25,11 @@ class Model {
 }
 const editorExports = { exports: {}, require: () => ({}) };
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('cexing/entry/src/main/ets/lib/ConfigEditor.ets', 'utf8')).outputText, editorExports);
-const sandbox = { exports: {}, getContext: () => ({}), AlertDialog: { show: value => { dialog = value; } },
+const textBox = { exports: {} };
+vm.runInNewContext(ts.transpileModule(fs.readFileSync('cexing/entry/src/main/ets/lib/ProxyEditorText.ets', 'utf8')).outputText, textBox);
+const sandbox = { exports: {}, getContext: () => resourceContext(), AlertDialog: { show: value => { dialog = value; } },
   require: name => name.includes('ProfileProxyEditorModel') ? { ProfileProxyEditorModel: Model } :
-    name.includes('ConfigEditor') ? editorExports.exports : name.includes('ProxyProviderStatus') ?
+    name.includes('ProxyEditorText') ? textBox.exports : name.includes('ConfigEditor') ? editorExports.exports : name.includes('ProxyProviderStatus') ?
       { ProxyProviderStatus: { observe: () => { observations++; return new Promise(resolve => { finishObservation = resolve; }); } } } : {} };
 vm.runInNewContext(ts.transpileModule(code).outputText, sandbox);
 const Page = sandbox.exports.ProfileProxyEditorPage;

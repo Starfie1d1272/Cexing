@@ -81,15 +81,15 @@ struct Index {
     } else if (name === 'profileDetail') {
       NavDestination() { ProfilePage({ detailFile: ProfileDetailBus.current }) }.title('订阅详情')
     } else if (name === 'profileTemplate') {
-      NavDestination() { ProfileTemplatePage({ visible: this.templateVisible }) }.title('分流方案')
+      NavDestination() { ProfileTemplatePage({ visible: this.templateVisible }) }.title($r('app.string.proxy_editor_template_title'))
         .onShown(() => { this.templateVisible = true; })
         .onHidden(() => { this.templateVisible = false; })
     } else if (name === 'profileProxyEditor') {
-      NavDestination() { ProfileProxyEditorPage({ visible: this.proxyEditorVisible }) }.title('节点与策略组')
+      NavDestination() { ProfileProxyEditorPage({ visible: this.proxyEditorVisible }) }.title($r('app.string.proxy_editor_title'))
         .onShown(() => { this.proxyEditorVisible = true; })
         .onHidden(() => { this.proxyEditorVisible = false; })
     } else if (name === 'ruleDnsEditor') {
-      NavDestination() { RuleDnsEditorPage({ visible: this.ruleDnsVisible }) }.title('规则与 DNS')
+      NavDestination() { RuleDnsEditorPage({ visible: this.ruleDnsVisible }) }.title($r('app.string.proxy_editor_rules_title'))
         .onShown(() => { this.ruleDnsVisible = true; })
         .onHidden(() => { this.ruleDnsVisible = false; })
     } else if (name === 'profileMerge') {

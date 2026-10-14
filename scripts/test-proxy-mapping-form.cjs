@@ -1,3 +1,4 @@
+const { resourceContext } = require('./ci/mock-profile-resources.cjs');
 // Transient mapping forms use synthetic credentials. No persistence or device claim.
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -50,8 +51,10 @@ const importBox = { exports: {}, require: () => ({ util: {
   TextDecoder: { create: (_encoding, options) => ({ decodeToString: value => new TextDecoder('utf-8', options).decode(value) }) }
 } }) };
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('cexing/entry/src/main/ets/lib/ProxyNodeImport.ets', 'utf8')).outputText, importBox);
-const sandbox = { exports: {}, require: name => name.includes('ProxyMappingForm') ? modelExports :
-  name.includes('ProxyNodeImport') ? importBox.exports : {} };
+const textBox = { exports: {} };
+vm.runInNewContext(ts.transpileModule(fs.readFileSync('cexing/entry/src/main/ets/lib/ProxyEditorText.ets', 'utf8')).outputText, textBox);
+const sandbox = { exports: {}, getContext: () => resourceContext(), require: name => name.includes('ProxyMappingForm') ? modelExports :
+  name.includes('ProxyNodeImport') ? importBox.exports : name.includes('ProxyEditorText') ? textBox.exports : {} };
 vm.runInNewContext(ts.transpileModule(pageSource).outputText, sandbox);
 (async () => {
   const imported = new sandbox.exports.ProxyMappingFormPage(); imported.aboutToAppear();

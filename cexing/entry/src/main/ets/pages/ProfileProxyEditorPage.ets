@@ -1,3 +1,4 @@
+import { ProxyEditorText } from '../lib/ProxyEditorText';
 import { common } from '@kit.AbilityKit';
 import { util } from '@kit.ArkTS';
 import { promptAction } from '@kit.ArkUI';
@@ -35,7 +36,7 @@ export struct ProfileProxyEditorPage {
   @State rows: ProxyEditorRow[] = [];
   @State query: string = '';
   @State sourceKey: string = 'all';
-  @State sourceLabel: string = '全部来源';
+  @State sourceLabel: string = '';
   @State sourceChoices: ProxySourceChoice[] = [];
   @State sourceNodes: ProxyProviderNode[] = [];
   @State sourceCount: number = 0;
@@ -61,6 +62,10 @@ export struct ProfileProxyEditorPage {
   private epoch: number = 0;
   private active: boolean = false;
 
+  private t(name: string, first?: string | number, second?: string | number, third?: string | number): string {
+    return ProxyEditorText.text(getContext(this) as common.UIAbilityContext, name, first, second, third);
+  }
+
   aboutToAppear(): void {
     this.file = ProfileProxyEditorBus.file;
     this.model = new ProfileProxyEditorModel(getContext(this) as common.UIAbilityContext, this.file);
@@ -78,7 +83,7 @@ export struct ProfileProxyEditorPage {
   private async load(): Promise<void> {
     if (this.model === null) { return; }
     const epoch = ++this.epoch; this.busy = true;
-    this.sourceKey = 'all'; this.sourceLabel = '全部来源'; this.sourceNodes = []; this.sourceReady = false;
+    this.sourceKey = 'all'; this.sourceLabel = this.t('proxy_editor_all_sources'); this.sourceNodes = []; this.sourceReady = false;
     try {
       if (await this.model.load() && this.current(epoch)) {
         const snapshot = this.model.snapshot;
@@ -89,7 +94,7 @@ export struct ProfileProxyEditorPage {
         this.sync(); this.error = '';
       }
     }
-    catch (_) { if (this.current(epoch)) { this.error = '配置读取失败，请重试'; } }
+    catch (_) { if (this.current(epoch)) { this.error = this.t('proxy_editor_load_failed'); } }
     finally { if (this.current(epoch)) { this.busy = false; } }
   }
 
@@ -107,12 +112,12 @@ export struct ProfileProxyEditorPage {
       const renamed = operations.find((op: EditOperation) => op.kind === 'rename' && op.target === item.id);
       const deleted = operations.some((op: EditOperation) => op.kind === 'delete' && op.target === item.id);
       if (!deleted) { rows.push(new ProxyEditorRow(item.id, renamed?.name ?? item.name ?? this.labels[item.id] ??
-        `${item.type ?? '项目'} ${index + 1}`, item.type ?? '', false)); }
+        `${item.type ?? this.t('proxy_editor_item')} ${index + 1}`, item.type ?? '', false)); }
     }
     for (const op of operations.filter((entry: EditOperation) => entry.section === this.section)) {
       if (op.kind === 'add') {
         const value = op.value as Record<string, Object>;
-        const row = new ProxyEditorRow(op.id, op.name ?? String(value['name'] ?? '新增'), String(value['type'] ?? ''), true);
+        const row = new ProxyEditorRow(op.id, op.name ?? String(value['name'] ?? this.t('proxy_editor_add')), String(value['type'] ?? ''), true);
         const before = rows.findIndex((entry: ProxyEditorRow) => entry.id === op.before);
         rows.splice(before < 0 ? rows.length : before, 0, row);
       } else if (op.kind === 'move') {
@@ -124,8 +129,8 @@ export struct ProfileProxyEditorPage {
       }
     }
     this.rows = rows;
-    const choices: ProxySourceChoice[] = [new ProxySourceChoice('all', '全部来源'),
-      new ProxySourceChoice('raw', '订阅原文'), new ProxySourceChoice('custom', '自定义')];
+    const choices: ProxySourceChoice[] = [new ProxySourceChoice('all', this.t('proxy_editor_all_sources')),
+      new ProxySourceChoice('raw', this.t('proxy_editor_original')), new ProxySourceChoice('custom', this.t('proxy_editor_custom'))];
     const sources = model.snapshot.sections.find((part) => part.section === 'proxy-providers')?.items ?? [];
     for (const item of sources) {
       const name = operations.find((op: EditOperation) => op.kind === 'rename' && op.target === item.id)?.name ?? item.name;
@@ -134,11 +139,11 @@ export struct ProfileProxyEditorPage {
       }
     }
     for (const operation of operations.filter((entry: EditOperation) => entry.kind === 'add' && entry.section === 'proxy-providers')) {
-      choices.push(new ProxySourceChoice(`added:${operation.id}`, operation.name ?? '新增来源'));
+      choices.push(new ProxySourceChoice(`added:${operation.id}`, operation.name ?? this.t('proxy_editor_new_source')));
     }
     this.sourceChoices = choices;
     if (!choices.some((choice) => choice.key === this.sourceKey)) { this.sourceKey = 'all'; }
-    this.sourceLabel = choices.find((choice) => choice.key === this.sourceKey)?.value ?? '全部来源';
+    this.sourceLabel = choices.find((choice) => choice.key === this.sourceKey)?.value ?? this.t('proxy_editor_all_sources');
     const names: string[] = [];
     const providers: string[] = [];
     for (const part of model.snapshot.sections) {
@@ -159,7 +164,9 @@ export struct ProfileProxyEditorPage {
     this.names = names; this.providers = providers;
     this.previewReady = model.preview !== null;
     this.renameReferences = this.previewReady && operations.some((op: EditOperation) => op.kind === 'rename');
-    this.previewText = model.preview?.changes.map((change) => `${change.section} ${change.before} → ${change.after}`).join(' · ') ?? '';
+    const sectionNames: Record<string, string> = { 'proxies': 'proxy_editor_nodes', 'proxy-groups': 'proxy_editor_groups', 'proxy-providers': 'proxy_editor_sources' };
+    this.previewText = model.preview?.changes.map((change) => this.t('proxy_editor_change_count',
+      this.t(sectionNames[change.section] ?? 'proxy_editor_config'), change.before, change.after)).join(' · ') ?? '';
   }
 
   private isProviderSource(): boolean { return this.sourceKey.startsWith('provider:') || this.sourceKey.startsWith('added:'); }
@@ -194,15 +201,15 @@ export struct ProfileProxyEditorPage {
     const item: EditableItem = source ?? { id: id, revision: '' };
     const target: EditTarget = { item: item, name: source?.name ?? added?.name, missingFieldRevision: this.missingRevision, value: value };
     const name = this.model.publishedProviderName(target, choice.key.startsWith('added:'));
-    if (name === '') { this.error = '此来源尚未应用'; return; }
+    if (name === '') { this.error = this.t('proxy_editor_source_not_applied'); return; }
     const epoch = ++this.epoch; this.busy = true;
     try {
       const observation = await ProxyProviderStatus.observe(getContext(this) as common.UIAbilityContext,
         this.file, this.model.profileVersion(), name, false);
       if (!this.current(epoch)) { return; }
       this.sourceNodes = observation.nodes; this.sourceCount = observation.count;
-      this.sourceReady = observation.available; this.error = observation.error;
-    } catch (_) { if (this.current(epoch)) { this.error = '来源节点读取失败，请重试'; } }
+      this.sourceReady = observation.available; this.error = ProxyEditorText.failure(getContext(this) as common.UIAbilityContext, observation.error);
+    } catch (_) { if (this.current(epoch)) { this.error = this.t('proxy_editor_source_nodes_failed'); } }
     finally { if (this.current(epoch)) { this.busy = false; } }
   }
 
@@ -235,7 +242,7 @@ export struct ProfileProxyEditorPage {
         this.formTarget = projected;
       }
       if (this.current(epoch)) { this.formOpen = true; this.error = ''; }
-    } catch (_) { if (this.current(epoch)) { this.error = '项目读取失败，请重试'; } }
+    } catch (_) { if (this.current(epoch)) { this.error = this.t('proxy_editor_item_failed'); } }
     finally { if (this.current(epoch)) { this.busy = false; } }
   }
 
@@ -245,35 +252,35 @@ export struct ProfileProxyEditorPage {
     const epoch = ++this.epoch; this.busy = true;
     try {
       const name = this.model.publishedProviderName(target, this.selectedAdd !== '');
-      if (name === '') { this.error = '此来源尚未应用'; return; }
+      if (name === '') { this.error = this.t('proxy_editor_source_not_applied'); return; }
       const observation = await ProxyProviderStatus.observe(getContext(this) as common.UIAbilityContext,
         this.file, this.model.profileVersion(), name, update);
       if (!this.current(epoch)) { return; }
-      this.providerState = observation.available ? `已加载 ${observation.count} 个节点` +
+      this.providerState = observation.available ? this.t('proxy_editor_loaded_count', observation.count) +
         (observation.updatedAt > 0 ? ` · ${new Date(observation.updatedAt).toLocaleString()}` : '') : '';
-      this.error = observation.error;
+      this.error = ProxyEditorText.failure(getContext(this) as common.UIAbilityContext, observation.error);
       if (observation.refreshed && observation.available) {
-        promptAction.showToast({ message: '来源已更新', duration: 1800 });
+        promptAction.showToast({ message: this.t('proxy_editor_source_updated'), duration: 1800 });
       }
-    } catch (_) { if (this.current(epoch)) { this.error = '来源状态读取失败，请重试'; } }
+    } catch (_) { if (this.current(epoch)) { this.error = this.t('proxy_editor_source_status_failed'); } }
     finally { if (this.current(epoch)) { this.busy = false; } }
   }
 
   private add(): void {
     if (this.busy) { return; }
-    if (this.section === 'proxies') { this.sourceKey = 'custom'; this.sourceLabel = '自定义'; }
+    if (this.section === 'proxies') { this.sourceKey = 'custom'; this.sourceLabel = this.t('proxy_editor_custom'); }
     this.originalTarget = null; this.formTarget = null; this.selectedAdd = ''; this.formOpen = true;
   }
 
   private previewFailure(intent: EditIntent, error: Error): string {
     const failure = error instanceof EditIntentFailure ? error as EditIntentFailure : null;
     const operation = failure !== null ? intent.operations[failure.operation] : intent.operations[intent.operations.length - 1];
-    if (failure?.code === 'missing_target') { return '项目已变化，请重新读取或撤销修改'; }
-    if (failure?.code === 'conflict') { return '修改与订阅存在冲突，请重新读取或撤销'; }
-    if (operation?.section === 'proxy-groups') { return '策略组未通过预览，请检查组成员和来源，或撤销修改'; }
-    if (operation?.section === 'proxy-providers') { return '来源未通过预览，请检查链接、路径或节点内容'; }
-    if (operation?.section === 'proxies') { return '节点未通过预览，请检查参数或撤销修改'; }
-    return '预览未通过，请检查修改或撤销';
+    if (failure?.code === 'missing_target') { return this.t('proxy_editor_item_changed'); }
+    if (failure?.code === 'conflict') { return this.t('proxy_editor_conflict'); }
+    if (operation?.section === 'proxy-groups') { return this.t('proxy_editor_group_invalid'); }
+    if (operation?.section === 'proxy-providers') { return this.t('proxy_editor_source_invalid'); }
+    if (operation?.section === 'proxies') { return this.t('proxy_editor_node_invalid'); }
+    return this.t('proxy_editor_preview_invalid');
   }
 
   private async save(next: EditIntent): Promise<void> {
@@ -283,7 +290,7 @@ export struct ProfileProxyEditorPage {
       const ready = await this.model.save(next);
       if (!this.current(epoch)) { return; }
       this.sync(); this.formOpen = false;
-      this.error = ready ? '' : '预览未完成，请重试';
+      this.error = ready ? '' : this.t('proxy_editor_preview_failed');
     } catch (error) {
       if (this.current(epoch)) { this.sync(); this.error = this.previewFailure(next, error as Error); }
     } finally { if (this.current(epoch)) { this.busy = false; } }
@@ -305,9 +312,9 @@ export struct ProfileProxyEditorPage {
     if (this.busy || this.model === null) { return; }
     const epoch = ++this.epoch;
     let used = false;
-    AlertDialog.show({ title: '删除项目？', message: row.label,
-      primaryButton: { value: '取消', action: () => { used = true; } },
-      secondaryButton: { value: '删除', action: async () => {
+    AlertDialog.show({ title: this.t('proxy_editor_delete_confirm'), message: row.label,
+      primaryButton: { value: this.t('proxy_editor_cancel'), action: () => { used = true; } },
+      secondaryButton: { value: this.t('proxy_editor_delete'), action: async () => {
         if (used || !this.current(epoch) || this.busy || this.model === null) { return; }
         used = true;
         const intent = this.model.workingIntent();
@@ -319,7 +326,7 @@ export struct ProfileProxyEditorPage {
             if (!this.current(epoch) || target === null) { return; }
             this.busy = false;
             await this.save(ProxyIntentEdits.remove(intent, this.section, target, util.generateRandomUUID(true)));
-          } catch (_) { if (this.current(epoch)) { this.error = '删除未完成，请重试'; } }
+          } catch (_) { if (this.current(epoch)) { this.error = this.t('proxy_editor_delete_failed'); } }
           finally { if (this.current(epoch)) { this.busy = false; } }
         }
       } } });
@@ -368,10 +375,10 @@ export struct ProfileProxyEditorPage {
       const choices = await this.model.smartChoices();
       if (!this.current(epoch) || choices === null) { return; }
       const choice = choices.find((entry) => entry.choiceId === row.id);
-      if (choice === undefined) { this.error = '此策略组不支持自动智能选择'; return; }
+      if (choice === undefined) { this.error = this.t('proxy_editor_smart_unsupported'); return; }
       const result = await promptAction.showDialog({ title: row.label,
-        message: '智能选择', buttons: [{ text: '跟随全局', color: $r('app.color.ui_muted') },
-          { text: '启用', color: $r('app.color.ui_accent_text') }, { text: '保持原类型', color: $r('app.color.ui_muted') }] });
+        message: this.t('proxy_editor_smart'), buttons: [{ text: this.t('proxy_editor_follow_global'), color: $r('app.color.ui_muted') },
+          { text: this.t('proxy_editor_enable'), color: $r('app.color.ui_accent_text') }, { text: this.t('proxy_editor_keep_type'), color: $r('app.color.ui_muted') }] });
       if (!this.current(epoch)) { return; }
       next = this.model.workingIntent();
       if (next.smartGroups === undefined) { next.smartGroups = {}; }
@@ -382,7 +389,7 @@ export struct ProfileProxyEditorPage {
       }
       else if (result.index === 1 || result.index === 2) { next.smartGroups[choice.choiceId] = result.index === 1; }
       else { next = null; }
-    } catch (_) { if (this.current(epoch)) { this.error = '智能选择读取失败，请重试'; } }
+    } catch (_) { if (this.current(epoch)) { this.error = this.t('proxy_editor_smart_failed'); } }
     finally { if (this.current(epoch)) { this.busy = false; } }
     if (next !== null && this.current(epoch)) { await this.save(next); }
   }
@@ -391,7 +398,7 @@ export struct ProfileProxyEditorPage {
     if (this.busy || this.model === null) { return; }
     const epoch = ++this.epoch; this.busy = true;
     try { await this.model.undo(); if (this.current(epoch)) { this.sync(); this.error = ''; } }
-    catch (_) { if (this.current(epoch)) { this.error = '撤销未完成，请重试'; } }
+    catch (_) { if (this.current(epoch)) { this.error = this.t('proxy_editor_undo_failed'); } }
     finally { if (this.current(epoch)) { this.busy = false; } }
   }
 
@@ -399,7 +406,7 @@ export struct ProfileProxyEditorPage {
     if (this.busy || this.model === null) { return; }
     const epoch = ++this.epoch; this.busy = true;
     try { await this.model.previewSaved(); if (this.current(epoch)) { this.sync(); this.error = ''; } }
-    catch (_) { if (this.current(epoch)) { this.previewReady = false; this.error = '预览未通过，请检查修改或撤销'; } }
+    catch (_) { if (this.current(epoch)) { this.previewReady = false; this.error = this.t('proxy_editor_preview_invalid'); } }
     finally { if (this.current(epoch)) { this.busy = false; } }
   }
 
@@ -410,10 +417,10 @@ export struct ProfileProxyEditorPage {
       const result = await this.model.apply();
       if (!this.current(epoch) || result === null) { return; }
       this.profileRevision++;
-      promptAction.showToast({ message: result === 'applied' ? '已应用' : '已保存', duration: 1800 });
+      promptAction.showToast({ message: result === 'applied' ? this.t('proxy_editor_applied') : this.t('proxy_editor_saved'), duration: 1800 });
       this.previewReady = false;
       this.load();
-    } catch (_) { if (this.current(epoch)) { this.error = '应用未完成，请检查配置或连接状态后重试'; } }
+    } catch (_) { if (this.current(epoch)) { this.error = this.t('proxy_editor_apply_failed'); } }
     finally { if (this.current(epoch)) { this.busy = false; } }
   }
 
@@ -422,8 +429,8 @@ export struct ProfileProxyEditorPage {
       if (this.formOpen) {
         if (this.section === 'proxy-providers' && (this.originalTarget !== null || this.selectedAdd !== '')) {
           Row({ space: 8 }) {
-            Button('查看状态').enabled(!this.busy).onClick(() => { this.provider(false); })
-            Button('更新来源').enabled(!this.busy).onClick(() => { this.provider(true); })
+            Button($r('app.string.proxy_editor_view_status')).constraintSize({ minHeight: 44 }).enabled(!this.busy).onClick(() => { this.provider(false); })
+            Button($r('app.string.proxy_editor_update_source')).constraintSize({ minHeight: 44 }).enabled(!this.busy).onClick(() => { this.provider(true); })
           }
           if (this.providerState !== '') { Text(this.providerState).fontSize(13).fontColor(UI.muted).width('100%') }
         }
@@ -431,21 +438,21 @@ export struct ProfileProxyEditorPage {
           onDraft: (draft: ProxyMappingDraft) => this.saveForm(draft), onCancel: () => { this.epoch++; this.model?.cancel(); this.formOpen = false; this.sourceNodes = []; this.sourceReady = false; this.busy = false; } }).layoutWeight(1)
       } else {
         Row({ space: 8 }) {
-          Button('节点').onClick(() => { this.section = 'proxies'; this.sync(); })
-          Button('订阅来源').onClick(() => { this.section = 'proxy-providers'; this.sync(); })
-          Button('策略组').onClick(() => { this.section = 'proxy-groups'; this.sync(); })
+          Button($r('app.string.proxy_editor_nodes')).constraintSize({ minHeight: 44 }).accessibilitySelected(this.section === 'proxies').onClick(() => { this.section = 'proxies'; this.sync(); })
+          Button($r('app.string.proxy_editor_sources')).constraintSize({ minHeight: 44 }).accessibilitySelected(this.section === 'proxy-providers').onClick(() => { this.section = 'proxy-providers'; this.sync(); })
+          Button($r('app.string.proxy_editor_groups')).constraintSize({ minHeight: 44 }).accessibilitySelected(this.section === 'proxy-groups').onClick(() => { this.section = 'proxy-groups'; this.sync(); })
         }.enabled(!this.busy)
-        if (this.disabled) { Text('修改已停用').fontSize(13).fontColor(UI.muted).width('100%') }
+        if (this.disabled) { Text($r('app.string.proxy_editor_edits_disabled')).fontSize(13).fontColor(UI.muted).width('100%') }
         if (this.section === 'proxies') {
-          Select(this.sourceChoices).value(this.sourceLabel).enabled(!this.busy)
+          Select(this.sourceChoices).accessibilityText($r('app.string.proxy_editor_source_picker')).constraintSize({ minHeight: 44 }).value(this.sourceLabel).enabled(!this.busy)
             .onSelect((index: number) => { this.chooseSource(index); })
         }
-        Search({ value: this.query, placeholder: '搜索' }).onChange((value: string) => { this.query = value; this.visibleCount = 100; })
+        Search({ value: this.query, placeholder: this.t('proxy_editor_search') }).onChange((value: string) => { this.query = value; this.visibleCount = 100; })
         if (this.section === 'proxies' && this.isProviderSource()) {
           Row({ space: 8 }) {
-            if (this.sourceReady) { Text(`已加载 ${this.sourceCount} 个节点`).fontSize(13).fontColor(UI.muted).layoutWeight(1) }
-            Button('来源设置').enabled(!this.busy).onClick(() => { this.editSelectedSource(); })
-            Button('刷新').enabled(!this.busy).onClick(() => { this.chooseSource(this.sourceChoices.findIndex((item) => item.key === this.sourceKey)); })
+            if (this.sourceReady) { Text(this.t('proxy_editor_loaded_count', this.sourceCount)).fontSize(13).fontColor(UI.muted).layoutWeight(1) }
+            Button($r('app.string.proxy_editor_source_settings')).constraintSize({ minHeight: 44 }).enabled(!this.busy).onClick(() => { this.editSelectedSource(); })
+            Button($r('app.string.proxy_editor_refresh')).constraintSize({ minHeight: 44 }).enabled(!this.busy).onClick(() => { this.chooseSource(this.sourceChoices.findIndex((item) => item.key === this.sourceKey)); })
           }
           List({ space: 8 }) {
             ForEach(this.sourceNodes.filter((node: ProxyProviderNode) => node.name.includes(this.query) || node.type.includes(this.query))
@@ -458,34 +465,34 @@ export struct ProfileProxyEditorPage {
           ForEach(this.shownRows(), (row: ProxyEditorRow) => {
             ListItem() {
               Row({ space: 8 }) {
-                Button(row.label).layoutWeight(1).onClick(() => { this.open(row); })
+                Button(row.label).constraintSize({ minHeight: 44 }).layoutWeight(1).onClick(() => { this.open(row); })
                 if (this.section === 'proxy-groups' && !row.added) {
-                  Button('智能选择').onClick(() => { this.smart(row); })
+                  Button($r('app.string.proxy_editor_smart')).constraintSize({ minHeight: 44 }).accessibilityText(this.t('proxy_editor_smart_named', row.label)).onClick(() => { this.smart(row); })
                 }
-                if (this.moveHandler() !== undefined) { Text('≡').fontSize(20).fontColor(UI.muted) }
-                Button('删除').onClick(() => { this.remove(row); })
+                if (this.moveHandler() !== undefined) { Text('≡').accessibilityLevel('no').fontSize(20).fontColor(UI.muted) }
+                Button($r('app.string.proxy_editor_delete')).constraintSize({ minHeight: 44 }).accessibilityText(this.t('proxy_editor_delete_named', row.label)).onClick(() => { this.remove(row); })
               }.enabled(!this.busy)
             }
           }, (row: ProxyEditorRow) => row.id).onMove(this.moveHandler())
         }.width('100%').layoutWeight(1).onReachEnd(() => { this.moreRows(); })
         }
-        Button('新增').width('100%').height(48).enabled(!this.busy).onClick(() => { this.add(); })
+        Button($r('app.string.proxy_editor_add')).constraintSize({ minHeight: 44 }).width('100%').constraintSize({ minHeight: 48 }).enabled(!this.busy).onClick(() => { this.add(); })
         Row({ space: 8 }) {
-          Button('撤销').enabled(!this.busy).onClick(() => { this.undo(); })
-          Button(this.disabled ? '启用修改' : '停用修改').enabled(!this.busy).onClick(() => {
+          Button($r('app.string.proxy_editor_undo')).constraintSize({ minHeight: 44 }).enabled(!this.busy).onClick(() => { this.undo(); })
+          Button(this.disabled ? this.t('proxy_editor_enable_edits') : this.t('proxy_editor_disable_edits')).constraintSize({ minHeight: 44 }).enabled(!this.busy).onClick(() => {
             if (this.model !== null) { const next = this.model.workingIntent(); next.disabled = !next.disabled; this.save(next); }
           })
-          if (!this.previewReady) { Button('预览').enabled(!this.busy).onClick(() => { this.inspect(); }) }
-          if (this.previewReady) { Button('应用').enabled(!this.busy).onClick(() => { this.apply(); }) }
+          if (!this.previewReady) { Button($r('app.string.proxy_editor_preview')).constraintSize({ minHeight: 44 }).enabled(!this.busy).onClick(() => { this.inspect(); }) }
+          if (this.previewReady) { Button($r('app.string.proxy_editor_apply')).constraintSize({ minHeight: 44 }).enabled(!this.busy).onClick(() => { this.apply(); }) }
         }
-        if (this.renameReferences) { Text('名称修改会同步更新引用').fontSize(13).fontColor(UI.muted).width('100%') }
+        if (this.renameReferences) { Text($r('app.string.proxy_editor_rename_refs')).fontSize(13).fontColor(UI.muted).width('100%') }
         if (this.previewText !== '') { Text(this.previewText).fontSize(13).fontColor(UI.muted) }
-        if (this.model?.snapshot === null && !this.busy) { Button('重试').onClick(() => { this.load(); }) }
+        if (this.model?.snapshot === null && !this.busy) { Button($r('app.string.proxy_editor_retry')).constraintSize({ minHeight: 44 }).onClick(() => { this.load(); }) }
       }
-      if (this.busy) { LoadingProgress().width(28).height(28) }
+      if (this.busy) { LoadingProgress().accessibilityText($r('app.string.proxy_editor_busy')).width(28).height(28) }
       if (this.error !== '') {
         Text(this.error).fontSize(14).fontColor(UI.error).width('100%')
-        Button('重新读取').enabled(!this.busy).onClick(() => { this.load(); })
+        Button($r('app.string.proxy_editor_reload')).constraintSize({ minHeight: 44 }).enabled(!this.busy).onClick(() => { this.load(); })
       }
     }.width('100%').height('100%').padding(16).backgroundColor(UI.paper)
   }
