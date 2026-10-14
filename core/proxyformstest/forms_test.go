@@ -4,10 +4,12 @@ import (
 	"bytes"
 	"context"
 	"core/configpipeline"
+	"encoding/base64"
 	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/metacubex/mihomo/config"
@@ -19,7 +21,7 @@ import (
 // Disposable process, synthetic loopback nodes and inline provider; no Start/network.
 func TestNativeProxyFormsReachCompilerAndParser(t *testing.T) {
 	if os.Getenv("CE_XING_PROXY_FORM_CHILD") != "1" {
-		for _, mode := range []string{"fields", "rename"} {
+		for _, mode := range []string{"fields", "rename", "link-ss", "link-vmess", "link-vless", "link-trojan"} {
 			t.Run(mode, func(t *testing.T) {
 				child := exec.Command(os.Args[0], "-test.run=^TestNativeProxyFormsReachCompilerAndParser$", "-test.v")
 				child.Env = append(os.Environ(), "CE_XING_PROXY_FORM_CHILD=1", "CE_XING_PROXY_FORM_MODE="+mode)
@@ -30,7 +32,8 @@ func TestNativeProxyFormsReachCompilerAndParser(t *testing.T) {
 		}
 		return
 	}
-	rename := os.Getenv("CE_XING_PROXY_FORM_MODE") == "rename"
+	mode := os.Getenv("CE_XING_PROXY_FORM_MODE")
+	rename := mode == "rename"
 	expectedName := "original-node"
 	if rename {
 		expectedName = "renamed-node"
@@ -60,8 +63,14 @@ x-top-level: {keep: true}
 		}
 		targets[section.Section] = target
 	}
+	links := map[string]string{
+		"link-ss":     "ss://aes-128-gcm:synthetic@127.0.0.1:443#Imported",
+		"link-vless":  "vless://00000000-0000-4000-8000-000000000001@127.0.0.1:443?encryption=none&type=ws&security=tls&path=%2Fsynthetic#Imported",
+		"link-trojan": "trojan://synthetic@127.0.0.1:443?security=tls#Imported",
+		"link-vmess":  "vmess://" + base64.StdEncoding.EncodeToString([]byte(`{"v":"2","ps":"Imported","add":"127.0.0.1","port":"443","id":"00000000-0000-4000-8000-000000000001","aid":"0","net":"grpc","path":"synthetic","tls":"tls"}`)),
+	}
 	input, _ := json.Marshal(map[string]any{"sourceRevision": snapshot.SourceRevision, "node": targets["proxies"],
-		"provider": targets["proxy-providers"], "missing": configpipeline.MissingFieldRevision(), "rename": rename})
+		"provider": targets["proxy-providers"], "missing": configpipeline.MissingFieldRevision(), "rename": rename, "link": links[mode]})
 	root, _ := filepath.Abs("../..")
 	command := exec.Command("node", "scripts/emit-proxy-form-fixture.cjs")
 	command.Dir = root
@@ -93,6 +102,15 @@ x-top-level: {keep: true}
 	}
 	if node["x-advanced"].(map[string]any)["keep"] != true || value["x-top-level"].(map[string]any)["keep"] != true {
 		t.Fatal("unknown fields were dropped")
+	}
+	if strings.HasPrefix(mode, "link-") {
+		nodes := value["proxies"].([]any)
+		if len(nodes) != 2 || nodes[1].(map[string]any)["name"] != "Imported" {
+			t.Fatal("imported node not published")
+		}
+		if nodes[1].(map[string]any)["type"] != strings.TrimPrefix(mode, "link-") {
+			t.Fatal("imported protocol changed")
+		}
 	}
 	groups := value["proxy-groups"].([]any)
 	if groups[0].(map[string]any)["proxies"].([]any)[0] != expectedName {

@@ -45,9 +45,24 @@ let pageSource = fs.readFileSync('cexing/entry/src/main/ets/pages/ProxyMappingFo
 pageSource = pageSource.slice(0, pageSource.indexOf('  @Builder')) + '\n}';
 pageSource = pageSource.split('\n').map(line => line.trimStart().startsWith('@') ?
   line.replace(/@\w+(?:\([^\n)]*\))?\s*/g, '') : line).join('\n').replace('export struct ', 'export class ');
-const sandbox = { exports: {}, require: name => name.includes('ProxyMappingForm') ? modelExports : {} };
+const importBox = { exports: {}, require: () => ({ util: {
+  Base64Helper: class { decodeSync(value) { return Uint8Array.from(Buffer.from(value, 'base64')); } },
+  TextDecoder: { create: (_encoding, options) => ({ decodeToString: value => new TextDecoder('utf-8', options).decode(value) }) }
+} }) };
+vm.runInNewContext(ts.transpileModule(fs.readFileSync('cexing/entry/src/main/ets/lib/ProxyNodeImport.ets', 'utf8')).outputText, importBox);
+const sandbox = { exports: {}, require: name => name.includes('ProxyMappingForm') ? modelExports :
+  name.includes('ProxyNodeImport') ? importBox.exports : {} };
 vm.runInNewContext(ts.transpileModule(pageSource).outputText, sandbox);
 (async () => {
+  const imported = new sandbox.exports.ProxyMappingFormPage(); imported.aboutToAppear();
+  let importedWrites = 0;
+  imported.onDraft = async draft => { importedWrites++; assert.equal(draft.value.password, 'synthetic'); };
+  imported.nodeLink = 'trojan://synthetic@127.0.0.1:443?security=tls#Imported'; imported.linkOpen = true;
+  imported.importLink(); assert.equal(importedWrites, 0, 'decoding only fills the transient form');
+  assert.equal(imported.type, 'trojan'); assert.equal(imported.nodeLink, ''); assert.equal(imported.linkOpen, false);
+  await imported.submit(); assert.equal(importedWrites, 1, 'explicit preview sends the normal draft callback');
+  imported.nodeLink = 'trojan://private@127.0.0.1:443?unknown=private'; imported.importLink();
+  assert.ok(!imported.error.includes('private')); assert.equal(importedWrites, 1);
   const page = new sandbox.exports.ProxyMappingFormPage(); page.target = node; page.aboutToAppear();
   let calls = 0, rejectPreview;
   page.onDraft = () => { calls++; return new Promise((_, reject) => { rejectPreview = reject; }); };

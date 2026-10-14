@@ -1,4 +1,5 @@
 import { EditTarget } from '../lib/ConfigEditor';
+import { ProxyNodeImport } from '../lib/ProxyNodeImport';
 import { ProxyMappingForm, ProxyMappingDraft } from '../lib/ProxyMappingForm';
 import { NativeTheme as UI } from './NativeTheme';
 
@@ -17,6 +18,8 @@ export struct ProxyMappingFormPage {
   @Prop providerNames: string[] = [];
   onDraft: (draft: ProxyMappingDraft) => Promise<void> = async () => {};
   onCancel: () => void = () => {};
+  @State linkOpen: boolean = false;
+  @State nodeLink: string = '';
   @State type: string = '';
   @State submitting: boolean = false;
   @State transport: string = '';
@@ -40,7 +43,17 @@ export struct ProxyMappingFormPage {
     this.providers = this.form.list('use');
   }
 
-  aboutToDisappear(): void { this.generation++; }
+  aboutToDisappear(): void { this.generation++; this.nodeLink = ''; }
+
+  private importLink(): void {
+    if (this.submitting || this.busy || this.section !== 'proxies' || this.target !== null) { return; }
+    try {
+      this.form.replaceAdvanced(JSON.stringify(ProxyNodeImport.parse(this.nodeLink)));
+      this.type = this.form.text('type'); this.transport = this.form.text('network');
+      this.reality = this.form.nestedText(['reality-opts', 'public-key']) !== '';
+      this.nodeLink = ''; this.linkOpen = false; this.error = '';
+    } catch (_) { this.error = '节点链接无效或包含暂不支持的参数，请检查或使用高级编辑'; }
+  }
 
   private types(): string[] {
     const supported = this.section === 'proxies' ? ['ss', 'vmess', 'vless', 'trojan'] :
@@ -185,6 +198,15 @@ export struct ProxyMappingFormPage {
             TextArea({ text: this.advancedText }).fontSize(14).fontFamily('HarmonyOS Sans Mono')
               .constraintSize({ minHeight: 320 }).onChange((value: string) => { this.advancedText = value; })
           } else {
+            if (this.section === 'proxies' && this.target === null) {
+              Button('从链接导入').backgroundColor(UI.soft).fontColor(UI.ink)
+                .onClick(() => { this.linkOpen = !this.linkOpen; })
+              if (this.linkOpen) {
+                TextInput({ text: this.nodeLink, placeholder: '节点链接' }).type(InputType.Password).maxLength(8192)
+                  .onChange((value: string) => { this.nodeLink = value; })
+                Button('读取').onClick(() => { this.importLink(); })
+              }
+            }
             this.Field('名称', 'name')
             Select(this.types().map((value: string) => new ProxyFormOption(value))).value(this.type)
               .onSelect((_, value: string) => { this.type = value; this.form.setText('type', value); })

@@ -3,7 +3,11 @@ const vm = require('node:vm');
 const ts = require('./ci/transpile-arkts.cjs');
 const input = JSON.parse(fs.readFileSync(0, 'utf8'));
 function load(file) {
-  const sandbox = { exports: {} };
+  const sandbox = { exports: {}, require: name => {
+    if (name !== '@kit.ArkTS') throw Error('unexpected fixture dependency');
+    return { util: { Base64Helper: class { decodeSync(value) { return Uint8Array.from(Buffer.from(value, 'base64')); } },
+      TextDecoder: { create: (_encoding, options) => ({ decodeToString: value => new TextDecoder('utf-8', options).decode(value) }) } } };
+  } };
   vm.runInNewContext(ts.transpileModule(fs.readFileSync(file, 'utf8')).outputText, sandbox);
   return sandbox.exports;
 }
@@ -20,4 +24,9 @@ intent = edits.mapping(intent, input.provider, provider.finish(), 'provider-chan
 const group = new Form('proxy-groups');
 group.setText('name', 'new-provider-only'); group.setText('type', 'select'); group.setList('use', ['source']);
 intent = edits.mapping(intent, null, group.finish(), 'group-add', input.missing);
+if (input.link) {
+  const { ProxyNodeImport } = load('cexing/entry/src/main/ets/lib/ProxyNodeImport.ets');
+  const imported = new Form('proxies'); imported.replaceAdvanced(JSON.stringify(ProxyNodeImport.parse(input.link)));
+  intent = edits.mapping(intent, null, imported.finish(), 'link-import', input.missing);
+}
 process.stdout.write(JSON.stringify(intent));
