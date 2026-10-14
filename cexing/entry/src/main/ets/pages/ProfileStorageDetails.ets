@@ -28,7 +28,7 @@ export struct ProfileStorageDetails {
       if (!this.active || generation !== this.generation) { return; }
       const report = EffectiveVersions.storageReport(context);
       if (report === null) { this.summary = ''; this.failure = '暂无统计，请重试'; return; }
-      this.summary = `${report.versions} 个版本 · ${(report.bytes / 1048576).toFixed(1)} MiB`;
+      this.summary = report.complete ? `${report.versions} 个版本 · ${(report.bytes / 1048576).toFixed(1)} MiB` : '';
       if (!report.complete) { this.failure = '暂无法整理，请稍后重试'; }
     } catch (_) {
       if (this.active && generation === this.generation) { this.failure = '暂无法统计，请稍后重试'; }
