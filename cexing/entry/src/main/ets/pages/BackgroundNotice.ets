@@ -11,7 +11,7 @@ export struct BackgroundNotice {
   @Prop @Watch('invalidate') status: VpnStatus = VpnStatus.Disconnected;
   @Prop @Watch('invalidate') visible: boolean = true;
   @Prop detailsOpen: boolean = false;
-  @State private background: BackgroundState = AppRuntime.backgroundState();
+  @State private backgroundObservation: BackgroundState = AppRuntime.backgroundState();
   @State private busy: boolean = false;
   @State private retryFailed: boolean = false;
   private active: boolean = false;
@@ -20,9 +20,9 @@ export struct BackgroundNotice {
 
   aboutToAppear(): void {
     this.active = true;
-    this.background = AppRuntime.backgroundState();
+    this.backgroundObservation = AppRuntime.backgroundState();
     this.off = AppRuntime.onBackgroundChanged((value: BackgroundState) => {
-      this.background = value;
+      this.backgroundObservation = value;
       if (!LiveViewKeeper.needsAttention(value)) { this.retryFailed = false; }
     });
   }
@@ -41,7 +41,7 @@ export struct BackgroundNotice {
   }
 
   private attention(): boolean {
-    return this.visible && this.status === VpnStatus.Connected && LiveViewKeeper.needsAttention(this.background);
+    return this.visible && this.status === VpnStatus.Connected && LiveViewKeeper.needsAttention(this.backgroundObservation);
   }
 
   private async retry(): Promise<void> {
@@ -61,18 +61,18 @@ export struct BackgroundNotice {
   }
 
   private taskLabel(): string {
-    if (this.background.task === 'active') { return '已获后台任务'; }
-    if (this.background.task === 'disabled') { return '后台运行已关闭'; }
-    if (this.background.task === 'requesting') { return '正在申请后台任务'; }
-    if (this.background.task === 'failed') { return '后台任务申请失败'; }
-    if (this.background.task === 'revoked') { return '系统已撤销后台任务'; }
-    if (this.background.task === 'user-stopped') { return '后台任务已由用户关闭'; }
-    return this.background.suspended ? '后台任务已暂停' : '后台任务尚未确认';
+    if (this.backgroundObservation.task === 'active') { return '已获后台任务'; }
+    if (this.backgroundObservation.task === 'disabled') { return '后台运行已关闭'; }
+    if (this.backgroundObservation.task === 'requesting') { return '正在申请后台任务'; }
+    if (this.backgroundObservation.task === 'failed') { return '后台任务申请失败'; }
+    if (this.backgroundObservation.task === 'revoked') { return '系统已撤销后台任务'; }
+    if (this.backgroundObservation.task === 'user-stopped') { return '后台任务已由用户关闭'; }
+    return this.backgroundObservation.suspended ? '后台任务已暂停' : '后台任务尚未确认';
   }
 
   private notificationLabel(): string {
-    return this.background.notification === 'ready' ? '实况窗已发布' :
-      (this.background.notification === 'failed' ? '实况窗发布失败' : '实况窗尚未确认');
+    return this.backgroundObservation.notification === 'ready' ? '实况窗已发布' :
+      (this.backgroundObservation.notification === 'failed' ? '实况窗发布失败' : '实况窗尚未确认');
   }
 
   build() {

@@ -5,6 +5,9 @@ const source = fs.readFileSync('cexing/entry/src/main/ets/pages/BackgroundNotice
 const methods = (source.slice(0, source.indexOf('  build()')) + '\n}').split('\n')
   .map(line => line.trimStart().startsWith('@') ? line.replace(/@\w+(?:\([^\n)]*\))?\s*/g, '') : line)
   .join('\n').replace('export struct ', 'export class ');
+const home = fs.readFileSync('cexing/entry/src/main/ets/pages/HomePage.ets', 'utf8');
+assert.match(home, /BackgroundNotice\(\{ status: this.status, visible: this.rootVisible && this.currentVisibleTab === 0 \}\)/);
+assert.ok(home.indexOf('BackgroundNotice({') < home.indexOf("Button(this.status === VpnStatus.Disconnected"), 'Feedback stays in scroll area above the bottom connection action');
 let state = { task: 'active', notification: 'ready', suspended: false }, observer, resolve, retries = 0, removed = 0;
 const modules = { './NativeTheme': {}, '../lib/VpnController': { VpnStatus: { Connected: 2, Disconnected: 0 } },
   '../lib/LiveViewKeeper': { LiveViewKeeper: { needsAttention: s => s.task === 'failed' || s.task === 'revoked' || s.suspended || s.notification === 'failed' } },
