@@ -50,10 +50,11 @@ function compile(file, modules, extras = {}, page = false) {
         const n = Math.min(17001, chunk.byteLength, 9345218 - options.offset); offset = options.offset + n; return n;
       } } };
   const reader = compile('lib/BoundedFileReader.ets', { '@kit.CoreFileKit': fileKit, '@kit.ArkTS': {} });
-  const controller = { status: 2, onChanged() {}, offChanged() {} };
+  let statusListener, dialog;
+  const controller = { status: 2, onChanged(fn) { statusListener = fn; }, offChanged() { statusListener = undefined; } };
   const transactions = { setSmartAutoConvert: async () => 'applied' };
   const { SmartPage } = compile('pages/SmartPage.ets', {
-    '@kit.AbilityKit': {}, './NativeTheme': {}, '../lib/SmartModelRestart': { SmartModelRestart: {} },
+    '@kit.AbilityKit': {}, './NativeTheme': {}, '../lib/SmartModelRestart': { SmartModelRestart: { restart: async () => { controller.status = 0; statusListener(0); throw Error('应用重启失败'); } } },
     '../lib/Settings': { Settings: { load: () => ({ smartAutoConvert: true }) } },
     '../lib/ProfileTransactions': { ProfileTransactions: transactions },
     '../lib/BoundedFileReader': reader,
@@ -61,7 +62,7 @@ function compile(file, modules, extras = {}, page = false) {
     '../lib/CoreApi': { CoreApi: { getSmartStatus: async () => status,
       importSmartModel: async body => { assert.equal(body.byteLength, 9345218); uploaded++; return holdUpload ? new Promise(resolve => uploadResolve = resolve) : { installed: true, restartRequired: true }; } } },
     '@kit.CoreFileKit': fileKit
-  }, { setTimeout: fn => { timers.set(++timerID, fn); return timerID; }, clearTimeout: id => timers.delete(id) }, true);
+  }, { AlertDialog: { show: options => { dialog = options; } }, setTimeout: fn => { timers.set(++timerID, fn); return timerID; }, clearTimeout: id => timers.delete(id) }, true);
   let routes = ['smart'];
   const page = new SmartPage(); page.navStack = { getAllPathName: () => routes };
   page.visible = true; page.aboutToAppear();
@@ -101,6 +102,9 @@ function compile(file, modules, extras = {}, page = false) {
   uploadResolve({ installed: true, restartRequired: false }); await oldUpload;
   assert.equal(page.busy, true, 'Old upload completion cannot clear a newer toggle operation');
   convertResolve('applied'); await convert; assert.equal(page.busy, false);
+  page.confirmRestart(); dialog.secondaryButton.action(); await new Promise(setImmediate);
+  assert.equal(page.message, '应用重启失败', 'Intentional VPN stop during restart does not hide a real restart failure');
+  assert.equal(page.busy, false);
   status = null; await page.refresh(page.generation);
   assert.equal(page.ready, false); assert.equal(page.modelSummary, '尚未检查');
   page.aboutToDisappear();

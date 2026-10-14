@@ -182,7 +182,7 @@ export struct SmartPage {
         if (!this.current(generation) || this.busy) { return; }
         const operation = this.beginOperation();
         SmartModelRestart.restart(getContext(this) as common.UIAbilityContext).catch((error: Error) => {
-          if (this.ownsOperation(operation) && this.current(generation)) { this.message = error.message; }
+          if (this.ownsOperation(operation)) { this.message = error.message; }
         }).finally(() => { this.finishOperation(operation); });
       } }
     });
