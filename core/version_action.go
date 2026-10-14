@@ -170,7 +170,7 @@ func executeVersionAction(home string, action versionAction) (versionResponse, e
 			}
 			return versionResponse{}, errors.New("MERGE_PREVIEW_FAILED")
 		}
-		return versionResponse{MergePreview: &mergePreview{Digest: result.Digest, Changes: result.Changes}}, nil
+		return versionResponse{MergePreview: &mergePreview{Digest: result.Digest, Changes: result.Changes, PlatformChanges: result.PlatformChanges}}, nil
 	case "region-preview":
 		if action.RegionPlan == nil || len(action.Original) > maxConfigBytes || len(action.Overlay) > maxConfigBytes {
 			return versionResponse{}, errors.New("REGION_INVALID")
