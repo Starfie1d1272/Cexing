@@ -56,13 +56,18 @@ function fixture(bundled = model) {
 
 (async () => {
   const first = fixture();
+  assert.equal((await first.assets.inspect(first.context)).state, 'missing');
+  assert.equal(first.writes, 0, 'status must not install');
   assert.equal((await first.assets.prepare(first.context)).state, 'ready');
   assert.equal(hash(first.files.get('/private/Model.bin')), hash(model));
   assert.equal((await first.assets.prepare(first.context)).state, 'ready');
   assert.equal(first.writes, 1, 'Valid installed model should not be rewritten');
 
+  assert.equal((await first.assets.inspect(first.context)).state, 'ready');
   const damaged = fixture();
   damaged.files.set('/private/Model.bin', new Uint8Array([9, 9]));
+  assert.equal((await damaged.assets.inspect(damaged.context)).state, 'invalid');
+  assert.equal(damaged.writes, 0);
   assert.equal((await damaged.assets.prepare(damaged.context)).state, 'ready');
   assert.deepEqual(Array.from(damaged.files.get('/private/Model.bin.previous')), [9, 9]);
   assert.equal(hash(damaged.files.get('/private/Model.bin')), hash(model));

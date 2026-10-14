@@ -10,6 +10,15 @@ export interface SmartModelPreparation {
 
 // Installs only a reviewed packaged model, before Mihomo's first model load.
 export class SmartModelAssets {
+  static async inspect(context: common.Context): Promise<SmartModelPreparation> {
+    try {
+      const path = `${context.filesDir}/Model.bin`;
+      if (!fileIo.accessSync(path)) { return { state: 'missing', message: '未安装' }; }
+      return await SmartModelAssets.installed(path) ?
+        { state: 'ready', message: '可用' } : { state: 'invalid', message: '需要恢复' };
+    } catch (_) { return { state: 'invalid', message: '无法校验' }; }
+  }
+
   private static async digest(bytes: Uint8Array): Promise<string> {
     const md = cryptoFramework.createMd('SHA256');
     await md.update({ data: bytes });
