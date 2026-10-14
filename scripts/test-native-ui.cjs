@@ -410,6 +410,8 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   network.inputPkg='sample.app';network.addPackage();network.addPackage();assert.equal(networkSaved,1,'repeated tap cannot commit twice');
   network.showAddDialog=true;network.inputPkg='sample.other';network.cancelAddPackage();network.addPackage();
   assert.equal(networkSaved,1,'cancel/hidden sheet retains existing scope');assert.equal(network.inputPkg,'');
+  network.showAddDialog=true;network.inputPkg='sample.late';network.showRouteDetails=true;network.aboutToDisappear();network.addPackage();
+  assert.equal(networkSaved,1,'page exit blocks queued add');assert.equal(network.showRouteDetails,false);
   const returned = new Network();returned.aboutToAppear();assert.deepEqual(Array.from(returned.accessList),['sample.app']);
   console.log('PASS: native page traffic, one-tap stop, bounded diagnosis, transaction activation/navigation identity, import retry, draft persistence and active-delete guard');
 })().catch(error => { console.error(error); process.exit(1); });
