@@ -197,7 +197,8 @@ export struct HomePage {
     const ctx = getContext(this) as common.UIAbilityContext;
     const settings = Settings.load(ctx);
     settings.mode = next;
-    Settings.save(ctx, settings);
+    try { await Settings.save(ctx, settings, ['mode']); }
+    catch (_) { promptAction.showToast({ message: '模式已切换，保存失败，请重试' }); }
   }
 
   private label(): string {

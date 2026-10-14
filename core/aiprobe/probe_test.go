@@ -115,7 +115,7 @@ func TestDirectedListenerAndLifecycle(t *testing.T) {
 		io.WriteString(w, "ChatGPT Claude Gemini")
 	}))
 	a, wrong, selected := localGroup(t, server.Listener.Addr().String())
-	lease, err := newSession("AI", tunnel.Tunnel, officialHosts)
+	lease, err := newSession("AI", tunnel.Proxies()["AI"], officialHosts)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -131,13 +131,21 @@ func TestDirectedListenerAndLifecycle(t *testing.T) {
 	if a.count.Load() != 3 || wrong.count.Load() != 0 || selected.Now() != "selected-node" {
 		t.Fatal("wrong routing or selection changed")
 	}
-	// No implicit direct fallback when the bound group disappears.
+	// A new lease cannot bind a missing group. Drain the previous listener
+	// before replacing this fixture's global registry.
+	lease.close()
+	transport.CloseIdleConnections()
 	tunnel.UpdateProxies(map[string]C.Proxy{"DIRECT": adapter.NewProxy(wrong)}, nil)
-	fail := probe(context.Background(), client, official[0])
-	if fail.State == "reachable" || wrong.count.Load() != 0 {
+	if _, err := newSession("AI", tunnel.Proxies()["AI"], officialHosts); err == nil || wrong.count.Load() != 0 {
 		t.Fatal("missing group fell through")
 	}
 	a, wrong, selected = localGroup(t, server.Listener.Addr().String())
+	lease, err = newSession("AI", tunnel.Proxies()["AI"], officialHosts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	client, transport = lease.client()
+	transport.TLSClientConfig = &tls.Config{RootCAs: roots}
 	// TLS verification is active, not bypassed merely because proxying succeeded.
 	untrusted, untrustedTransport := lease.client()
 	if result := probe(context.Background(), untrusted, official[0]); result.State == "reachable" {
@@ -181,7 +189,7 @@ func TestDirectedListenerAndLifecycle(t *testing.T) {
 	var current atomic.Bool
 	current.Store(true)
 	status.Store(429)
-	results, err := manager.Check(context.Background(), id, tunnel.Tunnel, current.Load, false)
+	results, err := manager.Check(context.Background(), id, tunnel.Proxies()["AI"], current.Load, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -191,7 +199,7 @@ func TestDirectedListenerAndLifecycle(t *testing.T) {
 		}
 	}
 	before := a.count.Load()
-	_, err = manager.Check(context.Background(), id, tunnel.Tunnel, current.Load, true)
+	_, err = manager.Check(context.Background(), id, tunnel.Proxies()["AI"], current.Load, true)
 	if err != nil || a.count.Load() != before {
 		t.Fatal("manual retry bypassed backoff", err)
 	}
@@ -200,15 +208,20 @@ func TestDirectedListenerAndLifecycle(t *testing.T) {
 	oldAt := results[0].At
 	manager.cache[id] = cacheEntry{results: results, expires: time.Now().Add(-time.Second)}
 	status.Store(200)
-	fresh, err := manager.Check(context.Background(), id, tunnel.Tunnel, current.Load, false)
+	fresh, err := manager.Check(context.Background(), id, tunnel.Proxies()["AI"], current.Load, false)
 	if err != nil || !fresh[0].At.After(oldAt) || a.count.Load() <= before {
 		t.Fatal("expired cache reused", err)
+	}
+	beforeEpoch := a.count.Load()
+	id.Runtime++
+	if _, err := manager.Check(context.Background(), id, tunnel.Proxies()["AI"], current.Load, false); err != nil || a.count.Load() <= beforeEpoch {
+		t.Fatal("successful runtime reapply reused previous runtime cache", err)
 	}
 	hold.Store(true)
 	id.Revision = "version-next"
 	finished := make(chan error, 1)
 	go func() {
-		_, err := manager.Check(context.Background(), id, tunnel.Tunnel, current.Load, false)
+		_, err := manager.Check(context.Background(), id, tunnel.Proxies()["AI"], current.Load, false)
 		finished <- err
 	}()
 	limit := time.Now().Add(time.Second)
@@ -216,10 +229,13 @@ func TestDirectedListenerAndLifecycle(t *testing.T) {
 	for a.count.Load() == before && time.Now().Before(limit) {
 		time.Sleep(time.Millisecond)
 	}
-	if _, err := manager.Check(context.Background(), id, tunnel.Tunnel, current.Load, false); err == nil {
+	if _, err := manager.Check(context.Background(), id, tunnel.Proxies()["AI"], current.Load, false); err == nil {
 		t.Fatal("concurrent lease admitted")
 	}
 	current.Store(false)
+	// A live pinned lease has no read of the replaced global proxy registry.
+	// This was a real race through upstream resolveMetadata/SpecialProxy.
+	tunnel.UpdateProxies(map[string]C.Proxy{"DIRECT": adapter.NewProxy(wrong)}, nil)
 	select {
 	case err := <-finished:
 		if err == nil {
@@ -233,7 +249,7 @@ func TestDirectedListenerAndLifecycle(t *testing.T) {
 	}
 
 	current.Store(false)
-	if _, err = manager.Check(context.Background(), id, tunnel.Tunnel, current.Load, false); err == nil {
+	if _, err = manager.Check(context.Background(), id, tunnel.Proxies()["AI"], current.Load, false); err == nil {
 		t.Fatal("stale identity accepted cache")
 	}
 }
@@ -271,4 +287,45 @@ func TestTimeoutAndNetworkFailure(t *testing.T) {
 	if r := probe(context.Background(), client, endpoint{"test", server.URL, "test"}); r.State != "network_failed" {
 		t.Fatal(r)
 	}
+}
+
+func TestChallengeAndHeaderBackoffBeforeBody(t *testing.T) {
+	t.Run("challenge-brand-is-unknown", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("cf-mitigated", "challenge")
+			io.WriteString(w, "ChatGPT verify this request")
+		}))
+		defer server.Close()
+		if result := probe(context.Background(), server.Client(), endpoint{"test", server.URL, "chatgpt"}); result.State != "unknown" {
+			t.Fatal("challenge mistaken for service page", result.State)
+		}
+	})
+	t.Run("429-backoff-does-not-wait-for-body", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Retry-After", "60")
+			w.WriteHeader(429)
+			w.(http.Flusher).Flush()
+			<-r.Context().Done()
+		}))
+		defer server.Close()
+		client := server.Client()
+		client.Timeout = time.Second
+		result := probe(context.Background(), client, endpoint{"test", server.URL, "chatgpt"})
+		if result.State != "limited" || result.RetryAt == nil || result.RetryAt.Before(time.Now().Add(50*time.Second)) {
+			t.Fatal("429 lost backoff while body stalled", result.State)
+		}
+	})
+	t.Run("body-timeout", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			io.WriteString(w, "chatgpt")
+			w.(http.Flusher).Flush()
+			<-r.Context().Done()
+		}))
+		defer server.Close()
+		client := server.Client()
+		client.Timeout = 500 * time.Millisecond
+		if result := probe(context.Background(), client, endpoint{"test", server.URL, "chatgpt"}); result.State != "timeout" {
+			t.Fatal("body timeout not classified", result.State)
+		}
+	})
 }

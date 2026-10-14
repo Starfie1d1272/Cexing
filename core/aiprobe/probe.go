@@ -18,6 +18,7 @@ type Identity struct {
 	Profile   string
 	Revision  string
 	Group     string
+	Runtime   uint64 // successful native apply epoch, private cache identity
 	Selection string // private identity of the user's current choices; never exported
 }
 type Result struct {
@@ -50,7 +51,7 @@ type Manager struct {
 	cache         map[Identity]cacheEntry
 }
 
-func (m *Manager) Check(ctx context.Context, id Identity, tunnel C.Tunnel, current func() bool, retry bool) ([]Result, error) {
+func (m *Manager) Check(ctx context.Context, id Identity, proxyGroup C.Proxy, current func() bool, retry bool) ([]Result, error) {
 	if ctx.Err() != nil {
 		return nil, ctx.Err()
 	}
@@ -79,13 +80,13 @@ func (m *Manager) Check(ctx context.Context, id Identity, tunnel C.Tunnel, curre
 			return append([]Result(nil), entry.results...), nil
 		}
 	}
-	return m.check(ctx, id, tunnel, current, official, officialHosts)
+	return m.check(ctx, id, proxyGroup, current, official, officialHosts)
 }
 
-func (m *Manager) check(parent context.Context, id Identity, tunnel C.Tunnel, current func() bool, endpoints []endpoint, hosts map[string]bool) ([]Result, error) {
+func (m *Manager) check(parent context.Context, id Identity, proxyGroup C.Proxy, current func() bool, endpoints []endpoint, hosts map[string]bool) ([]Result, error) {
 	ctx, cancel := context.WithTimeout(parent, 18*time.Second)
 	defer cancel()
-	lease, err := newSession(id.Group, tunnel, hosts)
+	lease, err := newSession(id.Group, proxyGroup, hosts)
 	if err != nil {
 		return nil, err
 	}
@@ -179,10 +180,6 @@ func probe(ctx context.Context, client *http.Client, e endpoint) Result {
 		return result
 	}
 	defer response.Body.Close()
-	body, err := io.ReadAll(io.LimitReader(response.Body, 64*1024+1))
-	if err != nil {
-		return result
-	}
 	if response.StatusCode == 429 {
 		result.State = "limited"
 		wait := 5 * time.Minute
@@ -205,6 +202,18 @@ func probe(ctx context.Context, client *http.Client, e endpoint) Result {
 		}
 		at := time.Now().Add(wait).UTC()
 		result.RetryAt = &at
+		return result
+	}
+	// A challenge page can contain the service brand without being its page.
+	if strings.EqualFold(response.Header.Get("cf-mitigated"), "challenge") {
+		return result
+	}
+	body, err := io.ReadAll(io.LimitReader(response.Body, 64*1024+1))
+	if err != nil {
+		var network net.Error
+		if errors.As(err, &network) && network.Timeout() {
+			result.State = "timeout"
+		}
 		return result
 	}
 	if len(body) > 64*1024 {

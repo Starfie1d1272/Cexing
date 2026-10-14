@@ -3,6 +3,7 @@
 package aiprobe
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
@@ -13,6 +14,7 @@ import (
 	"time"
 
 	I "github.com/metacubex/mihomo/adapter/inbound"
+	N "github.com/metacubex/mihomo/common/net"
 	"github.com/metacubex/mihomo/component/auth"
 	C "github.com/metacubex/mihomo/constant"
 	authStore "github.com/metacubex/mihomo/listener/auth"
@@ -24,7 +26,9 @@ import (
 type session struct {
 	socket         net.Listener
 	proxy          *url.URL
-	tunnel         C.Tunnel
+	proxyGroup     C.Proxy
+	ctx            context.Context
+	cancel         context.CancelFunc
 	group          string
 	hosts          map[string]bool
 	mu             sync.Mutex
@@ -35,8 +39,8 @@ type session struct {
 	user, password string
 }
 
-func newSession(group string, tunnel C.Tunnel, hosts map[string]bool) (*session, error) {
-	if group == "" || tunnel == nil {
+func newSession(group string, proxyGroup C.Proxy, hosts map[string]bool) (*session, error) {
+	if group == "" || proxyGroup == nil || proxyGroup.Name() != group {
 		return nil, errors.New("PROBE_UNBOUND")
 	}
 	key := make([]byte, 32)
@@ -47,7 +51,8 @@ func newSession(group string, tunnel C.Tunnel, hosts map[string]bool) (*session,
 	if err != nil {
 		return nil, errors.New("PROBE_LISTENER_UNAVAILABLE")
 	}
-	s := &session{socket: socket, tunnel: tunnel, group: group, hosts: hosts, user: "probe", password: hex.EncodeToString(key), connections: map[net.Conn]bool{}, done: make(chan struct{})}
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	s := &session{socket: socket, proxyGroup: proxyGroup, ctx: ctx, cancel: cancel, group: group, hosts: hosts, user: "probe", password: hex.EncodeToString(key), connections: map[net.Conn]bool{}, done: make(chan struct{})}
 	s.proxy = &url.URL{Scheme: "http", Host: socket.Addr().String(), User: url.UserPassword(s.user, s.password)}
 	store := authStore.NewAuthStore(auth.NewAuthenticator([]auth.AuthUser{{User: s.user, Pass: s.password}}))
 	go func() {
@@ -85,11 +90,20 @@ func (s *session) HandleTCPConn(conn net.Conn, metadata *C.Metadata) {
 		conn.Close()
 		return
 	}
-	s.tunnel.HandleTCPConn(conn, metadata)
+	// Capture the verified group before starting the lease. Dialing that object
+	// avoids SpecialProxy's unlocked lookup in the mutable global proxy map.
+	remote, err := s.proxyGroup.DialContext(s.ctx, metadata)
+	if err != nil {
+		conn.Close()
+		return
+	}
+	defer remote.Close()
+	_ = N.RelayContext(s.ctx, conn, remote)
 }
 func (s *session) HandleUDPPacket(packet C.UDPPacket, _ *C.Metadata) { packet.Drop() }
-func (s *session) NatTable() C.NatTable                              { return s.tunnel.NatTable() }
+func (s *session) NatTable() C.NatTable                              { return nil }
 func (s *session) close() {
+	s.cancel()
 	s.mu.Lock()
 	s.closed = true
 	for conn := range s.connections {

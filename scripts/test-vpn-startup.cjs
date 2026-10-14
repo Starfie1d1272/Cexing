@@ -78,7 +78,7 @@ async function testClient(mode, accessMode = 'all', accessList = [], ipv6 = fals
     '@kit.CoreFileKit': { fileIo: { accessSync: () => stopReceipt.length > 0,
       readTextSync: () => stopReceipt } }, './Logger': logger,
     './ConnectionFailure': failureModule.exports, './VpnPhases': phaseModule.exports,
-    './CoreApi': { CoreApi: { bindContext() {} } }, './Settings': { Settings: { load: () => settings, save() {} } },
+    './CoreApi': { CoreApi: { bindContext() {} } }, './Settings': { Settings: { isLanPersistenceUncertain: () => false, idle: async () => {}, load: () => settings, save() {} } },
     './ProfileStore': { ProfileStore: { clearApplyUncertain: () => { cleared++; } } },
     '@kit.IPCKit': { rpc: { MessageSequence: { create: () => ({values:[],writeString(value){this.values.push(value);},reclaim() {} }) }, MessageOption: class {} } }
   };
@@ -179,7 +179,7 @@ async function testExtension(failStop = false, lateCreate = false, protection = 
       if (brokenPointer) throw Error('synthetic invalid effective pointer');
       return null;
     } } },
-    '../lib/Settings': { Settings: { load: () => ({}) } }, '@kit.ArkTS': { util: {} }
+    '../lib/Settings': { Settings: { isLanPersistenceUncertain: () => false, idle: async () => {}, load: () => ({}) } }, '@kit.ArkTS': { util: {} }
   };
   const Extension = load('vpnability/CexingVpnAbility.ets', modules).default;
   const extension = new Extension();
@@ -200,7 +200,8 @@ async function testExtension(failStop = false, lateCreate = false, protection = 
   assert.equal(emptyAck,true,'read-only empty session confirms its actual no-resource cleanup through IPC');
   assert.equal(destroyCount,0);assert.equal(stopCount,0);
 
-  const remote = extension.onConnect({ parameters: { VPN_CONFIG: {}, SESSION_ID: 'fixture-1' } });
+  const hostSettings = JSON.stringify({ mixedPort: 7890, logLevel: 'info', allowLan: false, mode: '', logToFile: true });
+  const remote = extension.onConnect({ parameters: { HOST_SETTINGS: hostSettings, VPN_CONFIG: {}, SESSION_ID: 'fixture-1' } });
   assert.ok(remote && typeof remote.then !== 'function', 'onConnect must return synchronously');
   await flush();
   if (protection !== 'ok') {
@@ -251,7 +252,7 @@ async function testExtension(failStop = false, lateCreate = false, protection = 
   await remote.onRemoteMessageRequest(2,{readString:()=>mismatchData.shift()},
     {writeString(){},writeBoolean:v=>mismatchAck=v},{});
   assert.equal(mismatchAck,false,'wrong process session cannot authorize cleanup');
-  const restarted = extension.onConnect({ parameters: { VPN_CONFIG: {} } });
+  const restarted = extension.onConnect({ parameters: { HOST_SETTINGS: hostSettings, VPN_CONFIG: {} } });
   await flush();
   if (lateCreate) { completeCreate(32); await flush(); }
   restarted.onRemoteMessageRequest(1, {}, { writeBoolean: value => { reportedReady = value; }, writeString() {} }, {});
@@ -265,7 +266,7 @@ function testApplicationPolicy() {
   const modules = {
     '@kit.NetworkKit': {}, '@kit.CoreFileKit': {}, '@kit.IPCKit': {}, './Logger': logger,
     './ConnectionFailure': failureModule.exports, './VpnPhases': phaseModule.exports,
-    './CoreApi': {}, './Settings': { Settings: {load: () => ({accessMode:'white',accessList:[]})} }, './ProfileStore': {}
+    './CoreApi': {}, './Settings': { Settings: {isLanPersistenceUncertain: () => false, idle: async () => {}, load: () => ({accessMode:'white',accessList:[]})} }, './ProfileStore': {}
   };
   const policy = load('lib/VpnController.ets', modules);
   const self = 'test.bundle';

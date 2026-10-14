@@ -17,6 +17,7 @@ type versionAction struct {
 	Op              string                     `json:"op"`
 	EditSection     string                     `json:"editSection,omitempty"`
 	EditTarget      string                     `json:"editTarget,omitempty"`
+	EditIntent      *configpipeline.EditIntent `json:"editIntent,omitempty"`
 	ProfileID       string                     `json:"profileId"`
 	Original        string                     `json:"original"`
 	GlobalMerge     *string                    `json:"globalMerge,omitempty"`
@@ -33,14 +34,18 @@ type versionAction struct {
 }
 
 type versionResponse struct {
-	Editable      *configpipeline.EditableSnapshot `json:"editable,omitempty"`
-	EditTarget    *configpipeline.EditTarget       `json:"editTarget,omitempty"`
-	Version       *configpipeline.Version          `json:"version,omitempty"`
-	State         *configpipeline.Snapshot         `json:"state,omitempty"`
-	Receipt       string                           `json:"receipt,omitempty"`
-	Error         string                           `json:"error,omitempty"`
-	MergePreview  *mergePreview                    `json:"mergePreview,omitempty"`
-	RegionPreview *configpipeline.RegionPreview    `json:"regionPreview,omitempty"`
+	Identity      string                             `json:"identity,omitempty"`
+	Digest        string                             `json:"digest,omitempty"`
+	SmartPreview  *[]configpipeline.SmartGroupChange `json:"smartPreview,omitempty"`
+	EditError     *configpipeline.IntentError        `json:"editError,omitempty"`
+	Editable      *configpipeline.EditableSnapshot   `json:"editable,omitempty"`
+	EditTarget    *configpipeline.EditTarget         `json:"editTarget,omitempty"`
+	Version       *configpipeline.Version            `json:"version,omitempty"`
+	State         *configpipeline.Snapshot           `json:"state,omitempty"`
+	Receipt       string                             `json:"receipt,omitempty"`
+	Error         string                             `json:"error,omitempty"`
+	MergePreview  *mergePreview                      `json:"mergePreview,omitempty"`
+	RegionPreview *configpipeline.RegionPreview      `json:"regionPreview,omitempty"`
 }
 
 func coreVersionAction(home, input string) string {
@@ -48,10 +53,27 @@ func coreVersionAction(home, input string) string {
 	if json.Unmarshal([]byte(input), &diagnostic) == nil && (diagnostic.Op == "diagnostics-record" || diagnostic.Op == "diagnostics-export") {
 		return coreDiagnosticAction(home, input)
 	}
+	if diagnostic.Op == "template-update-preview" {
+		return coreTemplateUpdateAction(input)
+	}
 	var action versionAction
-	if len(input) > maxConfigBytes*4 || json.Unmarshal([]byte(input), &action) != nil ||
+	if len(input) > maxConfigBytes*6+2*1024*1024 || json.Unmarshal([]byte(input), &action) != nil ||
 		home == "" || !filepath.IsAbs(home) {
 		return `{"error":"VERSION_INVALID"}`
+	}
+	var envelope struct {
+		EditIntent json.RawMessage `json:"editIntent"`
+	}
+	if json.Unmarshal([]byte(input), &envelope) != nil {
+		return `{"error":"VERSION_INVALID"}`
+	}
+	if len(envelope.EditIntent) > 0 && string(envelope.EditIntent) != "null" {
+		decoded, err := configpipeline.DecodeEditIntent(envelope.EditIntent)
+		if err != nil {
+			data, _ := json.Marshal(versionResponse{Error: "EDIT_INTENT_FAILED", EditError: err.(*configpipeline.IntentError)})
+			return string(data)
+		}
+		action.EditIntent = decoded
 	}
 	response, err := executeVersionAction(home, action)
 	if err != nil {
@@ -88,30 +110,67 @@ func executeVersionAction(home string, action versionAction) (versionResponse, e
 		}
 		global = *action.GlobalMerge
 	}
+	if err := configpipeline.CheckEditIntent(action.EditIntent); err != nil {
+		return editFailure(err)
+	}
 	switch action.Op {
-	case "edit-read", "edit-target":
+	case "editor-identity":
+		identity, e := editorIdentity(home, action, global)
+		if e != nil {
+			return versionResponse{}, e
+		}
+		return versionResponse{Identity: identity}, nil
+	case "edit-check":
+		return versionResponse{}, nil
+	case "edit-read", "editor-list", "edit-target":
 		if len(action.Original) > maxConfigBytes || len(action.Overlay) > maxConfigBytes {
 			return versionResponse{}, errors.New("EDIT_LIMIT")
 		}
-		if action.Op == "edit-read" {
-			view, err := configpipeline.ReadEditable([]byte(action.Original), []byte(global), []byte(action.Overlay))
-			if err != nil {
-				return versionResponse{}, errors.New("EDIT_READ_FAILED")
-			}
-			return versionResponse{Editable: &view}, nil
-		}
-		view, err := configpipeline.ReadEditTarget([]byte(action.Original), []byte(global), []byte(action.Overlay), action.EditSection, action.EditTarget)
+		request, err := editorReadRequest(home, action, global)
 		if err != nil {
-			return versionResponse{}, errors.New("EDIT_TARGET_FAILED")
+			return versionResponse{}, errors.New("EDIT_READ_FAILED")
 		}
-		return versionResponse{EditTarget: &view}, nil
-	case "merge-preview":
+		compiler := configpipeline.Compiler{Template: editorTemplate(home), PrepareTemplate: editorTemplatePrepare(home)}
+		if action.Op == "edit-target" {
+			view, err := compiler.EditTarget(ctx, request, action.EditSection, action.EditTarget)
+			if err != nil {
+				return editFailure(err)
+			}
+			return versionResponse{EditTarget: &view}, nil
+		}
+		var view configpipeline.EditableSnapshot
+		if action.Op == "editor-list" {
+			view, err = compiler.EditorList(ctx, request)
+		} else {
+			view, err = compiler.Editable(ctx, request)
+		}
+		if err != nil {
+			return editFailure(err)
+		}
+		return versionResponse{Editable: &view}, nil
+	case "smart-preview":
 		if len(action.Original) > maxConfigBytes || len(action.Overlay) > maxConfigBytes {
 			return versionResponse{}, errors.New("VERSION_INVALID")
 		}
-		result, _, err := compileLayeredMerge(home, action.Original, global, action.Overlay,
-			action.Overrides, action.SmartConversion, action.RegionPlan)
+		request, err := editorReadRequest(home, action, global)
 		if err != nil {
+			return versionResponse{}, errors.New("SMART_PREVIEW_FAILED")
+		}
+		view, err := (configpipeline.Compiler{Template: editorTemplate(home), PrepareTemplate: editorTemplatePrepare(home)}).SmartPreview(ctx, request, action.SmartConversion)
+		if err != nil {
+			return editFailure(err)
+		}
+		return versionResponse{SmartPreview: &view}, nil
+	case "edit-preview", "merge-preview":
+		if len(action.Original) > maxConfigBytes || len(action.Overlay) > maxConfigBytes {
+			return versionResponse{}, errors.New("VERSION_INVALID")
+		}
+		result, _, err := compileLayeredMergeWithIntent(home, action.Original, global, action.Overlay,
+			action.Overrides, action.SmartConversion, action.RegionPlan, action.EditIntent)
+		if err != nil {
+			if _, ok := err.(*configpipeline.IntentError); ok {
+				return editFailure(err)
+			}
 			return versionResponse{}, errors.New("MERGE_PREVIEW_FAILED")
 		}
 		return versionResponse{MergePreview: &mergePreview{Digest: result.Digest, Changes: result.Changes, PlatformChanges: result.PlatformChanges}}, nil
@@ -119,7 +178,7 @@ func executeVersionAction(home string, action versionAction) (versionResponse, e
 		if action.RegionPlan == nil || len(action.Original) > maxConfigBytes || len(action.Overlay) > maxConfigBytes {
 			return versionResponse{}, errors.New("REGION_INVALID")
 		}
-		preview, err := previewLayeredRegion(home, action.Original, global, action.Overlay, *action.RegionPlan)
+		preview, err := previewLayeredRegion(home, action.Original, global, action.Overlay, *action.RegionPlan, action.EditIntent)
 		if err != nil {
 			return versionResponse{}, errors.New("REGION_PREVIEW_FAILED")
 		}
@@ -152,9 +211,12 @@ func executeVersionAction(home string, action versionAction) (versionResponse, e
 		if json.Unmarshal([]byte(action.Metadata), &metadata) != nil || metadata == nil {
 			return versionResponse{}, errors.New("VERSION_INVALID")
 		}
-		result, receipt, err := compileLayeredMerge(home, action.Original, global, action.Overlay,
-			action.Overrides, action.SmartConversion, action.RegionPlan)
+		result, receipt, err := compileLayeredMergeWithIntent(home, action.Original, global, action.Overlay,
+			action.Overrides, action.SmartConversion, action.RegionPlan, action.EditIntent)
 		if err != nil || len(result.YAML) > maxConfigBytes {
+			if _, ok := err.(*configpipeline.IntentError); ok {
+				return editFailure(err)
+			}
 			return versionResponse{}, errors.New("VERSION_COMPILE_FAILED")
 		}
 		// Keep the existing per-profile overlay file and provenance local in scope.
@@ -171,7 +233,7 @@ func executeVersionAction(home string, action versionAction) (versionResponse, e
 		if err != nil {
 			return versionResponse{}, errors.New("VERSION_STAGE_FAILED")
 		}
-		return versionResponse{Version: &version, Receipt: receipt}, nil
+		return versionResponse{Version: &version, Receipt: receipt, Digest: result.Digest}, nil
 	case "remove", "rename":
 		if !profileIDPattern.MatchString(action.ProfileID) {
 			return versionResponse{}, errors.New("VERSION_INVALID")
@@ -256,4 +318,12 @@ func executeVersionAction(home string, action versionAction) (versionResponse, e
 	default:
 		return versionResponse{}, errors.New("VERSION_INVALID")
 	}
+}
+
+func editFailure(err error) (versionResponse, error) {
+	var failure *configpipeline.IntentError
+	if errors.As(err, &failure) {
+		return versionResponse{Error: "EDIT_INTENT_FAILED", EditError: failure}, nil
+	}
+	return versionResponse{}, errors.New("EDIT_INTENT_FAILED")
 }

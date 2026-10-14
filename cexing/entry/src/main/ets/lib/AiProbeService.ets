@@ -2,6 +2,7 @@ import { http } from '@kit.NetworkKit';
 import { CoreApi } from './CoreApi';
 
 export interface AiServiceResult { service: string; state: string; at: string; retryAt?: string; }
+interface AiProbeFailure { message?: string; }
 interface AiProbeResponse { revision: string; results: AiServiceResult[]; }
 
 // A page-owned observer. Destroying its request cancels server work and closes
@@ -10,9 +11,9 @@ export class AiProbeService {
   private request: http.HttpRequest | null = null;
   private generation: number = 0;
   private alive: () => boolean;
-  private changed: (results: AiServiceResult[], checking: boolean) => void;
+  private changed: (results: AiServiceResult[], checking: boolean, state?: string) => void;
 
-  constructor(alive: () => boolean, changed: (results: AiServiceResult[], checking: boolean) => void) {
+  constructor(alive: () => boolean, changed: (results: AiServiceResult[], checking: boolean, state?: string) => void) {
     this.alive = alive;
     this.changed = changed;
   }
@@ -41,7 +42,12 @@ export class AiProbeService {
       });
       if (epoch !== this.generation || !this.alive()) { return; }
       if (response.responseCode !== 200 || typeof response.result !== 'string' || response.result.length > 8192) {
-        this.changed([], false); return;
+        let reason = '';
+        if (response.responseCode === 409 && typeof response.result === 'string' && response.result.length <= 8192) {
+          const failure = JSON.parse(response.result) as AiProbeFailure;
+          if (failure.message === 'PROBE_ROUTE_UNPROVEN') { reason = 'route_unproven'; }
+        }
+        this.changed([], false, reason); return;
       }
       const result = JSON.parse(response.result) as AiProbeResponse;
       if (result.revision !== revision || !Array.isArray(result.results) || result.results.length !== 3) {

@@ -33,6 +33,8 @@ Platform 与 Validate 都必填；没有静默默认值或自动降级。策略�
 
 结构化表单使用 [编辑意图 v1](edit-intent.md)，在 Merge 后、Strategy 前执行局部修改；不把整个上游数组固化成覆写。
 
+结构化表单使用 [编辑意图 v1](edit-intent.md)，在 Merge/模板后、Strategy 前执行局部修改；不把整个上游数组固化成覆写。
+
 ## 编译行为
 
 `Compile` 顺序为原始 YAML → 按顺序 Merge overlays → 可选 Strategy → 必填 Platform → 结构/引用检查 → 完整 Validate → 返回最终 YAML。全部输入复制，Result 保留准确的 Original 与各层 Overlays；生成配置独立于原文。多文档、重复键、非字符串键、循环别名、自定义 YAML tag 和不支持的标准 collection tag 明确拒绝；只支持标准 map/seq、str/bool/int/float/null/timestamp/binary scalar 及实际 merge-key。检查覆盖原文、overlay、别名目标与策略/平台回调产出；不会将未知 tag 静默当普通字符串或对象。正常 YAML alias/merge key 会展开，保留显式有序映射的顺序。支持 UTF-8 YAML/JSON，旧导入编码修复仍由现有宿主负责。

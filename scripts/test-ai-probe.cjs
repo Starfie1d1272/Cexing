@@ -32,21 +32,48 @@ function load(file, page = false) {
  const sandbox = { exports: {}, require: name => { assert.ok(name in modules, name); return modules[name]; } };
  vm.runInNewContext(ts.transpileModule(src).outputText, sandbox); return sandbox.exports;
 }
+let successful = { ID: 'version-good', ProfileID: 'one.yaml' }, intentReads = 0;
+let successfulIntent = { schemaVersion: 1, template: { templateId: 'ai', version: 1, targetGroup: 'Pick' } };
+modules['./EffectiveVersions'] = { EffectiveVersions: {
+ read: () => ({ Current: successful }), editIntent: () => { intentReads++; return successfulIntent; }
+} };
+const Binding = load('lib/AiProbeBinding.ets').AiProbeBinding;
+const binding = new Binding();
+assert.equal(binding.revision({}, 'one.yaml', 'Pick'), 'version-good');
+assert.equal(binding.revision({}, 'one.yaml', 'unsaved-target'), '');
+assert.equal(binding.revision({}, 'other.yaml', 'Pick'), '');
+assert.equal(intentReads, 1);
+successful = { ID: 'version-next', ProfileID: 'one.yaml' };
+assert.equal(binding.revision({}, 'one.yaml', 'Pick'), 'version-next');
+assert.equal(intentReads, 2);
+for (const invalid of [
+ { schemaVersion: 2, template: { templateId: 'ai', version: 1, targetGroup: 'Pick' } },
+ { schemaVersion: 1, disabled: true, template: { templateId: 'ai', version: 1, targetGroup: 'Pick' } },
+ { schemaVersion: 1, template: { templateId: 'ai', version: 2, targetGroup: 'Pick' } },
+ { schemaVersion: 1, template: { templateId: 'original', version: 1, targetGroup: 'Pick' } }, null
+]) {
+ successful = { ID: successful.ID + '-invalid', ProfileID: 'one.yaml' }; successfulIntent = invalid;
+ assert.equal(binding.revision({}, 'one.yaml', 'Pick'), '');
+}
 const Service = load('lib/AiProbeService.ets').AiProbeService;
 modules['../lib/AiProbeService'] = { AiProbeService: Service };
 const Page = load('pages/AiProbeStatus.ets', true).AiProbeStatus;
 const response = revision => ({ responseCode: 200, result: JSON.stringify({ revision,
  results: ['chatgpt', 'claude', 'gemini'].map(service => ({ service, state: 'reachable', at: new Date().toISOString() })) }) });
 (async () => {
- const service = new Service(() => true, (r, busy) => changes.push({ r, busy }));
+ const service = new Service(() => true, (r, busy, state) => changes.push({ r, busy, state }));
  const first = service.check('version-one'); await service.check('version-one');
  assert.equal(requests.length, 1); service.cancel(); const before = changes.length;
  requests[0].pending.resolve(response('version-one')); await first;
  assert.equal(requests[0].destroyed, 1); assert.equal(changes.length, before);
  const second = service.check('version-two'); requests.at(-1).pending.resolve(response('version-old')); await second;
- assert.equal(changes.at(-1).r.length, 0);
+ assert.equal(changes.at(-1).r.length, 0); assert.equal(changes.at(-1).state, undefined);
  const third = service.check('version-three'); requests.at(-1).pending.resolve(response('version-three')); await third;
  assert.equal(changes.at(-1).r.length, 3);
+
+ const unchecked = service.check('version-unproven');
+ requests.at(-1).pending.resolve({ responseCode: 409, result: JSON.stringify({message:'PROBE_ROUTE_UNPROVEN'}) }); await unchecked;
+ assert.equal(changes.at(-1).r.length, 0); assert.equal(changes.at(-1).state, 'route_unproven');
 
  const page = new Page(); page.revision = 'version-page'; page.aboutToAppear();
  const oldNetwork = networks.at(-1), baseline = requests.length;
@@ -70,5 +97,12 @@ const response = revision => ({ responseCode: 200, result: JSON.stringify({ revi
  const pending = requests.at(-1); page.aboutToDisappear();
  pending.pending.resolve(response('version-next')); await new Promise(setImmediate);
  assert.equal(page.results.length, 0); assert.equal(listeners.size, 0);
+
+ const uncheckedPage = new Page(); uncheckedPage.revision = 'version-unchecked-page'; uncheckedPage.aboutToAppear();
+ const uncheckedNetwork = networks.at(-1); uncheckedNetwork.registered(); uncheckedNetwork.callbacks.netAvailable({netId:3});
+ requests.at(-1).pending.resolve({ responseCode: 409, result: JSON.stringify({message:'PROBE_ROUTE_UNPROVEN'}) });
+ await new Promise(setImmediate);
+ assert.equal(uncheckedPage.summary(), '未检查'); assert.equal(uncheckedPage.results.length, 0); assert.equal(uncheckedPage.routeUnproven, true);
+ uncheckedPage.aboutToDisappear(); assert.equal(listeners.size, 0);
  console.log('PASS: AI check duplicate requests, revision/exit fencing, offline cancellation and network observer cleanup');
 })().catch(error => { console.error(error); process.exitCode = 1; });
