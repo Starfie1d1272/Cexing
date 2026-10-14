@@ -1,3 +1,6 @@
+import { common } from '@kit.AbilityKit';
+import { EditorDraftHost } from '../lib/ConfigEditor';
+import { createTemplateWizardHost } from '../lib/TemplateHost';
 import { promptAction } from '@kit.ArkUI';
 import { NativeTheme as UI } from './NativeTheme';
 import { TemplateWizardHost, TemplateWizardModel, TemplateWizardView } from '../lib/TemplateWizardModel';
@@ -6,37 +9,47 @@ import { TemplateWizardHost, TemplateWizardModel, TemplateWizardView } from '../
 @Component
 export struct TemplateWizard {
   host?: TemplateWizardHost;
+  editor?: EditorDraftHost;
+  @Prop profileId: string = '';
   onClose: () => void = () => {};
   @State private view: TemplateWizardView = { templateId: 'original', target: '', busy: false,
     ready: false, error: '', result: '', summary: '', hasPreview: false, groups: [], selectors: [] };
   private confirming: boolean = false;
+  private confirmationGeneration: number = 0;
   private model: TemplateWizardModel | null = null;
   private visible: boolean = false;
 
   aboutToAppear(): void {
-    this.visible = true;
-    if (this.host === undefined) { return; }
-    this.model = new TemplateWizardModel(this.host, () => {
+    this.visible = true; this.confirmationGeneration++; this.confirming = false;
+    const host = this.host ?? (this.profileId.length > 0 ?
+      createTemplateWizardHost(getContext(this) as common.UIAbilityContext, this.profileId, this.editor) : undefined);
+    if (host === undefined) { return; }
+    this.model = new TemplateWizardModel(host, () => {
       if (this.model !== null) { this.view = this.model.snapshot(); }
     });
     this.model.load();
   }
-  aboutToDisappear(): void { this.visible = false; this.model?.close(); }
-  private close(): void { this.visible = false; this.model?.close(); this.onClose(); }
+  aboutToDisappear(): void { this.visible = false; this.confirmationGeneration++; this.confirming = false; this.model?.close(); }
+  private close(): void { this.visible = false; this.confirmationGeneration++; this.confirming = false; this.model?.close(); this.onClose(); }
   private async apply(): Promise<void> {
     const model = this.model;
     if (model === null || model.busy || model.preview === null) { return; }
     if (this.confirming) { return; }
-    if (model.templateId === 'automatic') {
+    if (model.templateId === 'automatic' || model.preview.inactiveEdits === true) {
       const preview = model.preview;
+      const automatic = model.templateId === 'automatic';
+      const message = preview.inactiveEdits === true ? (automatic ?
+        '将替换订阅规则，并启用已停用的个人修改。' : '将同时启用已停用的个人修改。') :
+        '本地网络直连，其余流量使用所选出口。';
+      const confirmation = ++this.confirmationGeneration;
       this.confirming = true;
       try {
-        const answer = await promptAction.showDialog({ title: '替换订阅分流规则？',
-          message: '本地网络直连，其余流量使用所选出口。',
-          buttons: [{ text: '取消', color: $r('app.color.ui_muted') }, { text: '替换并应用', color: $r('app.color.ui_accent_text') }] });
+        const answer = await promptAction.showDialog({ title: automatic ? '替换订阅分流规则？' : '应用分流方案？',
+          message: message,
+          buttons: [{ text: '取消', color: $r('app.color.ui_muted') }, { text: automatic ? '替换并应用' : '应用', color: $r('app.color.ui_accent_text') }] });
         if (!this.visible || answer.index !== 1 || this.model !== model || model.preview !== preview) { return; }
       } catch (_) { return; }
-      finally { this.confirming = false; }
+      finally { if (confirmation === this.confirmationGeneration) { this.confirming = false; } }
     }
     await model.apply(true);
   }

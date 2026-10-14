@@ -57,11 +57,12 @@ const preview = { revision: 'version-synthetic', digest: 'synthetic', summary: '
 // Execute the real page's event methods, excluding only the ArkUI builder DSL.
 let pageSource = fs.readFileSync('cexing/entry/src/main/ets/pages/TemplateWizard.ets', 'utf8');
 pageSource = pageSource.slice(0, pageSource.indexOf('  @Builder')) + '\n}';
-pageSource = pageSource.replace(/@Component\n/g, '').replace(/@State /g, '').replace('export struct ', 'export class ');
+pageSource = pageSource.replace(/@Component\n/g, '').replace(/@(State|Prop) /g, '').replace('export struct ', 'export class ');
 let dialog = deferred(), dialogs = 0;
 const pageSandbox = { exports: {}, $r: () => '', require: name => {
   if (name === '@kit.ArkUI') return { promptAction: { showDialog: () => { dialogs++; return dialog.promise; } } };
   if (name === './NativeTheme') return { NativeTheme: {} };
+  if (name === '../lib/TemplateHost') return { createTemplateWizardHost: () => { throw Error('explicit test host expected'); } };
   return { TemplateWizardModel: Model };
 } };
 vm.runInNewContext(ts.transpileModule(pageSource).outputText, pageSandbox);
@@ -84,5 +85,12 @@ vm.runInNewContext(ts.transpileModule(pageSource).outputText, pageSandbox);
   assert.equal(page.model.templateId, 'automatic'); assert.ok(page.model.preview);
   const third = page.apply(); page.aboutToDisappear(); page.aboutToAppear();
   dialog.resolve({ index: 1 }); await third; assert.equal(commits, 0);
+  dialog = deferred();
+  page.model.choose('ai', 'Pick');
+  page.host.preview = async () => ({ ...preview, inactiveEdits: true });
+  await page.model.inspect();
+  const inactive = page.apply();
+  assert.equal(page.confirming, true); dialog.resolve({ index: 0 }); await inactive;
+  assert.equal(commits, 0);
   console.log('PASS: template page repeated confirmation, cancel/back and page replacement');
 })().catch(error => { console.error(error); process.exitCode = 1; });

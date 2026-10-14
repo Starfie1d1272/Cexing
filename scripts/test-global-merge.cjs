@@ -192,9 +192,17 @@ const Editor = compile('pages/GlobalMergeEditor.ets', true).GlobalMergeEditor;
   assert.equal(data.get(prior.Path), priorBytes); assert.equal(originals.get('one.yaml'), original);
   const pageSource = fs.readFileSync(path.join(base, 'pages/ProfilePage.ets'), 'utf8');
   const closeBody = pageSource.match(/GlobalMergeEditor\(\{ onClose: \(\) => \{([^}]*)\}/)[1];
-  const disappearBody = pageSource.slice(pageSource.lastIndexOf('.bindSheet('))
-    .match(/onDisappear: \(\) => \{([^}]*)\}/)[1];
-  const owner = { showSheet: true, sheetMode: 7 };
+  const sheetSource = pageSource.slice(pageSource.indexOf('.bindSheet('));
+  const callbackMarker = 'onDisappear: () => {';
+  const callbackStart = sheetSource.indexOf(callbackMarker) + callbackMarker.length;
+  let callbackEnd = callbackStart, depth = 1;
+  while (depth > 0 && callbackEnd < sheetSource.length) {
+    const char = sheetSource[callbackEnd++];
+    if (char === '{') depth++; else if (char === '}') depth--;
+  }
+  assert.equal(depth, 0, 'sheet callback fixture captures the whole nested body');
+  const disappearBody = sheetSource.slice(callbackStart, callbackEnd - 1);
+  const owner = { showSheet: true, sheetMode: 7, releaseExternalImport() {}, acceptExternalImport() {} };
   const runCallback = body => vm.runInNewContext(`(function () {${body}}).call(owner)`, { owner, SHEET_NONE: 0 });
   runCallback(closeBody);
   assert.equal(owner.showSheet, false);
