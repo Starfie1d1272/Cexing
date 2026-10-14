@@ -20,6 +20,7 @@ export struct TrafficPage {
   @State private uploads: number[][] = [];
   @State private downloads: number[][] = [];
   @State private chartLevels: string[] = [];
+  @State private chartUnit: string = 'KB/s';
   private timer: number = -1;
   private lastRate: number = 0;
   private active: boolean = false;
@@ -61,7 +62,12 @@ export struct TrafficPage {
     recent.forEach((p: TrafficPoint) => { peak = Math.max(peak, p.up, p.down); });
     let max = 1024;
     while (max < peak) { max *= 2; }
-    this.chartLevels = [max, max * 0.75, max / 2, max / 4, 0].map((value: number) => formatRate(value));
+    const units = ['KB/s', 'MB/s', 'GB/s', 'TB/s'];
+    let unit = 1024;
+    let unitIndex = 0;
+    while (max / unit >= 1024 && unitIndex < units.length - 1) { unit *= 1024; unitIndex++; }
+    this.chartUnit = units[unitIndex];
+    this.chartLevels = [max, max * 0.75, max / 2, max / 4, 0].map((value: number) => `${Number((value / unit).toFixed(2))}`);
     const width = Math.max(0, this.chartWidth - 16);
     this.uploads = recent.map((p: TrafficPoint) => [8 + Math.max(0, width * (1 - (now - p.at) / 300000)), 112 - 104 * p.up / max]);
     this.downloads = recent.map((p: TrafficPoint) => [8 + Math.max(0, width * (1 - (now - p.at) / 300000)), 112 - 104 * p.down / max]);
@@ -108,6 +114,7 @@ export struct TrafficPage {
           if (this.uploads.length > 1) {
             Column({ space: 8 }) {
               Row({ space: 16 }) {
+                Text(this.chartUnit).fontSize(10).fontColor(UI.muted).layoutWeight(1)
                 Row({ space: 4 }) {
                   Circle().width(6).height(6).fill(UI.accentText)
                   Text('上传').fontSize(11).fontColor(UI.muted)
@@ -117,12 +124,12 @@ export struct TrafficPage {
                   Text('下载').fontSize(11).fontColor(UI.muted)
                 }
               }.width('100%')
-              Row({ space: 8 }) {
+              Row({ space: 6 }) {
                 Column() {
                   ForEach(this.chartLevels, (level: string) => {
-                    Text(level).fontSize(10).fontColor(UI.muted).maxLines(1)
+                    Text(level).fontSize(10).minFontSize(8).maxFontSize(10).fontColor(UI.muted).maxLines(1)
                   })
-                }.width(58).height(120).alignItems(HorizontalAlign.End).justifyContent(FlexAlign.SpaceBetween)
+                }.width(28).height(120).alignItems(HorizontalAlign.End).justifyContent(FlexAlign.SpaceBetween)
                 Stack() {
                   Divider().color(UI.line).opacity(0.5).position({ x: 0, y: 34 })
                   Divider().color(UI.line).opacity(0.5).position({ x: 0, y: 60 })
@@ -134,7 +141,7 @@ export struct TrafficPage {
                   .onAreaChange((_old: Area, area: Area) => { this.chartWidth = Number(area.width); })
               }.width('100%')
               Row() {
-                Blank().width(66)
+                Blank().width(34)
                 Text('5 分钟前').layoutWeight(1).fontSize(10).fontColor(UI.muted)
                 Text('2.5 分钟前').layoutWeight(1).textAlign(TextAlign.Center).fontSize(10).fontColor(UI.muted)
                 Text('现在').layoutWeight(1).textAlign(TextAlign.End).fontSize(10).fontColor(UI.muted)

@@ -33,7 +33,9 @@ for (const [x, y] of [...page.uploads, ...page.downloads]) {
   assert.ok(x >= 8 && x <= page.chartWidth - 8, 'Samples must stay inside the plot frame');
   assert.ok(y >= 8 && y <= 112, 'Both idle and peak samples must fit the shared rate scale');
 }
-assert.equal(page.chartLevels[page.chartLevels.length - 1], '0 B/s', 'Rate axis must start at zero');
+assert.equal(page.chartLevels[page.chartLevels.length - 1], '0', 'Rate axis must start at zero');
+assert.equal(page.chartUnit, 'MB/s', 'All ticks share the unit appropriate for the observed peak');
+assert.equal(page.chartLevels[0], '1', 'The maximum tick uses the shared unit');
 now += 5000; tick(); assert.equal(page.up, '—', 'Silent socket must not freeze a live-looking speed');
 controller.status = 0; for (const listener of listeners) listener(0);
 assert.equal(stream, null); assert.equal(page.down, '—');
