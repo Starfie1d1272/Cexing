@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "revision": "fixture-draft-1",
+  "sourceRevision": "8d505dc3ef673fc3eb849c44563588a2b8964664dc5e29205d254458ec4b9f8e",
+  "operations": [
+    {
+      "id": "disable-node-a-udp",
+      "kind": "update",
+      "section": "proxies",
+      "target": "4a4be30d0589d93c184b83d62b6842da57cfe327fb21901db8cc3d7e6db2d03b",
+      "preconditions": {
+        "udp": "b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b"
+      },
+      "patch": {
+        "udp": false
+      }
+    }
+  ]
+}
