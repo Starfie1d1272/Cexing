@@ -1,0 +1,16 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs'), vm = require('node:vm');
+const ts = require('./ci/transpile-arkts.cjs');
+const source = fs.readFileSync('cexing/entry/src/main/ets/lib/CoreValidator.ets', 'utf8');
+const context = { exports: {}, require: () => ({}) };
+vm.runInNewContext(ts.transpileModule(source).outputText, context);
+const api = context.exports.CoreValidator;
+const base = { section: 'rules', before: 5, after: 5, contentChanged: true, kind: 'modified' };
+assert.equal(api.describeMergeChange({ ...base, modified: 5 }), '规则：修改 5 项');
+assert.equal(api.describeMergeChange({ ...base, modified: 0, reordered: true }), '规则：顺序已调整');
+assert.equal(api.describeMergeChange({ ...base, section: 'dns' }), 'DNS：内容已调整');
+assert.equal(api.describeMergeChange({ ...base, kind: 'cleared', after: 0 }), '规则：已清空');
+assert.equal(api.describeMergePreview({ digest: 'opaque', changes: [], platformChanges: [{ ...base, kind: 'protected' }] }), '1 项使用设备约束');
+assert.equal(api.describeMergePreview({ digest: 'opaque', changes: [] }), '无需更改');
+assert(!api.describeMergeChange({ ...base, section: 'private-domain.test' }).includes('private-domain'));
+console.log('PASS: equal-count replacement, order, clear, protected input and private section presentation');
