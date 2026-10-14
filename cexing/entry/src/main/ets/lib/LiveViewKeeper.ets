@@ -485,7 +485,10 @@ export namespace LiveViewKeeper {
   /** Read-only Controller snapshots. An unavailable saved group remains unknown. */
   async function refreshMeta(generation: number): Promise<void> {
     const metadata = ++metadataGeneration;
-    const [proxies, cfg] = await Promise.all([CoreApi.getProxies(), CoreApi.getConfigs()]);
+    const proxiesRequest = CoreApi.getProxies();
+    const configsRequest = CoreApi.getConfigs();
+    const proxies = await proxiesRequest;
+    const cfg = await configsRequest;
     if (!isCurrent(generation) || metadata !== metadataGeneration) { return; }
     const requested = lastContext !== null ? Settings.load(lastContext).mainGroup : '';
     const next = proxies !== null ? LiveViewStrategy.choose(proxies, requested) : '';
