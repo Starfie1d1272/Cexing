@@ -3,6 +3,7 @@ import { common } from '@kit.AbilityKit';
 import core from 'libentry.so';
 import { MergePreview } from './CoreValidator';
 import { RegionPlan } from './EffectiveVersions';
+import { TemplateSnapshot } from './TemplateUpdates';
 
 export interface EditOperation {
   id: string;
@@ -23,6 +24,8 @@ export interface TemplatePlan {
   targetGroup?: string;
   region?: RegionPlan;
   replaceRules?: boolean;
+  baseline?: TemplateSnapshot;
+  mine?: TemplateSnapshot;
 }
 export interface EditIntent {
   schemaVersion: number;

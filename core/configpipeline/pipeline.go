@@ -31,9 +31,10 @@ type PlatformProjection func(context.Context, *yaml.Node) error
 type Validator func(context.Context, []byte) error
 
 type Compiler struct {
-	Platform PlatformProjection
-	Validate Validator
-	Template TemplateTransform
+	Platform        PlatformProjection
+	Validate        Validator
+	Template        TemplateTransform
+	PrepareTemplate TemplatePrepare
 }
 type Request struct {
 	// Empty means no successful active version; otherwise use Snapshot.Current.ID.
@@ -103,11 +104,35 @@ func (c Compiler) Compile(ctx context.Context, r Request) (Result, error) {
 			return Result{}, intentError("region_failed", -1)
 		}
 	}
-	if err := applyIntentTemplate(ctx, root, r.Intent, c.Template); err != nil {
+	session, err := c.prepareIntentTemplate(ctx, root, r.Intent)
+	if err != nil {
 		return Result{}, err
 	}
-	if err := ApplyEditIntent(ctx, root, r.Intent); err != nil {
+	if err := applyBoundEditIntent(ctx, root, r.Intent, sessionTargets(session)); err != nil {
 		return Result{}, err
+	}
+	var mine *TemplateSnapshot
+	if session != nil {
+		mine, err = captureBoundTemplate(ctx, root, session)
+		if err != nil {
+			return Result{}, intentError("template_capture_failed", -1)
+		}
+		// Retain dormant tombstones when a newer authored baseline omits an ID.
+		if r.Intent.Template.Mine != nil {
+			known := map[string]bool{}
+			for _, e := range mine.Entries {
+				known[e.ID] = true
+			}
+			for _, id := range mine.Deleted {
+				known[id] = true
+			}
+			for _, id := range r.Intent.Template.Mine.Deleted {
+				if !known[id] {
+					mine.Deleted = append(mine.Deleted, id)
+					known[id] = true
+				}
+			}
+		}
 	}
 	var beforePlatform *yaml.Node
 	for _, step := range []struct {
@@ -168,6 +193,18 @@ func (c Compiler) Compile(ctx context.Context, r Request) (Result, error) {
 	result := Result{Original: append([]byte(nil), r.Original...), YAML: output, Digest: hex.EncodeToString(sum[:])}
 	if r.Intent != nil {
 		encoded, _ := json.Marshal(r.Intent)
+		result.EditIntent, err = DecodeEditIntent(encoded)
+		if err != nil {
+			return Result{}, err
+		}
+	}
+	if session != nil && result.EditIntent != nil && result.EditIntent.Template != nil {
+		result.EditIntent.Template.Baseline = session.Baseline
+		result.EditIntent.Template.Mine = mine
+		encoded, err := json.Marshal(result.EditIntent)
+		if err != nil {
+			return Result{}, intentError("invalid_template", -1)
+		}
 		result.EditIntent, err = DecodeEditIntent(encoded)
 		if err != nil {
 			return Result{}, err
