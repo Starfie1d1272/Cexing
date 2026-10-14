@@ -20,6 +20,7 @@ export struct TemplateWizard {
   private activeUpdateSource?: TemplateUpdateSource;
   private activeEditor?: EditorDraftHost;
   @State private reviewingUpdate: boolean = false;
+  @State private updateAvailable: boolean = false;
   @Prop profileId: string = '';
   onClose: () => void = () => {};
   @State private view: TemplateWizardView = { templateId: 'original', target: '', busy: false,
@@ -46,6 +47,8 @@ export struct TemplateWizard {
         this.view = this.model.snapshot();
         this.aiRevision = this.view.ready && !this.view.busy && this.view.templateId === 'ai' ?
           this.aiBinding.revision(getContext(this) as common.UIAbilityContext, this.profileId, this.view.target) : '';
+        this.updateAvailable = this.view.ready && !this.view.busy &&
+          (this.activeUpdateSource?.available?.(this.view.templateId, this.view.target) ?? this.updateSource !== undefined);
       }
     });
     this.model.load();
@@ -93,7 +96,9 @@ export struct TemplateWizard {
         Blank()
         Button('返回').backgroundColor(UI.soft).fontColor(UI.ink).onClick(() => this.close())
       }.width('100%')
-      if (this.activeUpdateSource !== undefined && this.view.templateId !== 'original') {
+      Scroll() {
+      Column({ space: 12 }) {
+      if (this.updateAvailable) {
         Button('更新方案').backgroundColor(UI.soft).fontColor(UI.ink)
           .enabled(this.view.ready && !this.view.busy).onClick(() => { this.reviewingUpdate = true; })
       }
@@ -105,6 +110,7 @@ export struct TemplateWizard {
         Text(this.view.templateId === 'region' ? '原策略组' : '出口').fontSize(14).fontColor(UI.muted)
         Select((this.view.templateId === 'region' ? this.view.selectors :
           this.view.groups).map((name: string): SelectOption => { return { value: name }; }))
+          .selected(Math.max(0, (this.view.templateId === 'region' ? this.view.selectors : this.view.groups).indexOf(this.view.target)))
           .value(this.view.target || '请选择').width('100%').enabled(this.view.busy === false)
           .onSelect((_index: number, value: string) => this.model?.choose(this.view.templateId, value))
       }
@@ -126,7 +132,8 @@ export struct TemplateWizard {
       if (this.view.hasPreview) {
         Text(this.view.summary).fontSize(14).fontColor(UI.muted)
       }
-      Blank()
+      }.width('100%')
+      }.width('100%').layoutWeight(1)
       if (this.view.ready !== true && this.view.busy === false) {
         Button('重试').onClick(() => this.model?.load())
       }

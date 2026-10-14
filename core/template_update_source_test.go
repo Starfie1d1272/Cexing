@@ -163,6 +163,19 @@ x-unknown: {future: preserve}
 	if !sameTemplateSnapshot(readIntent(final).Template.Mine, successful.Template.Mine) {
 		t.Fatal("second rebase changed personal template result")
 	}
+	// An unrepresentable structured numeric edit is rejected before it can
+	// round-trip through ArkTS or replace the successful pointer.
+	riskyBytes, _ := json.Marshal(successful)
+	risky, _ := configpipeline.DecodeEditIntent(riskyBytes)
+	risky.Operations = append(risky.Operations, configpipeline.EditOperation{ID: "large-advanced", Kind: "update", Section: "proxies", Target: node.Item.ID, Preconditions: map[string]string{"x-large": node.MissingFieldRevision}, Patch: json.RawMessage(`{"x-large":9007199254740993}`)})
+	preciseSource := templateUpdateSourceInput{ProfileID: next.ProfileID, ProfileVersion: next.ID, Original: latest, Intent: json.RawMessage(mustEditorJSON(t, risky)), Action: "read"}
+	if _, err := templateUpdateSource(home, preciseSource); err == nil || err.Error() != "TEMPLATE_UPDATE_PRECISION" {
+		t.Fatal("inexact advanced data admitted", err)
+	}
+	current, _ := (configpipeline.FileStore{Root: filepath.Join(home, "profile-versions")}).Load(context.Background())
+	if current.Current.ID != next.ID {
+		t.Fatal("rejected advanced field changed Current")
+	}
 	// Caller-supplied home/URL fields are rejected by the actual bounded envelope.
 	invalid := `{"op":"template-update-preview","source":{"profileId":"synthetic.yaml","url":"https://synthetic.invalid"}}`
 	if !strings.Contains(coreTemplateUpdateAction(invalid, home), `"error"`) {

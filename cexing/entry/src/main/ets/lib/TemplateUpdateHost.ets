@@ -7,6 +7,7 @@ import { TemplateConflict, TemplateSnapshot, TemplateUpdateHost, TemplateUpdateP
 /** Compiler-owned private data conversion. These callbacks must use the common
  * template schema/aliases, never a list Merge or a second persistence service. */
 export interface TemplateUpdateSource {
+  available?: (templateId: string, target: string) => boolean;
   read: (session: EditorDraftSession) => Promise<TemplateUpdateRequest>;
   encode: (candidate: TemplateSnapshot, session: EditorDraftSession) => Promise<EditIntent>;
   label: (conflict: TemplateConflict) => string;

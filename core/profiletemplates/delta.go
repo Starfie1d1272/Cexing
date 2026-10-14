@@ -229,3 +229,56 @@ func EncodeDelta(ctx context.Context, compiler configpipeline.Compiler, request 
 	}
 	return intent, nil
 }
+
+// EqualSnapshots compares normalized semantic values without float64 coercion.
+// Order is meaningful within a section; tombstone order is not meaningful.
+func EqualSnapshots(a, b *TemplateSnapshot) bool {
+	if a == nil || b == nil {
+		return a == nil && b == nil
+	}
+	if a.TemplateID != b.TemplateID || a.Version != b.Version {
+		return false
+	}
+	left, err := snapshot(*a)
+	if err != nil {
+		return false
+	}
+	right, err := snapshot(*b)
+	if err != nil || len(left) != len(right) {
+		return false
+	}
+	for id, value := range left {
+		other, ok := right[id]
+		if !ok || value.section != other.section {
+			return false
+		}
+		x, e := json.Marshal(value.value)
+		if e != nil {
+			return false
+		}
+		y, e := json.Marshal(other.value)
+		if e != nil || string(x) != string(y) {
+			return false
+		}
+	}
+	for _, section := range templateSections {
+		x, y := []string{}, []string{}
+		for _, entry := range a.Entries {
+			if entry.Section == section {
+				x = append(x, entry.ID)
+			}
+		}
+		for _, entry := range b.Entries {
+			if entry.Section == section {
+				y = append(y, entry.ID)
+			}
+		}
+		if !reflect.DeepEqual(x, y) {
+			return false
+		}
+	}
+	x, y := append([]string{}, a.Deleted...), append([]string{}, b.Deleted...)
+	sort.Strings(x)
+	sort.Strings(y)
+	return reflect.DeepEqual(x, y)
+}
