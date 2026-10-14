@@ -275,7 +275,7 @@ export struct SettingsPage {
       else if (profiles.length === 0) {
         promptAction.showToast({ message: UiText.get($r('app.string.settings_dns_import_first')) });
       } else {
-        ActionSheet.show({ title: UiText.get($r('app.string.settings_dns_choose')),
+        ActionSheet.show({ title: UiText.get($r('app.string.settings_dns_choose')), message: '',
           cancel: () => { if (current()) { this.feedbackGeneration++; } },
           sheets: profiles.map((profile): SheetInfo => ({ title: profile.name, action: () => {
             try { open(profile.file); }
