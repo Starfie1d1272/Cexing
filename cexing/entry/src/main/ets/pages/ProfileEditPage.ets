@@ -15,10 +15,13 @@ const TAG = 'profileEdit';
 /** 页面间传参总线：列表页 push 前写入，编辑页 aboutToAppear 读取 */
 export class ProfileEditBus {
   static current: string = '';
+  static backGuard: (() => boolean) | null = null;
+  static shouldBlockBack(): boolean { return ProfileEditBus.backGuard?.() ?? false; }
 }
 
 @Component
 export struct ProfileEditPage {
+  @Prop mergeOnly: boolean = false;
   @Consume('profileRevision') profileRevision: number;
   @Consume('nav') navStack: NavPathStack;
   @State text: string = '';
@@ -40,8 +43,12 @@ export struct ProfileEditPage {
   @State mergeBusy: boolean = false;
   @State mergeSummary: string = '';
   @State mergeLoadFailed: boolean = false;
+  private persistedMergeText: string = '';
+  private backGuard: (() => boolean) | null = null;
 
   aboutToAppear(): void {
+    this.backGuard = () => !this.prepareToLeave();
+    ProfileEditBus.backGuard = this.backGuard;
     this.file = ProfileEditBus.current;
     const context = getContext(this) as common.UIAbilityContext;
     const content = ProfileStore.getProfileContent(context, this.file);
@@ -52,6 +59,7 @@ export struct ProfileEditPage {
     this.loadFailed = false;
     try {
       this.mergeText = ProfileStore.getMergeDraft(context, this.file);
+      this.persistedMergeText = this.mergeText;
       this.mergeLoadFailed = false;
     } catch (_) {
       this.mergeText = '';
@@ -72,7 +80,9 @@ export struct ProfileEditPage {
   }
 
   aboutToDisappear(): void {
+    if (ProfileEditBus.backGuard === this.backGuard) { ProfileEditBus.backGuard = null; }
     this.flushDraft();
+    this.persistMergeDraft();
   }
 
   private cancelDraftTimer(): void {
@@ -187,6 +197,37 @@ export struct ProfileEditPage {
     }
   }
 
+  private prepareToLeave(): boolean {
+    if (this.saving || this.mergeBusy) { return false; }
+    this.flushDraft();
+    const mergeSaved = this.persistMergeDraft();
+    return mergeSaved && (!this.dirty || this.draftPersisted);
+  }
+
+  private persistMergeDraft(): boolean {
+    if (this.loadFailed || this.mergeLoadFailed) { return true; }
+    if (this.mergeText === this.persistedMergeText) { return true; }
+    try {
+      ProfileStore.saveMergeDraft(getContext(this) as common.UIAbilityContext, this.file, this.mergeText);
+      this.persistedMergeText = this.mergeText;
+      return true;
+    } catch (_) { this.toast('覆写草稿未能保存，请重试'); return false; }
+  }
+
+  private closeMerge(): void {
+    if (this.mergeBusy || !this.persistMergeDraft()) { return; }
+    if (this.mergeOnly) { this.navStack.pop(); }
+    else { this.showMergeSheet = false; }
+  }
+
+  private openOriginalDraft(): void {
+    if (this.mergeBusy || !this.persistMergeDraft()) { return; }
+    if (this.mergeOnly) {
+      ProfileEditBus.current = this.file;
+      this.navStack.replacePath({ name: 'profileEdit' });
+    } else { this.showMergeSheet = false; }
+  }
+
   private async previewMerge(): Promise<void> {
     if (this.mergeBusy) { return; }
     if (this.mergeLoadFailed) { this.toast('覆写草稿读取失败，请重试'); return; }
@@ -223,14 +264,21 @@ export struct ProfileEditPage {
   MergeSheet() {
     Column({ space: 12 }) {
       Text('本订阅覆写').fontSize(17).fontWeight(FontWeight.Medium).fontColor(UI.ink)
-      Text('为当前订阅设置专用配置，优先于全局覆写。')
+      Text('仅作用于当前订阅')
         .fontSize(13).fontColor(UI.muted).width('100%')
-      Text('预览保存草稿并查看变化，应用后生效。清空内容并应用可停用。')
-        .fontSize(13).fontColor(UI.muted).width('100%')
-      Text('填写规则或策略组列表时，会替换订阅中的对应列表。')
-        .fontSize(13).fontColor(UI.muted).width('100%')
+      Button('编辑帮助').fontSize(13).backgroundColor(Color.Transparent).fontColor(UI.accentText)
+        .onClick(() => {
+          AlertDialog.show({ title: '本订阅覆写',
+            message: '优先于全局覆写。预览保存草稿，应用后生效。清空内容并应用可停用。规则和策略组列表会替换订阅中的对应列表。',
+            confirm: { value: '知道了', action: () => {} } });
+        })
       if (this.mergeLoadFailed) {
         Text('覆写草稿读取失败，请关闭后重试').fontSize(13).fontColor(UI.error)
+      }
+      if (this.dirty) {
+        Text('原始配置有未保存修改').fontSize(13).fontColor(UI.accentText).width('100%')
+        Button('继续编辑原文').height(44).width('100%').backgroundColor(UI.soft).fontColor(UI.ink)
+          .enabled(!this.mergeBusy).onClick(() => { this.openOriginalDraft(); })
       }
       TextArea({ text: $$this.mergeText, placeholder: '输入 YAML 覆写配置' })
         .width('100%').layoutWeight(1).fontSize(14).fontFamily('HarmonyOS Sans Mono')
@@ -241,14 +289,14 @@ export struct ProfileEditPage {
       }
       Row({ space: 12 }) {
         Button('关闭').height(44).layoutWeight(1).backgroundColor(UI.soft).fontColor(UI.ink)
-          .onClick(() => { this.showMergeSheet = false; })
+          .enabled(!this.mergeBusy).onClick(() => { this.closeMerge(); })
         Button(this.mergeBusy ? '预览中' : '预览')
           .height(44).layoutWeight(1).backgroundColor(UI.action).fontColor(UI.onAccent)
-          .enabled(!this.mergeBusy && !this.mergeLoadFailed).onClick(() => { this.previewMerge(); })
+          .enabled(!this.mergeBusy && !this.mergeLoadFailed && !this.dirty).onClick(() => { this.previewMerge(); })
       }.width('100%')
       Button(this.mergeBusy ? '处理中' : '应用本订阅覆写')
         .height(44).width('100%').backgroundColor(UI.action).fontColor(UI.onAccent)
-        .enabled(!this.mergeBusy && !this.mergeLoadFailed)
+        .enabled(!this.mergeBusy && !this.mergeLoadFailed && !this.dirty)
         .onClick(() => { this.applyMerge(); })
     }.width('100%').height('100%').padding(20).backgroundColor(UI.surface)
   }
@@ -290,6 +338,9 @@ export struct ProfileEditPage {
   }
 
   build() {
+    if (this.mergeOnly) {
+      this.MergeSheet()
+    } else {
     Column({ space: 8 }) {
       Column({ space: 6 }) {
         Text(this.file)
@@ -358,5 +409,6 @@ export struct ProfileEditPage {
     .backgroundColor(UI.paper).constraintSize({ maxWidth: 760 }).alignSelf(ItemAlign.Center)
     .bindSheet($$this.showSaveAsSheet, this.SaveAsSheet(), { height: SheetSize.MEDIUM })
     .bindSheet($$this.showMergeSheet, this.MergeSheet(), { height: SheetSize.LARGE })
+    }
   }
 }
