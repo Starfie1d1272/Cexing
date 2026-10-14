@@ -12,6 +12,7 @@ export struct LocalBackupActions {
   @Consume('tab') @Watch('onVisibilityChanged') tab: number = 2;
   @Consume('rootVisible') @Watch('onVisibilityChanged') rootVisible: boolean = true;
   @State working: boolean = false;
+  private exporting: number = -1;
   private restoring: number = -1;
   private pending: BackupResult | null = null;
   private active: boolean = false;
@@ -37,12 +38,13 @@ export struct LocalBackupActions {
     if (this.working) { return; }
     const generation = ++this.generation; this.working = true;
     AlertDialog.show({ title: '导出本地备份', message: '备份含订阅地址和节点凭据，请妥善保管。',
-      primaryButton: { value: '取消', action: () => { if (this.current(generation)) { this.working = false; } } },
+      primaryButton: { value: '取消', action: () => { if (this.current(generation)) { this.generation++; this.working = false; } } },
       secondaryButton: { value: '选择保存位置', action: () => { this.exportFile(generation); } },
-      cancel: () => { if (this.current(generation)) { this.working = false; } } });
+      cancel: () => { if (this.current(generation)) { this.generation++; this.working = false; } } });
   }
   private async exportFile(generation: number): Promise<void> {
-    if (!this.current(generation)) { return; }
+    if (!this.current(generation) || this.exporting === generation) { return; }
+    this.exporting = generation;
     const context = getContext(this) as common.UIAbilityContext;
     const current = (): boolean => this.current(generation);
     try {
@@ -84,7 +86,7 @@ export struct LocalBackupActions {
       if (this.restoring === generation) { return; }
       this.pending = null;
       LocalBackup.cancel(context, preview).catch(() => {});
-      if (current()) { this.working = false; }
+      if (current()) { this.generation++; this.working = false; }
     };
     AlertDialog.show({ title: '恢复备份', message: message,
       primaryButton: { value: '取消', action: cancel }, cancel: cancel,
