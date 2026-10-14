@@ -13,6 +13,7 @@ import { OverridePage } from './OverridePage';
 import { ProfileEditPage } from './ProfileEditPage';
 import { ProfileGeneratedPage } from './ProfileGeneratedPage';
 import { RuleDnsEditorPage } from './RuleDnsEditorPage';
+import { ProfileProxyEditorPage } from './ProfileProxyEditorPage';
 
 @Entry
 @Component
@@ -28,6 +29,7 @@ struct Index {
   @State windowWidth: number = 390;
   @State private smartVisible: boolean = false;
   @State private ruleDnsVisible: boolean = false;
+  @State private proxyEditorVisible: boolean = false;
   @State private zashboardVisible: boolean = false;
 
   aboutToAppear(): void {
@@ -76,6 +78,10 @@ struct Index {
       NavDestination() { OverridePage() }.title('内核设置')
     } else if (name === 'profileDetail') {
       NavDestination() { ProfilePage({ detailFile: ProfileDetailBus.current }) }.title('订阅详情')
+    } else if (name === 'profileProxyEditor') {
+      NavDestination() { ProfileProxyEditorPage({ visible: this.proxyEditorVisible }) }.title('节点与策略组')
+        .onShown(() => { this.proxyEditorVisible = true; })
+        .onHidden(() => { this.proxyEditorVisible = false; })
     } else if (name === 'ruleDnsEditor') {
       NavDestination() { RuleDnsEditorPage({ visible: this.ruleDnsVisible }) }.title('规则与 DNS')
         .onShown(() => { this.ruleDnsVisible = true; })

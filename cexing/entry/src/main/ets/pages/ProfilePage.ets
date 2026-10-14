@@ -21,6 +21,7 @@ import { AppRuntime } from '../lib/AppRuntime';
 import { Logger } from '../lib/Logger';
 import { ProfileEditBus } from './ProfileEditPage';
 import { RuleDnsEditorBus } from './RuleDnsEditorPage';
+import { ProfileProxyEditorBus } from './ProfileProxyEditorPage';
 import { GlobalMergeEditor } from './GlobalMergeEditor';
 
 const TAG = 'profile';
@@ -86,6 +87,13 @@ export struct ProfilePage {
   private pageVisible: boolean = false;
   private pageGeneration: number = 0;
   private activationRequest: number = 0;
+
+  private openProxyEditor(file: string): void {
+    const paths = this.navStack.getAllPathName();
+    if (paths[paths.length - 1] === 'profileProxyEditor') { return; }
+    ProfileProxyEditorBus.file = file;
+    this.navStack.pushPath({ name: 'profileProxyEditor' });
+  }
 
   private openRuleDns(file: string): void {
     const paths = this.navStack.getAllPathName();
@@ -817,6 +825,7 @@ export struct ProfilePage {
                 .enabled(this.updatingFile.length === 0).onClick(() => { this.retryAutomatic(p); })
             }
           }
+          this.DetailAction('节点与策略组', () => { this.openProxyEditor(p.file); })
           this.DetailAction('规则与 DNS', () => {
             this.openRuleDns(p.file);
           })
