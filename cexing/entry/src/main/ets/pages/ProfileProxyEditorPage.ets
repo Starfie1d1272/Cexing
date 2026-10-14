@@ -2,12 +2,12 @@ import { common } from '@kit.AbilityKit';
 import { util } from '@kit.ArkTS';
 import { promptAction } from '@kit.ArkUI';
 import { NativeTheme as UI } from './NativeTheme';
-import { EditableItem, EditTarget, EditOperation, EditIntent } from '../lib/ConfigEditor';
+import { EditableItem, EditTarget, EditOperation, EditIntent, EditIntentFailure } from '../lib/ConfigEditor';
 import { ProfileProxyEditorModel } from '../lib/ProfileProxyEditorModel';
 import { ProxyIntentEdits } from '../lib/ProxyIntentEdits';
 import { ProxyMappingDraft } from '../lib/ProxyMappingForm';
 import { ProxyMappingFormPage } from './ProxyMappingFormPage';
-import { ProxyProviderStatus } from '../lib/ProxyProviderStatus';
+import { ProxyProviderStatus, ProxyProviderNode } from '../lib/ProxyProviderStatus';
 
 export class ProfileProxyEditorBus { static file: string = ''; }
 
@@ -21,6 +21,12 @@ class ProxyEditorRow {
   }
 }
 
+class ProxySourceChoice {
+  key: string;
+  value: string;
+  constructor(key: string, value: string) { this.key = key; this.value = value; }
+}
+
 @Component
 export struct ProfileProxyEditorPage {
   @Prop @Watch('visibilityChanged') visible: boolean = false;
@@ -28,6 +34,13 @@ export struct ProfileProxyEditorPage {
   @State section: string = 'proxies';
   @State rows: ProxyEditorRow[] = [];
   @State query: string = '';
+  @State sourceKey: string = 'all';
+  @State sourceLabel: string = '全部来源';
+  @State sourceChoices: ProxySourceChoice[] = [];
+  @State sourceNodes: ProxyProviderNode[] = [];
+  @State sourceCount: number = 0;
+  @State sourceReady: boolean = false;
+  @State visibleCount: number = 100;
   @State busy: boolean = false;
   @State error: string = '';
   @State formOpen: boolean = false;
@@ -54,10 +67,10 @@ export struct ProfileProxyEditorPage {
     this.active = this.visible;
     if (this.active) { this.load(); }
   }
-  aboutToDisappear(): void { this.active = false; this.epoch++; this.model?.cancel(); }
+  aboutToDisappear(): void { this.sourceNodes = []; this.sourceReady = false; this.active = false; this.epoch++; this.model?.cancel(); }
   private visibilityChanged(): void {
     if (this.active === this.visible) { return; }
-    this.active = this.visible; this.epoch++; this.model?.cancel(); this.formOpen = false;
+    this.active = this.visible; this.epoch++; this.model?.cancel(); this.formOpen = false; this.sourceNodes = []; this.sourceReady = false;
     if (this.active) { this.load(); }
   }
   private current(epoch: number): boolean { return this.active && epoch === this.epoch; }
@@ -65,6 +78,7 @@ export struct ProfileProxyEditorPage {
   private async load(): Promise<void> {
     if (this.model === null) { return; }
     const epoch = ++this.epoch; this.busy = true;
+    this.sourceKey = 'all'; this.sourceLabel = '全部来源'; this.sourceNodes = []; this.sourceReady = false;
     try {
       if (await this.model.load() && this.current(epoch)) {
         const snapshot = this.model.snapshot;
@@ -110,6 +124,21 @@ export struct ProfileProxyEditorPage {
       }
     }
     this.rows = rows;
+    const choices: ProxySourceChoice[] = [new ProxySourceChoice('all', '全部来源'),
+      new ProxySourceChoice('raw', '订阅原文'), new ProxySourceChoice('custom', '自定义')];
+    const sources = model.snapshot.sections.find((part) => part.section === 'proxy-providers')?.items ?? [];
+    for (const item of sources) {
+      const name = operations.find((op: EditOperation) => op.kind === 'rename' && op.target === item.id)?.name ?? item.name;
+      if (name !== undefined && !operations.some((op: EditOperation) => op.kind === 'delete' && op.target === item.id)) {
+        choices.push(new ProxySourceChoice(`provider:${item.id}`, name));
+      }
+    }
+    for (const operation of operations.filter((entry: EditOperation) => entry.kind === 'add' && entry.section === 'proxy-providers')) {
+      choices.push(new ProxySourceChoice(`added:${operation.id}`, operation.name ?? '新增来源'));
+    }
+    this.sourceChoices = choices;
+    if (!choices.some((choice) => choice.key === this.sourceKey)) { this.sourceKey = 'all'; }
+    this.sourceLabel = choices.find((choice) => choice.key === this.sourceKey)?.value ?? '全部来源';
     const names: string[] = [];
     const providers: string[] = [];
     for (const part of model.snapshot.sections) {
@@ -131,6 +160,50 @@ export struct ProfileProxyEditorPage {
     this.previewReady = model.preview !== null;
     this.renameReferences = this.previewReady && operations.some((op: EditOperation) => op.kind === 'rename');
     this.previewText = model.preview?.changes.map((change) => `${change.section} ${change.before} → ${change.after}`).join(' · ') ?? '';
+  }
+
+  private isProviderSource(): boolean { return this.sourceKey.startsWith('provider:') || this.sourceKey.startsWith('added:'); }
+
+  private shownRows(): ProxyEditorRow[] {
+    return this.rows.filter((row: ProxyEditorRow) =>
+      (this.sourceKey !== 'raw' || !row.added) && (this.sourceKey !== 'custom' || row.added) &&
+      (row.label.includes(this.query) || row.type.includes(this.query))).slice(0, this.visibleCount);
+  }
+
+  private async chooseSource(index: number): Promise<void> {
+    if (this.busy || this.model === null || index < 0 || index >= this.sourceChoices.length) { return; }
+    const choice = this.sourceChoices[index];
+    this.sourceKey = choice.key; this.sourceLabel = choice.value; this.sourceNodes = [];
+    this.sourceReady = false; this.sourceCount = 0; this.visibleCount = 100; this.error = '';
+    if (!this.isProviderSource()) { return; }
+    const id = choice.key.slice(choice.key.indexOf(':') + 1);
+    const source = choice.key.startsWith('provider:') ? this.model.snapshot?.sections.find((part) => part.section === 'proxy-providers')?.items.find((item) => item.id === id) : undefined;
+    const added = this.model.workingIntent().operations.find((operation: EditOperation) =>
+      operation.kind === 'add' && operation.section === 'proxy-providers' && operation.id === id);
+    if (source === undefined && added === undefined) { return; }
+    const value: Record<string, Object> = {};
+    const item: EditableItem = source ?? { id: id, revision: '' };
+    const target: EditTarget = { item: item, name: source?.name ?? added?.name, missingFieldRevision: this.missingRevision, value: value };
+    const name = this.model.publishedProviderName(target, choice.key.startsWith('added:'));
+    if (name === '') { this.error = '此来源尚未应用'; return; }
+    const epoch = ++this.epoch; this.busy = true;
+    try {
+      const observation = await ProxyProviderStatus.observe(getContext(this) as common.UIAbilityContext,
+        this.file, this.model.profileVersion(), name, false);
+      if (!this.current(epoch)) { return; }
+      this.sourceNodes = observation.nodes; this.sourceCount = observation.count;
+      this.sourceReady = observation.available; this.error = observation.error;
+    } catch (_) { if (this.current(epoch)) { this.error = '来源节点读取失败，请重试'; } }
+    finally { if (this.current(epoch)) { this.busy = false; } }
+  }
+
+  private async editSelectedSource(): Promise<void> {
+    const id = this.sourceKey.slice(this.sourceKey.indexOf(':') + 1);
+    const choice = this.sourceChoices.find((item) => item.key === this.sourceKey);
+    if (this.busy || choice === undefined) { return; }
+    this.section = 'proxy-providers'; this.sync();
+    const row = this.rows.find((item: ProxyEditorRow) => item.id === id);
+    if (row !== undefined) { await this.open(row); }
   }
 
   private async open(row: ProxyEditorRow): Promise<void> {
@@ -158,10 +231,11 @@ export struct ProfileProxyEditorPage {
   }
 
   private async provider(update: boolean): Promise<void> {
-    if (this.busy || this.model === null || this.originalTarget === null || this.section !== 'proxy-providers') { return; }
+    const target = this.originalTarget ?? (this.selectedAdd !== '' ? this.formTarget : null);
+    if (this.busy || this.model === null || target === null || this.section !== 'proxy-providers') { return; }
     const epoch = ++this.epoch; this.busy = true;
     try {
-      const name = this.model.publishedProviderName(this.originalTarget);
+      const name = this.model.publishedProviderName(target, this.selectedAdd !== '');
       if (name === '') { this.error = '此来源尚未应用'; return; }
       const observation = await ProxyProviderStatus.observe(getContext(this) as common.UIAbilityContext,
         this.file, this.model.profileVersion(), name, update);
@@ -178,7 +252,19 @@ export struct ProfileProxyEditorPage {
 
   private add(): void {
     if (this.busy) { return; }
+    if (this.section === 'proxies') { this.sourceKey = 'custom'; this.sourceLabel = '自定义'; }
     this.originalTarget = null; this.formTarget = null; this.selectedAdd = ''; this.formOpen = true;
+  }
+
+  private previewFailure(intent: EditIntent, error: Error): string {
+    const failure = error instanceof EditIntentFailure ? error as EditIntentFailure : null;
+    const operation = failure !== null ? intent.operations[failure.operation] : intent.operations[intent.operations.length - 1];
+    if (failure?.code === 'missing_target') { return '项目已变化，请重新读取或撤销修改'; }
+    if (failure?.code === 'conflict') { return '修改与订阅存在冲突，请重新读取或撤销'; }
+    if (operation?.section === 'proxy-groups') { return '策略组未通过预览，请检查组成员和来源，或撤销修改'; }
+    if (operation?.section === 'proxy-providers') { return '来源未通过预览，请检查链接、路径或节点内容'; }
+    if (operation?.section === 'proxies') { return '节点未通过预览，请检查参数或撤销修改'; }
+    return '预览未通过，请检查修改或撤销';
   }
 
   private async save(next: EditIntent): Promise<void> {
@@ -189,8 +275,8 @@ export struct ProfileProxyEditorPage {
       if (!this.current(epoch)) { return; }
       this.sync(); this.formOpen = false;
       this.error = ready ? '' : '预览未完成，请重试';
-    } catch (_) {
-      if (this.current(epoch)) { this.sync(); this.error = '预览未通过，请检查修改或撤销'; }
+    } catch (error) {
+      if (this.current(epoch)) { this.sync(); this.error = this.previewFailure(next, error as Error); }
     } finally { if (this.current(epoch)) { this.busy = false; } }
   }
 
@@ -230,7 +316,14 @@ export struct ProfileProxyEditorPage {
       } } });
   }
 
+  private moveHandler(): OnMoveHandler | undefined {
+    if (this.busy || this.query !== '' || this.section === 'proxy-providers' ||
+      (this.section === 'proxies' && this.sourceKey !== 'all')) { return undefined; }
+    return (from: number, to: number): void => { this.moveRow(from, to); };
+  }
+
   private async moveRow(from: number, to: number): Promise<void> {
+    if (this.section === 'proxies' && this.sourceKey !== 'all') { return; }
     if (this.busy || this.model === null || this.query !== '' || this.section === 'proxy-providers' ||
       from === to || from < 0 || to < 0 || from >= this.rows.length || to >= this.rows.length) { return; }
     const revised = this.rows.slice();
@@ -318,7 +411,7 @@ export struct ProfileProxyEditorPage {
   build() {
     Column({ space: 12 }) {
       if (this.formOpen) {
-        if (this.section === 'proxy-providers' && this.originalTarget !== null) {
+        if (this.section === 'proxy-providers' && (this.originalTarget !== null || this.selectedAdd !== '')) {
           Row({ space: 8 }) {
             Button('查看状态').enabled(!this.busy).onClick(() => { this.provider(false); })
             Button('更新来源').enabled(!this.busy).onClick(() => { this.provider(true); })
@@ -326,7 +419,7 @@ export struct ProfileProxyEditorPage {
           if (this.providerState !== '') { Text(this.providerState).fontSize(13).fontColor(UI.muted).width('100%') }
         }
         ProxyMappingFormPage({ busy: this.busy, section: this.section, target: this.formTarget, names: this.names, providerNames: this.providers,
-          onDraft: (draft: ProxyMappingDraft) => this.saveForm(draft), onCancel: () => { this.epoch++; this.model?.cancel(); this.formOpen = false; this.busy = false; } }).layoutWeight(1)
+          onDraft: (draft: ProxyMappingDraft) => this.saveForm(draft), onCancel: () => { this.epoch++; this.model?.cancel(); this.formOpen = false; this.sourceNodes = []; this.sourceReady = false; this.busy = false; } }).layoutWeight(1)
       } else {
         Row({ space: 8 }) {
           Button('节点').onClick(() => { this.section = 'proxies'; this.sync(); })
@@ -334,20 +427,39 @@ export struct ProfileProxyEditorPage {
           Button('策略组').onClick(() => { this.section = 'proxy-groups'; this.sync(); })
         }.enabled(!this.busy)
         if (this.disabled) { Text('修改已停用').fontSize(13).fontColor(UI.muted).width('100%') }
-        Search({ value: this.query, placeholder: '搜索' }).onChange((value: string) => { this.query = value; })
+        if (this.section === 'proxies') {
+          Select(this.sourceChoices).value(this.sourceLabel).enabled(!this.busy)
+            .onSelect((index: number) => { this.chooseSource(index); })
+        }
+        Search({ value: this.query, placeholder: '搜索' }).onChange((value: string) => { this.query = value; this.visibleCount = 100; })
+        if (this.section === 'proxies' && this.isProviderSource()) {
+          Row({ space: 8 }) {
+            if (this.sourceReady) { Text(`已加载 ${this.sourceCount} 个节点`).fontSize(13).fontColor(UI.muted).layoutWeight(1) }
+            Button('来源设置').enabled(!this.busy).onClick(() => { this.editSelectedSource(); })
+            Button('刷新').enabled(!this.busy).onClick(() => { this.chooseSource(this.sourceChoices.findIndex((item) => item.key === this.sourceKey)); })
+          }
+          List({ space: 8 }) {
+            ForEach(this.sourceNodes.filter((node: ProxyProviderNode) => node.name.includes(this.query) || node.type.includes(this.query))
+              .slice(0, this.visibleCount), (node: ProxyProviderNode) => {
+              ListItem() { Row({ space: 8 }) { Text(node.name).fontColor(UI.ink).layoutWeight(1); Text(node.type).fontSize(12).fontColor(UI.muted) }.width('100%').padding(12) }
+            }, (node: ProxyProviderNode) => node.name)
+          }.width('100%').layoutWeight(1).onReachEnd(() => { this.visibleCount += 100; })
+        } else {
         List({ space: 8 }) {
-          ForEach(this.rows.filter((row: ProxyEditorRow) => row.label.includes(this.query) || row.type.includes(this.query)), (row: ProxyEditorRow) => {
+          ForEach(this.shownRows(), (row: ProxyEditorRow) => {
             ListItem() {
               Row({ space: 8 }) {
                 Button(row.label).layoutWeight(1).onClick(() => { this.open(row); })
                 if (this.section === 'proxy-groups' && !row.added) {
                   Button('智能选择').onClick(() => { this.smart(row); })
                 }
+                if (this.moveHandler() !== undefined) { Text('≡').fontSize(20).fontColor(UI.muted) }
                 Button('删除').onClick(() => { this.remove(row); })
               }.enabled(!this.busy)
             }
-          }, (row: ProxyEditorRow) => row.id).onMove((from: number, to: number) => { this.moveRow(from, to); })
-        }.width('100%').layoutWeight(1)
+          }, (row: ProxyEditorRow) => row.id).onMove(this.moveHandler())
+        }.width('100%').layoutWeight(1).onReachEnd(() => { this.visibleCount += 100; })
+        }
         Button('新增').width('100%').height(48).enabled(!this.busy).onClick(() => { this.add(); })
         Row({ space: 8 }) {
           Button('撤销').enabled(!this.busy).onClick(() => { this.undo(); })

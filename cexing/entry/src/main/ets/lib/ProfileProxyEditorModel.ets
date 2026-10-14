@@ -27,10 +27,16 @@ export class ProfileProxyEditorModel {
   constructor(context: common.Context, file: string) { this.context = context; this.file = file; }
   cancel(): void { this.generation++; }
   profileVersion(): string { return this.ticket?.profileVersion ?? ''; }
-  publishedProviderName(target: EditTarget): string {
+  publishedProviderName(target: EditTarget, addition: boolean = false): string {
     const version = EffectiveVersions.read(this.context)?.Profiles[this.file];
     const intent = version === undefined ? null : EffectiveVersions.editIntent(this.context, version);
     let name = target.name ?? '';
+    if (addition) {
+      if (intent === null || intent.disabled === true) { return ''; }
+      const added = intent.operations.find((operation) => operation.kind === 'add' &&
+        operation.section === 'proxy-providers' && operation.id === target.item.id);
+      return added?.name ?? '';
+    }
     if (intent === null || intent.disabled === true) { return name; }
     for (const op of intent.operations) {
       if (op.section !== 'proxy-providers' || op.target !== target.item.id) { continue; }

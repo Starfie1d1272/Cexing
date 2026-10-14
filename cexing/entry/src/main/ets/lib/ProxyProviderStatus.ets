@@ -5,7 +5,10 @@ import { EffectiveVersions } from './EffectiveVersions';
 import { ProfileStore } from './ProfileStore';
 import { VpnController, VpnStatus } from './VpnController';
 
+export interface ProxyProviderNode { name: string; type: string; }
+
 export interface ProxyProviderObservation {
+  nodes: ProxyProviderNode[];
   available: boolean;
   count: number;
   updatedAt: number;
@@ -40,7 +43,7 @@ export namespace ProxyProviderStatus {
 
   export async function observe(context: common.Context, file: string, version: string,
     name: string, update: boolean): Promise<ProxyProviderObservation> {
-    const result: ProxyProviderObservation = { available: false, count: 0, updatedAt: 0, refreshed: false, error: '' };
+    const result: ProxyProviderObservation = { nodes: [], available: false, count: 0, updatedAt: 0, refreshed: false, error: '' };
     try {
       if (!selected(context, file, version)) { result.error = '连接此订阅后可查看来源状态'; return result; }
       const access = CoreApi.getControllerAccess();
@@ -58,8 +61,14 @@ export namespace ProxyProviderStatus {
       if (!selected(context, file, version) || await CoreApi.getControllerSession() !== session) {
         result.refreshed = false; result.error = '配置已变化，请重新读取'; return result;
       }
-      result.available = true;
-      result.count = (data['proxies'] as Object[]).length;
+      const proxies = data['proxies'] as Record<string, Object>[];
+      result.count = proxies.length;
+      const nodes: ProxyProviderNode[] = [];
+      for (const proxy of proxies) {
+        if (typeof proxy['name'] !== 'string' || typeof proxy['type'] !== 'string') { throw new Error('来源节点无效'); }
+        nodes.push({ name: proxy['name'] as string, type: proxy['type'] as string });
+      }
+      result.nodes = nodes; result.available = true;
       const updated = typeof data['updatedAt'] === 'string' ? Date.parse(data['updatedAt'] as string) : 0;
       result.updatedAt = Number.isFinite(updated) && updated > 0 ? updated : 0;
     } catch (_) { result.refreshed = false; result.error = '来源状态读取失败，请重试'; }
