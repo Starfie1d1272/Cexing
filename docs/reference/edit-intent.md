@@ -40,7 +40,7 @@ DNS 是一个 mapping 目标，缺失时提供虚拟空 mapping；通过 update 
 
 ## 模板与固定顺序
 
-统一字段 `EditIntent.template` / `configpipeline.TemplatePlan` 与 PR #159 的 `profiletemplates.Plan` 完全同形。生产 worker 已通过 `editorTemplate(home)` 将共享字段转换为既有 `profiletemplates.Plan` 并调用 Apply，不需要模板组再等待 alias。Go struct conversion 在编译时校验同形，模板代码/现有 Validate 保持不变；不得在另一种 provenance 中另存同一个模板。ArkTS 两个 TemplatePlan 接口字段同形，可直接赋值。
+统一字段 `EditIntent.template` / `configpipeline.TemplatePlan` 与 PR #159 的 `profiletemplates.Plan` 完全同形。生产 worker 已通过 `editorTemplate(home)` 将共享字段转换为既有 `profiletemplates.Plan` 并调用 Apply，不需要模板组再等待 alias。Go struct conversion 在编译时校验同形，模板代码/现有 Validate 保持不变；不得在另一种 provenance 中另存同一个模板。ArkTS 两个 TemplatePlan 接口字段同形但不能依赖结构赋值；使用 `ConfigEditor.templatePlan(plan.templateId, plan.version, plan.targetGroup, plan.region, plan.replaceRules)` 显式生成统一类型，再设 `intent.template`。SDK clean 挂载回归单独检查该接线。
 
 固定顺序：最新原文 → 全局 Merge → 本订阅 Merge → 模板（地区模板复用一次 RegionPlan）→ 个人操作 → Smart 默认/例外 → 平台 → 引用/完整 Validate。原有 RegionPlan 通过 `Request.Region` 在个人操作前运行；有显式 template 时由 template 接管地区选择，不再重复旧地区变换。original 模板不生成规则/地区，个人修改仍可保留；停用整个 intent 重新采用全局默认与旧地区计划。
 

@@ -69,6 +69,13 @@ interface EditorReadRequest {
   overrides?: string;
 }
 export namespace ConfigEditor {
+  /** ArkTS does not structurally assign the wizard's distinct TemplatePlan. */
+  export function templatePlan(templateId: string, version: number, targetGroup?: string,
+    region?: RegionPlan, replaceRules?: boolean): TemplatePlan {
+    return { templateId: templateId, version: version, targetGroup: targetGroup,
+      region: region, replaceRules: replaceRules };
+  }
+
   /** Explicit editor list: private names/references, never a default preview. */
   export async function list(context: common.Context, original: string, overlay: string,
     expected: string, globalMerge?: string, intent?: EditIntent, regionPlan?: RegionPlan): Promise<EditableSnapshot> {
