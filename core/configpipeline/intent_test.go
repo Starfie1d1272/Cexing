@@ -296,3 +296,24 @@ func TestEditorProjectionShowsDraftWithoutValidateOrPublication(t *testing.T) {
 		t.Fatal("source mutated")
 	}
 }
+
+func TestIntentDNSPolicyOrderParticipatesInSourceAndFieldRevision(t *testing.T) {
+	source := []byte("proxies: [{name: a, type: direct}]\ndns: {nameserver-policy: {private-a.test: 1.1.1.1, private-b.test: 8.8.8.8}}\n")
+	changed := []byte("proxies: [{name: a, type: direct}]\ndns: {nameserver-policy: {private-b.test: 8.8.8.8, private-a.test: 1.1.1.1}}\n")
+	a, e := ReadEditable(source, nil, nil)
+	if e != nil {
+		t.Fatal(e)
+	}
+	b, e := ReadEditable(changed, nil, nil)
+	if e != nil {
+		t.Fatal(e)
+	}
+	if a.SourceRevision == b.SourceRevision {
+		t.Fatal("ordered DNS policy source change not revisioned")
+	}
+	dns := editTarget(t, source, "dns", 0)
+	plan := editPlan(t, source, EditOperation{ID: "dns-policy", Kind: "update", Section: "dns", Target: dns.Item.ID, Preconditions: map[string]string{"nameserver-policy": dns.Item.Fields["nameserver-policy"]}, Patch: json.RawMessage(`{"nameserver-policy":{"private-c.test":"9.9.9.9"}}`)})
+	if _, e = editCompiler().Compile(context.Background(), Request{Original: changed, Intent: plan}); e == nil {
+		t.Fatal("upstream priority change silently overwritten")
+	}
+}

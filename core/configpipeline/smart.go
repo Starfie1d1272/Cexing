@@ -92,3 +92,12 @@ func ApplySmartPolicy(ctx context.Context, root *yaml.Node, defaultEnabled bool,
 	}
 	return nil
 }
+
+// SmartPreview uses the same template/personal view as editor reads and Compile.
+func (c Compiler) SmartPreview(ctx context.Context, r Request, defaultEnabled bool) ([]SmartGroupChange, error) {
+	root, err := c.editSource(ctx, r)
+	if err != nil {
+		return nil, err
+	}
+	return PreviewSmartPolicy(root, defaultEnabled, r.Intent)
+}

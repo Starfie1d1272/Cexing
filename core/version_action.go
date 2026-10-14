@@ -113,62 +113,40 @@ func executeVersionAction(home string, action versionAction) (versionResponse, e
 		if len(action.Original) > maxConfigBytes || len(action.Overlay) > maxConfigBytes {
 			return versionResponse{}, errors.New("EDIT_LIMIT")
 		}
-		if action.Op == "edit-read" || action.Op == "editor-list" {
-			overlays := [][]byte{}
-			for _, layer := range []string{global, action.Overlay} {
-				if layer != "" {
-					overlays = append(overlays, []byte(layer))
-				}
-			}
-			request := configpipeline.Request{Original: []byte(action.Original), Overlays: overlays, Intent: action.EditIntent, Region: action.RegionPlan}
-			var view configpipeline.EditableSnapshot
-			var err error
-			if action.Op == "editor-list" {
-				view, err = (configpipeline.Compiler{}).EditorList(ctx, request)
-			} else {
-				view, err = (configpipeline.Compiler{}).Editable(ctx, request)
-			}
-			if err != nil {
-				if _, ok := err.(*configpipeline.IntentError); ok {
-					return editFailure(err)
-				}
-				return versionResponse{}, errors.New("EDIT_READ_FAILED")
-			}
-			return versionResponse{Editable: &view}, nil
-		}
-		overlays := [][]byte{}
-		for _, layer := range []string{global, action.Overlay} {
-			if layer != "" {
-				overlays = append(overlays, []byte(layer))
-			}
-		}
-		view, err := (configpipeline.Compiler{}).EditTarget(ctx, configpipeline.Request{Original: []byte(action.Original), Overlays: overlays, Intent: action.EditIntent, Region: action.RegionPlan}, action.EditSection, action.EditTarget)
+		request, err := editorReadRequest(home, action, global)
 		if err != nil {
-			if _, ok := err.(*configpipeline.IntentError); ok {
+			return versionResponse{}, errors.New("EDIT_READ_FAILED")
+		}
+		compiler := configpipeline.Compiler{Template: editorTemplate(home)}
+		if action.Op == "edit-target" {
+			view, err := compiler.EditTarget(ctx, request, action.EditSection, action.EditTarget)
+			if err != nil {
 				return editFailure(err)
 			}
-			return versionResponse{}, errors.New("EDIT_TARGET_FAILED")
+			return versionResponse{EditTarget: &view}, nil
 		}
-		return versionResponse{EditTarget: &view}, nil
+		var view configpipeline.EditableSnapshot
+		if action.Op == "editor-list" {
+			view, err = compiler.EditorList(ctx, request)
+		} else {
+			view, err = compiler.Editable(ctx, request)
+		}
+		if err != nil {
+			return editFailure(err)
+		}
+		return versionResponse{Editable: &view}, nil
 	case "smart-preview":
 		if len(action.Original) > maxConfigBytes || len(action.Overlay) > maxConfigBytes {
 			return versionResponse{}, errors.New("VERSION_INVALID")
 		}
-		root, err := configpipeline.LayeredMergeSource([]byte(action.Original), []byte(global), []byte(action.Overlay))
+		request, err := editorReadRequest(home, action, global)
 		if err != nil {
 			return versionResponse{}, errors.New("SMART_PREVIEW_FAILED")
 		}
-		if action.EditIntent != nil && action.EditIntent.Template != nil && action.EditIntent.Template.TemplateID != "original" && !action.EditIntent.Disabled {
-			return editFailure(&configpipeline.IntentError{Code: "template_unavailable", Operation: -1})
-		}
-		if err := configpipeline.ApplyEditIntent(ctx, root, action.EditIntent); err != nil {
+		view, err := (configpipeline.Compiler{Template: editorTemplate(home)}).SmartPreview(ctx, request, action.SmartConversion)
+		if err != nil {
 			return editFailure(err)
 		}
-		view, err := configpipeline.PreviewSmartPolicy(root, action.SmartConversion, action.EditIntent)
-		if err != nil {
-			return versionResponse{}, errors.New("SMART_PREVIEW_FAILED")
-		}
-		// Return a non-nil empty list even with no applicable groups.
 		return versionResponse{SmartPreview: &view}, nil
 	case "edit-preview", "merge-preview":
 		if len(action.Original) > maxConfigBytes || len(action.Overlay) > maxConfigBytes {

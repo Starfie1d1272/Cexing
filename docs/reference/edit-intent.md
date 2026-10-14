@@ -17,7 +17,7 @@ ArkTS 接口定义位于 `lib/ConfigEditor.ets`：`ConfigEditor.read(context, or
 
 **#147/#148 列表接口**：`ConfigEditor.list(context, original, overlay, expected, globalMerge?, intent?, regionPlan?)` 调用 worker `editor-list`，返回相同 EditableSnapshot shape，但 item 额外带 `name` 与 `providers: [{id,name,type,state,count?}]`。这是用户明确进入编辑列表的私有数据，默认预览仍调用 read，不带名称；列表不含地址/密码/URL/原始规则。规则名称为“规则 n”；单项条件/值用 target 明确读取。provider state 仅 declared（已声明、未证明加载）、inline（内联声明，count 是声明数量）、missing（定义缺失），**不等于资源校验或转发健康**。缺失或被过滤后的可用性仍由完整编译/资源验证判定。
 
-`EditableSnapshot.missingFieldRevision` 与 `EditTarget.missingFieldRevision` 均由 Go 返回，target.item.fields 含真实字段前置指纹。新增字段使用该 missingFieldRevision，不能填空串或自行对 null/字段值计算哈希。load 的 snapshot 应使用 list，使 #147 能直接显示名字和 provider 引用；保存前按既有草稿 ID 合并同字段修改，避免把当前投影的指纹叠加到旧操作后面。
+`EditableSnapshot.missingFieldRevision` 与 `EditTarget.missingFieldRevision` 均由 Go 返回，target.item.fields 含真实字段前置指纹；有序 DNS policy 的 source/field revision 包含顺序。新增字段使用该 missingFieldRevision，不能填空串或自行对 null/字段值计算哈希。load 的 snapshot 应使用 list，使 #147 能直接显示名字和 provider 引用；模板新生成的条目也通过 list/target 读取，个人操作在模板之后执行，重编译不会被模板覆盖。保存前按既有草稿 ID 合并同字段修改，避免把当前投影的指纹叠加到旧操作后面。
 
 ## 操作
 
@@ -40,11 +40,11 @@ DNS 是一个 mapping 目标，缺失时提供虚拟空 mapping；通过 update 
 
 ## 模板与固定顺序
 
-统一字段 `EditIntent.template` / `configpipeline.TemplatePlan` 与 PR #159 的 `profiletemplates.Plan` 完全同形。模板组最小接线是 `type Plan = configpipeline.TemplatePlan`，其 Validate 由共享类型提供；不得在另一种 provenance 中另存同一个模板。ArkTS `TemplateWizardModel.TemplatePlan` 同理可从 `ConfigEditor` re-export。
+统一字段 `EditIntent.template` / `configpipeline.TemplatePlan` 与 PR #159 的 `profiletemplates.Plan` 完全同形。生产 worker 已通过 `editorTemplate(home)` 将共享字段转换为既有 `profiletemplates.Plan` 并调用 Apply，不需要模板组再等待 alias。Go struct conversion 在编译时校验同形，模板代码/现有 Validate 保持不变；不得在另一种 provenance 中另存同一个模板。ArkTS 两个 TemplatePlan 接口字段同形，可直接赋值。
 
 固定顺序：最新原文 → 全局 Merge → 本订阅 Merge → 模板（地区模板复用一次 RegionPlan）→ 个人操作 → Smart 默认/例外 → 平台 → 引用/完整 Validate。原有 RegionPlan 通过 `Request.Region` 在个人操作前运行；有显式 template 时由 template 接管地区选择，不再重复旧地区变换。original 模板不生成规则/地区，个人修改仍可保留；停用整个 intent 重新采用全局默认与旧地区计划。
 
-`Compiler.Template` 类型为 `func(context.Context,*yaml.Node,TemplatePlan) error`；宿主绑定 #159 的 `profiletemplates.Apply`。非 original 模板若无适配明确返回 `template_unavailable`，不会假装编译成功。模板层是个人编辑的 authoring 基线，不能把模板生成规则写回原订阅。
+`Compiler.Template` 类型为 `func(context.Context,*yaml.Node,TemplatePlan) error`；生产 `compileLayeredMergeWithIntent`、editor-list/read/target 和 smart-preview 已绑定 #159 的 `profiletemplates.Apply`，全部使用相同先后顺序。region 的临时 provider 成员来自现有本地已校验缓存解析，不联网，不进入序列化 Plan。非 original 模板若无适配明确返回 `template_unavailable`，不会假装编译成功。模板层是个人编辑的 authoring 基线，不能把模板生成规则写回原订阅。
 
 ## 事务与可靠性组接线契约
 

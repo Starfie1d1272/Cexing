@@ -83,9 +83,9 @@ export namespace ConfigEditor {
   }
 
   export async function smartPreview(context: common.Context, original: string, overlay: string,
-    expected: string, defaultEnabled: boolean, intent?: EditIntent, globalMerge?: string): Promise<SmartGroupChange[]> {
+    expected: string, defaultEnabled: boolean, intent?: EditIntent, globalMerge?: string, regionPlan?: RegionPlan): Promise<SmartGroupChange[]> {
     const response = await call(context, { op: 'smart-preview', original: original, overlay: overlay,
-      expected: expected, smartConversion: defaultEnabled, editIntent: intent, globalMerge: globalMerge,
+      expected: expected, smartConversion: defaultEnabled, editIntent: intent, globalMerge: globalMerge, regionPlan: regionPlan,
       updateGlobal: globalMerge !== undefined });
     const view = response['smartPreview'] as SmartGroupChange[];
     if (!Array.isArray(view)) { throw new Error('SMART_PREVIEW_FAILED'); }
