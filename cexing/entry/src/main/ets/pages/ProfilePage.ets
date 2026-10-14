@@ -939,7 +939,7 @@ export struct ProfilePage {
           Column({ space: 4 }) {
             Text('全局覆写').fontSize(16).fontColor(UI.ink)
             Text('适用于所有订阅 · 本订阅覆写优先').fontSize(12).fontColor(UI.muted)
-          }.alignItems(HorizontalAlign.Start).width('100%')
+          }.alignItems(HorizontalAlign.Start).width('100%').padding({ left: 20, right: 20 })
         }.width('100%').height(64).backgroundColor(UI.soft).borderRadius(16)
           .onClick(() => { this.sheetMode = SHEET_GLOBAL; this.showSheet = true; })
         if (this.profiles.length === 0) {
