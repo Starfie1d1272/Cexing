@@ -1,5 +1,7 @@
 /* Shared gate for every UI and scheduler mutation of effective profile state. */
 import { common } from '@kit.AbilityKit';
+import { util } from '@kit.ArkTS';
+import { EditIntent } from './ConfigEditor';
 import { fileIo } from '@kit.CoreFileKit';
 import { CoreApi, ConfigApplyResult } from './CoreApi';
 import { ProfileStore, ProfileMetaExt } from './ProfileStore';
@@ -10,6 +12,24 @@ import { EffectiveVersions, EffectiveState, RegionPlan, RegionPreview } from './
 import { Settings } from './Settings';
 
 export type ProfileApplyState = 'applied' | 'saved';
+
+export interface EditTicket {
+  file: string;
+  profileIdentity: string;
+  profileVersion: string;
+  activeVersion: string;
+  activeFile: string;
+  draftRevision: string;
+}
+
+export interface PreviousVersionPreview {
+  currentId: string;
+  previousId: string;
+  currentProfile: string;
+  restoredProfile: string;
+  globalMergeChanged: boolean;
+  smartPolicyChanged: boolean;
+}
 
 export namespace ProfileTransactions {
   let busy = false;
@@ -41,7 +61,8 @@ export namespace ProfileTransactions {
   }
 
   async function apply(context: common.Context, content: string): Promise<void> {
-    const result: ConfigApplyResult = await CoreApi.applyConfigText(content);
+    let result: ConfigApplyResult = 'unknown';
+    try { result = await CoreApi.applyConfigText(content); } catch (_) { /* response cannot establish application */ }
     if (result === 'unknown') {
       markUnknown(context);
       throw new Error('应用未确认，请重连恢复');
@@ -50,15 +71,16 @@ export namespace ProfileTransactions {
   }
 
   async function restore(context: common.Context, previous: string | null): Promise<void> {
-    if (previous === null || await CoreApi.applyConfigText(previous) !== 'applied') {
-      markUnknown(context);
-    }
+    try {
+      if (previous !== null && await CoreApi.applyConfigText(previous) === 'applied') { return; }
+    } catch (_) { /* a failed rollback cannot establish runtime state */ }
+    markUnknown(context);
   }
 
   async function publish(context: common.Context, file: string, original: string,
     overlay: string, metadata: string, select: boolean,
     isCurrent?: () => boolean, regionOverride?: RegionPlan | null,
-    globalOverride?: string): Promise<ProfileApplyState> {
+    globalOverride?: string, intentOverride?: EditIntent | null): Promise<ProfileApplyState> {
     const state = EffectiveVersions.read(context);
     const expected = state?.Current?.ID ?? '';
     const live = select ? await running(context) : false;
@@ -69,9 +91,11 @@ export namespace ProfileTransactions {
     const previous = live ? ProfileStore.getActiveContent(context) : null;
     await CoreValidator.prepareResources(context);
     const saved = state?.Profiles[file];
+    const intent = intentOverride !== undefined ? intentOverride :
+      (saved !== undefined ? EffectiveVersions.editIntent(context, saved) : null);
     const region = regionOverride !== undefined ? regionOverride :
       (saved !== undefined ? EffectiveVersions.regionPlan(context, saved) : null);
-    const staged = await EffectiveVersions.stage(context, file, original, overlay, metadata, expected, region, globalOverride);
+    const staged = await EffectiveVersions.stage(context, file, original, overlay, metadata, expected, region, globalOverride, intent);
     let applied = false;
     let published = false;
     try {
@@ -90,6 +114,7 @@ export namespace ProfileTransactions {
           throw new Error('应用未确认，请重连恢复');
         }
       }
+      if (isCurrent !== undefined && !isCurrent()) { throw new Error('更新已取消'); }
       try {
         await EffectiveVersions.commit(context, staged.version, expected, select, globalOverride);
         published = true;
@@ -128,6 +153,119 @@ export namespace ProfileTransactions {
       return JSON.stringify(refreshed);
     }
     return JSON.stringify(entry);
+  }
+
+  /** Capture before asynchronous editor reads. Never substitute a fresh ticket at completion. */
+  export function editTicket(context: common.Context, file: string): EditTicket {
+    const state = EffectiveVersions.read(context);
+    return { file: file, profileIdentity: ProfileStore.updateState(context, file).id, profileVersion: state?.Profiles[file]?.ID ?? '',
+      activeVersion: state?.Current?.ID ?? '', activeFile: ProfileStore.getActiveFile(context),
+      draftRevision: ProfileStore.readEditDraft(context, file).revision };
+  }
+
+  function checkEditTicket(context: common.Context, ticket: EditTicket): void {
+    const current = editTicket(context, ticket.file);
+    if (current.profileIdentity !== ticket.profileIdentity || current.profileVersion !== ticket.profileVersion || current.activeVersion !== ticket.activeVersion ||
+      current.activeFile !== ticket.activeFile || current.draftRevision !== ticket.draftRevision) {
+      throw new Error('配置或草稿已变化，请重新打开');
+    }
+  }
+
+  export async function saveEditDraft(context: common.Context, ticket: EditTicket,
+    intent: EditIntent | null): Promise<string> {
+    enter(context);
+    try {
+      checkEditTicket(context, ticket);
+      const revision = util.generateRandomUUID(true);
+      const candidate = intent === null ? null : JSON.parse(JSON.stringify(intent)) as EditIntent;
+      if (candidate !== null) { candidate.revision = revision; }
+      await EffectiveVersions.checkIntent(context, candidate, ticket.activeVersion);
+      checkEditTicket(context, ticket);
+      ProfileStore.saveEditDraft(context, ticket.file, { revision: revision, intent: candidate }, ticket.draftRevision);
+      return revision;
+    } finally { busy = false; }
+  }
+
+  export async function previewEditDraft(context: common.Context, ticket: EditTicket): Promise<MergePreview> {
+    enter(context);
+    try {
+      checkEditTicket(context, ticket);
+      const original = ProfileStore.getProfileContent(context, ticket.file);
+      if (original === null) { throw new Error('原始配置不存在'); }
+      const version = EffectiveVersions.read(context)?.Profiles[ticket.file];
+      const region = version !== undefined ? EffectiveVersions.regionPlan(context, version) : null;
+      const intent = ProfileStore.readEditDraft(context, ticket.file).intent;
+      await CoreValidator.prepareResources(context);
+      const preview = await EffectiveVersions.previewMerge(context, original,
+        ProfileStore.getEnabledMerge(context, ticket.file), region, undefined, intent);
+      checkEditTicket(context, ticket);
+      return preview;
+    } finally { busy = false; }
+  }
+
+  export async function applyEditDraft(context: common.Context, ticket: EditTicket): Promise<ProfileApplyState> {
+    enter(context);
+    try {
+      checkEditTicket(context, ticket);
+      const original = ProfileStore.getProfileContent(context, ticket.file);
+      if (original === null) { throw new Error('原始配置不存在'); }
+      const intent = ProfileStore.readEditDraft(context, ticket.file).intent;
+      return await publish(context, ticket.file, original, ProfileStore.getEnabledMerge(context, ticket.file),
+        metadata(context, ticket.file), ProfileStore.getActiveFile(context) === ticket.file,
+        () => { checkEditTicket(context, ticket); return true; }, undefined, undefined, intent);
+    } finally { busy = false; }
+  }
+
+  /** The UI confirms this exact pair, then passes both IDs to restorePrevious.
+   * File names and change flags describe the effect without exposing config bytes.
+   */
+  export function previewPrevious(context: common.Context): PreviousVersionPreview {
+    enter(context);
+    try {
+      const state = EffectiveVersions.read(context);
+      if (state?.Current === null || state?.Current === undefined ||
+        state.Previous === null || state.Previous === undefined) { throw new Error('没有可恢复的版本'); }
+      return { currentId: state.Current.ID, previousId: state.Previous.ID,
+        currentProfile: state.Current.ProfileID, restoredProfile: state.Previous.ProfileID,
+        globalMergeChanged: EffectiveVersions.globalMerge(context, state.Previous) !== (state.GlobalMerge ?? ''),
+        smartPolicyChanged: EffectiveVersions.smartConversion(context, state.Previous) !== Settings.load(context).smartAutoConvert };
+    } finally { busy = false; }
+  }
+
+  /** Restage provenance through the current compiler and platform safety constraints;
+   * never copy an old generated file over a live file or activate an unverified pointer.
+   */
+  export async function restorePrevious(context: common.Context, expectedCurrent: string,
+    expectedPrevious: string): Promise<ProfileApplyState> {
+    enter(context);
+    const smart = Settings.load(context).smartAutoConvert;
+    let preferenceChanged = false;
+    try {
+      const state = EffectiveVersions.read(context);
+      const previous = state?.Previous;
+      if (state?.Current?.ID !== expectedCurrent || previous === null || previous === undefined ||
+        previous.ID !== expectedPrevious) { throw new Error('版本已变化，请重新预览'); }
+      const original = EffectiveVersions.original(context, previous);
+      const overlay = EffectiveVersions.overlay(context, previous);
+      const globalMerge = EffectiveVersions.globalMerge(context, previous);
+      const region = EffectiveVersions.regionPlan(context, previous);
+      const source = JSON.parse(fileIo.readTextSync(
+        `${context.filesDir}/profile-versions/${previous.ID}/source.json`)) as Record<string, string>;
+      const meta = source['Metadata'];
+      if (typeof meta !== 'string' || meta.length === 0) { throw new Error('上一版本资料损坏'); }
+      // Only the strategy preference is restored here. LAN consent and runtime
+      // credentials still come from the current host safety projection.
+      Settings.setSmartAutoConvert(context, EffectiveVersions.smartConversion(context, previous));
+      preferenceChanged = true;
+      return await publish(context, previous.ProfileID, original, overlay, meta, true,
+        undefined, region, globalMerge, EffectiveVersions.editIntent(context, previous));
+    } catch (e) {
+      if (preferenceChanged) {
+        try { Settings.setSmartAutoConvert(context, smart); }
+        catch (_) { markUnknown(context); }
+      }
+      throw new Error(ProfileStore.isApplyUncertain(context) ? '应用未确认，请重连恢复' : (e as Error).message);
+    } finally { busy = false; }
   }
 
   export async function activate(context: common.Context, file: string): Promise<ProfileApplyState> {
@@ -233,7 +371,8 @@ export namespace ProfileTransactions {
       await CoreValidator.prepareResources(context);
       const saved = EffectiveVersions.read(context)?.Profiles[file];
       const region = saved !== undefined ? EffectiveVersions.regionPlan(context, saved) : null;
-      const preview = await EffectiveVersions.previewMerge(context, original, overlay, region);
+      const preview = await EffectiveVersions.previewMerge(context, original, overlay, region, undefined,
+        saved !== undefined ? EffectiveVersions.editIntent(context, saved) : null);
       ProfileStore.saveMergeDraft(context, file, overlay);
       return preview;
     } finally { busy = false; }
@@ -251,7 +390,8 @@ export namespace ProfileTransactions {
       const saved = EffectiveVersions.read(context)?.Profiles[file];
       const region = saved !== undefined ? EffectiveVersions.regionPlan(context, saved) : null;
       return await EffectiveVersions.previewMerge(context, original,
-        ProfileStore.getEnabledMerge(context, file), region, overlay);
+        ProfileStore.getEnabledMerge(context, file), region, overlay,
+        saved !== undefined ? EffectiveVersions.editIntent(context, saved) : null);
     } finally { busy = false; }
   }
 
@@ -307,8 +447,10 @@ export namespace ProfileTransactions {
     plan: RegionPlan): Promise<RegionPreview> {
     const original = ProfileStore.getProfileContent(context, file);
     if (original === null) { throw new Error('原始配置不存在'); }
+    const saved = EffectiveVersions.read(context)?.Profiles[file];
     return await EffectiveVersions.previewRegion(context, ProfileStore.prepareContent(original),
-      ProfileStore.getEnabledMerge(context, file), plan);
+      ProfileStore.getEnabledMerge(context, file), plan,
+      saved !== undefined ? EffectiveVersions.editIntent(context, saved) : null);
   }
 
   export async function setRegionPlan(context: common.Context, file: string,

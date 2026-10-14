@@ -14,6 +14,7 @@ import (
 var profileIDPattern = regexp.MustCompile(`(?i)^[^/\\\x00-\x1f]{1,128}\.ya?ml$`)
 
 type versionAction struct {
+	EditIntent      json.RawMessage            `json:"editIntent,omitempty"`
 	Op              string                     `json:"op"`
 	EditSection     string                     `json:"editSection,omitempty"`
 	EditTarget      string                     `json:"editTarget,omitempty"`
@@ -88,7 +89,16 @@ func executeVersionAction(home string, action versionAction) (versionResponse, e
 		}
 		global = *action.GlobalMerge
 	}
+	var intent *configpipeline.EditIntent
+	if len(action.EditIntent) > 0 && string(action.EditIntent) != "null" {
+		intent, err = configpipeline.DecodeEditIntent(action.EditIntent)
+		if err != nil {
+			return versionResponse{}, errors.New("EDIT_INTENT_INVALID")
+		}
+	}
 	switch action.Op {
+	case "edit-check":
+		return versionResponse{}, nil
 	case "edit-read", "edit-target":
 		if len(action.Original) > maxConfigBytes || len(action.Overlay) > maxConfigBytes {
 			return versionResponse{}, errors.New("EDIT_LIMIT")
@@ -110,7 +120,7 @@ func executeVersionAction(home string, action versionAction) (versionResponse, e
 			return versionResponse{}, errors.New("VERSION_INVALID")
 		}
 		result, _, err := compileLayeredMerge(home, action.Original, global, action.Overlay,
-			action.Overrides, action.SmartConversion, action.RegionPlan)
+			action.Overrides, action.SmartConversion, action.RegionPlan, intent)
 		if err != nil {
 			return versionResponse{}, errors.New("MERGE_PREVIEW_FAILED")
 		}
@@ -119,7 +129,7 @@ func executeVersionAction(home string, action versionAction) (versionResponse, e
 		if action.RegionPlan == nil || len(action.Original) > maxConfigBytes || len(action.Overlay) > maxConfigBytes {
 			return versionResponse{}, errors.New("REGION_INVALID")
 		}
-		preview, err := previewLayeredRegion(home, action.Original, global, action.Overlay, *action.RegionPlan)
+		preview, err := previewLayeredRegion(home, action.Original, global, action.Overlay, *action.RegionPlan, intent)
 		if err != nil {
 			return versionResponse{}, errors.New("REGION_PREVIEW_FAILED")
 		}
@@ -153,7 +163,7 @@ func executeVersionAction(home string, action versionAction) (versionResponse, e
 			return versionResponse{}, errors.New("VERSION_INVALID")
 		}
 		result, receipt, err := compileLayeredMerge(home, action.Original, global, action.Overlay,
-			action.Overrides, action.SmartConversion, action.RegionPlan)
+			action.Overrides, action.SmartConversion, action.RegionPlan, intent)
 		if err != nil || len(result.YAML) > maxConfigBytes {
 			return versionResponse{}, errors.New("VERSION_COMPILE_FAILED")
 		}

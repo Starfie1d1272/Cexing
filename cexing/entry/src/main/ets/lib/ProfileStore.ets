@@ -11,6 +11,7 @@ import { util } from '@kit.ArkTS';
 import { Logger } from './Logger';
 import { suggestProfileName, profileNameFromUrl } from './ProfileName';
 import { EffectiveVersions } from './EffectiveVersions';
+import { EditIntent } from './ConfigEditor';
 import { BoundedFileReader } from './BoundedFileReader';
 
 const TAG = 'profileStore';
@@ -49,7 +50,37 @@ export interface ProfileUpdateState {
   retryAt: number;
 }
 
+export interface EditDraft { revision: string; intent: EditIntent | null; }
+
 export namespace ProfileStore {
+  function intentDraftPath(context: common.Context, file: string): string {
+    if (!/^[^/\\\u0000-\u001f]{1,128}\.ya?ml$/i.test(file)) { throw new Error('无效的配置文件名'); }
+    return `${ensureDir(context)}/${file}.intent.json`;
+  }
+
+  export function readEditDraft(context: common.Context, file: string): EditDraft {
+    const path = intentDraftPath(context, file);
+    if (!fileIo.accessSync(path)) {
+      const version = EffectiveVersions.read(context)?.Profiles[file];
+      const intent = version !== undefined ? EffectiveVersions.editIntent(context, version) : null;
+      return { revision: intent?.revision ?? '', intent: intent };
+    }
+    if (fileIo.statSync(path).size > 1024 * 1024 + 1024) { throw new Error('编辑草稿超限'); }
+    const draft = JSON.parse(fileIo.readTextSync(path)) as EditDraft;
+    if (typeof draft.revision !== 'string' || draft.revision.length === 0 ||
+      draft.intent === undefined || (draft.intent !== null && draft.intent.revision !== draft.revision)) {
+      throw new Error('编辑草稿损坏');
+    }
+    return draft;
+  }
+
+  /** Called by the shared transaction gate after strict worker schema checking. */
+  export function saveEditDraft(context: common.Context, file: string, draft: EditDraft,
+    expected: string): void {
+    if (readEditDraft(context, file).revision !== expected) { throw new Error('草稿已变化，请重新打开'); }
+    atomicText(intentDraftPath(context, file), JSON.stringify(draft));
+  }
+
   /** One stable identity per imported source; rename moves this sidecar too.
    * Legacy global lastAutoUpdateMs is intentionally not attributed to any source.
    */
@@ -248,6 +279,13 @@ export namespace ProfileStore {
     const out: ProfileMeta[] = [];
     try {
       const names = fileIo.listFileSync(d);
+      // Immutable versions remain authoritative after restoration even if the
+      // old compatibility file was deleted. Keep those profiles operable in UI.
+      if (state !== null) {
+        for (const name of Object.keys(state.Profiles)) {
+          if (!names.includes(name)) { names.push(name); }
+        }
+      }
       for (const name of names) {
         if (name === ACTIVE_FILE || !/\.(yaml|yml)$/i.test(name)) {
           continue;
@@ -369,7 +407,8 @@ export namespace ProfileStore {
   }
 
   export async function deleteProfile(context: common.Context, file: string): Promise<void> {
-    await fileIo.unlink(`${dir(context)}/${file}`);
+    const rawPath = `${dir(context)}/${file}`;
+    if (fileIo.accessSync(rawPath)) { await fileIo.unlink(rawPath); }
     deleteMetaEntry(context, file);
     const originPath = `${dir(context)}/${file}.url`;
     if (fileIo.accessSync(originPath)) {
@@ -389,6 +428,10 @@ export namespace ProfileStore {
     const updatePath = `${dir(context)}/${file}.update.json`;
     if (fileIo.accessSync(updatePath)) {
       try { await fileIo.unlink(updatePath); } catch (_) { /* orphan schedule is not effective */ }
+    }
+    const intentPath = intentDraftPath(context, file);
+    if (fileIo.accessSync(intentPath)) {
+      try { await fileIo.unlink(intentPath); } catch (_) { /* inert orphan */ }
     }
     clearPendingRegionSelection(context, file);
     clearPreviousRegionSelection(context, file);
@@ -525,7 +568,9 @@ export namespace ProfileStore {
     const oldPath = `${d}/${oldFile}`;
     const newPath = `${d}/${target}`;
     if (!fileIo.accessSync(oldPath)) {
-      throw new Error('配置文件不存在');
+      const original = getProfileContent(context, oldFile);
+      if (original === null) { throw new Error('配置文件不存在'); }
+      atomicText(oldPath, original);
     }
     if (fileIo.accessSync(newPath)) {
       throw new Error(`已存在同名配置：${target}`);
@@ -538,7 +583,7 @@ export namespace ProfileStore {
     const moved: string[][] = [];
     try {
       for (const suffix of ['.url', '.last-good', '.merge.json', '.region-select.json',
-        '.region-previous.json', '.update.json']) {
+        '.region-previous.json', '.update.json', '.intent.json']) {
         const from = `${oldPath}${suffix}`;
         const to = `${newPath}${suffix}`;
         if (fileIo.accessSync(from)) {
