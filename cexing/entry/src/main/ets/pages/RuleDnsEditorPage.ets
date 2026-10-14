@@ -1,3 +1,4 @@
+import { CoreValidator } from '../lib/CoreValidator';
 import { util } from '@kit.ArkTS';
 import { EditorDraftHosts } from '../lib/EditorDraftHosts';
 import { common } from '@kit.AbilityKit';
@@ -137,9 +138,7 @@ export struct RuleDnsEditorPage {
       const preview = await host.preview(session.revision);
       if (!this.current(epoch)) { return; }
       this.shown = preview; this.previewReady = true;
-      const sections = preview.changes.changes.map((change) => change.section).filter((name: string) => ['rules', 'rule-providers', 'dns', 'hosts'].includes(name));
-      const labels = sections.map((name: string) => name === 'rules' ? '规则' : name === 'rule-providers' ? '规则源' : name === 'dns' ? 'DNS' : 'hosts');
-      this.message = labels.length > 0 ? `${labels.join(' / ')} 已校验` : preview.changes.changes.length > 0 ? '变更已校验' : '没有变更';
+      this.message = CoreValidator.describeMergePreview(preview.changes);
     } catch (error) { if (this.current(epoch)) {
       const message = (error as Error).message;
       this.message = /未确认|恢复|变化|正在进行|不存在/.test(message) ? message : '变更未通过校验，可修改或撤销';
@@ -186,6 +185,7 @@ export struct RuleDnsEditorPage {
   private move(from: number, to: number): void {
     if (this.busy || this.section !== 'rules' || from === to || from < 0 || to < 0 ||
       from >= this.items.length || to >= this.items.length) { return; }
+    if (this.items.some((entry: EditableItem) => entry.type === undefined)) { this.message = '无法读取最终规则，请重试'; return; }
     const item = this.items[from];
     const final = this.items.find((entry: EditableItem) => entry.type === 'MATCH')?.id ?? '';
     if (item.type === 'MATCH' || item.id === final || (final !== '' && to >= this.items.findIndex((entry: EditableItem) => entry.id === final))) { this.message = '最终规则保持在末尾'; return; }
