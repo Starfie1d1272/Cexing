@@ -3,7 +3,7 @@ const assert = require('node:assert/strict'), fs = require('node:fs'), vm = requ
 const ts = require('./ci/transpile-arkts.cjs');
 const read = locale => new Map(JSON.parse(fs.readFileSync(`cexing/entry/src/main/resources/${locale}/element/string.json`, 'utf8')).string.map(x => [x.name, x.value]));
 const locales = { zh_CN: read('zh_CN'), base: read('base') };
-const pages = ['HomePage', 'Index', 'SettingsPage', 'BackgroundNotice', 'SettingsReconnectButton', 'SmartPage', 'LiveViewStrategyPicker', 'ResourceRecoveryPage', 'DiagnosticsPage'];
+const pages = ['HomePage', 'Index', 'SettingsPage', 'BackgroundNotice', 'SettingsReconnectButton', 'SmartPage', 'LiveViewStrategyPicker', 'ResourceRecoveryPage', 'DiagnosticsPage', 'GlobalMergeEditor', 'NetworkSettingsPage', 'OverridePage', 'ProfileEditPage', 'ProfileGeneratedPage', 'TrafficPage', 'ZashboardPage'];
 for (const name of pages) {
   const source = fs.readFileSync(`cexing/entry/src/main/ets/pages/${name}.ets`, 'utf8');
   for (const match of source.matchAll(/app\.string\.([A-Za-z0-9_]+)/g)) {

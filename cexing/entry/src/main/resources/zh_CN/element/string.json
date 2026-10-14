@@ -983,6 +983,498 @@
     {
       "name": "nav_generated",
       "value": "生成配置"
+    },
+    {
+      "name": "editor_draft_failed",
+      "value": "草稿保存失败，内容仍在编辑器中"
+    },
+    {
+      "name": "editor_no_diff",
+      "value": "配置内容无统计差异"
+    },
+    {
+      "name": "editor_preview_failed",
+      "value": "覆写预览失败"
+    },
+    {
+      "name": "editor_global_applied",
+      "value": "全局覆写已应用"
+    },
+    {
+      "name": "editor_global_saved",
+      "value": "全局覆写已保存，启动后生效"
+    },
+    {
+      "name": "editor_other_profiles",
+      "value": "其他订阅会在启用或更新时重新校验并应用。"
+    },
+    {
+      "name": "editor_apply_failed",
+      "value": "应用未完成，请重试"
+    },
+    {
+      "name": "editor_unknown",
+      "value": "结果未确认，请返回连接页断开后重试"
+    },
+    {
+      "name": "editor_global",
+      "value": "全局覆写"
+    },
+    {
+      "name": "editor_enabled",
+      "value": "已启用"
+    },
+    {
+      "name": "editor_disabled",
+      "value": "未启用"
+    },
+    {
+      "name": "editor_global_scope",
+      "value": "为所有订阅设置通用配置，单个订阅的覆写优先。"
+    },
+    {
+      "name": "editor_global_help",
+      "value": "预览查看当前订阅的变化，应用后生效。清空内容并应用可停用。"
+    },
+    {
+      "name": "editor_list_help",
+      "value": "填写规则或策略组列表时，会替换订阅中的对应列表。"
+    },
+    {
+      "name": "editor_read_blocked",
+      "value": "现有覆写或草稿读取失败，已阻止覆盖"
+    },
+    {
+      "name": "editor_yaml_placeholder",
+      "value": "输入 YAML 覆写配置"
+    },
+    {
+      "name": "editor_close",
+      "value": "关闭"
+    },
+    {
+      "name": "editor_save_draft",
+      "value": "保存草稿"
+    },
+    {
+      "name": "editor_draft_saved",
+      "value": "草稿已保存"
+    },
+    {
+      "name": "editor_preview",
+      "value": "预览"
+    },
+    {
+      "name": "editor_working",
+      "value": "处理中"
+    },
+    {
+      "name": "editor_apply_global",
+      "value": "应用全局覆写"
+    },
+    {
+      "name": "editor_help",
+      "value": "编辑帮助"
+    },
+    {
+      "name": "editor_got_it",
+      "value": "知道了"
+    },
+    {
+      "name": "network_all",
+      "value": "全部应用"
+    },
+    {
+      "name": "network_only",
+      "value": "仅选中应用"
+    },
+    {
+      "name": "network_except",
+      "value": "排除选中应用"
+    },
+    {
+      "name": "network_read_failed",
+      "value": "设置读取失败，请重试"
+    },
+    {
+      "name": "network_save_failed",
+      "value": "保存失败，请重试"
+    },
+    {
+      "name": "network_saved",
+      "value": "已保存，下次启动 VPN 生效"
+    },
+    {
+      "name": "network_invalid_package",
+      "value": "请输入其他应用的有效包名"
+    },
+    {
+      "name": "network_added",
+      "value": "应用已添加"
+    },
+    {
+      "name": "network_add_package",
+      "value": "添加应用包名"
+    },
+    {
+      "name": "network_package_placeholder",
+      "value": "如 com.example.app"
+    },
+    {
+      "name": "network_cancel",
+      "value": "取消"
+    },
+    {
+      "name": "network_add",
+      "value": "添加"
+    },
+    {
+      "name": "network_routes",
+      "value": "系统路由例外"
+    },
+    {
+      "name": "network_route_help",
+      "value": "以下地址直接使用当前网络，匹配的流量不进入 VPN。"
+    },
+    {
+      "name": "network_route_defaults",
+      "value": "每次连接自动恢复默认例外。"
+    },
+    {
+      "name": "network_done",
+      "value": "完成"
+    },
+    {
+      "name": "network_next_start",
+      "value": "下次启动生效"
+    },
+    {
+      "name": "network_per_app",
+      "value": "按应用分流"
+    },
+    {
+      "name": "network_add_required",
+      "value": "请添加要连接的应用"
+    },
+    {
+      "name": "network_add_short",
+      "value": "添加包名"
+    },
+    {
+      "name": "network_package_help",
+      "value": "手动输入应用包名 · 本应用始终直连"
+    },
+    {
+      "name": "network_remove_app",
+      "value": "移除 %s"
+    },
+    {
+      "name": "network_mode",
+      "value": "分流模式"
+    },
+    {
+      "name": "core_port_invalid",
+      "value": "端口须为 1–65535"
+    },
+    {
+      "name": "core_enable_failed",
+      "value": "开启保存失败，请重试"
+    },
+    {
+      "name": "core_revoke_failed",
+      "value": "撤销保存失败，原授权仍可能有效，请再次关闭重试；当前共享不会自动停止"
+    },
+    {
+      "name": "core_lan_title",
+      "value": "允许同网设备使用代理？"
+    },
+    {
+      "name": "core_lan_risk",
+      "value": "开启后，同一局域网设备可能无需认证即可使用手机代理，消耗手机网络和代理流量。请仅在可信网络主动共享。此操作不会开放局域网 DNS；下次启动 VPN 生效。"
+    },
+    {
+      "name": "core_confirm_enable",
+      "value": "确认开启"
+    },
+    {
+      "name": "core_port",
+      "value": "混合代理端口"
+    },
+    {
+      "name": "core_allow_lan",
+      "value": "允许局域网连接"
+    },
+    {
+      "name": "core_log_level",
+      "value": "日志等级"
+    },
+    {
+      "name": "core_save",
+      "value": "保存"
+    },
+    {
+      "name": "original_read_failed",
+      "value": "配置文件读取失败，无法保存"
+    },
+    {
+      "name": "original_missing",
+      "value": "目标配置不存在"
+    },
+    {
+      "name": "original_applied",
+      "value": "已保存并应用"
+    },
+    {
+      "name": "original_saved",
+      "value": "已保存，启用或启动后生效"
+    },
+    {
+      "name": "original_save_failed",
+      "value": "保存未完成，请检查内容后重试"
+    },
+    {
+      "name": "original_saved_unreadable",
+      "value": "无法读取已保存配置"
+    },
+    {
+      "name": "original_draft_delete_failed",
+      "value": "草稿删除失败"
+    },
+    {
+      "name": "original_draft_failed",
+      "value": "草稿保存失败，请先保存配置"
+    },
+    {
+      "name": "original_name_required",
+      "value": "名称不能为空"
+    },
+    {
+      "name": "original_saved_as",
+      "value": "已另存为 %s"
+    },
+    {
+      "name": "original_save_as_failed",
+      "value": "另存失败，请重试"
+    },
+    {
+      "name": "original_merge_draft_failed",
+      "value": "覆写草稿未能保存，请重试"
+    },
+    {
+      "name": "original_merge_read_failed",
+      "value": "覆写草稿读取失败，请重试"
+    },
+    {
+      "name": "original_save_before_preview",
+      "value": "请先保存原始配置，再预览覆写"
+    },
+    {
+      "name": "original_save_before_apply",
+      "value": "请先保存原始配置，再应用覆写"
+    },
+    {
+      "name": "original_merge_applied",
+      "value": "本订阅覆写已应用"
+    },
+    {
+      "name": "original_merge_saved",
+      "value": "本订阅覆写已保存，下次连接时生效"
+    },
+    {
+      "name": "original_merge",
+      "value": "本订阅覆写"
+    },
+    {
+      "name": "original_scope",
+      "value": "仅作用于当前订阅"
+    },
+    {
+      "name": "original_merge_help",
+      "value": "优先于全局覆写。预览保存草稿，应用后生效。清空内容并应用可停用。规则和策略组列表会替换订阅中的对应列表。"
+    },
+    {
+      "name": "original_merge_blocked",
+      "value": "覆写草稿读取失败，请关闭后重试"
+    },
+    {
+      "name": "original_unsaved",
+      "value": "原始配置有未保存修改"
+    },
+    {
+      "name": "original_continue",
+      "value": "继续编辑原文"
+    },
+    {
+      "name": "original_previewing",
+      "value": "预览中"
+    },
+    {
+      "name": "original_apply_merge",
+      "value": "应用本订阅覆写"
+    },
+    {
+      "name": "original_save_copy_title",
+      "value": "另存为新配置"
+    },
+    {
+      "name": "original_new_name",
+      "value": "新配置名称（自动补 .yaml）"
+    },
+    {
+      "name": "original_save_copy",
+      "value": "保存副本"
+    },
+    {
+      "name": "original_draft_pending",
+      "value": "未保存 · 正在保留草稿"
+    },
+    {
+      "name": "original_draft_kept",
+      "value": "未保存 · 草稿已保留"
+    },
+    {
+      "name": "original_save_as",
+      "value": "另存为"
+    },
+    {
+      "name": "original_read_error",
+      "value": "配置文件读取失败"
+    },
+    {
+      "name": "original_file_retry",
+      "value": "文件可能已被删除，请返回配置页重试"
+    },
+    {
+      "name": "original_save_help",
+      "value": "保存前校验配置，连接中同步应用。"
+    },
+    {
+      "name": "original_discard",
+      "value": "放弃草稿"
+    },
+    {
+      "name": "original_saving",
+      "value": "保存中"
+    },
+    {
+      "name": "original_save",
+      "value": "保存配置"
+    },
+    {
+      "name": "original_content",
+      "value": "配置内容"
+    },
+    {
+      "name": "generated_missing",
+      "value": "尚无生成配置，请先启用订阅"
+    },
+    {
+      "name": "generated_read_failed",
+      "value": "生成配置读取失败，请重试"
+    },
+    {
+      "name": "generated_readonly",
+      "value": "已保存的生成配置 · 只读"
+    },
+    {
+      "name": "traffic_up_rate",
+      "value": "↑ 上传"
+    },
+    {
+      "name": "traffic_down_rate",
+      "value": "↓ 下载"
+    },
+    {
+      "name": "traffic_partial",
+      "value": "部分记录"
+    },
+    {
+      "name": "traffic_up",
+      "value": "上传"
+    },
+    {
+      "name": "traffic_down",
+      "value": "下载"
+    },
+    {
+      "name": "traffic_total",
+      "value": "合计"
+    },
+    {
+      "name": "traffic_five_ago",
+      "value": "5 分钟前"
+    },
+    {
+      "name": "traffic_half_ago",
+      "value": "2.5 分钟前"
+    },
+    {
+      "name": "traffic_now",
+      "value": "现在"
+    },
+    {
+      "name": "traffic_chart",
+      "value": "最近五分钟上传与下载速率"
+    },
+    {
+      "name": "traffic_session",
+      "value": "本次"
+    },
+    {
+      "name": "traffic_today",
+      "value": "今日"
+    },
+    {
+      "name": "traffic_month",
+      "value": "本月"
+    },
+    {
+      "name": "traffic_unsaved",
+      "value": "记录未保存"
+    },
+    {
+      "name": "panel_preparing",
+      "value": "正在准备控制面板…"
+    },
+    {
+      "name": "panel_open",
+      "value": "打开控制面板"
+    },
+    {
+      "name": "panel_reopen",
+      "value": "重新打开"
+    },
+    {
+      "name": "panel_leave_help",
+      "value": "返回连接页不会断开 VPN。"
+    },
+    {
+      "name": "panel_cache_failed",
+      "value": "缓存清理失败，请重新打开。"
+    },
+    {
+      "name": "panel_exited",
+      "value": "控制面板已退出，请重新打开。"
+    },
+    {
+      "name": "panel_load_failed",
+      "value": "加载失败，请重新打开；VPN 继续运行。"
+    },
+    {
+      "name": "panel_service_failed",
+      "value": "服务暂不可用，请重新打开。"
+    },
+    {
+      "name": "panel_unavailable",
+      "value": "控制面板暂不可用，正在重试…"
+    },
+    {
+      "name": "editor_enable_first",
+      "value": "请先启用订阅，再预览或应用全局覆写"
+    },
+    {
+      "name": "original_draft_keep_failed",
+      "value": "草稿保留失败，请先保存配置"
     }
   ]
 }

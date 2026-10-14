@@ -983,6 +983,498 @@
     {
       "name": "nav_generated",
       "value": "Generated configuration"
+    },
+    {
+      "name": "editor_draft_failed",
+      "value": "Could not save the draft. Your text remains in the editor."
+    },
+    {
+      "name": "editor_no_diff",
+      "value": "No counted configuration changes"
+    },
+    {
+      "name": "editor_preview_failed",
+      "value": "Cannot preview overrides. Check the content."
+    },
+    {
+      "name": "editor_global_applied",
+      "value": "Global overrides applied"
+    },
+    {
+      "name": "editor_global_saved",
+      "value": "Global overrides saved for next start"
+    },
+    {
+      "name": "editor_other_profiles",
+      "value": "Other subscriptions will be checked and updated when enabled or refreshed."
+    },
+    {
+      "name": "editor_apply_failed",
+      "value": "Apply incomplete. Try again."
+    },
+    {
+      "name": "editor_unknown",
+      "value": "Result unconfirmed. Disconnect on the connection page before retrying."
+    },
+    {
+      "name": "editor_global",
+      "value": "Global overrides"
+    },
+    {
+      "name": "editor_enabled",
+      "value": "Enabled"
+    },
+    {
+      "name": "editor_disabled",
+      "value": "Disabled"
+    },
+    {
+      "name": "editor_global_scope",
+      "value": "Set common configuration for all subscriptions. Subscription overrides take precedence."
+    },
+    {
+      "name": "editor_global_help",
+      "value": "Preview changes for the current subscription. Apply to activate, or clear and apply to disable."
+    },
+    {
+      "name": "editor_list_help",
+      "value": "Rule and proxy group lists replace the corresponding subscription lists."
+    },
+    {
+      "name": "editor_read_blocked",
+      "value": "Cannot read existing overrides or draft. Overwrite is blocked."
+    },
+    {
+      "name": "editor_yaml_placeholder",
+      "value": "Enter YAML overrides"
+    },
+    {
+      "name": "editor_close",
+      "value": "Close"
+    },
+    {
+      "name": "editor_save_draft",
+      "value": "Save draft"
+    },
+    {
+      "name": "editor_draft_saved",
+      "value": "Draft saved"
+    },
+    {
+      "name": "editor_preview",
+      "value": "Preview"
+    },
+    {
+      "name": "editor_working",
+      "value": "Working"
+    },
+    {
+      "name": "editor_apply_global",
+      "value": "Apply global overrides"
+    },
+    {
+      "name": "editor_help",
+      "value": "Editing help"
+    },
+    {
+      "name": "editor_got_it",
+      "value": "Got it"
+    },
+    {
+      "name": "network_all",
+      "value": "All apps"
+    },
+    {
+      "name": "network_only",
+      "value": "Selected apps only"
+    },
+    {
+      "name": "network_except",
+      "value": "Except selected apps"
+    },
+    {
+      "name": "network_read_failed",
+      "value": "Cannot read settings. Try again."
+    },
+    {
+      "name": "network_save_failed",
+      "value": "Could not save. Try again."
+    },
+    {
+      "name": "network_saved",
+      "value": "Saved for next VPN start"
+    },
+    {
+      "name": "network_invalid_package",
+      "value": "Enter a valid package name for another app"
+    },
+    {
+      "name": "network_added",
+      "value": "App added"
+    },
+    {
+      "name": "network_add_package",
+      "value": "Add app package"
+    },
+    {
+      "name": "network_package_placeholder",
+      "value": "For example, com.example.app"
+    },
+    {
+      "name": "network_cancel",
+      "value": "Cancel"
+    },
+    {
+      "name": "network_add",
+      "value": "Add"
+    },
+    {
+      "name": "network_routes",
+      "value": "System route exceptions"
+    },
+    {
+      "name": "network_route_help",
+      "value": "These addresses use the current network directly. Matching traffic bypasses VPN."
+    },
+    {
+      "name": "network_route_defaults",
+      "value": "Default exceptions are restored on each connection."
+    },
+    {
+      "name": "network_done",
+      "value": "Done"
+    },
+    {
+      "name": "network_next_start",
+      "value": "Applies on next start"
+    },
+    {
+      "name": "network_per_app",
+      "value": "Per-app routing"
+    },
+    {
+      "name": "network_add_required",
+      "value": "Add the apps to connect"
+    },
+    {
+      "name": "network_add_short",
+      "value": "Add package"
+    },
+    {
+      "name": "network_package_help",
+      "value": "Enter app package names. This app always connects directly."
+    },
+    {
+      "name": "network_remove_app",
+      "value": "Remove %s"
+    },
+    {
+      "name": "network_mode",
+      "value": "Routing mode"
+    },
+    {
+      "name": "core_port_invalid",
+      "value": "Port must be between 1 and 65535"
+    },
+    {
+      "name": "core_enable_failed",
+      "value": "Could not save activation. Try again."
+    },
+    {
+      "name": "core_revoke_failed",
+      "value": "Could not save revocation. Previous permission may remain. Turn it off again; current sharing will not stop automatically."
+    },
+    {
+      "name": "core_lan_title",
+      "value": "Allow devices on this network to use the proxy?"
+    },
+    {
+      "name": "core_lan_risk",
+      "value": "Devices on this LAN may use your phone's proxy without authentication, consuming network and proxy data. Share only on trusted networks. This does not expose LAN DNS and applies on next VPN start."
+    },
+    {
+      "name": "core_confirm_enable",
+      "value": "Enable"
+    },
+    {
+      "name": "core_port",
+      "value": "Mixed proxy port"
+    },
+    {
+      "name": "core_allow_lan",
+      "value": "Allow LAN connections"
+    },
+    {
+      "name": "core_log_level",
+      "value": "Log level"
+    },
+    {
+      "name": "core_save",
+      "value": "Save"
+    },
+    {
+      "name": "original_read_failed",
+      "value": "Cannot read this configuration. Saving is unavailable."
+    },
+    {
+      "name": "original_missing",
+      "value": "Configuration not found"
+    },
+    {
+      "name": "original_applied",
+      "value": "Saved and applied"
+    },
+    {
+      "name": "original_saved",
+      "value": "Saved. Applies when enabled or started."
+    },
+    {
+      "name": "original_save_failed",
+      "value": "Save incomplete. Check the content and try again."
+    },
+    {
+      "name": "original_saved_unreadable",
+      "value": "Cannot read the saved configuration"
+    },
+    {
+      "name": "original_draft_delete_failed",
+      "value": "Could not delete the draft"
+    },
+    {
+      "name": "original_draft_failed",
+      "value": "Could not save the draft. Save the configuration first."
+    },
+    {
+      "name": "original_name_required",
+      "value": "Enter a name"
+    },
+    {
+      "name": "original_saved_as",
+      "value": "Saved as %s"
+    },
+    {
+      "name": "original_save_as_failed",
+      "value": "Could not save a copy. Try again."
+    },
+    {
+      "name": "original_merge_draft_failed",
+      "value": "Could not save the override draft. Try again."
+    },
+    {
+      "name": "original_merge_read_failed",
+      "value": "Cannot read the override draft. Try again."
+    },
+    {
+      "name": "original_save_before_preview",
+      "value": "Save the original configuration before previewing overrides"
+    },
+    {
+      "name": "original_save_before_apply",
+      "value": "Save the original configuration before applying overrides"
+    },
+    {
+      "name": "original_merge_applied",
+      "value": "Subscription overrides applied"
+    },
+    {
+      "name": "original_merge_saved",
+      "value": "Subscription overrides saved for next connection"
+    },
+    {
+      "name": "original_merge",
+      "value": "Subscription overrides"
+    },
+    {
+      "name": "original_scope",
+      "value": "This subscription only"
+    },
+    {
+      "name": "original_merge_help",
+      "value": "Takes precedence over global overrides. Preview saves a draft; apply activates it. Clear and apply to disable. Rule and proxy group lists replace the corresponding subscription lists."
+    },
+    {
+      "name": "original_merge_blocked",
+      "value": "Cannot read the override draft. Close and try again."
+    },
+    {
+      "name": "original_unsaved",
+      "value": "Original configuration has unsaved changes"
+    },
+    {
+      "name": "original_continue",
+      "value": "Continue editing original"
+    },
+    {
+      "name": "original_previewing",
+      "value": "Previewing"
+    },
+    {
+      "name": "original_apply_merge",
+      "value": "Apply subscription overrides"
+    },
+    {
+      "name": "original_save_copy_title",
+      "value": "Save as a new configuration"
+    },
+    {
+      "name": "original_new_name",
+      "value": "New configuration name (.yaml added automatically)"
+    },
+    {
+      "name": "original_save_copy",
+      "value": "Save copy"
+    },
+    {
+      "name": "original_draft_pending",
+      "value": "Unsaved · Saving draft"
+    },
+    {
+      "name": "original_draft_kept",
+      "value": "Unsaved · Draft retained"
+    },
+    {
+      "name": "original_save_as",
+      "value": "Save as"
+    },
+    {
+      "name": "original_read_error",
+      "value": "Cannot read configuration"
+    },
+    {
+      "name": "original_file_retry",
+      "value": "The file may have been deleted. Return to subscriptions and try again."
+    },
+    {
+      "name": "original_save_help",
+      "value": "Configuration is checked before saving and applied when connected."
+    },
+    {
+      "name": "original_discard",
+      "value": "Discard draft"
+    },
+    {
+      "name": "original_saving",
+      "value": "Saving"
+    },
+    {
+      "name": "original_save",
+      "value": "Save configuration"
+    },
+    {
+      "name": "original_content",
+      "value": "Configuration content"
+    },
+    {
+      "name": "generated_missing",
+      "value": "Enable a subscription to generate configuration"
+    },
+    {
+      "name": "generated_read_failed",
+      "value": "Cannot read generated configuration. Try again."
+    },
+    {
+      "name": "generated_readonly",
+      "value": "Saved generated configuration · Read-only"
+    },
+    {
+      "name": "traffic_up_rate",
+      "value": "↑ Upload"
+    },
+    {
+      "name": "traffic_down_rate",
+      "value": "↓ Download"
+    },
+    {
+      "name": "traffic_partial",
+      "value": "Partial records"
+    },
+    {
+      "name": "traffic_up",
+      "value": "Upload"
+    },
+    {
+      "name": "traffic_down",
+      "value": "Download"
+    },
+    {
+      "name": "traffic_total",
+      "value": "Total"
+    },
+    {
+      "name": "traffic_five_ago",
+      "value": "5 minutes ago"
+    },
+    {
+      "name": "traffic_half_ago",
+      "value": "2.5 minutes ago"
+    },
+    {
+      "name": "traffic_now",
+      "value": "Now"
+    },
+    {
+      "name": "traffic_chart",
+      "value": "Upload and download rates over the last five minutes"
+    },
+    {
+      "name": "traffic_session",
+      "value": "Session"
+    },
+    {
+      "name": "traffic_today",
+      "value": "Today"
+    },
+    {
+      "name": "traffic_month",
+      "value": "Month"
+    },
+    {
+      "name": "traffic_unsaved",
+      "value": "Records not saved"
+    },
+    {
+      "name": "panel_preparing",
+      "value": "Preparing control panel…"
+    },
+    {
+      "name": "panel_open",
+      "value": "Open control panel"
+    },
+    {
+      "name": "panel_reopen",
+      "value": "Reopen"
+    },
+    {
+      "name": "panel_leave_help",
+      "value": "Returning to the connection page keeps VPN connected."
+    },
+    {
+      "name": "panel_cache_failed",
+      "value": "Cannot clear cache. Reopen the panel."
+    },
+    {
+      "name": "panel_exited",
+      "value": "Control panel exited. Reopen it."
+    },
+    {
+      "name": "panel_load_failed",
+      "value": "Panel loading failed. Reopen it. VPN remains running."
+    },
+    {
+      "name": "panel_service_failed",
+      "value": "Service unavailable. Reopen the panel."
+    },
+    {
+      "name": "panel_unavailable",
+      "value": "Control panel unavailable. Retrying…"
+    },
+    {
+      "name": "editor_enable_first",
+      "value": "Enable a subscription before previewing or applying global overrides"
+    },
+    {
+      "name": "original_draft_keep_failed",
+      "value": "Could not retain the draft. Save the configuration first."
     }
   ]
 }
