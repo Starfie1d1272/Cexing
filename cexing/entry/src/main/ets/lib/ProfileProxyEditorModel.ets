@@ -93,6 +93,31 @@ export class ProfileProxyEditorModel {
     return target;
   }
 
+  /** Render the compiler's current projection, including references rewritten
+   * by another item's rename. Keep the authoring target for field conditions. */
+  async presentTarget(section: string, baseline: EditTarget): Promise<EditTarget | null> {
+    if (this.ticket === null || this.busy) { return null; }
+    const request = ++this.generation; const ticket = this.ticket;
+    this.check(ticket);
+    const intent = this.workingIntent(); intent.disabled = false;
+    let name = baseline.name ?? '';
+    for (const operation of intent.operations) {
+      if (operation.section === section && operation.target === baseline.item.id && operation.kind === 'rename') {
+        name = operation.name ?? name;
+      }
+    }
+    const snapshot = await ConfigEditor.list(this.context, this.original, this.overlay,
+      ticket.activeVersion, undefined, intent, this.region);
+    if (request !== this.generation) { return null; }
+    this.check(ticket);
+    const item = snapshot.sections.find((part) => part.section === section)?.items.find((entry) => entry.name === name);
+    if (item === undefined) { throw new Error('项目已变化，请重新读取'); }
+    const target = await ConfigEditor.target(this.context, this.original, this.overlay,
+      ticket.activeVersion, section, item.id, undefined, intent, this.region);
+    if (request !== this.generation) { return null; }
+    this.check(ticket); return target;
+  }
+
   async smartChoices(): Promise<SmartGroupChange[] | null> {
     if (this.ticket === null || this.busy) { return null; }
     const request = ++this.generation; const ticket = this.ticket;

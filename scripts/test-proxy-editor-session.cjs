@@ -49,6 +49,22 @@ const Model = sandbox.exports.ProfileProxyEditorModel;
   model.intent = { schemaVersion: 1, sourceRevision: 'source-v2', revision: 'draft', operations: [], smartGroups: { 'original-group': false } };
   const choices = await model.smartChoices();
   assert.equal(choices[0].choiceId, 'original-group', 'Smart control follows stable pre-rename identity');
+  model.intent = { schemaVersion: 1, sourceRevision: 'source-v2', revision: 'draft', operations: [
+    { id: 'rename-node', kind: 'rename', section: 'proxies', target: 'old-node-id', name: 'new-node' } ] };
+  read = async (_context, _raw, _merge, _expected, _global, intent) => {
+    assert.equal(intent.operations[0].kind, 'rename');
+    return { sourceRevision: 'projected', missingFieldRevision: 'absent-hash', sections: [
+      { section: 'proxy-groups', items: [{ id: 'group-id', name: 'group' }] } ] };
+  };
+  target = async (_context, _raw, _merge, _expected, section, id, _global, intent) => {
+    assert.equal(id, 'group-id'); assert.equal(intent.operations[0].name, 'new-node');
+    return { item: { id, revision: 'projected-group' }, name: 'group', value: { proxies: ['new-node'] } };
+  };
+  const baseline = { item: { id: 'group-id', revision: 'original-group' }, name: 'group', value: { proxies: ['old-node'] } };
+  const projected = await model.presentTarget('proxy-groups', baseline);
+  assert.deepEqual(Array.from(projected.value.proxies), ['new-node']);
+  assert.deepEqual(baseline.value.proxies, ['old-node'], 'compiler presentation must not replace authoring preconditions');
+  read = async () => ({ sourceRevision: 'source-v2', missingFieldRevision: 'absent-hash', sections: [] });
   model.intent = null; publishedIntent = null;
   let finishTarget;
   target = () => new Promise(resolve => { finishTarget = resolve; });

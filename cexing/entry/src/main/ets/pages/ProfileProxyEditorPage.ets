@@ -148,7 +148,9 @@ export struct ProfileProxyEditorPage {
         if (!this.current(epoch) || target === null) { return; }
         this.originalTarget = target; this.selectedAdd = '';
         this.labels[target.item.id] = target.name ?? String((target.value as Record<string, Object>)['name'] ?? row.label);
-        this.formTarget = ProxyIntentEdits.shownTarget(target, intent, this.section);
+        const projected = await this.model.presentTarget(this.section, target);
+        if (!this.current(epoch) || projected === null) { return; }
+        this.formTarget = projected;
       }
       if (this.current(epoch)) { this.formOpen = true; this.error = ''; }
     } catch (_) { if (this.current(epoch)) { this.error = '项目读取失败，请重试'; } }

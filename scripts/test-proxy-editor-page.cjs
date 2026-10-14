@@ -11,9 +11,10 @@ const intent = { schemaVersion: 1, sourceRevision: 'source', revision: 'draft', 
 class Model {
   snapshot = null; preview = null;
   cancel() {}
-  load() { return new Promise(resolve => { finishLoad = () => { this.snapshot = { sections: [
-    { section: 'proxies', items: [{ id: 'node', type: 'ss' }] }
+  load() { return new Promise(resolve => { finishLoad = () => { this.snapshot = { missingFieldRevision: 'absent-hash', sections: [
+    { section: 'proxies', items: [{ id: 'node', type: 'ss', name: 'known-node' }] }
   ] }; resolve(true); }; }); }
+  async presentTarget() { return { item: { id: 'projected-node' }, name: 'projected', value: { port: 8443 } }; }
   workingIntent() { return JSON.parse(JSON.stringify(intent)); }
   target() { targetCalls++; return new Promise(resolve => { finishTarget = resolve; }); }
   save() { saveCalls++; return new Promise(resolve => { finishSave = () => { this.preview = { changes: [] }; resolve(true); }; }); }
@@ -29,6 +30,8 @@ const Page = sandbox.exports.ProfileProxyEditorPage;
   page.visible = true; page.visibilityChanged(); finishLoad(); await new Promise(setImmediate);
   assert.equal(page.rows.length, 1, page.error);
   const row = page.rows[0];
+  assert.equal(row.label, 'known-node', 'names appear before opening private targets');
+  assert.equal(page.missingRevision, 'absent-hash');
   const opening = page.open(row); await page.open(row); assert.equal(targetCalls, 1);
   page.visible = false; page.visibilityChanged();
   finishTarget({ item: { id: 'node' }, name: 'synthetic', value: { password: 'synthetic-private' } });
@@ -37,6 +40,11 @@ const Page = sandbox.exports.ProfileProxyEditorPage;
   page.remove(row); const oldDialog = dialog; page.aboutToDisappear();
   await oldDialog.secondaryButton.action(); assert.equal(targetCalls, 1, 'old delete confirmation cannot read or modify a target');
   page.visible = true; page.aboutToAppear(); finishLoad(); await new Promise(setImmediate);
+  const openingCurrent = page.open(page.rows[0]);
+  finishTarget({ item: { id: 'node', revision: 'authoring' }, name: 'known-node', value: { port: 443 } });
+  await openingCurrent;
+  assert.equal(page.originalTarget.item.revision, 'authoring');
+  assert.equal(page.formTarget.value.port, 8443, 'form uses actual compiler projection');
   const saving = page.save(intent); await page.save(intent); assert.equal(saveCalls, 1);
   page.visible = false; page.visibilityChanged(); finishSave(); await saving;
   assert.equal(page.previewReady, false, 'late preview cannot enable application');

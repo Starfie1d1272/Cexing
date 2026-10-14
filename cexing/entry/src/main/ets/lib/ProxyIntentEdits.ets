@@ -6,25 +6,6 @@ import { ProxyMappingDraft } from './ProxyMappingForm';
 export namespace ProxyIntentEdits {
   function copy(intent: EditIntent): EditIntent { return JSON.parse(JSON.stringify(intent)) as EditIntent; }
 
-  export function shownTarget(target: EditTarget, intent: EditIntent, section: string): EditTarget {
-    const shown = JSON.parse(JSON.stringify(target)) as EditTarget;
-    const value = shown.value as Record<string, Object>;
-    for (const op of intent.operations) {
-      if (op.section !== section || op.target !== target.item.id) { continue; }
-      if (op.kind === 'update') {
-        for (const key of Object.keys(op.patch ?? {})) {
-          if (key === '__proto__' || key === 'constructor' || key === 'prototype') { continue; }
-          value[key] = op.patch![key];
-        }
-        for (const key of op.remove ?? []) { delete value[key]; }
-      } else if (op.kind === 'rename') {
-        shown.name = op.name;
-        if (section !== 'proxy-providers') { value['name'] = op.name ?? ''; }
-      }
-    }
-    return shown;
-  }
-
   export function mapping(intent: EditIntent, original: EditTarget | null,
     draft: ProxyMappingDraft, action: string, missingFieldRevision: string): EditIntent {
     const next = copy(intent);
