@@ -27,7 +27,7 @@
 
 关闭、隐藏导航目的地或重新打开时停止页面会话观察、撤销前端资源并释放 Web 组件；不停止 VPN 或后台任务。异步探活按页面代次过滤，关闭后的迟到结果不能重新授权。每三秒串行探测，失联立即撤销，恢复后重新验证资源并创建新 WebView；Controller 换代也重建页面。页面错误和渲染进程退出可手动重开，提示不打印原始 URL/错误。
 
-Native ProxyPage 文件在首次 ArkWeb 真机验收前保留，连接页的主要入口已切到 Zashboard。不能把 Chromium、SDK 编译或 host mock 当作手机验收；当前证据见 [测试版接入证据](https://github.com/Starfie1d1272/Cexing/blob/df757138/docs/evidence/2026-10-12-zashboard-session.md)。
+连接页的代理管理入口使用 Zashboard；未注册或可达的临时 ProxyPage 已移除，不维护第二套管理界面。此源码清理不代表 ArkWeb 真机验收完成。不能把 Chromium、SDK 编译或 host mock 当作手机验收；当前证据见 [测试版接入证据](https://github.com/Starfie1d1272/Cexing/blob/df757138/docs/evidence/2026-10-12-zashboard-session.md)。
 
 ## 资源事务
 
