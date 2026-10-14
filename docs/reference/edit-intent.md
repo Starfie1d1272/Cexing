@@ -4,7 +4,7 @@
 
 ## 读取与编译
 
-- `ReadEditable(original, global, local)`：读取原文与两层 Merge 的当前基线，返回 `sourceRevision` 和固定七个 section 的有序 `items`；每项只有不透明 `id`、`revision`、允许列出的类型。无原始名称、域名、URL 或任意 mapping 键。
+- `ReadEditable(original, global, local)`：读取原文与两层 Merge 的当前基线，返回 `sourceRevision` 和固定七个 section 的有序 `items`；每项只有不透明 `id`、`revision`、允许列出的类型；snapshot 返回 `missingFieldRevision`，供新增字段前置条件使用，无需 UI 猜测指纹。无原始名称、域名、URL 或任意 mapping 键。
 - `ReadEditTarget(original, global, local, section, id)`：用户明确进入单项编辑后调用，返回该目标的私有 JSON `value`、原始 `name` 及 `item.fields` 各字段指纹。它不适用于默认预览、日志或支持包。未知高级键仍保留，可以在高级编辑中按字段修改。
 - `Request.Intent`：在双层 Merge 及模板后、`Request.Strategy` 前执行。先调用 `Compiler.Template` 注册的模板转换（或 `Request.Region` 的旧地区计划），再执行个人编辑，最后由 Strategy 执行 Smart；平台最后执行，随后既有引用检查及完整 Validate。模板组使用同一 Transform，不新造数组 Merge 方言。
 - `DecodeEditIntent`：严格拒绝未知 schema 字段、尾随内容、不支持版本与超量；`IntentError{code, operation}` 只返回固定类别和操作下标。取消、parser/引用/Validate 失败不返回候选。
@@ -12,6 +12,12 @@
 `sourceRevision` 标记编辑时的语义基线，不是把整个订阅锁死的条件；`revision` 是宿主生成的草稿修订标识。宿主必须在保存/提交的串行临界区比较之前读取的草稿 revision 与当前 revision，同时保留现有 profile/source/selection ticket 和 active-version 比较。不能在异步工作结束后读取新 revision 伪装请求身份。
 
 ArkTS 接口定义位于 `lib/ConfigEditor.ets`：`ConfigEditor.read(context, original, overlay, expected, globalMerge?)` 与 `ConfigEditor.target(context, original, overlay, expected, section, id, globalMerge?)`。两者复用现有 `core.versionAction` 单 worker，分别调用 `edit-read` / `edit-target`，只读返回 `editable` / `editTarget`。expected 必须在异步工作前捕获；页面还需用请求身份拒绝迟到结果。追加 `smartPreview(..., defaultEnabled, intent?, globalMerge?)` 提供组类型/例外的只读数据，`preview(..., overrides, defaultEnabled, intent, regionPlan, globalMerge?)` 使用相同完整编译链。worker stage 的可选 `editIntent` 与现有调用兼容；保存草稿、持久化 provenance 及生产更新传递由可靠性组接入。`EditIntentFailure` 保留固定错误类别与操作下标，无输入值。
+
+当前/草稿投影使用 `Compiler.Editable` / `Compiler.EditTarget`，输入 `Request{Original,Overlays,Region,Intent}`，与 Compile 相同模板/个人顺序，读取返回实际个人修改后的值，不调用完整 parser、不写盘。`ConfigEditor.read/target` 的尾部可选 intent/regionPlan 参数保持旧调用兼容。
+
+**#147/#148 列表接口**：`ConfigEditor.list(context, original, overlay, expected, globalMerge?, intent?, regionPlan?)` 调用 worker `editor-list`，返回相同 EditableSnapshot shape，但 item 额外带 `name` 与 `providers: [{id,name,type,state,count?}]`。这是用户明确进入编辑列表的私有数据，默认预览仍调用 read，不带名称；列表不含地址/密码/URL/原始规则。规则名称为“规则 n”；单项条件/值用 target 明确读取。provider state 仅 declared（已声明、未证明加载）、inline（内联声明，count 是声明数量）、missing（定义缺失），**不等于资源校验或转发健康**。缺失或被过滤后的可用性仍由完整编译/资源验证判定。
+
+`EditableSnapshot.missingFieldRevision` 与 `EditTarget.missingFieldRevision` 均由 Go 返回，target.item.fields 含真实字段前置指纹。新增字段使用该 missingFieldRevision，不能填空串或自行对 null/字段值计算哈希。load 的 snapshot 应使用 list，使 #147 能直接显示名字和 provider 引用；保存前按既有草稿 ID 合并同字段修改，避免把当前投影的指纹叠加到旧操作后面。
 
 ## 操作
 

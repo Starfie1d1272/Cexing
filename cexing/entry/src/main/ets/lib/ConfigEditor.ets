@@ -33,16 +33,19 @@ export interface EditIntent {
   smartGroups?: Record<string, boolean>;
   template?: TemplatePlan;
 }
+export interface EditorProviderRef { id: string; name: string; type?: string; state: string; count?: number; }
 export interface EditableItem {
   id: string;
   revision: string;
   type?: string;
   fields?: Record<string, string>;
+  name?: string;
+  providers?: EditorProviderRef[];
 }
 export interface EditableSection { section: string; items: EditableItem[]; }
-export interface EditableSnapshot { sourceRevision: string; sections: EditableSection[]; }
+export interface EditableSnapshot { sourceRevision: string; missingFieldRevision: string; sections: EditableSection[]; }
 /** Sensitive; fetch only when the user explicitly opens a target for editing. */
-export interface EditTarget { item: EditableItem; value: Object; name?: string; }
+export interface EditTarget { item: EditableItem; missingFieldRevision: string; value: Object; name?: string; }
 export interface SmartGroupChange { id: string; before: string; after: string; override: boolean; }
 export class EditIntentFailure extends Error {
   code: string;
@@ -66,6 +69,19 @@ interface EditorReadRequest {
   overrides?: string;
 }
 export namespace ConfigEditor {
+  /** Explicit editor list: private names/references, never a default preview. */
+  export async function list(context: common.Context, original: string, overlay: string,
+    expected: string, globalMerge?: string, intent?: EditIntent, regionPlan?: RegionPlan): Promise<EditableSnapshot> {
+    const response = await call(context, { op: 'editor-list', original: original,
+      overlay: overlay, expected: expected, globalMerge: globalMerge, editIntent: intent,
+      regionPlan: regionPlan, updateGlobal: globalMerge !== undefined });
+    const view = response['editable'] as EditableSnapshot;
+    if (view === undefined || typeof view.missingFieldRevision !== 'string' || !Array.isArray(view.sections)) {
+      throw new Error('EDIT_READ_FAILED');
+    }
+    return view;
+  }
+
   export async function smartPreview(context: common.Context, original: string, overlay: string,
     expected: string, defaultEnabled: boolean, intent?: EditIntent, globalMerge?: string): Promise<SmartGroupChange[]> {
     const response = await call(context, { op: 'smart-preview', original: original, overlay: overlay,
@@ -105,9 +121,9 @@ export namespace ConfigEditor {
 
   /** expected is captured by the caller before starting asynchronous work. */
   export async function read(context: common.Context, original: string, overlay: string,
-    expected: string, globalMerge?: string): Promise<EditableSnapshot> {
+    expected: string, globalMerge?: string, intent?: EditIntent, regionPlan?: RegionPlan): Promise<EditableSnapshot> {
     const response = await call(context, { op: 'edit-read', original: original,
-      overlay: overlay, expected: expected, globalMerge: globalMerge,
+      overlay: overlay, expected: expected, globalMerge: globalMerge, editIntent: intent, regionPlan: regionPlan,
       updateGlobal: globalMerge !== undefined });
     const view = response['editable'] as EditableSnapshot;
     if (view === undefined || typeof view.sourceRevision !== 'string' || !Array.isArray(view.sections)) {
@@ -117,10 +133,10 @@ export namespace ConfigEditor {
   }
 
   export async function target(context: common.Context, original: string, overlay: string,
-    expected: string, section: string, id: string, globalMerge?: string): Promise<EditTarget> {
+    expected: string, section: string, id: string, globalMerge?: string, intent?: EditIntent, regionPlan?: RegionPlan): Promise<EditTarget> {
     const response = await call(context, { op: 'edit-target', original: original,
       overlay: overlay, expected: expected, globalMerge: globalMerge,
-      updateGlobal: globalMerge !== undefined, editSection: section, editTarget: id });
+      updateGlobal: globalMerge !== undefined, editSection: section, editTarget: id, editIntent: intent, regionPlan: regionPlan });
     const view = response['editTarget'] as EditTarget;
     if (view === undefined || view.item === undefined || view.item.id !== id) {
       throw new Error('EDIT_TARGET_FAILED');

@@ -109,19 +109,44 @@ func executeVersionAction(home string, action versionAction) (versionResponse, e
 		return editFailure(err)
 	}
 	switch action.Op {
-	case "edit-read", "edit-target":
+	case "edit-read", "editor-list", "edit-target":
 		if len(action.Original) > maxConfigBytes || len(action.Overlay) > maxConfigBytes {
 			return versionResponse{}, errors.New("EDIT_LIMIT")
 		}
-		if action.Op == "edit-read" {
-			view, err := configpipeline.ReadEditable([]byte(action.Original), []byte(global), []byte(action.Overlay))
+		if action.Op == "edit-read" || action.Op == "editor-list" {
+			overlays := [][]byte{}
+			for _, layer := range []string{global, action.Overlay} {
+				if layer != "" {
+					overlays = append(overlays, []byte(layer))
+				}
+			}
+			request := configpipeline.Request{Original: []byte(action.Original), Overlays: overlays, Intent: action.EditIntent, Region: action.RegionPlan}
+			var view configpipeline.EditableSnapshot
+			var err error
+			if action.Op == "editor-list" {
+				view, err = (configpipeline.Compiler{}).EditorList(ctx, request)
+			} else {
+				view, err = (configpipeline.Compiler{}).Editable(ctx, request)
+			}
 			if err != nil {
+				if _, ok := err.(*configpipeline.IntentError); ok {
+					return editFailure(err)
+				}
 				return versionResponse{}, errors.New("EDIT_READ_FAILED")
 			}
 			return versionResponse{Editable: &view}, nil
 		}
-		view, err := configpipeline.ReadEditTarget([]byte(action.Original), []byte(global), []byte(action.Overlay), action.EditSection, action.EditTarget)
+		overlays := [][]byte{}
+		for _, layer := range []string{global, action.Overlay} {
+			if layer != "" {
+				overlays = append(overlays, []byte(layer))
+			}
+		}
+		view, err := (configpipeline.Compiler{}).EditTarget(ctx, configpipeline.Request{Original: []byte(action.Original), Overlays: overlays, Intent: action.EditIntent, Region: action.RegionPlan}, action.EditSection, action.EditTarget)
 		if err != nil {
+			if _, ok := err.(*configpipeline.IntentError); ok {
+				return editFailure(err)
+			}
 			return versionResponse{}, errors.New("EDIT_TARGET_FAILED")
 		}
 		return versionResponse{EditTarget: &view}, nil

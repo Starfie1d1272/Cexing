@@ -275,3 +275,24 @@ func TestIntentRenameExactRuleTargetKeepsPayloadAndParams(t *testing.T) {
 		t.Fatal("provider token lost spaces", got)
 	}
 }
+
+func TestEditorProjectionShowsDraftWithoutValidateOrPublication(t *testing.T) {
+	source := editFixture(t)
+	target := editTarget(t, source, "proxies", 0)
+	plan := editPlan(t, source, EditOperation{ID: "udp", Kind: "update", Section: "proxies", Target: target.Item.ID, Preconditions: map[string]string{"udp": target.Item.Fields["udp"]}, Patch: json.RawMessage(`{"udp":false}`)})
+	c := Compiler{Validate: func(context.Context, []byte) error { t.Fatal("read invoked full parser"); return nil }}
+	view, e := c.Editable(context.Background(), Request{Original: source, Intent: plan})
+	if e != nil {
+		t.Fatal(e)
+	}
+	if view.Sections[0].Items[0].ID != target.Item.ID {
+		t.Fatal("unrelated field changed stable ID")
+	}
+	edited, e := c.EditTarget(context.Background(), Request{Original: source, Intent: plan}, "proxies", target.Item.ID)
+	if e != nil || !strings.Contains(string(edited.Value), `"udp":false`) {
+		t.Fatal("draft view still shows original", e)
+	}
+	if strings.Contains(string(source), "udp: false") {
+		t.Fatal("source mutated")
+	}
+}
