@@ -387,7 +387,9 @@ export namespace ProfileStore {
       try { await fileIo.unlink(merge); } catch (_) { /* orphan draft is not effective */ }
     }
     const updatePath = `${dir(context)}/${file}.update.json`;
-    if (fileIo.accessSync(updatePath)) { await fileIo.unlink(updatePath); }
+    if (fileIo.accessSync(updatePath)) {
+      try { await fileIo.unlink(updatePath); } catch (_) { /* orphan schedule is not effective */ }
+    }
     clearPendingRegionSelection(context, file);
     clearPreviousRegionSelection(context, file);
     try { clearDraft(context, file); } catch (_) { /* non-effective draft */ }

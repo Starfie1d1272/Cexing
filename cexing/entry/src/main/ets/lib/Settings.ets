@@ -95,7 +95,6 @@ export namespace Settings {
     p.putSync('autoRestore', s.autoRestore);
     p.putSync('vpnWasConnected', s.vpnWasConnected);
     p.putSync('logToFile', s.logToFile);
-    p.putSync('smartAutoConvert', s.smartAutoConvert);
   }
 
   /** Small preference batches complete durably before callers report success.
@@ -130,6 +129,7 @@ export namespace Settings {
     const p = getStore(context);
     p.putSync('smartAutoConvert', enabled);
     p.flushSync();
+    if (failedSnapshot !== null) { failedSnapshot.smartAutoConvert = enabled; }
   }
 
   /** Called only after explicit LAN risk confirmation, or to disable sharing. */

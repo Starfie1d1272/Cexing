@@ -62,20 +62,20 @@ export namespace AutoUpdater {
   }
 
   /** 单轮检查：开关/内核/间隔/来源都满足才真正更新 */
-  export async function checkAndRun(context: common.Context): Promise<void> {
+  export async function checkAndRun(context: common.Context, force: boolean = false): Promise<void> {
     if (checking) {
       return;
     }
     checking = true;
     const attempt = generation;
     try {
-      await runCheck(context, attempt);
+      await runCheck(context, attempt, force);
     } finally {
       checking = false;
     }
   }
 
-  async function runCheck(context: common.Context, attempt: number): Promise<void> {
+  async function runCheck(context: common.Context, attempt: number, force: boolean): Promise<void> {
     if (!Settings.load(context).autoUpdate) {
       return;
     }
@@ -95,7 +95,7 @@ export namespace AutoUpdater {
     const now = Date.now();
     const due = state.failedAt > state.succeededAt || state.attemptedAt > state.succeededAt ?
       state.retryAt : state.succeededAt + s.autoUpdateIntervalHours * 3600 * 1000;
-    if (state.attemptedAt !== 0 && now < due) { return; }
+    if (!force && state.attemptedAt !== 0 && now < due) { return; }
     state.attemptedAt = now;
     state.retryAt = now + CHECK_INTERVAL_MS;
     ProfileStore.saveUpdateState(context, active, state);
@@ -122,10 +122,6 @@ export namespace AutoUpdater {
     if (checking) { return; }
     const active = ProfileStore.getActiveFile(context);
     if (active === '') { return; }
-    const state = ProfileStore.updateState(context, active);
-    state.retryAt = 0;
-    state.succeededAt = 0;
-    ProfileStore.saveUpdateState(context, active, state);
-    await checkAndRun(context);
+    await checkAndRun(context, true);
   }
 }

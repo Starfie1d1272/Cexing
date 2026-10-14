@@ -63,7 +63,7 @@ for (const kind of ['put','flush']) for (const stage of kind === 'put' ? [1,2] :
 console.log('PASS: separate cache/disk and process VMs; every enable/revoke put/flush stage, continuing failure, prior-consent warning and durable retry');
 
 // Ordinary batches must report every failure, restore cached reads and survive a fresh process.
-for (const kind of ['put', 'flush']) for (const stage of kind === 'put' ? [1, 5, 14] : [1]) {
+for (const kind of ['put', 'flush']) for (const stage of kind === 'put' ? [1, 5, 13] : [1]) {
   f = fixture();
   const s = f.settings.load({}); s.ipv6 = true; s.mixedPort = 9090;
   f.fail({ [kind]: stage });
