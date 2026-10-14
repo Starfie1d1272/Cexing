@@ -7,6 +7,7 @@ import { VpnController, VpnStatus } from '../lib/VpnController';
 import { RuleProviderStatus } from '../lib/RuleProviderStatus';
 import { RuleDnsDraft } from '../lib/RuleDnsDraft';
 import { ProfileTransactions, EditTicket } from '../lib/ProfileTransactions';
+import { EffectiveVersions } from '../lib/EffectiveVersions';
 import { ProfileStore } from '../lib/ProfileStore';
 
 export class RuleDnsEditorBus { static file: string = ''; static section: string = 'rules'; }
@@ -39,6 +40,7 @@ export struct RuleDnsEditorPage {
   private snapshot: EditableSnapshot | null = null;
   private intent: EditIntent | null = null;
   private undo: EditIntent | null = null;
+  private liveProviderName: string = '';
 
   aboutToAppear(): void { this.file = RuleDnsEditorBus.file; this.section = RuleDnsEditorBus.section; this.active = this.visible; if (this.active) { this.load(); } }
   aboutToDisappear(): void { this.active = false; this.epoch++; this.busy = false; }
@@ -112,6 +114,12 @@ export struct RuleDnsEditorPage {
         for (const key of Object.keys(update.patch)) { mapping[key] = update.patch[key]; }
         value.value = mapping;
       }
+      if (this.section === 'rule-providers') {
+        const context = getContext(this) as common.UIAbilityContext;
+        const version = EffectiveVersions.read(context)?.Profiles[this.file];
+        const published = version !== undefined ? EffectiveVersions.editIntent(context, version) : null;
+        this.liveProviderName = published?.operations.find((op: EditOperation) => op.kind === 'rename' && op.target === item.id)?.name ?? value.name ?? '';
+      }
       value.name = this.intent?.operations.find((op: EditOperation) => op.kind === 'rename' && op.target === item.id)?.name ?? value.name;
       this.selected = value; this.isNew = false; this.providerState = ''; this.providerError = ''; this.showProviderError = false;
     } catch (_) { if (this.current(epoch)) { this.message = '配置已变化，请重新打开'; } }
@@ -138,10 +146,20 @@ export struct RuleDnsEditorPage {
     } catch (_) { if (this.current(epoch)) { this.message = '无法读取此选项，请重试'; } }
     finally { if (this.current(epoch)) { this.busy = false; } }
   }
+  private intentIdentity(intent: EditIntent | null): string {
+    if (intent === null || (intent.operations.length === 0 && Object.keys(intent.smartGroups ?? {}).length === 0)) { return ''; }
+    const value = JSON.parse(JSON.stringify(intent)) as EditIntent;
+    value.revision = ''; value.sourceRevision = ''; value.disabled = value.disabled === true;
+    return JSON.stringify(value);
+  }
   private async provider(update: boolean): Promise<void> {
     if (this.busy || this.selected === null || this.selected.name === undefined) { return; }
     if (this.ticket?.activeFile !== this.file || VpnController.status !== VpnStatus.Connected || ProfileTransactions.isBusy()) { this.message = '此订阅尚未运行'; return; }
-    const epoch = ++this.epoch; const name = this.selected.name; const ticket = this.ticket; this.busy = true;
+    const context = getContext(this) as common.UIAbilityContext;
+    const version = EffectiveVersions.read(context)?.Profiles[this.file];
+    const published = version !== undefined ? EffectiveVersions.editIntent(context, version) : null;
+    if (update && this.intentIdentity(this.intent) !== this.intentIdentity(published)) { this.message = '请先应用修改'; return; }
+    const epoch = ++this.epoch; const name = this.liveProviderName; const ticket = this.ticket; this.busy = true;
     try {
       const observation = update ? await RuleProviderStatus.refresh(name) : await RuleProviderStatus.read(name);
       if (!this.current(epoch)) { return; }
@@ -266,7 +284,7 @@ export struct RuleDnsEditorPage {
         }
         RuleDnsEditForm({ section: this.section, selected: this.selected, isNew: this.isNew,
           targets: this.targets, providers: this.providers, matchId: this.items.find((item: EditableItem) => item.type === 'MATCH')?.id ?? '',
-          onOperation: (operation: EditOperation) => this.edit(operation), onClose: () => { this.selected = null; } })
+          onOperation: (operation: EditOperation) => this.edit(operation), onClose: () => { this.selected = null; } }).layoutWeight(1)
       } else {
         Row({ space: 8 }) {
           Button('规则').onClick(() => { this.section = 'rules'; this.list(); })
