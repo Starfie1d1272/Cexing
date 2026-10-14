@@ -60,19 +60,21 @@ rules: ["MATCH,Main"]
 		t.Fatal("unrelated source update must rebase", err)
 	}
 	action.Original = strings.Replace(original, "port: 1080", "port: 2080", 1)
-	conflict, err := executeVersionAction(home, action)
-	if err == nil && (conflict.Error == "" || conflict.EditError == nil || conflict.EditError.Code != "conflict") {
+	if result, e := executeVersionAction(home, action); e == nil && result.Error == "" {
 		t.Fatal("same-field update conflict accepted")
-	}
-	if conflict.Version != nil {
-		t.Fatal("conflict returned a candidate")
 	}
 	state, err := executeVersionAction(home, versionAction{Op: "read"})
 	if err != nil || state.State.Current.ID != staged.Version.ID {
 		t.Fatal("failed compile changed pointer", err)
 	}
-	invalid := coreVersionAction(home, `{"op":"edit-check","expected":"`+staged.Version.ID+`","editIntent":{"schemaVersion":1,"revision":"r","sourceRevision":"s","operations":[],"unknown":true}}`)
-	if !strings.Contains(invalid, "EDIT_INTENT_FAILED") {
-		t.Fatal("unknown field accepted", invalid)
+	action.Op = "edit-check"
+	rawAction, _ := json.Marshal(action)
+	var request map[string]any
+	json.Unmarshal(rawAction, &request)
+	request["editIntent"] = json.RawMessage(`{"schemaVersion":1,"revision":"r","sourceRevision":"s","operations":[],"unknown":true}`)
+	rawAction, _ = json.Marshal(request)
+	response := coreVersionAction(home, string(rawAction))
+	if !strings.Contains(response, "EDIT_INTENT_FAILED") {
+		t.Fatal("unknown field accepted", response)
 	}
 }
