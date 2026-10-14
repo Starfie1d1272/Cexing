@@ -36,7 +36,7 @@ DNS 是一个 mapping 目标，缺失时提供虚拟空 mapping；通过 update 
 
 一个意图每次从最新原文重新执行，重复编译幂等；不把生成 YAML 用作下一次原文。草稿应合并同目标同字段的 update 操作，而不是叠加相互矛盾的前置条件；移动与旧规则 ID 操作先于影响该 ID 的改名/规则替换。撤销移除该操作，停用设置 disabled；两者都重新编译最新输入。只读操作不验证外部 provider 资源，不联网、不 stage，不宣称已可运行。
 
-`smartGroups` 使用组的 target ID → boolean，true 是用户明确 opt-in，false 是保留原类型。Smart 参数与转换逻辑由同一 configpipeline 提供；由 `ApplySmartPolicy` / `PreviewSmartPolicy` 接通。url-test 默认转换，load-balance 默认保留；明确 opt-in 才去除其 strategy；已存在 Smart 参数和手动 Selector 不覆盖。全局关闭时，逐订阅显式 true 仍优先；intent.disabled 只停用个人编辑/例外，不改变全局默认。
+`smartGroups` 使用 SmartGroupChange.choiceId → boolean；choiceId 是个人改名前的稳定来源实体 ID，不是改名后当前 target ID。smartPreview 同时返回当前 id（关联列表）与稳定 choiceId（写例外），撤销改名不丢选择。旧未改名实体两者相等。true 是用户明确 opt-in，false 是保留原类型。Smart 参数与转换逻辑由同一 configpipeline 提供；由 `ApplySmartPolicy` / `PreviewSmartPolicy` 接通。url-test 默认转换，load-balance 默认保留；明确 opt-in 才去除其 strategy；已存在 Smart 参数和手动 Selector 不覆盖。全局关闭时，逐订阅显式 true 仍优先；intent.disabled 只停用个人编辑/例外，不改变全局默认。
 
 ## 模板与固定顺序
 
