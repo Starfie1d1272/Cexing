@@ -31,6 +31,134 @@
     {
       "name": "connection_card_description",
       "value": "查看连接状态，一键连接或断开"
+    },
+    {
+      "name": "backup_export",
+      "value": "Export local backup"
+    },
+    {
+      "name": "backup_export_risk",
+      "value": "Backups contain subscription addresses and node credentials. Keep them secure."
+    },
+    {
+      "name": "backup_cancel",
+      "value": "Cancel"
+    },
+    {
+      "name": "backup_choose_location",
+      "value": "Choose location"
+    },
+    {
+      "name": "backup_file_type",
+      "value": "Backup|.json"
+    },
+    {
+      "name": "backup_saved",
+      "value": "Backup saved"
+    },
+    {
+      "name": "backup_export_failed",
+      "value": "Export incomplete. Try again."
+    },
+    {
+      "name": "backup_invalid",
+      "value": "Cannot read or verify this backup. Check the file."
+    },
+    {
+      "name": "backup_restore",
+      "value": "Restore backup"
+    },
+    {
+      "name": "backup_restore_local",
+      "value": "Restore local backup"
+    },
+    {
+      "name": "backup_restore_count",
+      "value": "Import %d subscriptions and restore settings."
+    },
+    {
+      "name": "backup_conflicts",
+      "value": " %d subscriptions with matching names will be saved under new names."
+    },
+    {
+      "name": "backup_global_changed",
+      "value": " Global overrides will be updated."
+    },
+    {
+      "name": "backup_disconnect_risk",
+      "value": " VPN will disconnect first."
+    },
+    {
+      "name": "backup_disconnect_restore",
+      "value": "Disconnect and restore"
+    },
+    {
+      "name": "backup_restored",
+      "value": "Restored. Changes take effect on next connection."
+    },
+    {
+      "name": "backup_restore_unknown",
+      "value": "Restore is unconfirmed. Reopen the app before retrying."
+    },
+    {
+      "name": "backup_restore_prior",
+      "value": "Restore failed. Existing data was preserved."
+    },
+    {
+      "name": "backup_stop_unconfirmed",
+      "value": "Disconnection is unconfirmed. Try again."
+    },
+    {
+      "name": "backup_restore_failed",
+      "value": "Restore incomplete. Try again."
+    },
+    {
+      "name": "backup_working",
+      "value": "Processing backup"
+    },
+    {
+      "name": "storage_no_stats",
+      "value": "Statistics unavailable. Try again."
+    },
+    {
+      "name": "storage_incomplete",
+      "value": "Cannot organize storage yet. Try again later."
+    },
+    {
+      "name": "storage_stats_failed",
+      "value": "Cannot read statistics yet. Try again later."
+    },
+    {
+      "name": "storage_summary",
+      "value": "%d versions · %s MiB"
+    },
+    {
+      "name": "storage_collapse",
+      "value": "Hide storage details"
+    },
+    {
+      "name": "storage_details",
+      "value": "Storage details"
+    },
+    {
+      "name": "storage_working",
+      "value": "Reading statistics"
+    },
+    {
+      "name": "storage_refresh",
+      "value": "Refresh"
+    },
+    {
+      "name": "storage_expanded",
+      "value": "Expanded"
+    },
+    {
+      "name": "storage_collapsed",
+      "value": "Collapsed"
+    },
+    {
+      "name": "backup_restore_action",
+      "value": "Restore"
     }
   ]
 }

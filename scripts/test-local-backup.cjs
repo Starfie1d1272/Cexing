@@ -1,3 +1,4 @@
+const uiFixture = require('./ci/ui-fixtures.cjs');
 const assert = require('node:assert/strict'), fs = require('node:fs'), vm = require('node:vm');
 const ts = require('./ci/transpile-arkts.cjs');
 const source = fs.readFileSync('cexing/entry/src/main/ets/lib/Settings.ets','utf8');
@@ -10,7 +11,7 @@ function fixture({journal = null, disk = new Map()} = {}) {
    acknowledge: async () => {journal=null;} };
  const sandbox={exports:{},require:n=>n==='@kit.ArkData'?{preferences:{getPreferencesSync:()=>pref}}:
    n==='./BackupJournal'?{BackupJournal:bridge}:n==='./Logger'?{Logger:{error(){}}}:{}};
- vm.runInNewContext(ts.transpileModule(source).outputText,sandbox);
+ Object.assign(sandbox,uiFixture.globals);vm.runInNewContext(ts.transpileModule(source).outputText,sandbox);
  return {s:sandbox.exports.Settings,disk,fail(n){fail=n;flushes=0},get journal(){return journal},get cleaned(){return cleaned}};
 }
 (async()=>{
@@ -37,10 +38,11 @@ function fixture({journal = null, disk = new Map()} = {}) {
  let src=fs.readFileSync('cexing/entry/src/main/ets/pages/LocalBackupActions.ets','utf8');src=(src.slice(0,src.indexOf('  build()'))+'\n}').split('\n').map(l=>l.trimStart().startsWith('@')?l.replace(/@\w+(?:\([^\n)]*\))?\s*/g,''):l).join('\n').replace('export struct ','export class ');
  let dialog,restores=0,cancels=0,epoch=1,resolveRestore,paths=[],pickers=0,finishPicker;
  const modules={'@kit.CoreFileKit':{picker:{DocumentSaveOptions:class{},DocumentViewPicker:class{save(){pickers++;return new Promise(r=>finishPicker=r)}}}},'../lib/LocalBackup':{LocalBackup:{restore:async()=>{restores++;await new Promise(r=>resolveRestore=r)},cancel:async()=>{cancels++}}},'../lib/VpnController':{VpnStatus:{Disconnected:0},VpnController:{status:0,needsStop:()=>false,configurationEpoch:()=>epoch}},'@kit.ArkUI':{promptAction:{showToast(){}}}};
- const sandbox={exports:{},require:n=>modules[n]??{},getContext:()=>({}),AlertDialog:{show:d=>dialog=d}};vm.runInNewContext(ts.transpileModule(src).outputText,sandbox);
+ const sandbox={exports:{},require:n=>n.endsWith('/UiText')?uiFixture.module:modules[n]??{},getContext:()=>({}),AlertDialog:{show:d=>dialog=d}};Object.assign(sandbox,uiFixture.globals);vm.runInNewContext(ts.transpileModule(src).outputText,sandbox);
  const p=new sandbox.exports.LocalBackupActions();p.navStack={getAllPathName:()=>paths};p.aboutToAppear();p.exportConfirm();assert.match(dialog.message,/凭据/);const cancelledDialog=dialog;dialog.primaryButton.action();assert.equal(p.working,false);cancelledDialog.secondaryButton.action();assert.equal(pickers,0,'cancelled risk consent cannot reopen the picker');
  p.exportConfirm();dialog.secondaryButton.action();dialog.secondaryButton.action();assert.equal(pickers,1,'one picker per consent');finishPicker([]);await new Promise(r=>setImmediate(r));
- const preview={profiles:1,names:[{from:'one.yaml',to:'one (2).yaml'}],globalChanged:true};p.confirmRestore({},preview,p.generation);const stale=dialog;epoch++;await stale.secondaryButton.action();assert.equal(restores,0);
+ assert.match(p.restoreFailure(Error('备份恢复未确认，请重新打开应用后重试')),/未确认/);assert.match(p.restoreFailure(Error('恢复失败，原资料已保留')),/原资料已保留/);assert.match(p.restoreFailure(Error('断开未确认，请重试')),/断开未确认/);assert.equal(p.restoreFailure(Error('https://private.invalid/?token=synthetic')), '恢复未完成，请重试', 'unknown failures cannot expose raw URLs or claim prior data was preserved');
+ const preview={profiles:1,names:[{from:'one.yaml',to:'one (2).yaml'}],globalChanged:true};p.confirmRestore({},preview,p.generation);assert.match(dialog.message,/1.*订阅/);assert.match(dialog.message,/另存/);assert.match(dialog.message,/全局覆写/);const stale=dialog;epoch++;await stale.secondaryButton.action();assert.equal(restores,0);
  p.confirmRestore({},preview,p.generation);const first=dialog.secondaryButton.action();await dialog.secondaryButton.action();assert.equal(restores,1);p.aboutToDisappear();resolveRestore();await first;assert.equal(p.working,false);
  console.log('PASS: backup settings commit/rollback/lost response/cold repair/failure journal, sensitive export consent, stale and duplicate restore UI');
 })().catch(e=>{console.error(e);process.exitCode=1});
