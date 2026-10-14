@@ -39,6 +39,7 @@ type Request struct {
 	Original               []byte
 	Overlays               [][]byte
 	Strategy               Transform
+	Intent                 *EditIntent
 	Previous               []byte
 }
 
@@ -91,6 +92,9 @@ func (c Compiler) Compile(ctx context.Context, r Request) (Result, error) {
 			return Result{}, err
 		}
 		merge(root, patch)
+	}
+	if err := ApplyEditIntent(ctx, root, r.Intent); err != nil {
+		return Result{}, err
 	}
 	var beforePlatform *yaml.Node
 	for _, step := range []struct {

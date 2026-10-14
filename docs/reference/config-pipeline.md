@@ -17,19 +17,21 @@ type Validator func(context.Context, []byte) error
 Compiler{Platform: projectNonSensitivePlatform, Validate: validateRuntimeCopyWithSecurity}
 ```
 
-Platform 与 Validate 都必填；没有静默默认值或自动降级。策略线通过 `Request.Strategy` 接收同一 mapping，可按名称生成/更新组、规则和 provider；支持未来 `smart` 字段的原样传递，具体组类型是否可用由被锁定内核的 Validate 判断。本包不做 Smart 选点，不执行 JS、Shell 或 Ruby。
+Platform 与 Validate 都必填；没有静默默认值或自动降级。策略线通过 `Request.Strategy` 接收同一 mapping，可按名称生成/更新组、规则和 provider；支持 `smart` 字段的原样传递，具体组类型是否可用由被锁定内核的 Validate 判断。本包不做 Smart 选点，不执行 JS、Shell 或 Ruby。
 
 如安全线接口采用 `map[string]any`，由安全线/宿主提供 Node adapter：只将其拥有的非敏感可持久化字段写回 Node，绝不注入 Secret 等敏感运行态，保持无关的有序映射（例如 nameserver-policy）和规则顺序。不在本包复制安全字段清单。启动、更新、编辑、热重载必须使用同一个约束实现。真机联调仍是验收门槛。
 
 ### 持久候选与运行态的边界
 
-安全 PR #9 的 `enforcePlatformSecurity`/`preparePlatformConfig` 使用应用 Secret 构造**仅内存**的最终运行配置，不能直接适配为 Compiler.Platform；若误接而输出顶层 secret，本包在 YAML 编码/返回候选前拒绝，不能靠写盘后删字段补救。PlatformProjection 由安全线提供，只投影非敏感字段，不在本包复制其安全值、字段过滤清单或 credential 存储实现。当前安全线若尚未提供投影 adapter，不允许用运行态约束函数替代；这是后续接入前置条件。
+安全 PR #9 的 `enforcePlatformSecurity`/`preparePlatformConfig` 使用应用 Secret 构造**仅内存**的最终运行配置，不能直接适配为 Compiler.Platform；若误接而输出顶层 secret，本包在 YAML 编码/返回候选前拒绝，不能靠写盘后删字段补救。PlatformProjection 由安全线提供，只投影非敏感字段，不在本包复制其安全值、字段过滤清单或 credential 存储实现。生产 adapter 已在 `core/merge_preview.go` 使用 `projectPlatformConfig`，运行态校验另走私有副本。不得将两者替换或合并为含凭据的持久候选。
 
 完整 Validator 收到不含平台敏感运行态的 YAML，宿主安全模块在自己的私有副本中重新施加唯一最终约束并注入 Secret，再调用锁定内核解析器；副本只能用于本次验证，不返回 Result/Store/日志。Activate 与 Restore 从 credential-free Version.Path 读取，并使用**同一个**安全模块准备内存运行配置，不改写版本文件。Controller 凭据仍只由安全线的专用私有存储拥有，不经过 Request、平台快照的公开材料、Original/Overlays、候选 YAML、成功版本、差异摘要、摘要哈希或 source.json。平台/网络身份及验证回执只使用不透明身份；Secret 轮换不改变持久候选 Digest。
 
 原文/overlay 中顶层 secret（含大小写形式、null/空串）明确拒绝，不能先丢弃生成配置中的字段却把原文凭据保存进 source.json。Strategy/Platform 注入该字段同样拒绝。FileStore.Stage 对生成 YAML、原文、每层覆写再执行这一持久化边界检查，防止绕过 Compiler 直接提交 Result；失败发生在任何写盘之前。此拒绝检查只定义序列化边界，不生成 Secret、不能证明 runtime 约束已经生效，也不代替安全线唯一最终约束。节点密码等订阅私有数据仍仅存于应用私有原文/配置，不能公开或记录日志。
 
-Mihomo v1.19.32 `config.ParseRawConfig` 会临时更新全局 General/IPv6 状态，构造代理/provider，并可能访问 geodata。不能声称它是纯校验函数，也不能在 UI/并发预览线程调用。宿主必须通过已有单 worker 串行执行，提供应用私有 home/资源上下文和清理责任，屏蔽上游包含输入的错误/日志。本模块对 callback 错误只返回固定阶段文本，原始错误不得直接进入 UI/日志。独立集成测试在一次性子进程调用锁定解析器，不启动监听器；这不证明应用运行时隔离已接入。
+锁定 Mihomo 的 `config.ParseRawConfig` 会临时更新全局 General/IPv6 状态，构造代理/provider，并可能访问 geodata。不能声称它是纯校验函数，也不能在 UI/并发预览线程调用。宿主必须通过已有单 worker 串行执行，提供应用私有 home/资源上下文和清理责任，屏蔽上游包含输入的错误/日志。本模块对 callback 错误只返回固定阶段文本，原始错误不得直接进入 UI/日志。独立集成测试在一次性子进程调用锁定解析器，不启动监听器；生产候选校验仍须遵守 worker 串行和当前运行状态；子进程测试不替代真机热重载与转发验收。
+
+结构化表单使用 [编辑意图 v1](edit-intent.md)，在 Merge 后、Strategy 前执行局部修改；不把整个上游数组固化成覆写。
 
 ## 编译行为
 
@@ -75,11 +77,11 @@ interface SubscriptionUpdateTicket {
 
 激活已开始后才取消/过期时，Restore 必须恢复发起事务前的成功版本（首次无成功版本则停止部分候选）；恢复失败保留材料并阻断后续激活。后续接入回归必须用可控下载/写入屏障覆盖：A 下载中切换到 B、A 来源被编辑/删除、取消后重新选择 A、Stage 中取消、Activate 与 Commit 之间切换，以及两次更新乱序完成。逐项确认 A/B 原文、来源元数据、成功指针和运行内核都未被迟到结果污染，不能只断言 reload 未调用。
 
-## 具体接入顺序
+## 生产接入责任
 
 1. 宿主显式分类完整配置、Merge 与 provider payload，并绑定平台/provider 快照、固定内核能力和验证回执；本包只接收已分类的完整 base，不实现格式猜测或 provider 获取。校验回调/策略闭包捕获这些不可变上下文，生产提交需再核对其网络与能力身份。独立包不宣称已实现 ArkTS PlanRequestV1 协议。
 2. 安全线提供非敏感 PlatformProjection adapter 与统一认证来源；宿主 Validator/Activate/Restore 通过同一安全模块仅在私有运行副本注入敏感字段，并提供串行完整 Mihomo 校验、私有资源上下文与日志屏蔽。先联测恶意订阅/覆写/策略均不能改变受保护字段。
-3. 在 Go worker 边界包装 Compile/Apply，保持现有四个 C ABI；新增桥接方式另开接入 PR，不在本包直接改 ABI。ArkTS 通过受控桥接传输入和固定差异摘要，不能在主线程直接调用 Go。
+3. Go worker 已经通过 `mihomoVersionAction` 包装版本动作、编译、stage/verify/commit，原有四个兼容 ABI 保留；全部七个生产符号见[平台参考](platform.md#abi-与线程)。本包不新增桥接体系。ArkTS 通过受控桥接传输入和固定差异摘要，不能在主线程直接调用 Go。
 4. 按上述 ticket/选择锁保护下载与写入，ProfileStore 读取现有来源元数据，向新私有目录保存 Original/Overlays/策略标识；更新、切换、编辑和启动均走唯一事务。策略函数自身不能 JSON 序列化，需由宿主将稳定策略 ID/版本映射到已注册函数，禁止任意代码执行。
 5. Activator 只应用已生成的不可变 Version.Path；安全线保证所有重载路由仍使用同一约束。应用失败 Restore 旧路径，首次失败停止部分激活候选；系统 TUN 生命周期仍由 VPN Extension 管理。
 6. crash/restart 从 successful pointer 恢复，与运行时线共同验收系统会话状态。现有导入能力继续保留；真机需验证有效配置、停止确认和实际转发。

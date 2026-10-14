@@ -1,6 +1,6 @@
 # 本地诊断支持包
 
-`DiagnosticsService` 通过既有 `versionAction` NAPI 单 worker 调用 Go 存储，不增加内核 C ABI，不上传。页面用 `check(context, kind, proxy?)` 执行检查，用 `exportBundle(context)` 获取 `{json, path, fileName}`；结果文件在 cacheDir，保存位置选择和分享由页面拥有。导出不执行网络检查，重复导出覆盖同一个缓存文件。
+`DiagnosticsService` 通过既有 `versionAction` NAPI 单 worker 调用 Go 存储，不增加内核 C ABI，不上传。页面用 `check(context, kind, proxy?)` 执行检查，用 `exportBundle(context)` 获取 `{json, path, fileName}`；结果文件在 cacheDir，保存位置选择和分享由页面拥有。服务导出不执行网络检查，生成可替换的中间缓存；页面通过 `DiagnosticExportSnapshots` 为每次导出创建不可变私有快照，选择器/分享只使用该次 JSON 与文件，结束后按既有宽限清理，不把并发后一次导出的内容交给前一次操作。
 
 运行时在恢复前调用 `initialize(context)`，并拥有 `observe(context)` 返回的释放函数。观察器只订阅 `VpnController.onChanged/offChanged`，读取脱敏故障、TUN 创建、内核就绪和停止结果 getters，不消费错误、不改变启停。缺少细分阶段时标明覆盖缺口。更精确的业务动作由拥有该动作的模块调用 `record(context, {operation, stage, outcome, object?, reason?, code?, durationMs?})`；只传固定阶段和数字/固定码，禁止传原始异常、Want、URL、配置或凭据。字段词表在 `core/diagnostics_fields.go`；未列入词表的阶段、原因、枚举或错误码记为 unknown，并保存包内关联 identity，不允许通过“符合标识符格式”传任意明文。新增调用者的固定阶段必须补入词表。生命周期挂点的阶段、固定码和缺口原因均采用显式有限词表；生产方法事件与静态生产者契约分别验证，Go 持久化回归确认这些字段不会被折叠为 unknown，任意标识符文本仍被拒绝。数值错误码按 32 位范围保存，errno 和定义内 DNS rcode 保留其结构。`record` 返回落盘是否成功，不应改变 VPN 控制结果。
 
@@ -35,6 +35,35 @@ host 快照保存应用/系统/SDK/ABI 及允许的偏好值，标明“偏好�
 未接入调用者的 ArkTS 服务不会进入 HAP；Full 成功不能证明该文件已通过官方编译。接入方必须验证服务实际进入模块，独立服务验证可在隔离副本临时引用 initialize 并编译；这类产物属于验证 fixture，不作为交付包或真机证据。
 
 云端 fixture 验证重启、关联脱敏、失败阶段、DNS rcode、错误原因、权限码、容量和写入失败；不能代替真机 VPN、真实 DNS/TLS/转发、系统文件选择器和后台死亡验收。可定位常见问题的覆盖率是后续数据验证目标，没有 99% 已达成声明。
+
+## 普通日志与 stderr
+
+普通日志不作为可分享支持包输入，也不自动上传。分享继续使用上面的结构化 JSON 导出。
+Go 日志的 hilog、stdout、Controller `/logs` 和 `mihomo.log` 共用现有诊断脱敏器：
+保留当前、历史及失败候选的敏感值字典，URL 整体去除，凭据、节点/组标识、IP（含 IPv6）
+和路径使用脱敏值；认证头整个字段及折行续行统一省略，不依赖具体 scheme。没有头名称的已知认证 scheme 也保守省略同一行后续文本，避免编码凭据或多参数泄漏。字典不可用或达到容量时省略自由文本。文件写入前再次执行脱敏和消息长度限制。
+
+`mihomo.log` 和 `.old` 各不超过 2 MiB，文件 0600。每次写入检查七天保留期，
+下次启动产生首条日志时也会清理；应用完全不运行时不会唤醒系统执行清理。
+写入先持有非阻塞进程间锁，再重新打开当前文件，避免跨进程轮转后向旧 inode 无限追加。
+符号/硬链接、FIFO、非本 UID 文件拒绝；旧版无脱敏标头的原始日志代在首次写入时清除，
+不将旧明文带进轮转。写入失败退避 30 秒；锁竞争可以丢弃普通文件行，不等待另一进程。
+
+bridge 在首次带 homeDir 的请求、加载 Go 前，从同一应用提供的绝对目录验证真实路径、
+目录所有权及不可被组/其他用户写入的权限。stderr 使用其中的 0700 `runtime-logs`，
+各 256 KiB 的当前/旧文件均为 0600，也按写入时的七天期限清理。旧硬编码位置的原始
+`go_stderr.log` 会删除。stderr 早于 Go 字典，任意 panic 值、堆栈参数和路径均可能含敏感内容，
+因此只落时间和固定事件类别（panic、fatal、traceback 或 stderr），明确 `detail_omitted`。
+不将它描述为完整原始崩溃堆栈。捕获管道写端非阻塞，单行内存最多 512 字节；洪泛可能丢失
+stderr，磁盘工作在独立消费者线程执行，失败有退避，不阻塞 Go init/VPN worker。
+
+“记录内核日志到文件”只控制普通 `mihomo.log`，不关闭 hilog、stderr 故障类别或有界诊断 journal。
+普通日志有容量/竞争丢弃边界；需要分享完整的已保留诊断事件、原因链及省略计数时使用 JSON。
+Linux 合成回归不证明 HarmonyOS 沙箱、进程强杀或真机崩溃捕获，仍在 #92 核验。
+
+轮转参考 [lumberjack](https://github.com/natefinch/lumberjack) 的容量/保留代次设计；其单进程
+假设不能直接用于本宿主，实际锁语义依据 [flock](https://man7.org/linux/man-pages/man2/flock.2.html)，
+管道背压依据 [pipe](https://man7.org/linux/man-pages/man7/pipe.7.html)。未复制外部源码或添加日志依赖。
 
 ## 参考设计
 
