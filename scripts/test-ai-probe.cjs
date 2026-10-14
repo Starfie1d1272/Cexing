@@ -50,15 +50,21 @@ const response = revision => ({ responseCode: 200, result: JSON.stringify({ revi
 
  const page = new Page(); page.revision = 'version-page'; page.aboutToAppear();
  const oldNetwork = networks.at(-1), baseline = requests.length;
- oldNetwork.registered(); oldNetwork.callbacks.netAvailable(); assert.equal(requests.length, baseline + 1);
- oldNetwork.callbacks.netLost(); assert.equal(requests.at(-1).destroyed, 1); assert.equal(page.results.length, 0);
+ oldNetwork.registered(); oldNetwork.callbacks.netAvailable({netId:1}); assert.equal(requests.length, baseline + 1);
+ oldNetwork.callbacks.netLost({netId:1}); assert.equal(requests.at(-1).destroyed, 1); assert.equal(page.results.length, 0);
  page.aboutToDisappear(); assert.equal(listeners.size, 0);
  const leavingCount = requests.length;
- oldNetwork.callbacks.netAvailable(); assert.equal(requests.length, leavingCount);
+ oldNetwork.callbacks.netAvailable({netId:1}); assert.equal(requests.length, leavingCount);
  page.aboutToAppear(); const newNetwork = networks.at(-1);
  oldNetwork.registered(); assert.ok(oldNetwork.unregisters >= 2);
  assert.equal(newNetwork.unregisters, 0);
- newNetwork.registered(); newNetwork.callbacks.netAvailable();
+ newNetwork.registered(); newNetwork.callbacks.netAvailable({netId:1});
+ const beforeSwitch = requests.at(-1);
+ newNetwork.callbacks.netAvailable({netId:2});
+ assert.equal(beforeSwitch.destroyed, 1);
+ const afterSwitch = requests.at(-1);
+ newNetwork.callbacks.netLost({netId:1});
+ assert.equal(afterSwitch.destroyed, 0); // an old bearer cannot cancel the replacement
  const latest = requests.at(-1); page.revision = 'version-next'; page.revisionChanged();
  assert.equal(latest.destroyed, 1);
  const pending = requests.at(-1); page.aboutToDisappear();

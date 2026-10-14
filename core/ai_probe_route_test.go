@@ -101,6 +101,21 @@ rules: ["MATCH,AI"]
 	if err != nil || id.Group != "AI" || id.Revision != version.ID {
 		t.Fatal("current applied identity rejected", err)
 	}
+
+	empty, err := config.Parse([]byte(`proxy-providers:
+  inline:
+    type: inline
+    payload: [{name: synthetic, type: ss, server: 192.0.2.1, port: 443, cipher: aes-128-gcm, password: synthetic}]
+proxy-groups: [{name: Empty, type: select, use: [inline], filter: '^absent$'}]
+rules: ['MATCH,Empty']
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	tunnel.UpdateProxies(empty.Proxies, empty.Providers)
+	if _, err := probeSelection("Empty"); err == nil {
+		t.Fatal("implicit DIRECT empty fallback accepted")
+	}
 	if _, err := activeAIProbeIdentity("version-other"); err == nil {
 		t.Fatal("stale revision accepted")
 	}

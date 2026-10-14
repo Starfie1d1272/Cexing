@@ -14,6 +14,8 @@ export struct AiProbeStatus {
   private network: connection.NetConnection | null = null;
   private visible: boolean = false;
   private online: boolean = false;
+  private networkId: number = -1;
+  private networkChanged: boolean = false;
   private onVpn: (status: VpnStatus) => void = (status: VpnStatus): void => {
     if (status !== VpnStatus.Connected) { this.clear(); }
     else { this.service?.check(this.revision); }
@@ -28,10 +30,20 @@ export struct AiProbeStatus {
     // settings. GET_NETWORK_INFO is a normal app permission supplied by host.
     const observer = connection.createNetConnection();
     this.network = observer;
-    observer.on('netLost', () => { if (this.network === observer) { this.online = false; this.clear(); } });
-    observer.on('netUnavailable', () => { if (this.network === observer) { this.online = false; this.clear(); } });
-    observer.on('netAvailable', () => {
-      if (this.visible && this.network === observer) { this.online = true; this.service?.check(this.revision); }
+    observer.on('netLost', (handle: connection.NetHandle) => {
+      if (this.network === observer && this.networkId === handle.netId) {
+        this.online = false; this.networkId = -1; this.networkChanged = true; this.clear();
+      }
+    });
+    observer.on('netUnavailable', () => {
+      if (this.network === observer) { this.online = false; this.networkId = -1; this.networkChanged = true; this.clear(); }
+    });
+    observer.on('netAvailable', (handle: connection.NetHandle) => {
+      if (!this.visible || this.network !== observer) { return; }
+      const changed = this.networkChanged || (this.networkId >= 0 && this.networkId !== handle.netId);
+      if (changed) { this.clear(); }
+      this.networkId = handle.netId; this.networkChanged = false; this.online = true;
+      this.service?.check(this.revision, changed);
     });
     try {
       observer.register((error): void => {
@@ -41,7 +53,7 @@ export struct AiProbeStatus {
     } catch (_) { this.online = false; this.clear(); }
   }
   aboutToDisappear(): void {
-    this.visible = false;
+    this.visible = false; this.online = false; this.networkId = -1;
     this.service?.cancel(); this.service = null;
     VpnController.offChanged(this.onVpn);
     const observer = this.network; this.network = null;

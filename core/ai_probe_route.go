@@ -129,7 +129,7 @@ func activeAIProbeIdentity(expected string) (aiprobe.Identity, error) {
 	}
 	selected, err := probeSelection(plan.TargetGroup)
 	if err != nil {
-		return aiprobe.Identity{}, fail
+		return aiprobe.Identity{}, err
 	}
 	return aiprobe.Identity{Profile: state.Current.ProfileID, Revision: expected, Group: plan.TargetGroup, Selection: selected}, nil
 }
@@ -159,6 +159,18 @@ func probeSelection(group string) (string, error) {
 		visited[p.Name()] = true
 		if len(visited) > 512 {
 			return errors.New("PROBE_GROUP_LIMIT")
+		}
+
+		if group, ok := p.Adapter().(interface {
+			GetProxies(bool) []C.Proxy
+			EmptyFallback() C.Proxy
+		}); ok {
+			members := group.GetProxies(false)
+			// GetProxies injects a fallback even when filters/providers are empty. A
+			// sole fallback cannot prove availability; conservatively leave unchecked.
+			if len(members) == 0 || (len(members) == 1 && members[0] == group.EmptyFallback()) {
+				return errors.New("PROBE_GROUP_EMPTY")
+			}
 		}
 		if selector, ok := p.Adapter().(*G.Selector); ok {
 			name := selector.Now()
