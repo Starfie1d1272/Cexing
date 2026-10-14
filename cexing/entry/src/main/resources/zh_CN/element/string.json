@@ -951,6 +951,30 @@
     {
       "name": "diag_disconnecting",
       "value": "正在断开"
+    },
+    {
+      "name": "module_desc",
+      "value": "HarmonyOS NEXT 的 mihomo 客户端"
+    },
+    {
+      "name": "pasteboard_reason",
+      "value": "用于从剪贴板导入订阅配置"
+    },
+    {
+      "name": "shortcut_connect",
+      "value": "连接 VPN"
+    },
+    {
+      "name": "shortcut_disconnect",
+      "value": "断开连接"
+    },
+    {
+      "name": "connection_card_name",
+      "value": "策星连接"
+    },
+    {
+      "name": "connection_card_description",
+      "value": "查看连接状态，一键连接或断开"
     }
   ]
 }

@@ -14,23 +14,23 @@
     },
     {
       "name": "pasteboard_reason",
-      "value": "用于从剪贴板导入订阅配置"
+      "value": "Import subscription configuration from the clipboard"
     },
     {
       "name": "shortcut_connect",
-      "value": "连接 VPN"
+      "value": "Connect VPN"
     },
     {
       "name": "shortcut_disconnect",
-      "value": "断开连接"
+      "value": "Disconnect"
     },
     {
       "name": "connection_card_name",
-      "value": "策星连接"
+      "value": "Cexing connection"
     },
     {
       "name": "connection_card_description",
-      "value": "查看连接状态，一键连接或断开"
+      "value": "View connection status and connect or disconnect"
     },
     {
       "name": "action_retry",
