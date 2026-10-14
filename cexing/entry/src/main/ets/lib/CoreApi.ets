@@ -271,7 +271,7 @@ export namespace CoreApi {
 
 
   /** A transport failure cannot establish whether the core accepted the request. */
-  export async function applyConfigText(content: string): Promise<ConfigApplyResult> {
+  export async function applyConfigText(content: string, expectedSession?: string): Promise<ConfigApplyResult> {
     const access = getControllerAccess();
     if (access === null) { return 'unknown'; }
     const req = http.createHttp();
@@ -279,7 +279,7 @@ export namespace CoreApi {
       const resp = await req.request(BASE + '/configs?force=true', {
         method: http.RequestMethod.PUT,
         header: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${access.secret}` },
-        extraData: JSON.stringify({ payload: content }),
+        extraData: JSON.stringify({ payload: content, expectedSession: expectedSession }),
         connectTimeout: TIMEOUT,
         readTimeout: TIMEOUT
       });

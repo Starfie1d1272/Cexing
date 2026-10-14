@@ -220,11 +220,11 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
 
   let saved = 0, value;
   const Override = load('OverridePage', { ...common,
-    '../lib/Settings': { Settings: { load: () => ({allowLan: false}), save: (_ctx, s) => { saved++; value = s; }, setAllowLan: (_ctx, enabled) => { value = {allowLan: enabled}; } } }
+    '../lib/Settings': { Settings: { idle: async () => {}, load: () => ({allowLan: false}), save: (_ctx, s) => { saved++; value = s; }, setAllowLan: (_ctx, enabled) => { value = {allowLan: enabled}; } } }
   }, { AlertDialog: { show: value => { dialog = value; } } });
-  const override = new Override(); override.mixedPort = '99999'; override.persist();
+  const override = new Override(); override.aboutToAppear(); await new Promise(resolve => setImmediate(resolve)); override.mixedPort = '99999'; await override.persist();
   assert.equal(saved, 0); assert.ok(override.portError); assert.equal(override.mixedPort, '99999');
-  override.mixedPort = '7891'; override.persist(); assert.equal(saved, 1); assert.equal(value.mixedPort, 7891);
+  override.mixedPort = '7891'; await override.persist(); assert.equal(saved, 1); assert.equal(value.mixedPort, 7891);
 
   override.changeAllowLan(true); assert.equal(override.allowLan, true);
   dialog.primaryButton.action(); dialog.secondaryButton.action(); assert.equal(override.allowLan, false);
@@ -235,11 +235,11 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   assert.equal(value.allowLan, false, 'late confirmation cannot enable sharing after leave');
 
   const FailedRevoke = load('OverridePage', { ...common,
-    '../lib/Settings': {Settings: {load: () => ({allowLan:true}),
+    '../lib/Settings': {Settings: {idle: async () => {}, load: () => ({allowLan:true}),
       setAllowLan: () => {throw Error('synthetic persistence failure');} }}
   });
-  const failedRevoke = new FailedRevoke(); failedRevoke.allowLan = true;
-  failedRevoke.saveAllowLan(false);
+  const failedRevoke = new FailedRevoke(); failedRevoke.aboutToAppear(); await new Promise(resolve => setImmediate(resolve)); failedRevoke.allowLan = true;
+  await failedRevoke.saveAllowLan(false);
   assert.equal(failedRevoke.allowLan,true,'failed revocation keeps prior authorization visible');
   assert.match(failedRevoke.lanError,/原授权仍可能有效/);
   assert.match(failedRevoke.lanError,/重试/);
@@ -447,9 +447,9 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   vm.runInNewContext(ts.transpileModule(source).outputText,policySandbox);
   const Network = load('NetworkSettingsPage', {...common,
     '../lib/VpnController':policySandbox.exports,
-    '../lib/Settings':{Settings:{load:()=>({...networkSettings}),save:(_c,v)=>{networkSaved++;networkSettings=v;}}}
+    '../lib/Settings':{Settings:{idle:async()=>{},load:()=>({...networkSettings}),save:(_c,v)=>{networkSaved++;networkSettings=v;}}}
   }, {getContext:()=>({applicationInfo:{name:'test.bundle'}})});
-  const network = new Network();network.aboutToAppear();network.showAddDialog=true;
+  const network = new Network();network.aboutToAppear();await new Promise(resolve=>setImmediate(resolve));network.showAddDialog=true;
   network.inputPkg='bad';network.addPackage();assert.equal(networkSaved,0);assert.equal(network.showAddDialog,true);
   network.inputPkg='test.bundle';network.addPackage();assert.equal(networkSaved,0);
   network.inputPkg='sample.app';network.addPackage();network.addPackage();assert.equal(networkSaved,1,'repeated tap cannot commit twice');

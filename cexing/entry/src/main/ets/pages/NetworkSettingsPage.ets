@@ -1,3 +1,4 @@
+import { SettingsReconnectButton } from './SettingsReconnectButton';
 import { NativeTheme as UI } from './NativeTheme';
 /*
  * NetworkSettingsPage.ets - 网络设置（设置 → 网络设置）
@@ -18,9 +19,30 @@ export struct NetworkSettingsPage {
   @State accessList: string[] = [];
   @State inputPkg: string = '';
   @State showAddDialog: boolean = false;
+  private pageActive: boolean = false;
+  @State ready: boolean = false;
+  private saveGeneration: number = 0;
   @State showRouteDetails: boolean = false;
 
   aboutToAppear(): void {
+    this.pageActive = true;
+    this.saveGeneration++;
+    const generation = this.saveGeneration;
+    this.ready = false;
+    this.readSettings();
+    Settings.idle().then(() => {
+      if (!this.pageActive || generation !== this.saveGeneration) { return; }
+      this.readSettings(); this.ready = true;
+    }).catch(() => {
+      if (this.pageActive && generation === this.saveGeneration) {
+        promptAction.showToast({ message: '设置读取失败，请重试' });
+      }
+    });
+  }
+
+  aboutToDisappear(): void { this.pageActive = false; this.saveGeneration++; this.cancelAddPackage(); this.showRouteDetails = false; }
+
+  private readSettings(): void {
     const context = getContext(this) as common.UIAbilityContext;
     const s = Settings.load(context);
     this.ipv6 = s.ipv6;
@@ -29,18 +51,22 @@ export struct NetworkSettingsPage {
     this.accessIndex = idx >= 0 ? idx : 0;
   }
 
-  aboutToDisappear(): void {
-    this.cancelAddPackage();
-    this.showRouteDetails = false;
-  }
-
-  private persist(): void {
+  private async persist(fields: string[]): Promise<void> {
+    if (!this.pageActive || !this.ready) { return; }
+    const generation = ++this.saveGeneration;
     const context = getContext(this) as common.UIAbilityContext;
     const s = Settings.load(context);
     s.ipv6 = this.ipv6;
     s.accessMode = ACCESS_VALUES[this.accessIndex];
     s.accessList = this.accessList;
-    Settings.save(context, s);
+    try {
+      await Settings.save(context, s, fields);
+      if (this.pageActive && generation === this.saveGeneration) { this.changedHint(); }
+    } catch (_) {
+      if (!this.pageActive || generation !== this.saveGeneration) { return; }
+      this.aboutToAppear();
+      promptAction.showToast({ message: '保存失败，请重试', duration: 2000 });
+    }
   }
 
   private changedHint(): void {
@@ -63,8 +89,7 @@ export struct NetworkSettingsPage {
     try { buildVpnApplicationPolicy(ACCESS_VALUES[this.accessIndex], next, context.applicationInfo.name); }
     catch (e) { promptAction.showToast({ message: (e as Error).message, duration: 1500 }); return; }
     this.accessList = next;
-    this.persist();
-    this.changedHint();
+    this.persist(['accessList']);
     this.inputPkg = '';
     this.showAddDialog = false;
   }
@@ -151,11 +176,11 @@ export struct NetworkSettingsPage {
   build() {
     Scroll() {
       Column({ space: 16 }) {
+        SettingsReconnectButton()
         Column() {
           this.ToggleRow('IPv6', '下次启动生效', this.ipv6, (v: boolean) => {
             this.ipv6 = v;
-            this.persist();
-            this.changedHint();
+            this.persist(['ipv6']);
           })
         }
         .width('100%')
@@ -190,9 +215,8 @@ export struct NetworkSettingsPage {
                 })
                 .onClick(() => {
                   this.accessIndex = index;
-                  this.persist();
-                  this.changedHint();
-                })
+                  this.persist(['accessMode']);
+                    })
             }, (label: string) => label)
           }
           .backgroundColor(UI.soft)
@@ -230,8 +254,7 @@ export struct NetworkSettingsPage {
                 })
                 .onClick(() => {
                   this.accessList = this.accessList.filter((x) => x !== pkg);
-                  this.persist();
-                  this.changedHint();
+                  this.persist(['accessList']);
                 })
               }
               .width('100%')
@@ -275,7 +298,7 @@ export struct NetworkSettingsPage {
       .width('100%')
       .padding({ left: 24, right: 24, top: 8 })
     }
-    .width('100%').height('100%').backgroundColor(UI.paper).constraintSize({ maxWidth: 760 }).alignSelf(ItemAlign.Center)
+    .width('100%').height('100%').enabled(this.ready).backgroundColor(UI.paper).constraintSize({ maxWidth: 760 }).alignSelf(ItemAlign.Center)
     .bindSheet($$this.showRouteDetails, this.RouteDetails(), { height: SheetSize.MEDIUM })
     .bindSheet($$this.showAddDialog, this.AddPkgDialog(), { height: SheetSize.MEDIUM })
   }
