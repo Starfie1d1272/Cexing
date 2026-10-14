@@ -15,7 +15,7 @@ const editor = {
 };
 const source = {
  read: async () => { reads++; return { kind: 'template', base: snapshot(1), mine: snapshot(1), next: snapshot(2) }; },
- plan: async candidate => ({ templateId: 'ai', version: candidate.version, targetGroup: 'Pick' }),
+ encode: async (candidate, session) => ({ ...structuredClone(session.intent), template: { templateId: 'ai', version: candidate.version, targetGroup: 'Pick' } }),
  label: () => 'AI 规则'
 };
 const modules = { './EditorDraftHosts': { EditorDraftHosts: { create: () => editor } }, './TemplateUpdates': { TemplateUpdates: { preview: async (_context, request) => {

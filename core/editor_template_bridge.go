@@ -22,7 +22,7 @@ func editorTemplate(home string) configpipeline.TemplateTransform {
 			region.ResolvedProviders = resolved
 			plan.Region = &region
 		}
-		return profiletemplates.Apply(ctx, root, profiletemplates.Plan(plan))
+		return profiletemplates.Apply(ctx, root, templateServicePlan(plan))
 	}
 }
 func editorReadRequest(home string, action versionAction, global string) (configpipeline.Request, error) {
@@ -46,4 +46,29 @@ func editorReadRequest(home string, action versionAction, global string) (config
 		request.Region = &region
 	}
 	return request, nil
+}
+
+func templateServicePlan(p configpipeline.TemplatePlan) profiletemplates.Plan {
+	return profiletemplates.Plan{TemplateID: p.TemplateID, Version: p.Version, TargetGroup: p.TargetGroup, Region: p.Region, ReplaceRules: p.ReplaceRules}
+}
+func editorTemplatePrepare(home string) configpipeline.TemplatePrepare {
+	return func(ctx context.Context, root *yaml.Node, plan configpipeline.TemplatePlan) (*configpipeline.TemplateSession, error) {
+		if plan.Region != nil {
+			resolved, err := regionProviderNames(home, root)
+			if err != nil {
+				return nil, err
+			}
+			region := *plan.Region
+			region.ResolvedProviders = resolved
+			plan.Region = &region
+		}
+		base, targets, err := profiletemplates.Prepare(ctx, root, templateServicePlan(plan))
+		if err != nil {
+			return nil, err
+		}
+		return &configpipeline.TemplateSession{Baseline: &base, Targets: targets, Capture: func(ctx context.Context, root *yaml.Node, targets map[string]*yaml.Node) (*configpipeline.TemplateSnapshot, error) {
+			mine, err := profiletemplates.CaptureEdited(ctx, root, base, targets)
+			return &mine, err
+		}}, nil
+	}
 }

@@ -1,6 +1,6 @@
 import { EditorDraftHosts } from './EditorDraftHosts';
 import { common } from '@kit.AbilityKit';
-import { EditIntent, EditorDraftHost, EditorDraftSession, EditorDraftPreview, TemplatePlan } from './ConfigEditor';
+import { EditIntent, EditorDraftHost, EditorDraftSession, EditorDraftPreview } from './ConfigEditor';
 import { TemplateConflict, TemplateSnapshot, TemplateUpdateHost, TemplateUpdatePreview,
   TemplateUpdateRequest, TemplateUpdates } from './TemplateUpdates';
 
@@ -8,7 +8,7 @@ import { TemplateConflict, TemplateSnapshot, TemplateUpdateHost, TemplateUpdateP
  * template schema/aliases, never a list Merge or a second persistence service. */
 export interface TemplateUpdateSource {
   read: (session: EditorDraftSession) => Promise<TemplateUpdateRequest>;
-  plan: (candidate: TemplateSnapshot, session: EditorDraftSession) => Promise<TemplatePlan>;
+  encode: (candidate: TemplateSnapshot, session: EditorDraftSession) => Promise<EditIntent>;
   label: (conflict: TemplateConflict) => string;
 }
 
@@ -48,17 +48,14 @@ export function createTemplateUpdateHost(context: common.Context, profileId: str
       if (comparison.conflicts.length !== 0 || comparison.candidate === undefined) {
         throw new Error('TEMPLATE_UPDATE_UNRESOLVED');
       }
-      const plan = await source.plan(comparison.candidate, captured);
-      if (epoch !== generation || plan.templateId !== comparison.candidate.templateId ||
-        plan.version !== comparison.candidate.version) { throw new Error('TEMPLATE_UPDATE_PLAN'); }
-      // Retain personal operations, Smart exceptions, disabled state and source
-      // preconditions. Only the compiler's template metadata is replaced.
-      const intent: EditIntent = captured.intent !== null ?
-        JSON.parse(JSON.stringify(captured.intent)) as EditIntent : {
-          schemaVersion: 1, revision: captured.revision,
-          sourceRevision: captured.snapshot.sourceRevision, operations: []
-        };
-      intent.template = JSON.parse(JSON.stringify(plan)) as TemplatePlan;
+      const intent = await source.encode(comparison.candidate, captured);
+      if (epoch !== generation || intent.template?.templateId !== comparison.candidate.templateId ||
+        intent.template?.version !== comparison.candidate.version ||
+        intent.sourceRevision !== (captured.intent?.sourceRevision ?? captured.snapshot.sourceRevision) ||
+        (intent.disabled === true) !== (captured.intent?.disabled === true) ||
+        JSON.stringify(intent.smartGroups ?? {}) !== JSON.stringify(captured.intent?.smartGroups ?? {})) {
+        throw new Error('TEMPLATE_UPDATE_PLAN');
+      }
       const next = await editor.save(intent, captured.revision);
       if (epoch !== generation || next.profileId !== profileId) { throw new Error('TEMPLATE_UPDATE_SESSION'); }
       session = next;

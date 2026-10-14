@@ -16,17 +16,8 @@ import (
 // Entity is a template-owned logical item, not an entire upstream section. IDs
 // are authored stable IDs (e.g. ai/chatgpt), independent of names/list position.
 // Values are private compiler snapshots. Never log/export them in diagnostics.
-type Entity struct {
-	ID      string          `json:"id"`
-	Section string          `json:"section"`
-	Value   json.RawMessage `json:"value"`
-}
-type TemplateSnapshot struct {
-	TemplateID string   `json:"templateId"`
-	Version    int      `json:"version"`
-	Entries    []Entity `json:"entries"`
-	Deleted    []string `json:"deleted,omitempty"`
-}
+type Entity = configpipeline.TemplateEntity
+type TemplateSnapshot = configpipeline.TemplateSnapshot
 type UpdateRequest struct {
 	Kind      string            `json:"kind"` // template upgrade or subscription rebase, never provider refresh
 	Base      TemplateSnapshot  `json:"base"`

@@ -20,23 +20,15 @@ Base 是最后成功版本的自有模板基线；Mine 是个人模板结果/墓
 
 ## 生产接线
 
-`coreTemplateUpdateAction` 是有界只读 worker 操作，JSON 为 `{op: "template-update-preview", request: UpdateRequest}`。现有 `coreVersionAction` dispatcher 所有者需要为该 op 加一条路由：
+`coreTemplateUpdateAction(input, home)` 在既有 `template-update-preview` op 内提供有界只读子请求：`request` 进行纯三方比较，`source` 从既有成功来源读取 Base、在原成功原文与模板上捕获当前个人 Mine、从当前原文与双层 Merge 生成 Next。两种输入互斥；source 不允许 URL、调用方路径或 provider 抓取。所有数据留在私有编辑通道。
 
-```go
-if diagnostic.Op == "template-update-preview" {
-    return coreTemplateUpdateAction(input)
-}
-```
+`createTemplateUpdateSource` 通过既有单 worker 调用 source/read；返回输入绑定的 stamp。解决冲突后 source/encode 重新比较 stamp，调用 `EncodeDelta` 生成模板 alias 的字段 patch/delete/rename/move/add，并保留普通个人操作、Smart 和 disabled。编码结果再次通过共同完整编译，实际 Mine 必须与所选 Candidate 语义一致；不一致拒绝保存。规则替换使用单条 value，mapping 仅发变化字段及其原始前提，重排绑定共同编译器提供的锚点，不将上游整列表塞进 Merge。
 
-放在既有 op 读取之后，不新增 C ABI/NAPI、文件目录或发布指针。`TemplateUpdates.preview` 使用既有 `core.versionAction` 单 worker。
+`createTemplateUpdateHost(context, profileId, editor, source)` 复用 `EditorDraftHosts.create`，依次比较、惰性 save、共同完整 preview、原 opaque receipt apply。未解决冲突不保存；缺 digest、错 profile、候选被改、重复 apply 均拒绝。显式重新预览重新读取来源；退出或迟到请求不能覆盖新会话。事务内仍核对来源/草稿/设置/provider，并走 stage/verify/apply/commit；成功之后才发布新的 baseline/Mine/墓碑。纯三方 ready 不表示应用成功。
 
-`TemplateUpdateReview` 只显示必要冲突选择和编译影响。Host 组合纯比较与共同编译预览，并附既有 `TemplatePreview` 的 revision/digest/summary；没有全量编译预览时模型拒绝应用。Host.apply 必须比较原先捕获的 profile/source/draft/selection/active ticket，再走现有 stage/verify/apply/commit。应用失败保留 Current、Base/Mine 和原文；成功后才将新 baseline 与个人 delta/墓碑一同保存进成功 EditIntent/source。模板升级和运行配置应用是两个确认，纯比较成功不是应用成功。
+`TemplateWizard` 内的更新操作打开 `TemplateUpdateReview`，两页都可仅传 profileId 组合真实工厂与 source；自定义 editor/source 仅用于同一会话注入。默认仅显示冲突操作、短影响与应用状态，不展示快照原文。不存在的模板生成器版本不提供应用路径：当前目录只支持 v1，纯算法的合成 v2/v3 夹具不表示真实模板已经升级。
 
-`createTemplateUpdateHost(context, profileId, editor, source)` 已实现生产适配的本组部分；`TemplateUpdateReview({profileId, editor, source})` 直接消费它。source 只有 `read(session)`、`plan(candidate,session)`、`label(conflict)` 三个编译器数据转换回调：read 返回私有 Base/Mine/Next，plan 将已解决候选编码到统一 TemplatePlan 的受校验字段。它不持有 publisher/文件路径，不改变个人 operations/Smart/disabled/source 前提。三方未解决时绝不保存；解决后 save 惰性草稿→共同完整 preview→原 opaque receipt apply，缺 digest、错 profile、内容被改或重复 apply 均拒绝。成功/失败消耗回执后重新读取成功基线，不能复用旧升级请求。
-
-这三个 callback 的数据来自共同编译器及成功 provenance；本组不会以回调 mock 代替生产 source。编译组确定 alias/schema/prepare 编码后，接入该适配并跑联合编译/事务链路。
-
-共享模板字段、alias 读取/应用、草稿与成功 provenance、运行时 Host 适配须由 #146/事务所有者统一接线。本文定义本组服务边界，不把未接线函数称为已生效功能。GC 仍只用现有版本引用；模板 baseline/alias 不持有新版本 ID、路径或外部资源句柄。实际回滚使用既有 Previous/恢复事务。
+模板 snapshot 只保存自有实体；绑定只活于一次 worker，不进入 GC/备份。所有历史与回滚引用沿现有 Current/Previous/Profiles 及可靠性组引用门禁。取消/失败保留旧 Current，恢复沿既有 Previous 事务。
 
 ## 取证与许可
 

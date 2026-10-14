@@ -1,3 +1,4 @@
+import { createTemplateUpdateSource } from '../lib/TemplateUpdateSource';
 import { common } from '@kit.AbilityKit';
 import { EditorDraftHost } from '../lib/ConfigEditor';
 import { createTemplateUpdateHost, TemplateUpdateSource } from '../lib/TemplateUpdateHost';
@@ -19,8 +20,10 @@ export struct TemplateUpdateReview {
   @State private message: string = '';
   private model: TemplateUpdateModel | null = null;
   aboutToAppear(): void {
-    const host = this.host ?? (this.source !== undefined && this.profileId.length > 0 ?
-      createTemplateUpdateHost(getContext(this) as common.UIAbilityContext, this.profileId, this.editor, this.source) : undefined);
+    const source = this.source ?? (this.profileId.length > 0 ?
+      createTemplateUpdateSource(getContext(this) as common.UIAbilityContext, this.profileId) : undefined);
+    const host = this.host ?? (source !== undefined && this.profileId.length > 0 ?
+      createTemplateUpdateHost(getContext(this) as common.UIAbilityContext, this.profileId, this.editor, source) : undefined);
     if (host === undefined) { return; }
     this.activeHost = host;
     this.model = new TemplateUpdateModel(host, () => {

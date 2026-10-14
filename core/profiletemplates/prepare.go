@@ -2,8 +2,6 @@ package profiletemplates
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"golang.org/x/text/language"
@@ -18,8 +16,7 @@ import (
 // display names or list positions. The common compiler owns applying edits to
 // these node bindings and updating a binding when an operation replaces a node.
 func TemplateTarget(templateID, entityID string) string {
-	hash := sha256.Sum256([]byte("cexing-template\x00" + templateID + "\x00" + entityID))
-	return hex.EncodeToString(hash[:])
+	return configpipeline.TemplateTarget(templateID, entityID)
 }
 
 // Prepare applies the authored template to the compiler's private merged root

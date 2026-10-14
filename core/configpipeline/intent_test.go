@@ -346,3 +346,18 @@ func TestIntentCompoundUpdateRenameUsesOriginalGuardAndRejectsRealSourceChange(t
 		t.Fatal("real upstream conflict bypassed")
 	}
 }
+
+func TestIntentCrossObjectRenameUsesOriginalBaseline(t *testing.T) {
+	source := []byte("proxies: [{name: node, type: direct}]\nproxy-groups: [{name: group, type: select, proxies: [node]}]\nrules: ['MATCH,group']\n")
+	node := editTarget(t, source, "proxies", 0)
+	group := editTarget(t, source, "proxy-groups", 0)
+	plan := editPlan(t, source, EditOperation{ID: "node", Kind: "rename", Section: "proxies", Target: node.Item.ID, Expected: node.Item.Revision, Name: "new-node"}, EditOperation{ID: "group", Kind: "rename", Section: "proxy-groups", Target: group.Item.ID, Expected: group.Item.Revision, Name: "new-group"})
+	result, err := editCompiler().Compile(context.Background(), Request{Original: source, Intent: plan})
+	if err != nil || !strings.Contains(string(result.YAML), "MATCH,new-group") {
+		t.Fatal("unchanged chained references rejected", err)
+	}
+	changed := []byte(strings.Replace(string(source), "proxies: [node]", "proxies: [DIRECT]", 1))
+	if _, err = editCompiler().Compile(context.Background(), Request{Original: changed, Intent: plan}); err == nil {
+		t.Fatal("real upstream change admitted")
+	}
+}

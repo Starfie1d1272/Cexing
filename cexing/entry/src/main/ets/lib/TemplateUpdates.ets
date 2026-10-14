@@ -50,7 +50,7 @@ export class TemplateUpdateModel {
   private host: TemplateUpdateHost;
   private changed: () => void;
   constructor(host: TemplateUpdateHost, changed: () => void) { this.host = host; this.changed = changed; }
-  close(): void { this.open = false; this.generation++; }
+  close(): void { this.open = false; this.generation++; this.host.reset?.(); }
   private current(generation: number): boolean { return this.open && this.generation === generation; }
   private emit(): void { if (this.open) { this.changed(); } }
   async refresh(): Promise<void> {
