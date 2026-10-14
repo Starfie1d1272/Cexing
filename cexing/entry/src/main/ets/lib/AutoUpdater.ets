@@ -113,7 +113,7 @@ export namespace AutoUpdater {
       if (!current()) { return; }
       state.failedAt = Date.now();
       ProfileStore.saveUpdateState(context, active, state);
-      Logger.warn(TAG, 'auto update failed; previous profile retained');
+      Logger.warn(TAG, 'auto update did not complete; check transaction status before retry');
     }
   }
 
