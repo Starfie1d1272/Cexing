@@ -27,6 +27,7 @@ export struct SmartPage {
   @State private restartRequired: boolean = false;
   @State private autoConvert: boolean = true;
   private generation: number = 0;
+  private importGeneration: number = 0;
   private timer: number = -1;
   private active: boolean = false;
 
@@ -37,6 +38,7 @@ export struct SmartPage {
   }
 
   aboutToDisappear(): void {
+    this.importGeneration++;
     this.active = false;
     this.stopPolling();
   }
@@ -48,6 +50,10 @@ export struct SmartPage {
   }
 
   private onVisible(): void {
+    if (!this.visible && this.active) {
+      const routes = this.navStack.getAllPathName();
+      if (routes.length === 0 || routes[routes.length - 1] !== 'smart') { this.importGeneration++; }
+    }
     this.stopPolling();
     if (this.active && this.visible) { this.refresh(this.generation); }
   }
@@ -115,16 +121,21 @@ export struct SmartPage {
     } finally { this.busy = false; }
   }
 
+  private importCurrent(generation: number): boolean {
+    return this.active && this.visible && generation === this.importGeneration;
+  }
+
   private async importModel(): Promise<void> {
     if (this.busy || !this.ready) { return; }
     this.busy = true;
-    const generation = this.generation;
+    // 系统文件选择器可触发页面隐藏和恢复；轮询重启不撤销仍在本页的导入。
+    const generation = this.importGeneration;
     try {
       const context = getContext(this) as common.UIAbilityContext;
       const uris = await new picker.DocumentViewPicker(context).select({
         maxSelectNumber: 1, selectMode: picker.DocumentSelectMode.FILE, fileSuffixFilters: ['.bin']
       });
-      if (!this.current(generation) || uris.length === 0) { return; }
+      if (!this.importCurrent(generation) || uris.length === 0) { return; }
       const file = fileIo.openSync(uris[0], fileIo.OpenMode.READ_ONLY);
       const bytes = new ArrayBuffer(MODEL_BYTES);
       try {
@@ -138,15 +149,15 @@ export struct SmartPage {
           offset += length;
         }
       } finally { fileIo.closeSync(file); }
-      if (!this.current(generation)) { return; }
+      if (!this.importCurrent(generation)) { return; }
       const result = await CoreApi.importSmartModel(bytes);
-      if (!this.current(generation)) { return; }
+      if (!this.importCurrent(generation)) { return; }
       if (result === null) { throw new Error('导入失败：请核对官方 Model.bin 版本、文件摘要和 VPN 连接'); }
       this.restartRequired = result.restartRequired;
       this.message = result.restartRequired ? '模型已校验安装，请重启应用使模型生效' :
         '模型已校验安装，可查看 Smart 组的模型策略状态';
     } catch (error) {
-      if (this.current(generation)) { this.message = (error as Error).message; }
+      if (this.importCurrent(generation)) { this.message = (error as Error).message; }
     } finally { this.busy = false; }
   }
 
