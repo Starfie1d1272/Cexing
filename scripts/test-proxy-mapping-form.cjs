@@ -24,6 +24,20 @@ assert.equal(JSON.stringify(node), original, 'form edits cannot mutate the sourc
 form.setNumber('port', 'bad'); assert.throws(() => form.finish(), /数字/);
 form.setNumber('port', '65536'); assert.throws(() => form.finish(), /端口/);
 form.setNumber('port', '443'); form.setText('uuid', ''); assert.throws(() => form.finish(), /UUID/);
+const unsafe = JSON.parse('{"name":"large","type":"direct","x-unknown":{"integer":9007199254740993}}');
+assert.throws(() => new Form('proxies', { item: {}, value: unsafe }), /原始配置/);
+const rejectedAdvanced = new Form('proxies');
+assert.throws(() => rejectedAdvanced.replaceAdvanced('{"name":"large","type":"direct","x-unknown":9007199254740993}'), /原始配置/);
+assert.equal(rejectedAdvanced.text('name'), '', 'unrepresentable numbers never replace the editable draft');
+const unknownNested = new Form('proxies', { item: {}, value: JSON.parse('{"name":"safe","type":"vless","server":"127.0.0.1","port":443,"uuid":"synthetic","ws-opts":{"path":"/old","__proto__":{"keep":true},"constructor":{"keep":true}}}') });
+unknownNested.setNestedText(['ws-opts', 'path'], '');
+const unknownValue = unknownNested.finish().value['ws-opts'];
+assert.ok(Object.prototype.hasOwnProperty.call(unknownValue, '__proto__')); assert.equal(unknownValue.__proto__.keep, true);
+assert.equal(unknownValue.constructor.keep, true); assert.equal(unknownValue.path, undefined);
+const advancedDirect = new Form('proxies', { item: {}, value: { name: 'advanced', type: 'direct', 'x-unknown': { keep: true } } });
+advancedDirect.setText('name', 'renamed-direct');
+assert.equal(advancedDirect.finish().value['x-unknown'].keep, true, 'advanced adapter names can be edited without fabricated server/port fields');
+assert.equal(advancedDirect.finish().value.server, undefined);
 const group = new Form('proxy-groups', { item: {}, value: {
   name: 'provider-only', type: 'smart', use: ['synthetic-provider'], 'custom-key': { keep: true }
 } });
@@ -57,6 +71,9 @@ const sandbox = { exports: {}, getContext: () => resourceContext(), require: nam
   name.includes('ProxyNodeImport') ? importBox.exports : name.includes('ProxyEditorText') ? textBox.exports : {} };
 vm.runInNewContext(ts.transpileModule(pageSource).outputText, sandbox);
 (async () => {
+  const rawOnly = new sandbox.exports.ProxyMappingFormPage(); rawOnly.target = { item: {}, value: unsafe };
+  let rawWrites = 0; rawOnly.onDraft = async () => rawWrites++; rawOnly.aboutToAppear();
+  assert.equal(rawOnly.loadFailed, true); assert.match(rawOnly.error, /原始配置/); await rawOnly.submit(); assert.equal(rawWrites, 0);
   const imported = new sandbox.exports.ProxyMappingFormPage(); imported.aboutToAppear();
   let importedWrites = 0;
   imported.onDraft = async draft => { importedWrites++; assert.equal(draft.value.password, 'synthetic'); };
@@ -66,6 +83,9 @@ vm.runInNewContext(ts.transpileModule(pageSource).outputText, sandbox);
   await imported.submit(); assert.equal(importedWrites, 1, 'explicit preview sends the normal draft callback');
   imported.nodeLink = 'trojan://private@127.0.0.1:443?unknown=private'; imported.importLink();
   assert.ok(!imported.error.includes('private')); assert.equal(importedWrites, 1);
+  const transport = new sandbox.exports.ProxyMappingFormPage(); transport.transport = 'h2';
+  assert.equal(transport.transportTypes()[0], 'h2', 'an existing advanced transport is retained');
+  transport.transport = ''; assert.deepEqual(Array.from(transport.transportTypes()), ['tcp', 'ws', 'grpc']);
   const page = new sandbox.exports.ProxyMappingFormPage(); page.target = node; page.aboutToAppear();
   let calls = 0, rejectPreview;
   page.onDraft = () => { calls++; return new Promise((_, reject) => { rejectPreview = reject; }); };

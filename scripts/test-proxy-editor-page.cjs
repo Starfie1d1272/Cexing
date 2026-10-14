@@ -7,12 +7,16 @@ let code = fs.readFileSync('cexing/entry/src/main/ets/pages/ProfileProxyEditorPa
 code = code.slice(0, code.indexOf('  build()')) + '\n}';
 code = code.split('\n').map(line => line.trimStart().startsWith('@') ?
   line.replace(/@\w+(?:\([^\n)]*\))?\s*/g, '') : line).join('\n').replace('export struct ', 'export class ');
-let finishObservation, observations = 0;
+let finishObservation, observations = 0, restores = 0, undoSteps = 0;
 let finishLoad, finishTarget, finishSave, targetCalls = 0, saveCalls = 0, dialog;
 const intent = { schemaVersion: 1, sourceRevision: 'source', revision: 'draft', operations: [] };
 class Model {
   snapshot = null; preview = null;
   cancel() {}
+  canUndo() { return true; }
+  undoNeedsConfirmation() { return true; }
+  async reset() { restores++; return true; }
+  async undo() { undoSteps++; return true; }
   profileVersion() { return 'v1'; }
   publishedProviderName(target) { return target.name; }
   load() { return new Promise(resolve => { finishLoad = () => { this.snapshot = { missingFieldRevision: 'absent-hash', sections: [
@@ -27,12 +31,13 @@ const editorExports = { exports: {}, require: () => ({}) };
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('cexing/entry/src/main/ets/lib/ConfigEditor.ets', 'utf8')).outputText, editorExports);
 const textBox = { exports: {} };
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('cexing/entry/src/main/ets/lib/ProxyEditorText.ets', 'utf8')).outputText, textBox);
+const editBus = { current: '' };
 const sandbox = { exports: {}, getContext: () => resourceContext(), AlertDialog: { show: value => { dialog = value; } },
   require: name => name.includes('ProfileProxyEditorModel') ? { ProfileProxyEditorModel: Model } :
-    name.includes('ProxyEditorText') ? textBox.exports : name.includes('ConfigEditor') ? editorExports.exports : name.includes('ProxyProviderStatus') ?
+    name.includes('ProfileEditPage') ? { ProfileEditBus: editBus } : name.includes('ProxyEditorText') ? textBox.exports : name.includes('ConfigEditor') ? editorExports.exports : name.includes('ProxyProviderStatus') ?
       { ProxyProviderStatus: { observe: () => { observations++; return new Promise(resolve => { finishObservation = resolve; }); } } } : {} };
 vm.runInNewContext(ts.transpileModule(code).outputText, sandbox);
-const Page = sandbox.exports.ProfileProxyEditorPage;
+const Page = sandbox.exports.ProfileProxyEditorPage; sandbox.exports.ProfileProxyEditorBus.file = 'one.yaml';
 (async () => {
   const page = new Page(); page.visible = true; page.aboutToAppear();
   page.visible = false; page.visibilityChanged(); finishLoad(); await new Promise(setImmediate);
@@ -100,5 +105,19 @@ const Page = sandbox.exports.ProfileProxyEditorPage;
   const Failure = editorExports.exports.EditIntentFailure;
   assert.match(sourcePage.previewFailure({ operations: [] }, new Failure('conflict', 0)), /冲突/);
   assert.match(sourcePage.previewFailure({ operations: [{ section: 'proxy-groups' }] }, Error('private backend data')), /组成员和来源/);
+
+  const undoPage = new Page(); undoPage.visible = true; undoPage.aboutToAppear(); finishLoad(); await new Promise(setImmediate);
+  await undoPage.undo(); const cancelledUndo = dialog; cancelledUndo.primaryButton.action(); await cancelledUndo.secondaryButton.action();
+  assert.equal(restores, 0, 'cancelled draft restoration is not replayable');
+  await undoPage.undo(); const oldUndo = dialog; undoPage.aboutToDisappear(); await oldUndo.secondaryButton.action();
+  assert.equal(restores, 0, 'old confirmation cannot restore a hidden session');
+  undoPage.visible = true; undoPage.aboutToAppear(); finishLoad(); await new Promise(setImmediate);
+  await undoPage.undo(); const acceptedUndo = dialog; await acceptedUndo.secondaryButton.action(); await acceptedUndo.secondaryButton.action();
+  assert.equal(restores, 1, 'explicit restore is single use');
+  undoPage.model.undoNeedsConfirmation = () => false; await undoPage.undo(); assert.equal(undoSteps, 1);
+
+  const rawPaths = []; undoPage.navStack = { getAllPathName: () => rawPaths.slice(), pushPath: value => rawPaths.push(value.name) };
+  undoPage.openOriginal(); undoPage.openOriginal();
+  assert.equal(rawPaths.join(','), 'profileEdit'); assert.equal(editBus.current, 'one.yaml'); assert.equal(undoPage.formOpen, false);
   console.log('PASS: real native proxy editor load/target/save lifecycle, repeat actions, hidden private values and stale delete confirmation');
 })().catch(error => { console.error(error); process.exitCode = 1; });

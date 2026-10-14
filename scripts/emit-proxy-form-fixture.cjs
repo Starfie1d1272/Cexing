@@ -29,4 +29,8 @@ if (input.link) {
   const imported = new Form('proxies'); imported.replaceAdvanced(JSON.stringify(ProxyNodeImport.parse(input.link)));
   intent = edits.mapping(intent, null, imported.finish(), 'link-import', input.missing);
 }
+if (input.advancedDirect) {
+  const advanced = new Form('proxies'); advanced.replaceAdvanced(JSON.stringify({ name: 'advanced-node', type: 'direct', 'x-advanced': { keep: true } }));
+  intent = edits.mapping(intent, null, advanced.finish(), 'advanced-add', input.missing);
+}
 process.stdout.write(JSON.stringify(intent));

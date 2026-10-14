@@ -23,6 +23,8 @@ export class ProfileProxyEditorModel {
   private editor: EditorDraftHost | null = null;
   private confirmed: EditorDraftPreview | null = null;
   private history: Array<EditIntent | null> = [];
+  private committedRevision: string = '';
+  private committedHasIntent: boolean = false;
 
   constructor(context: common.Context, file: string) { this.context = context; this.file = file; }
   cancel(): void { this.generation++; }
@@ -60,6 +62,7 @@ export class ProfileProxyEditorModel {
     const overlay = ProfileStore.getEnabledMerge(this.context, this.file);
     const draft = ProfileStore.readEditDraft(this.context, this.file);
     const version = EffectiveVersions.read(this.context)?.Profiles[this.file];
+    const committed = version === undefined ? null : EffectiveVersions.editIntent(this.context, version);
     const region = version === undefined ? undefined : EffectiveVersions.regionPlan(this.context, version) ?? undefined;
     const baseline = draft.intent === null ? undefined : JSON.parse(JSON.stringify(draft.intent)) as EditIntent;
     if (baseline !== undefined) { baseline.operations = []; baseline.disabled = false; }
@@ -67,6 +70,8 @@ export class ProfileProxyEditorModel {
       undefined, baseline, region);
     if (request !== this.generation) { return false; }
     this.check(ticket);
+    if (JSON.stringify(this.ticket) !== JSON.stringify(ticket)) { this.history = []; }
+    this.committedRevision = committed?.revision ?? ''; this.committedHasIntent = committed !== null;
     this.ticket = ticket;
     this.original = original;
     this.overlay = overlay;
@@ -187,6 +192,11 @@ export class ProfileProxyEditorModel {
       return await this.confirmPreview(ticket, request);
     } finally { this.busy = false; }
   }
+
+  canUndo(): boolean {
+    return this.history.length > 0 || (this.intent === null ? this.committedHasIntent : this.intent.revision !== this.committedRevision);
+  }
+  undoNeedsConfirmation(): boolean { return this.history.length === 0 && this.canUndo(); }
 
   async undo(): Promise<boolean> {
     if (this.busy || this.history.length === 0) { return false; }

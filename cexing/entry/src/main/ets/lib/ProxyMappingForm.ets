@@ -20,8 +20,27 @@ export class ProxyMappingForm {
     if (!['proxies', 'proxy-providers', 'proxy-groups'].includes(section)) { throw new Error('编辑类型不可用'); }
     this.section = section;
     this.target = target;
+    if (target !== null) {
+      if (target.value === null || typeof target.value !== 'object' || Array.isArray(target.value)) {
+        throw new Error('该项目需使用原始配置编辑');
+      }
+      this.representable(target.value, 0);
+    }
     this.value = target === null ? {} : JSON.parse(JSON.stringify(target.value)) as Record<string, Object>;
     if (target !== null && section === 'proxy-providers') { this.mappingName = target.name ?? ''; }
+  }
+
+  private representable(value: Object, depth: number): void {
+    if (depth > 64) { throw new Error('该项目需使用原始配置编辑'); }
+    if (typeof value === 'number' && (!Number.isFinite(value) || (Number.isInteger(value) && !Number.isSafeInteger(value)))) {
+      throw new Error('该项目需使用原始配置编辑');
+    }
+    if (Array.isArray(value)) {
+      for (const item of value as Object[]) { this.representable(item, depth + 1); }
+    } else if (value !== null && typeof value === 'object') {
+      const mapping = value as Record<string, Object>;
+      for (const key of Object.keys(mapping)) { this.representable(mapping[key], depth + 1); }
+    }
   }
 
   text(key: string): string {
@@ -53,9 +72,13 @@ export class ProxyMappingForm {
   }
 
   private without(mapping: Record<string, Object>, removed: string): Record<string, Object> {
-    const next: Record<string, Object> = {};
-    for (const key of Object.keys(mapping)) { if (key !== removed) { next[key] = mapping[key]; } }
-    return next;
+    // JSON-backed mappings may contain unknown keys such as __proto__.
+    // Reparse property data rather than invoking JavaScript prototype setters.
+    const entries: string[] = [];
+    for (const key of Object.keys(mapping)) {
+      if (key !== removed) { entries.push(`${JSON.stringify(key)}:${JSON.stringify(mapping[key])}`); }
+    }
+    return JSON.parse(`{${entries.join(',')}}`) as Record<string, Object>;
   }
 
   private nested(mapping: Record<string, Object>, path: string[], index: number, value: string): Record<string, Object> {
@@ -91,6 +114,7 @@ export class ProxyMappingForm {
     let parsed: Record<string, Object>;
     try { parsed = JSON.parse(value) as Record<string, Object>; } catch (_) { throw new Error('高级字段格式无效'); }
     if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) { throw new Error('高级字段需要是对象'); }
+    this.representable(parsed, 0);
     this.value = parsed;
     this.invalidNumbers = [];
   }
@@ -104,7 +128,7 @@ export class ProxyMappingForm {
     this.required('name', '名称');
     this.required('type', '类型');
     const type = this.text('type');
-    if (this.section === 'proxies') {
+    if (this.section === 'proxies' && ['ss', 'vmess', 'vless', 'trojan'].includes(type)) {
       this.required('server', '服务器');
       const port = this.value['port'];
       if (typeof port !== 'number' || !Number.isInteger(port) || port < 1 || port > 65535) { throw new Error('端口应为 1–65535'); }
@@ -116,7 +140,7 @@ export class ProxyMappingForm {
         if (!/^https?:\/\/\S+$/i.test(this.text('url'))) { throw new Error('请填写来源链接'); }
       } else if (type === 'file') { this.required('path', '文件路径'); }
       else if (type === 'inline' && !Array.isArray(this.value['payload'])) { throw new Error('请在高级编辑中填写节点列表'); }
-    } else if (this.list('proxies').length === 0 && this.list('use').length === 0) {
+    } else if (this.section === 'proxy-groups' && this.list('proxies').length === 0 && this.list('use').length === 0) {
       throw new Error('请添加节点或订阅来源');
     }
     const value = JSON.parse(JSON.stringify(this.value)) as Record<string, Object>;

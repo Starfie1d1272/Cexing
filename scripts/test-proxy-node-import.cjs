@@ -16,6 +16,8 @@ const uuid = '00000000-0000-4000-8000-000000000001';
 const vless = parse(`vless://${uuid}@[::1]:443?encryption=none&type=ws&security=tls&sni=example.invalid&host=example.invalid&path=%2Fsynthetic#Node`);
 assert.equal(vless.server, '::1'); assert.equal(vless.tls, true); assert.equal(vless['ws-opts'].path, '/synthetic');
 assert.equal(parse('trojan://synthetic%3Apassword@127.0.0.1:443?security=tls').password, 'synthetic:password');
+const trojanSni = parse('trojan://synthetic@127.0.0.1:443?security=tls&sni=example.invalid');
+assert.equal(trojanSni.sni, 'example.invalid'); assert.equal(trojanSni.servername, undefined); assert.equal(trojanSni.tls, undefined);
 const vmess = parse('vmess://' + b64(JSON.stringify({ v: '2', ps: 'Synthetic', add: '127.0.0.1', port: '443', id: uuid, aid: '0', net: 'grpc', path: 'synthetic', tls: 'tls' })));
 assert.equal(vmess.type, 'vmess'); assert.equal(vmess['grpc-opts']['grpc-service-name'], 'synthetic');
 for (const value of ['https://example.invalid', 'ss://broken', 'ss://x@127.0.0.1:0',

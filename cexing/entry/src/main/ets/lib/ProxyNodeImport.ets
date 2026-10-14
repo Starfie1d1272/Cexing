@@ -110,9 +110,9 @@ export namespace ProxyNodeImport {
     if (fields['serviceName'] && fields['path']) { return fail(); }
     const security = fields['security'] || (type === 'trojan' ? 'tls' : 'none');
     if (!['none', 'tls', 'reality'].includes(security) || type === 'trojan' && security === 'none') { return fail(); }
-    if (security !== 'none') { node['tls'] = true; }
+    if (security !== 'none' && type !== 'trojan') { node['tls'] = true; }
     if (fields['sni'] && fields['peer']) { return fail(); }
-    if (fields['sni'] || fields['peer']) { node['servername'] = fields['sni'] || fields['peer']; }
+    if (fields['sni'] || fields['peer']) { node[type === 'trojan' ? 'sni' : 'servername'] = fields['sni'] || fields['peer']; }
     if (fields['fp']) { node['client-fingerprint'] = fields['fp']; }
     if (fields['alpn']) { node['alpn'] = fields['alpn'].split(','); }
     if (fields['flow']) { if (type !== 'vless') { return fail(); } node['flow'] = fields['flow']; }

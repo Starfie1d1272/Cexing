@@ -13,6 +13,7 @@ export namespace ProxyEditorText {
   export function failure(context: common.Context, message: string): string {
     if (message === '') { return ''; }
     const keys: Record<string, string> = {
+      '该项目需使用原始配置编辑': 'proxy_form_requires_original',
       '请填写名称': 'proxy_form_require_name', '请填写类型': 'proxy_form_require_type',
       '请填写服务器': 'proxy_form_require_server', '请填写加密方式': 'proxy_form_require_cipher',
       '请填写密码': 'proxy_form_require_password', '请填写UUID': 'proxy_form_require_uuid',

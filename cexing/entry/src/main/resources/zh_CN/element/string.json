@@ -475,6 +475,26 @@
     {
       "name": "proxy_form_alter_id",
       "value": "Alter ID"
+    },
+    {
+      "name": "proxy_editor_restore_draft",
+      "value": "撤销未应用的修改？"
+    },
+    {
+      "name": "proxy_editor_restore",
+      "value": "撤销修改"
+    },
+    {
+      "name": "proxy_form_udp",
+      "value": "UDP"
+    },
+    {
+      "name": "proxy_form_requires_original",
+      "value": "该项目需使用原始配置编辑，已保留原有内容"
+    },
+    {
+      "name": "proxy_form_open_original",
+      "value": "编辑原始配置"
     }
   ]
 }

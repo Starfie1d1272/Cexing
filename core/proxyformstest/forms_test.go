@@ -12,6 +12,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/metacubex/mihomo/adapter/outbound"
+	"github.com/metacubex/mihomo/common/structure"
 	"github.com/metacubex/mihomo/config"
 	_ "github.com/metacubex/mihomo/hub/executor"
 	"gopkg.in/yaml.v3"
@@ -21,7 +23,7 @@ import (
 // Disposable process, synthetic loopback nodes and inline provider; no Start/network.
 func TestNativeProxyFormsReachCompilerAndParser(t *testing.T) {
 	if os.Getenv("CE_XING_PROXY_FORM_CHILD") != "1" {
-		for _, mode := range []string{"fields", "rename", "link-ss", "link-vmess", "link-vless", "link-trojan"} {
+		for _, mode := range []string{"fields", "rename", "link-ss", "link-vmess", "link-vless", "link-trojan", "advanced-direct"} {
 			t.Run(mode, func(t *testing.T) {
 				child := exec.Command(os.Args[0], "-test.run=^TestNativeProxyFormsReachCompilerAndParser$", "-test.v")
 				child.Env = append(os.Environ(), "CE_XING_PROXY_FORM_CHILD=1", "CE_XING_PROXY_FORM_MODE="+mode)
@@ -66,11 +68,11 @@ x-top-level: {keep: true}
 	links := map[string]string{
 		"link-ss":     "ss://aes-128-gcm:synthetic@127.0.0.1:443#Imported",
 		"link-vless":  "vless://00000000-0000-4000-8000-000000000001@127.0.0.1:443?encryption=none&type=ws&security=tls&path=%2Fsynthetic#Imported",
-		"link-trojan": "trojan://synthetic@127.0.0.1:443?security=tls#Imported",
+		"link-trojan": "trojan://synthetic@127.0.0.1:443?security=tls&sni=example.invalid&alpn=h2%2Chttp%2F1.1&fp=chrome#Imported",
 		"link-vmess":  "vmess://" + base64.StdEncoding.EncodeToString([]byte(`{"v":"2","ps":"Imported","add":"127.0.0.1","port":"443","id":"00000000-0000-4000-8000-000000000001","aid":"0","net":"grpc","path":"synthetic","tls":"tls"}`)),
 	}
 	input, _ := json.Marshal(map[string]any{"sourceRevision": snapshot.SourceRevision, "node": targets["proxies"],
-		"provider": targets["proxy-providers"], "missing": configpipeline.MissingFieldRevision(), "rename": rename, "link": links[mode]})
+		"provider": targets["proxy-providers"], "missing": configpipeline.MissingFieldRevision(), "rename": rename, "link": links[mode], "advancedDirect": mode == "advanced-direct"})
 	root, _ := filepath.Abs("../..")
 	command := exec.Command("node", "scripts/emit-proxy-form-fixture.cjs")
 	command.Dir = root
@@ -110,6 +112,22 @@ x-top-level: {keep: true}
 		}
 		if nodes[1].(map[string]any)["type"] != strings.TrimPrefix(mode, "link-") {
 			t.Fatal("imported protocol changed")
+		}
+	}
+	if mode == "link-trojan" {
+		proxy := value["proxies"].([]any)[1].(map[string]any)
+		var options outbound.TrojanOption
+		if err := structure.NewDecoder(structure.Option{TagName: "proxy", WeaklyTypedInput: true}).Decode(proxy, &options); err != nil {
+			t.Fatal(err)
+		}
+		if options.SNI != "example.invalid" || len(options.ALPN) != 2 || options.ClientFingerprint != "chrome" {
+			t.Fatal("Trojan parameters not consumed by the pinned adapter")
+		}
+	}
+	if mode == "advanced-direct" {
+		nodes := value["proxies"].([]any)
+		if len(nodes) != 2 || nodes[1].(map[string]any)["type"] != "direct" || nodes[1].(map[string]any)["x-advanced"].(map[string]any)["keep"] != true {
+			t.Fatal("advanced adapter fields lost")
 		}
 	}
 	groups := value["proxy-groups"].([]any)

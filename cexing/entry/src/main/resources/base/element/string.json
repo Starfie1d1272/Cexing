@@ -499,6 +499,26 @@
     {
       "name": "proxy_form_alter_id",
       "value": "Alter ID"
+    },
+    {
+      "name": "proxy_editor_restore_draft",
+      "value": "Discard unapplied changes?"
+    },
+    {
+      "name": "proxy_editor_restore",
+      "value": "Discard changes"
+    },
+    {
+      "name": "proxy_form_udp",
+      "value": "UDP"
+    },
+    {
+      "name": "proxy_form_requires_original",
+      "value": "Use the original configuration editor for this item. Existing values are preserved."
+    },
+    {
+      "name": "proxy_form_open_original",
+      "value": "Edit original configuration"
     }
   ]
 }

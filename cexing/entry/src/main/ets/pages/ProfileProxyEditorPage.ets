@@ -8,6 +8,7 @@ import { ProfileProxyEditorModel } from '../lib/ProfileProxyEditorModel';
 import { ProxyIntentEdits } from '../lib/ProxyIntentEdits';
 import { ProxyMappingDraft } from '../lib/ProxyMappingForm';
 import { ProxyMappingFormPage } from './ProxyMappingFormPage';
+import { ProfileEditBus } from './ProfileEditPage';
 import { ProxyProviderStatus, ProxyProviderNode } from '../lib/ProxyProviderStatus';
 
 export class ProfileProxyEditorBus { static file: string = ''; }
@@ -32,6 +33,7 @@ class ProxySourceChoice {
 export struct ProfileProxyEditorPage {
   @Prop @Watch('visibilityChanged') visible: boolean = false;
   @Consume('profileRevision') profileRevision: number;
+  @Consume('nav') navStack: NavPathStack;
   @State section: string = 'proxies';
   @State rows: ProxyEditorRow[] = [];
   @State query: string = '';
@@ -246,6 +248,15 @@ export struct ProfileProxyEditorPage {
     finally { if (this.current(epoch)) { this.busy = false; } }
   }
 
+  private openOriginal(): void {
+    if (!this.active || this.busy) { return; }
+    const paths = this.navStack.getAllPathName();
+    if (paths[paths.length - 1] === 'profileEdit') { return; }
+    this.epoch++; this.model?.cancel(); this.formOpen = false;
+    ProfileEditBus.current = this.file;
+    this.navStack.pushPath({ name: 'profileEdit' });
+  }
+
   private async provider(update: boolean): Promise<void> {
     const target = this.originalTarget ?? (this.selectedAdd !== '' ? this.formTarget : null);
     if (this.busy || this.model === null || target === null || this.section !== 'proxy-providers') { return; }
@@ -395,9 +406,24 @@ export struct ProfileProxyEditorPage {
   }
 
   private async undo(): Promise<void> {
+    if (this.busy || this.model === null || !this.model.canUndo()) { return; }
+    if (!this.model.undoNeedsConfirmation()) { await this.performUndo(false); return; }
+    const epoch = ++this.epoch; let used = false;
+    AlertDialog.show({ title: this.t('proxy_editor_undo'), message: this.t('proxy_editor_restore_draft'),
+      primaryButton: { value: this.t('proxy_editor_cancel'), action: () => { used = true; } },
+      secondaryButton: { value: this.t('proxy_editor_restore'), action: async () => {
+        if (used || !this.current(epoch) || this.busy || this.model === null) { return; }
+        used = true; await this.performUndo(true);
+      } } });
+  }
+
+  private async performUndo(restore: boolean): Promise<void> {
     if (this.busy || this.model === null) { return; }
     const epoch = ++this.epoch; this.busy = true;
-    try { await this.model.undo(); if (this.current(epoch)) { this.sync(); this.error = ''; } }
+    try {
+      if (restore) { await this.model.reset(); } else { await this.model.undo(); }
+      if (this.current(epoch)) { this.sync(); this.error = ''; }
+    }
     catch (_) { if (this.current(epoch)) { this.error = this.t('proxy_editor_undo_failed'); } }
     finally { if (this.current(epoch)) { this.busy = false; } }
   }
@@ -435,7 +461,7 @@ export struct ProfileProxyEditorPage {
           if (this.providerState !== '') { Text(this.providerState).fontSize(13).fontColor(UI.muted).width('100%') }
         }
         ProxyMappingFormPage({ busy: this.busy, section: this.section, target: this.formTarget, names: this.names, providerNames: this.providers,
-          onDraft: (draft: ProxyMappingDraft) => this.saveForm(draft), onCancel: () => { this.epoch++; this.model?.cancel(); this.formOpen = false; this.sourceNodes = []; this.sourceReady = false; this.busy = false; } }).layoutWeight(1)
+          onDraft: (draft: ProxyMappingDraft) => this.saveForm(draft), onOriginal: () => { this.openOriginal(); }, onCancel: () => { this.epoch++; this.model?.cancel(); this.formOpen = false; this.sourceNodes = []; this.sourceReady = false; this.busy = false; } }).layoutWeight(1)
       } else {
         Row({ space: 8 }) {
           Button($r('app.string.proxy_editor_nodes')).constraintSize({ minHeight: 44 }).accessibilitySelected(this.section === 'proxies').onClick(() => { this.section = 'proxies'; this.sync(); })
@@ -478,7 +504,7 @@ export struct ProfileProxyEditorPage {
         }
         Button($r('app.string.proxy_editor_add')).constraintSize({ minHeight: 44 }).width('100%').constraintSize({ minHeight: 48 }).enabled(!this.busy).onClick(() => { this.add(); })
         Row({ space: 8 }) {
-          Button($r('app.string.proxy_editor_undo')).constraintSize({ minHeight: 44 }).enabled(!this.busy).onClick(() => { this.undo(); })
+          Button($r('app.string.proxy_editor_undo')).constraintSize({ minHeight: 44 }).enabled(!this.busy && (this.model?.canUndo() ?? false)).onClick(() => { this.undo(); })
           Button(this.disabled ? this.t('proxy_editor_enable_edits') : this.t('proxy_editor_disable_edits')).constraintSize({ minHeight: 44 }).enabled(!this.busy).onClick(() => {
             if (this.model !== null) { const next = this.model.workingIntent(); next.disabled = !next.disabled; this.save(next); }
           })
