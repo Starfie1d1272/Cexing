@@ -115,7 +115,8 @@ async function testUpdaterContext() {
     } } },
     './Settings': { Settings: { load: ctx => { reads.push(ctx); return { autoUpdate: true, autoUpdateIntervalHours: 24 }; } } },
     './CoreApi': { CoreApi: { isAlive: async () => true, reloadConfig: async () => {} } },
-    './ProfileStore': { ProfileStore: { getActiveFile: () => 'test.yaml', getOrigin: () => 'https://example.invalid/subscription',
+    './ProfileStore': { ProfileStore: { updateState: () => ({ id: 'test', attemptedAt: 0, succeededAt: 0, failedAt: 0, retryAt: 0 }),
+      saveUpdateState() {}, getActiveFile: () => 'test.yaml', getOrigin: () => 'https://example.invalid/subscription',
       updateFromOrigin: async ctx => { updates.push(ctx); }, absPath: () => '/private/test.yaml' } },
     './ProfileTransactions': { ProfileTransactions: { update: async ctx => { updates.push(ctx); } } },
     './Logger': logger
@@ -271,13 +272,16 @@ function updaterFixture() {
   const timers = new Map(), updates = [], reloads = [], writes = [];
   const settings = { autoUpdate: true, autoUpdateIntervalHours: 24 };
   let active = 'first.yaml';
+  const records = new Map();
   const modules = {
     '@kit.ArkData': { preferences: { getPreferencesSync: () => ({
       getSync: () => 0, putSync: (...args) => writes.push(args), flush() {}
     }) } },
     './Settings': { Settings: { load: () => settings } },
     './CoreApi': { CoreApi: { isAlive: async () => true, reloadConfig: async file => reloads.push(file) } },
-    './ProfileStore': { ProfileStore: { getActiveFile: () => active, getOrigin: () => 'https://example.invalid/sub',
+    './ProfileStore': { ProfileStore: { updateState: (_, file) => ({ ...(records.get(file) ?? { id: file, attemptedAt: 0, succeededAt: 0, failedAt: 0, retryAt: 0 }) }),
+      saveUpdateState: (_, file, value) => { records.set(file, { ...value }); if (value.succeededAt > 0) writes.push(value.succeededAt); },
+      getActiveFile: () => active, getOrigin: () => 'https://example.invalid/sub',
       updateFromOrigin: async (ctx, file) => updates.push(file), absPath: (ctx, file) => file } },
     './ProfileTransactions': { ProfileTransactions: { update: async (ctx, file, valid) => {
       await modules['./ProfileStore'].ProfileStore.updateFromOrigin(ctx, file);
@@ -343,7 +347,7 @@ async function testUpdaterOverlapAndRetry() {
   download.reject(new Error('injected download failure'));
   await Promise.all([first, second]);
   f.modules['./ProfileStore'].ProfileStore.updateFromOrigin = async () => {};
-  await f.updater.checkAndRun(context);
+  await f.updater.retry(context);
   assert.equal(f.reloads.length, 1, 'Failed check must release latch for retry');
 }
 async function testBackgroundObservations() {

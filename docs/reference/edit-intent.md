@@ -1,6 +1,6 @@
 # 结构化编辑意图 v1
 
-本契约属于 `configpipeline`，复用 [配置编译与事务](config-pipeline.md)，不另建保存或发布系统。Go 编译接口与合成夹具已经实现；宿主的草稿保存、版本 provenance 与 UI 接线须共同接入后才可作为完整可视化编辑功能使用。草稿 JSON 采用 [schema](config-compatibility/edit-intent.schema.json)，上限 1 MiB、512 个操作。旧版本没有意图时等同 `nil`，不迁移或修改原文。
+本契约属于 `configpipeline`，复用 [配置编译与事务](config-pipeline.md)，不另建保存或发布系统。Go 编译、宿主草稿与版本事务共用此契约；UI 通过下述事务入口接入。草稿 JSON 采用 [schema](config-compatibility/edit-intent.schema.json)，上限 1 MiB、512 个操作。旧版本没有意图时等同 `nil`，不迁移或修改原文。
 
 ## 读取与编译
 
@@ -48,9 +48,14 @@ DNS 是一个 mapping 目标，缺失时提供虚拟空 mapping；通过 update 
 
 ## 事务与可靠性组接线契约
 
-ArkTS 统一生产适配名为 `EditorDraftHost`（实际接口已在 `ConfigEditor.ets`）：`load()` 返回 profileId、revision、intent、snapshot；`target(section,id,revision)` 明确取单项私有值；`save(intent,expectedRevision)` 保存私有草稿并返回新 session；`preview(expectedRevision)` 返回 `{revision,digest,changes}`；`apply(preview)` 重新编译/核对 revision+digest 后走既有事务；`undo(expectedRevision)` 丢弃未发布草稿，恢复该订阅成功版本的意图并增加 revision。每个 host 绑定一个稳定 profile；UI 不传当前选择来替换它。revision 是宿主绑定来源、草稿、两层 Merge、设置与 provider 快照的私有不透明身份，不能仅用 active version ID。过期均拒绝，不写盘/不应用。此处接口供可靠性组实现，当前不宣称已经有生产适配对象。
+ArkTS 统一生产适配名为 `EditorDraftHost`（实际接口已在 `ConfigEditor.ets`）：`load()` 返回 profileId、revision、intent、snapshot；`target(section,id,revision)` 明确取单项私有值；`save(intent,expectedRevision)` 保存私有草稿并返回新 session；`preview(expectedRevision)` 返回 `{revision,digest,changes}`；`apply(preview)` 重新编译/核对 revision+digest 后走既有事务；`undo(expectedRevision)` 丢弃未发布草稿，恢复该订阅成功版本的意图并增加 revision。每个 host 绑定一个稳定 profile；UI 不传当前选择来替换它。revision 是宿主绑定来源、草稿、两层 Merge、设置与 provider 快照的私有不透明身份，不能仅用 active version ID。过期均拒绝，不写盘/不应用。生产适配由 `EditorDraftHosts.create(context, file)` 返回，实现位于 `lib/EditorDraftHosts.ets`。UI 只在用户进入编辑时创建并保存这个实例；load 使用私有 list，target/保存/预览/应用/撤销均绑定同一来源。修订同时比较来源/草稿 ticket、两层 Merge、设置与 native 有界本地 provider 字节指纹；缺失缓存也有独立状态，不联网。应用必须来自本实例的预览 digest；stage 返回实际 digest 并在 apply 前核对，之后继续走既有 verify/apply/commit。
 
 宿主保存每订阅独立草稿 `{intent, expectedDraftRevision}`。成功应用通过现有 stage/verify/apply/commit，将完整 `EditIntent` 加入 `source.json`（字段名 `EditIntent`），与原文、本订阅 Merge、地区计划一起发布。Compiler 返回独立 `Result.EditIntent` 副本，可靠性组只需在既有 FileStore source 结构添加该字段，不新增版本引用或第二个成功指针。更新、切换、重启与全局 Merge 应用必须从该订阅成功版本读取意图重新编译。草稿修改不能改变成功意图。校验/应用/持久化失败均保持旧意图、旧指针和旧原版，不能先保存新意图再调用 reload。
+
+宿主保存每订阅独立草稿 `{intent, revision}`。页面在异步读取前调用 `ProfileTransactions.editTicket(context, file)` 捕获来源稳定身份、profile/current 版本、当前选择与草稿 revision；以 ticket.activeVersion 调用 ConfigEditor 读取。使用同一 ticket 调用 `saveEditDraft(context, ticket, intent)`；宿主严格校验 schema、前后比较 ticket，生成新 revision 后原子保存 `.intent.json`。该操作不应用配置。读取草稿用 `ProfileStore.readEditDraft`；无草稿时从该订阅成功版本读取意图，旧版本无字段返回 null。重命名迁移草稿和稳定身份，删除清理附属草稿。
+
+保存返回新 revision 后，页面重新捕获 ticket，再调用 `previewEditDraft` / `applyEditDraft`；不得在旧异步回调中捕获新 ticket 冒充原请求。应用失败保留草稿供修复，成功版本始终不读草稿。应用草稿为 null 表示移除成功意图，disabled 表示保留可重新启用的意图。成功应用通过现有 stage/verify/apply/commit，将完整 `EditIntent` 加入 `source.json`（字段名 `EditIntent`），与原文、本订阅 Merge、地区计划一起发布。更新、切换、重启与全局 Merge 应用必须从该订阅成功版本读取意图重新编译。草稿修改不能改变成功意图。校验/应用/持久化失败均保持旧意图、旧指针和旧原版，不能先保存新意图再调用 reload。
+
 
 GC 引用清单不新增版本引用：`sourceRevision`/`revision`/target/field fingerprints 都是私有数据标识，不是 version ID 或路径。版本仍仅由现有 Current/Previous/Profiles、可靠性组的备份/回滚引用保留。意图不持有外部文件句柄，不重写 FileStore GC。
 
@@ -67,3 +72,17 @@ GC 引用清单不新增版本引用：`sourceRevision`/`revision`/target/field 
 共同 `Compiler.PrepareTemplate` 复用 `profiletemplates.Prepare` / `CaptureEdited`。`TemplateTarget(templateId,entityId)` 是稳定 alias；Editable/EditorList/EditTarget 与 operations 的 target/before 使用相同身份。scalar replacement 更新当前 binding，delete 留显式 nil，后续捕获拒绝不可达指针。binding 只存活于单次 worker；重启从原文→Merge→模板→operations 重建。成功完整 Validate 后 Result.EditIntent 深拷贝存入实际 baseline/Mine；失败不返回成功 provenance、不修改草稿输入。事务所有者继续将该结果随现有 source.json 进行 stage/verify/apply/commit，不能提前提交模板升级。
 
 `template-update-preview` 已由既有 `coreVersionAction` 路由 #184 的有界只读 decoder，无新增 C ABI。三方比较、冲突决策、候选→字段 delta 与 UI Host 仍由模板组维护。模板组须将候选转换为这些共同 operations 并进行完整编译预览；共同层不直接发布 Candidate。当前模板目录只支持已实现的 v1，新模板版本仍须先有真实生成器，不能将纯比较的 version=2 当成已可应用模板。
+
+生产事务将编译器返回的完整 EditIntent（含生成的 baseline/Mine/墓碑）写入同一 source.json；成功后同 revision 的已应用侧车读取为最新成功 provenance，订阅重算不会被旧侧车遮蔽。未应用的新 UUID 草稿仍独立保留。Host 的输入身份忽略这两个编译器生成快照本身，来源/profile/draft ticket、模板选项、个人 operations、Smart、Merge、设置和实际 provider 字节仍比较；自身成功规范化不会误报外部改动。
+
+Go-only `Compiler.EditorResourceSource` 仅复用既有 editSource/boundEditSource，给宿主读取本地 provider 身份，保证模板 alias 与个人操作的投影一致；不走完整资源验证、不联网，不把私有 YAML root 返回 ArkTS、默认摘要或诊断。模板比较的 Candidate→个人 delta 与冲突选择仍由模板页消费 `EditorDraftHosts.create` 的同一会话，提交前必须取得完整编译预览，不能把纯三方比较当成已应用。
+
+### 共同绑定补充
+
+共同快照的模板版本校验正整数；实际 `profiletemplates.Plan.Validate`/生成器仍决定支持目录，生产未知版本完整编译继续拒绝。`template-update-preview` 将 home 转交既有 source/encode worker，不新增 envelope。三方共同新增/重加实体同样参与顺序图，矛盾顺序需显式选择。
+
+保留被新版模板移除的个人实体：Candidate 写在 `template.mine.entries`，共同 add 的 `target` 为其 `TemplateTarget`；仅接受已声明、未绑定、section 一致的 alias。add 实际插入才创建 binding；捕获包含它并保留实际位置，快照本身仍不执行配置。alias 未实际插入则留墓碑。普通 add 仍省略 target。已在 fresh baseline 的实体继续用 update/rename/move，不接受重复 add。
+
+显式 `editor-list` / `edit-target` 的组 `sourceName` 是双层 Merge 后、模板与个人操作前的源组名；个人改名只改变 name。模板选择使用 sourceName，界面标签使用 name。个人新增或模板生成组不提供 sourceName；默认摘要不增加私有名称。
+
+单节点停用使用 `kind: disable, section: proxies, target, expected`。共同编译器严格验证原节点 revision，生成保留同名的 reject adapter；组成员、规则、dialer-proxy 等引用全部保持。它既不删除其他对象/引用，也不自动换成 DIRECT 或其他出口。显式编辑视图标记 disabled；撤销移除该操作后从最新原文重建，未知字段和凭据只保留在原文/私有来源中。UI 应显示“停用后拒绝连接”这一必要决策，并将启用实现为移除此操作；delete 仍是删除，非法引用继续拒绝完整编译。

@@ -99,7 +99,7 @@ export namespace CoreValidator {
   function settingsOverrides(context: common.Context): string {
     const s = Settings.load(context);
     return JSON.stringify({ mixedPort: s.mixedPort, logLevel: s.logLevel,
-      allowLan: s.allowLan, mode: s.mode, logToFile: s.logToFile });
+      allowLan: s.allowLan, ipv6: s.ipv6, mode: s.mode, logToFile: s.logToFile });
   }
 
   export async function previewMerge(context: common.Context, original: string,

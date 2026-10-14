@@ -66,18 +66,18 @@ export function buildVpnApplicationPolicy(mode: string, list: string[], self: st
   return { blockedApplications: [self, ...names] };
 }
 
-/**
- * 构建 VpnConfig.routes（FlClash 实证方案）：
- * 1. 显式默认路由 0.0.0.0/0（IPv6 开启时追加 ::/0）——保证 VPN 成为应用的解析网络，
- *    系统 DNS（fake-ip 链路）正确传播；
- * 2. 华为 HTTPDNS 引导服务器（139.9.98.98/139.9.99.99，/32）与边缘段
- *    （139.9/16、49.4/16、121.36/16、125.88/16、119.147/16、183.61/16）
- *    标记为排除路由（isExcludedRoute）——ArkWeb 浏览器的 HTTPDNS/静默代理
- *    （SilentProxy）直连运营商网络完成解析，不再被隧道送到境外节点导致
- *    空代理（x.x.x）解析失败 → ERR_PROXY_CONNECTION_FAILED；
- *    后续内容连接仍走隧道，由内核 SNI 嗅探（override-destination）修正目标。
- */
-function buildVpnRoutes(ipv6: boolean): connection.RouteInfo[] {
+// Preserved compatibility table from 964774595feab1c96382fb00f885cce5ca4a11bf.
+// All matching traffic bypasses TUN, not only HTTPDNS. Per-CIDR device A/B is pending.
+const HTTPDNS_ROUTE_EXCEPTIONS: string[] = [
+  '139.9.98.98/32', '139.9.99.99/32',
+  '139.9.0.0/16', '49.4.0.0/16', '121.36.0.0/16',
+  '125.88.0.0/16', '119.147.0.0/16', '183.61.0.0/16'
+];
+
+export function vpnRouteExceptions(): string[] { return [...HTTPDNS_ROUTE_EXCEPTIONS]; }
+
+// The optional list is for synthetic A/B fixtures only. Production always uses defaults.
+export function buildVpnRoutes(ipv6: boolean, excludedCidrs: string[] = vpnRouteExceptions()): connection.RouteInfo[] {
   const routes: connection.RouteInfo[] = [];
   routes.push({
     interface: 'vpn-tun',
@@ -86,19 +86,6 @@ function buildVpnRoutes(ipv6: boolean): connection.RouteInfo[] {
     hasGateway: false,
     isDefaultRoute: true
   });
-  const bootstrap: string[] = ['139.9.98.98', '139.9.99.99'];
-  for (const ip of bootstrap) {
-    routes.push({
-      interface: 'vpn-tun',
-      destination: { address: { address: ip, family: 1 }, prefixLength: 32 },
-      gateway: { address: '', family: 1 },
-      hasGateway: false,
-      isDefaultRoute: false,
-      isExcludedRoute: true
-    });
-  }
-  const excludedCidrs: string[] = ['139.9.0.0/16', '49.4.0.0/16', '121.36.0.0/16',
-    '125.88.0.0/16', '119.147.0.0/16', '183.61.0.0/16'];
   for (const cidr of excludedCidrs) {
     const parts: string[] = cidr.split('/');
     routes.push({
@@ -177,6 +164,7 @@ export namespace VpnController {
   let lastStopCompleted: boolean | null = null;
   const listeners: StatusListener[] = [];
   let startAttempt = 0;
+  let configurationHolders: number = 0;
   let startSession: string = '';
   let recoveryAttempt = 0;
   const phaseListeners: ((phase: VpnPhase) => void)[] = [];
@@ -326,6 +314,7 @@ export namespace VpnController {
    */
   export function recover(onDone?: (alive: boolean) => void,
     context?: common.UIAbilityContext): void {
+    if (configurationHolders > 0) { if (onDone !== undefined) { onDone(false); } return; }
     if (status !== VpnStatus.Disconnected) {
       if (onDone !== undefined) { onDone(status === VpnStatus.Connected); }
       return;
@@ -481,7 +470,23 @@ export namespace VpnController {
     notifyStatus();
   }
 
+  /** Prevent a new connection from overtaking an in-flight config publication.
+   * Stop remains immediate and invalidates the captured lifecycle epoch.
+   */
+  export function configurationEpoch(): number { return startAttempt; }
+  export function holdConfiguration(): () => void {
+    configurationHolders++;
+    let released = false;
+    return () => { if (!released) { released = true; configurationHolders--; } };
+  }
+
   export function start(context: common.UIAbilityContext): boolean {
+    if (Settings.isLanPersistenceUncertain()) {
+      lastStartError = '共享设置未确认，请重试保存'; notifyStatus(); return false;
+    }
+    if (configurationHolders > 0) {
+      lastStartError = '配置正在保存，请稍后重试'; notifyStatus(); return false;
+    }
     if (status !== VpnStatus.Disconnected) {
       Logger.warn(TAG, `start ignored, status=${VpnStatus[status]}`);
       return false;
@@ -523,8 +528,11 @@ export namespace VpnController {
       setStatus(VpnStatus.Disconnected);
       return false;
     }
-    authorization.then(() => {
+    authorization.then(async () => {
       if (attempt !== startAttempt || status !== VpnStatus.Connecting) { phase('authorization', 'cancelled', session, 'START_SUPERSEDED'); return; }
+      Settings.load(context);
+      await Settings.idle();
+      if (attempt !== startAttempt || status !== VpnStatus.Connecting) { return; }
       phase('authorization', 'success', session, '', Date.now() - authorizationAt);
       connectService(context, want);
     }).catch((e: Object) => {
@@ -555,8 +563,7 @@ export namespace VpnController {
       // 避免 gVisor 产出 9KB 帧打进 1500 MTU 设备被丢弃
       mtu: 9000,
       dnsAddresses: s.ipv6 ? ['223.5.5.5', '8.8.8.8', 'fdfe:dcba:9876::2'] : ['223.5.5.5', '8.8.8.8'],
-      // 显式默认路由 + 华为 HTTPDNS 排除路由（FlClash 方案，修复 ArkWeb 浏览器
-      // 空代理 x.x.x → ERR_PROXY_CONNECTION_FAILED）
+      // Preserve the tested compatibility scope; excluded CIDRs bypass all TUN traffic.
       routes: buildVpnRoutes(s.ipv6),
       isIPv4Accepted: true,
       isIPv6Accepted: s.ipv6
@@ -564,7 +571,10 @@ export namespace VpnController {
     if (applications.trustedApplications !== undefined) {
       vpnConfig.trustedApplications = applications.trustedApplications;
     } else { vpnConfig.blockedApplications = applications.blockedApplications; }
-    const params: Record<string, Object> = { 'VPN_CONFIG': vpnConfig, 'SESSION_ID': startSession };
+    const hostSettings = JSON.stringify({ mixedPort: s.mixedPort, logLevel: s.logLevel,
+      allowLan: s.allowLan, mode: s.mode, logToFile: s.logToFile });
+    const params: Record<string, Object> = { 'VPN_CONFIG': vpnConfig, 'SESSION_ID': startSession,
+      'HOST_SETTINGS': hostSettings };
     const connectWant: Want = {
       bundleName: want.bundleName,
       abilityName: want.abilityName,
@@ -664,7 +674,8 @@ export namespace VpnController {
         setStatus(VpnStatus.Connected);
         const settings = Settings.load(context);
         settings.vpnWasConnected = true;
-        Settings.save(context, settings);
+        try { await Settings.save(context, settings, ['vpnWasConnected']); }
+        catch (_) { Logger.error(TAG, 'connection preference save failed'); }
         return;
       }
       if (error.length > 0 || Date.now() >= deadline) {
@@ -707,14 +718,14 @@ export namespace VpnController {
   }
 
   /** True means this session's extension cleanup and system stop both completed. False is unknown. */
-  export function stop(context: common.UIAbilityContext, preserveFailure: boolean = false): Promise<boolean> {
+  export function stop(context: common.UIAbilityContext, preserveFailure: boolean = false, confirmUnknown: boolean = false): Promise<boolean> {
     cancelRecovery();
     if (stopPending !== null) { return stopPending; }
-    if (status !== VpnStatus.Connected && status !== VpnStatus.Connecting && serviceId < 0 && lastStopCompleted !== false) {
+    if (!confirmUnknown && status !== VpnStatus.Connected && status !== VpnStatus.Connecting && serviceId < 0 && lastStopCompleted !== false) {
       Logger.warn(TAG, `stop ignored, status=${VpnStatus[status]}`);
       return Promise.resolve(false);
     }
-    const retryUnknown = lastStopCompleted === false;
+    const retryUnknown = confirmUnknown || lastStopCompleted === false;
     const attempt = ++startAttempt;
     let session = startSession;
     const pendingAuthorization = authorization;
@@ -730,15 +741,12 @@ export namespace VpnController {
     let stoppingContext = serviceContext ?? context;
     lastStopCompleted = false;
     // 用户主动停止：清除「会话曾连接」标记（冷启动不再自动恢复）
-    let saved = true;
-    try {
-      const s = Settings.load(context);
-      s.vpnWasConnected = false;
-      Settings.save(context, s);
-    } catch (_) {
-      saved = false;
-      Logger.error(TAG, 'disconnect preference save failed');
-    }
+    const preferenceSave = (async (): Promise<boolean> => {
+      try {
+        const s = Settings.load(context); s.vpnWasConnected = false;
+        await Settings.save(context, s, ['vpnWasConnected']); return true;
+      } catch (_) { Logger.error(TAG, 'disconnect preference save failed'); return false; }
+    })();
     // 用户主动停止：清除残留失败信息，避免断开回调误报
     if (!preserveFailure) {
       lastStartError = '';
@@ -794,6 +802,7 @@ export namespace VpnController {
       // Retain the unknown result after failure; a released binding is reacquired
       // by an explicit retry. Late cleanup cannot clear this result.
       reportPendingNativeStop?.();
+      const saved = await preferenceSave;
       const completed = saved && extensionCompleted && systemStopped;
       lastStopCompleted = completed;
       phase('stop', completed ? 'success' : 'unknown', session, completed ? '' : 'STOP_NOT_CONFIRMED', Date.now() - stoppingAt);

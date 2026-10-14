@@ -55,12 +55,14 @@ func (e *IntentError) Error() string           { return "edit intent " + e.Code 
 func intentError(code string, index int) error { return &IntentError{Code: code, Operation: index} }
 
 type EditableItem struct {
-	ID        string              `json:"id"`
-	Name      string              `json:"name,omitempty"`
-	Providers []EditorProviderRef `json:"providers,omitempty"`
-	Revision  string              `json:"revision"`
-	Type      string              `json:"type,omitempty"`
-	Fields    map[string]string   `json:"fields,omitempty"`
+	ID         string              `json:"id"`
+	Name       string              `json:"name,omitempty"`
+	Disabled   bool                `json:"disabled,omitempty"`
+	SourceName string              `json:"sourceName,omitempty"`
+	Providers  []EditorProviderRef `json:"providers,omitempty"`
+	Revision   string              `json:"revision"`
+	Type       string              `json:"type,omitempty"`
+	Fields     map[string]string   `json:"fields,omitempty"`
 }
 type EditableSection struct {
 	Section string         `json:"section"`
@@ -324,7 +326,7 @@ func CheckEditIntent(intent *EditIntent) error {
 			return intentError("protected_section", i)
 		}
 		switch op.Kind {
-		case "add", "update", "delete", "move", "rename":
+		case "add", "update", "delete", "move", "rename", "disable":
 		default:
 			return intentError("invalid_operation", i)
 		}
@@ -347,14 +349,20 @@ func jsonNode(data json.RawMessage) (*yaml.Node, error) {
 // ApplyEditIntent mutates Compile's private post-Merge view. Undo means removing
 // an operation or disabling the intent and recompiling the latest input.
 func ApplyEditIntent(ctx context.Context, root *yaml.Node, intent *EditIntent) error {
-	return applyBoundEditIntent(ctx, root, intent, nil)
+	return applyBoundEditIntent(ctx, root, intent, nil, nil)
 }
-func applyBoundEditIntent(ctx context.Context, root *yaml.Node, intent *EditIntent, bindings map[string]*yaml.Node) error {
+func applyBoundEditIntent(ctx context.Context, root *yaml.Node, intent *EditIntent, bindings map[string]*yaml.Node, disabled map[*yaml.Node]bool) error {
 	if err := CheckEditIntent(intent); err != nil {
 		return err
 	}
 	if intent == nil || intent.Disabled || len(intent.Operations) == 0 {
 		return nil
+	}
+	sections := map[string]string{}
+	if intent.Template != nil && intent.Template.Mine != nil {
+		for _, e := range intent.Template.Mine.Entries {
+			sections[TemplateTarget(intent.Template.TemplateID, e.ID)] = e.Section
+		}
 	}
 	baselines := map[*yaml.Node]*yaml.Node{}
 	// Snapshot every original target before any reference rewrite touches it.
@@ -378,7 +386,7 @@ func applyBoundEditIntent(ctx context.Context, root *yaml.Node, intent *EditInte
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		if err := applyEditOperation(root, op, baselines, bindings); err != nil {
+		if err := applyEditOperation(root, op, baselines, bindings, sections, disabled); err != nil {
 			var typed *IntentError
 			if errors.As(err, &typed) {
 				return intentError(typed.Code, i)
@@ -388,7 +396,7 @@ func applyBoundEditIntent(ctx context.Context, root *yaml.Node, intent *EditInte
 	}
 	return nil
 }
-func applyEditOperation(root *yaml.Node, op EditOperation, baselines map[*yaml.Node]*yaml.Node, bindings map[string]*yaml.Node) error {
+func applyEditOperation(root *yaml.Node, op EditOperation, baselines map[*yaml.Node]*yaml.Node, bindings map[string]*yaml.Node, sections map[string]string, disabled map[*yaml.Node]bool) error {
 	fail := func(code string) error { return intentError(code, -1) }
 	nodes, names, err := editNodes(root, op.Section)
 	if err != nil {
@@ -403,6 +411,12 @@ func applyEditOperation(root *yaml.Node, op EditOperation, baselines map[*yaml.N
 	}
 	container := field(root, op.Section)
 	if op.Kind == "add" {
+		if op.Target != "" {
+			n, known := bindings[op.Target]
+			if !known || n != nil || sections[op.Target] != op.Section {
+				return fail("invalid_target")
+			}
+		}
 		value, err := jsonNode(op.Value)
 		if err != nil {
 			return fail("invalid_value")
@@ -439,6 +453,9 @@ func applyEditOperation(root *yaml.Node, op EditOperation, baselines map[*yaml.N
 		}
 		if container.Kind == yaml.MappingNode {
 			set(container, op.Name, value)
+			if op.Target != "" {
+				bindings[op.Target] = value
+			}
 			return nil
 		}
 		at, err := boundEditAnchor(op.Section, nodes, names, op.Before, bindings)
@@ -448,6 +465,9 @@ func applyEditOperation(root *yaml.Node, op EditOperation, baselines map[*yaml.N
 		container.Content = append(container.Content, nil)
 		copy(container.Content[at+1:], container.Content[at:])
 		container.Content[at] = value
+		if op.Target != "" {
+			bindings[op.Target] = value
+		}
 		return nil
 	}
 	if position < 0 {
@@ -479,6 +499,25 @@ func applyEditOperation(root *yaml.Node, op EditOperation, baselines map[*yaml.N
 		set(root, "dns", node)
 	}
 	switch op.Kind {
+	case "disable":
+		if op.Section != "proxies" {
+			return fail("invalid_operation")
+		}
+		if !matchesRevision(op.Expected) {
+			return fail("conflict")
+		}
+		name := field(node, "name")
+		if name == nil || name.Tag != "!!str" {
+			return fail("invalid_source")
+		}
+		// Fail closed under the same name: references and rule priority stay intact.
+		replacement := &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
+		set(replacement, "name", &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: name.Value})
+		set(replacement, "type", &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: "reject"})
+		*node = *replacement
+		if disabled != nil {
+			disabled[node] = true
+		}
 	case "update":
 		if node.Kind != yaml.MappingNode {
 			if !matchesRevision(op.Expected) {
@@ -679,6 +718,10 @@ func (c Compiler) EditTarget(ctx context.Context, r Request, section, id string)
 		if boundID(bindings, node, targetID(section, names[i])) == id {
 			out, err := editTargetFromRoot(root, section, targetID(section, names[i]))
 			out.Item.ID = id
+			out.Item.Disabled = session.DisabledNodes[node] && field(node, "type") != nil && field(node, "type").Value == "reject"
+			if section == "proxy-groups" {
+				out.Item.SourceName = session.SourceGroups[node]
+			}
 			return out, err
 		}
 	}
@@ -717,6 +760,14 @@ func (c Compiler) boundEditSource(ctx context.Context, r Request) (*yaml.Node, *
 		}
 		merge(root, patch)
 	}
+	sourceGroups := map[*yaml.Node]string{}
+	groups, names, err := editNodes(root, "proxy-groups")
+	if err != nil {
+		return nil, nil, intentError("invalid_source", -1)
+	}
+	for i, n := range groups {
+		sourceGroups[n] = names[i]
+	}
 	if r.Region != nil && !r.Region.Disabled && (r.Intent == nil || r.Intent.Disabled || r.Intent.Template == nil) {
 		if err := ApplyRegion(ctx, root, *r.Region); err != nil {
 			return nil, nil, intentError("region_failed", -1)
@@ -726,6 +777,11 @@ func (c Compiler) boundEditSource(ctx context.Context, r Request) (*yaml.Node, *
 	if err != nil {
 		return nil, nil, err
 	}
+	if session == nil {
+		session = &TemplateSession{}
+	}
+	session.SourceGroups = sourceGroups
+	session.DisabledNodes = map[*yaml.Node]bool{}
 	if err := supportedTags(root, false, map[*yaml.Node]bool{}); err != nil {
 		return nil, nil, intentError("invalid_source", -1)
 	}
@@ -740,7 +796,7 @@ func (c Compiler) boundEditSource(ctx context.Context, r Request) (*yaml.Node, *
 	if _, err := parse(encoded); err != nil {
 		return nil, nil, intentError("invalid_source", -1)
 	}
-	if err := applyBoundEditIntent(ctx, root, r.Intent, sessionTargets(session)); err != nil {
+	if err := applyBoundEditIntent(ctx, root, r.Intent, sessionTargets(session), session.DisabledNodes); err != nil {
 		return nil, nil, err
 	}
 	if err := ctx.Err(); err != nil {
@@ -801,7 +857,11 @@ func (c Compiler) EditorList(ctx context.Context, r Request) (EditableSnapshot, 
 		}
 		for i, n := range nodes {
 			item := &out.Sections[si].Items[i]
+			item.Disabled = session.DisabledNodes[n] && field(n, "type") != nil && field(n, "type").Value == "reject"
 			item.Name = names[i]
+			if section == "proxy-groups" {
+				item.SourceName = session.SourceGroups[n]
+			}
 			if section == "rules" {
 				item.Name = fmt.Sprintf("规则 %d", i+1)
 			}

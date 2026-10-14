@@ -43,6 +43,8 @@ export interface EditableItem {
   type?: string;
   fields?: Record<string, string>;
   name?: string;
+  sourceName?: string;
+  disabled?: boolean;
   providers?: EditorProviderRef[];
 }
 export interface EditableSection { section: string; items: EditableItem[]; }
