@@ -63,7 +63,7 @@ struct Index {
     } else if (name === 'profileDetail') {
       NavDestination() { ProfilePage({ detailFile: ProfileDetailBus.current }) }.title('订阅详情')
     } else if (name === 'profileEdit') {
-      NavDestination() { ProfileEditPage() }.title('编辑配置')
+      NavDestination() { ProfileEditPage() }.title('原始配置')
     }
   }
 
