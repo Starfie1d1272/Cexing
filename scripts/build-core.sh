@@ -98,6 +98,7 @@ ci_seed_go_download_cache
 ci_save_go_download_cache
 (cd "$CORE_DIR" && python3 "$SCRIPT_DIR/ci/patch-gvisor.py" "$PRIVATE_MODCACHE")
 (cd "$CORE_DIR" && python3 "$SCRIPT_DIR/ci/patch-smart.py" "$PRIVATE_MODCACHE")
+(cd "$CORE_DIR" && python3 "$SCRIPT_DIR/ci/check-controller-contract.py")
 (cd "$CORE_DIR" && python3 "$SCRIPT_DIR/ci/patch-inbound-race.py" "$PRIVATE_MODCACHE")
 
 # ---- 3. 交叉编译 ----

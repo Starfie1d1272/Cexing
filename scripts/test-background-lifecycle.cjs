@@ -49,7 +49,7 @@ function keeperFixture() {
     './VpnController': { VpnController: { status: 2 }, VpnStatus: { Connected: 2 } },
     './Logger': logger
   };
-  return { keeper: load('LiveViewKeeper', modules, timers), starts, stops, timers, events, contexts, modules, background, publications, cancellations };
+  return { keeper: load('LiveViewKeeper', modules, timers), starts, stops, timers, events, contexts, modules, background, publications, cancellations, settings };
 }
 async function testRapidReconnect() {
   const f = keeperFixture(), old = { applicationInfo: { name: 'bundle' } }, fresh = { applicationInfo: { name: 'bundle' } };
@@ -350,9 +350,51 @@ async function testUpdaterOverlapAndRetry() {
   await f.updater.retry(context);
   assert.equal(f.reloads.length, 1, 'Failed check must release latch for retry');
 }
+async function testBackgroundObservations() {
+  const f = keeperFixture(), states = [];
+  const off = f.keeper.onChanged(value => states.push(value));
+  assert.equal(f.keeper.state().task, 'unknown');
+  f.background.startBackgroundRunning = async () => { throw Error('permission denied'); };
+  assert.equal(await f.keeper.start({ applicationInfo: { name: 'bundle' } }), false);
+  assert.equal(f.keeper.state().task, 'failed');
+  assert.equal(f.modules['./VpnController'].VpnController.status, 2, 'Background failure never changes VPN state');
+  assert.equal(f.keeper.needsAttention(f.keeper.state()), true);
+  f.background.startBackgroundRunning = async () => ({ notificationId: 10, continuousTaskId: 100 });
+  f.modules['@kit.NotificationKit'].notificationManager.publish = async () => { throw Error('publish denied'); };
+  assert.equal(await f.keeper.retry({ applicationInfo: { name: 'bundle' } }), false, 'Notification failure remains an incomplete retry');
+  assert.equal(f.keeper.isRunning(), true, 'Task grant is independent of notification failure');
+  assert.equal(f.keeper.state().task, 'active'); assert.equal(f.keeper.state().notification, 'failed');
+  f.modules['@kit.NotificationKit'].notificationManager.publish = async () => {};
+  await f.keeper.retry({ applicationInfo: { name: 'bundle' } });
+  assert.equal(f.keeper.state().notification, 'ready'); assert.equal(f.keeper.needsAttention(f.keeper.state()), false);
+  f.events.get('continuousTaskSuspend')({ continuousTaskId: 99 }); assert.equal(f.keeper.state().task, 'active');
+  f.events.get('continuousTaskSuspend')({ continuousTaskId: 100 }); assert.equal(f.keeper.state().suspended, true);
+  f.events.get('continuousTaskActive')({ id: 99 }); assert.equal(f.keeper.state().suspended, true);
+  f.events.get('continuousTaskActive')({ id: 100 }); assert.equal(f.keeper.state().task, 'active');
+  f.events.get('continuousTaskCancel')({ id: 100, reason: 99 }); await flush();
+  assert.equal(f.keeper.state().task, 'revoked'); assert.equal(f.keeper.needsAttention(f.keeper.state()), true);
+  off(); const count = states.length;
+  f.settings.keepAlive = false; f.keeper.ensure({}); await flush();
+  assert.equal(await f.keeper.retry({}), false, 'Retry cannot enable a disabled preference');
+  assert.equal(states.length, count, 'Removed page observer is not retained');
+}
+async function testDisabledDuringAuthorization() {
+  const f = keeperFixture(), context = { applicationInfo: { name: 'bundle' } };
+  const attempt = f.keeper.start(context); await flush();
+  assert.equal(f.keeper.state().task, 'requesting');
+  f.settings.keepAlive = false;
+  f.starts[0].wait.resolve({ notificationId: 10, continuousTaskId: 100 }); await flush();
+  assert.equal(f.stops.length, 1); f.stops[0].wait.resolve();
+  assert.equal(await attempt, false); assert.equal(f.keeper.state().task, 'disabled');
+  assert.equal(f.publications.length, 0, 'A late grant after preference-off cannot publish success');
+  assert.equal(await f.keeper.start(context), false); assert.equal(f.starts.length, 1);
+  const late = keeperFixture(); const pending = late.keeper.start(context); await flush();
+  const stop = late.keeper.stop(context); late.starts[0].wait.reject(Error('late failure'));
+  await pending; await stop; assert.equal(late.keeper.state().task, 'unknown', 'Cancelled old failure is not a current failure');
+}
 (async () => {
   const cases = [testRapidReconnect, testKeeperContext, testUpdaterContext, testSharedTraffic, testLateHeartbeat, testPreTaskFailure, testPendingPublish,
-    testPartialListeners, testCancelProbeRace, testUserCancel, testUpdaterLateCompletion, testUpdaterQueuedTickAfterStop, testUpdaterOverlapAndRetry];
+    testPartialListeners, testCancelProbeRace, testUserCancel, testUpdaterLateCompletion, testUpdaterQueuedTickAfterStop, testUpdaterOverlapAndRetry, testBackgroundObservations, testDisabledDuringAuthorization];
   for (const test of cases) {
     if (!process.env.RUNTIME_CASE || process.env.RUNTIME_CASE === test.name) {
       await test();
