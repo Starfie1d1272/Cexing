@@ -54,7 +54,14 @@ export struct SettingsPage {
       rows: [
         { title: '网络设置', sub: '按应用分流 · IPv6', hasToggle: false, dest: 'network', action: '', toggleKey: '' },
         { title: 'Smart', sub: '统计策略 · 离线模型', hasToggle: false, dest: 'smart', action: '', toggleKey: '' },
-        { title: '内核设置', sub: '端口 · 日志等级 · 局域网', hasToggle: false, dest: 'override', action: '', toggleKey: '' }
+
+      ]
+    },
+    {
+      title: '高级',
+      rows: [
+        { title: '内核设置', sub: '', hasToggle: false, dest: 'override', action: '', toggleKey: '' },
+        { title: '资源', sub: '', hasToggle: false, dest: 'resources', action: '', toggleKey: '' }
       ]
     },
     {

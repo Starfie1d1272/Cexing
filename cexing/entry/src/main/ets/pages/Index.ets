@@ -6,8 +6,8 @@ import { TrafficPage } from './TrafficPage';
 import { HomePage } from './HomePage';
 import { ProfilePage, ProfileDetailBus } from './ProfilePage';
 import { SettingsPage } from './SettingsPage';
-import { ProxyPage } from './ProxyPage';
 import { ZashboardPage } from './ZashboardPage';
+import { ResourceRecoveryPage } from './ResourceRecoveryPage';
 import { NetworkSettingsPage } from './NetworkSettingsPage';
 import { OverridePage } from './OverridePage';
 import { ProfileEditPage } from './ProfileEditPage';
@@ -25,6 +25,7 @@ struct Index {
   @State windowWidth: number = 390;
   @State private smartVisible: boolean = false;
   @State private zashboardVisible: boolean = false;
+  @State private resourcesVisible: boolean = false;
 
   private openConnectionEntry(): void {
     this.navStack.clear();
@@ -42,9 +43,7 @@ struct Index {
 
   @Builder
   PageMap(name: string) {
-    if (name === 'proxies') {
-      NavDestination() { ProxyPage() }.title('代理组')
-    } else if (name === 'zashboard') {
+    if (name === 'zashboard') {
       NavDestination() { ZashboardPage({ visible: this.zashboardVisible }) }.title('控制面板')
         .onShown(() => { this.zashboardVisible = true; })
         .onHidden(() => { this.zashboardVisible = false; })
@@ -56,6 +55,10 @@ struct Index {
       NavDestination() { TrafficPage() }.title('流量')
     } else if (name === 'diagnostics') {
       NavDestination() { DiagnosticsPage() }.title('诊断')
+    } else if (name === 'resources') {
+      NavDestination() { ResourceRecoveryPage({ visible: this.resourcesVisible }) }.title('资源')
+        .onShown(() => { this.resourcesVisible = true; })
+        .onHidden(() => { this.resourcesVisible = false; })
     } else if (name === 'network') {
       NavDestination() { NetworkSettingsPage() }.title('网络设置')
     } else if (name === 'override') {
