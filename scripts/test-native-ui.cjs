@@ -28,6 +28,8 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   let now = 1000, stream, tick, dialog, stop = 0, start = 0, cancelRestore = 0, timerCleared = 0;
   const toasts = [];
   let scanCallback, scanCalls = 0;
+  let readYaml = async () => 'proxies: []';
+  let importedWrites = 0;
   let stopResult = async () => true;
   let smartPrepare = async () => {};
   let activeHomeFile = 'fixture.yaml';
@@ -47,6 +49,7 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
       } } }, '../lib/ProfileImportInput': { ProfileImportInput: { take: () => null,
       parseText: value => value.startsWith('https://') ? { kind: 'url', value } : null } }, '@kit.CoreFileKit': {}, '@kit.ShareKit': {}, '@kit.ArkData': {},
     '../lib/DiagnosticExportSnapshots': {},
+    '../lib/BoundedFileReader': { BoundedFileReader: { yaml: (...args) => readYaml(...args) } },
     '../lib/AppRuntime': { AppRuntime: { cancelRestore: () => cancelRestore++ } },
     '../lib/DiagnosticsBundleView': { DiagnosticsBundleView: { result: r => r.reason === 'page_check_timeout' ? '检查超时' : r.stage === 'controller_authorization' ? '连接认证失败，请断开后重新连接' : '本机服务可达', title: () => '本机服务' } },
     '@kit.ArkUI': { promptAction: { showToast(value) { toasts.push(value.message); } } },
@@ -265,6 +268,7 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
       update: async () => 'applied', rename: () => 'fixture.yaml'
     } },
     '../lib/ProfileStore': { ProfileStore: { list: () => profiles, getMeta: () => ({}),
+      importContent: () => { importedWrites++; return 'candidate.yaml'; },
       getActiveFile: () => active, getOrigin: () => '', pendingRegionSelection: () => '',
       importFromUrl: async () => { if (rejectImport) throw Error('network'); return 'candidate.yaml'; } } }
   }, { AlertDialog: { show: value => { dialog = value; } }, canIUse: () => true });
@@ -391,6 +395,24 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   assert.equal(leftScan.inputUrl, '', 'late scanner result cannot reopen a hidden page');
   assert.equal(start, startsBeforeImport + 1, 'scan cannot activate or start VPN');
   console.log('PASS: native scanner album option, single-flight, confirmation-only result, cancel and late result');
+  let finishFile, fileReads = 0;
+  readYaml = () => { fileReads++; return new Promise(resolve => { finishFile = resolve; }); };
+  const fileImport = activationPage().page;
+  const readingFile = fileImport.importFile('file://docs/synthetic.yaml');
+  await fileImport.importFile('file://docs/synthetic.yaml');
+  assert.equal(fileReads, 1, 'file import must remain single-flight while async I/O yields');
+  finishFile('proxies: []'); await readingFile;
+  assert.equal(importedWrites, 1); assert.equal(fileImport.sheetMode, 4);
+  const hiddenFile = activationPage().page;
+  const oldFile = hiddenFile.importFile('file://docs/old.yaml');
+  hiddenFile.aboutToDisappear(); finishFile('late content'); await oldFile;
+  assert.equal(importedWrites, 1, 'late async file content cannot be committed after leave');
+  readYaml = async () => { throw Error('invalid UTF8 private-uri'); };
+  const damagedFile = activationPage().page;
+  await damagedFile.importFile('file://docs/damaged.yaml');
+  assert.equal(importedWrites, 1); assert.equal(damagedFile.importing, false);
+  assert.ok(!toasts.some(value => value.includes('private-uri')));
+  console.log('PASS: shared async file helper, repeated import, late read suppression and safe failure');
   function regionPage() {
     const page = activationPage().page;
     page.importedFile = 'candidate.yaml'; page.regionFromImport = true;

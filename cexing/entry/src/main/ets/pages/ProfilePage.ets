@@ -5,9 +5,9 @@ import { NativeTheme as UI } from './NativeTheme';
  */
 import { common } from '@kit.AbilityKit';
 import { picker, fileIo } from '@kit.CoreFileKit';
-import { util } from '@kit.ArkTS';
 import { scanBarcode, scanCore } from '@kit.ScanKit';
 import { ProfileImportInput } from '../lib/ProfileImportInput';
+import { BoundedFileReader } from '../lib/BoundedFileReader';
 import { promptAction } from '@kit.ArkUI';
 import { pasteboard } from '@kit.BasicServicesKit';
 import { ProfileStore, ProfileMeta, ProfileMetaExt } from '../lib/ProfileStore';
@@ -567,42 +567,24 @@ export struct ProfilePage {
     const request = ++this.importGeneration;
     const context = getContext(this) as common.UIAbilityContext;
     try {
-      const docPicker = new picker.DocumentViewPicker(context);
-      const uris = sharedUri.length > 0 ? [sharedUri] : await docPicker.select({
-        maxSelectNumber: 1,
-        selectMode: picker.DocumentSelectMode.FILE,
-        fileSuffixFilters: ['.yaml', '.yml']
-      });
+      let uris: string[] = [sharedUri];
+      if (sharedUri.length === 0) {
+        const docPicker = new picker.DocumentViewPicker(context);
+        uris = await docPicker.select({
+          maxSelectNumber: 1,
+          selectMode: picker.DocumentSelectMode.FILE,
+          fileSuffixFilters: ['.yaml', '.yml']
+        });
+      }
       if (!uris || uris.length === 0) {
         return;
       }
       if (!this.pageVisible || page !== this.pageGeneration || request !== this.importGeneration) { return; }
       const uri = uris[0];
-      const f = fileIo.openSync(uri, fileIo.OpenMode.READ_ONLY);
-      // 循环读完整文件（readSync 单次可能短读，也避免固定 2MB 上限截断大订阅）
-      const chunks: Uint8Array[] = [];
-      let total = 0;
-      try {
-      while (true) {
-        const buf = new ArrayBuffer(1024 * 1024);
-        const len = fileIo.readSync(f.fd, buf);
-        if (len <= 0) {
-          break;
-        }
-        chunks.push(new Uint8Array(buf.slice(0, len)));
-        total += len;
-        if (total > 15 * 1024 * 1024) {
-          throw new Error('配置文件超过 15 MiB 上限');
-        }
-      }
-      } finally { fileIo.closeSync(f); }
-      const merged = new Uint8Array(total);
-      let off = 0;
-      for (const c of chunks) {
-        merged.set(c, off);
-        off += c.length;
-      }
-      const content = util.TextDecoder.create('utf-8').decodeToString(merged);
+      const current = (): boolean => this.pageVisible && page === this.pageGeneration &&
+        request === this.importGeneration;
+      const content = await BoundedFileReader.yaml(uri, current);
+      if (!current()) { return; }
       const seg = uri.split('/').pop() ?? `file_${Date.now()}`;
       const name = decodeURIComponent(seg).replace(/\.(yaml|yml)$/i, '');
       const file = ProfileStore.importContent(context, name, content);
