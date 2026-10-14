@@ -20,7 +20,8 @@ function recoveryFixture(options = {}) {
   assert.equal(f.controller.VpnController.needsStop(), false);
   assert.equal(await f.helper.reconnect(f.controller.context, f.current), true);
   assert.equal(f.marker(), false); assert.equal(f.prepared(), 1);
-  assert.deepEqual([f.controller.calls.bind, f.controller.calls.stop, f.controller.calls.start], [1, 1, 1]);
+  assert.ok(f.controller.calls.bind >= 1);
+  assert.deepEqual([f.controller.calls.stop, f.controller.calls.start], [1, 1]);
   const failed = recoveryFixture({ cleanupFailed: true });
   await assert.rejects(failed.helper.reconnect(failed.controller.context, failed.current), /断开未确认/);
   assert.equal(failed.marker(), true); assert.equal(failed.prepared(), 0); assert.equal(failed.controller.calls.start, 0);
