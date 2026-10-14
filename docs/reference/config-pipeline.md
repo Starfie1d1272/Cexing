@@ -1,6 +1,6 @@
 # 独立配置编译与事务接口
 
-`core/configpipeline` 是独立 Go 包。生产端通过 Go worker 使用 `Compiler` 和 `FileStore` 暂存生成配置，再由 ArkTS `ProfileTransactions` 在确认热加载后发布统一版本指针；Go `Transaction` 类型保留为独立事务接口。Merge 固定采用 Verge v2.5.8 语义：草稿预览只返回固定 section 数量和摘要，保存草稿不会改变有效配置；编辑页显式应用或清空停用后才发布版本，订阅更新会重新应用已启用的 Merge。模块使用仓库锁定的 yaml.v3 与 Mihomo 规则拆分函数，没有新增依赖。
+`core/configpipeline` 是独立 Go 包。生产端通过 Go worker 使用 `Compiler` 和 `FileStore` 暂存生成配置，再由 ArkTS `ProfileTransactions` 在确认热加载后发布统一版本指针；Go `Transaction` 类型保留为独立事务接口。Merge 固定采用 Verge v2.5.8 语义：草稿预览返回固定 section 的脱敏语义变化和数量，保存草稿不会改变有效配置；编辑页显式应用或清空停用后才发布版本，订阅更新会重新应用已启用的 Merge。模块使用仓库锁定的 yaml.v3 与 Mihomo 规则拆分函数，没有新增依赖。
 
 ## 与安全线、策略线的最小契约
 
@@ -42,7 +42,7 @@ Platform 与 Validate 都必填；没有静默默认值或自动降级。策略�
 - 顶层 dns 的新旧值都为 mapping 时，只在直接子字段层做替换：nameserver-policy、fallback-filter 等子 mapping 不递归混入旧字段；未指定的 DNS 直接子字段保留。顶层 hosts 整体替换，包括空 mapping。其他 mapping（例如 tun）继续递归合并。该行为对应上游 2026-09-22 [DNS/hosts 修正](https://github.com/clash-verge-rev/clash-verge-rev/commit/6a85d0344e5df34c750ca3158e53b8b37a5ddf82)之后的来源版本，旧版 DNS/hosts 深度合并不是等价迁移；宿主导入时必须明确来源版本并预览新结果，不能静默声称旧语义兼容。本包匹配所引用的 use_merge，而不是承诺实现上游其余增强阶段或任意脚本执行。
 - 组目标、`use` provider、规则目标、SUB-RULE、顶层 RULE-SET、dialer-proxy 和组依赖环先检查；嵌套逻辑规则/provider、协议字段、DNS、资源、规则语法及具体组类型由必填完整 Validate 检查。
 - 支持 proxies 及 provider-only；至少有一项。provider 定义要求类型与对应来源，HTTP URL 的明显占位形式拒绝；这不能替代资源存在、下载结果或可用节点检查，后者属于完整 Validate。file 路径边界由宿主/平台约束处理。
-- 差异摘要仅返回固定 section 名与数量，不返回节点名、规则、URL 或字段值；`Previous` 仅供比较，不参与合并。摘要没有列出的其他字段仍完整保留在 YAML 中。
+- 差异摘要采用 [语义预览契约](semantic-preview.md)，返回固定 section、变化类别与计数，不返回节点名、规则、URL 或字段值；`Previous` 仅供比较，不参与合并。摘要没有列出的其他字段仍完整保留在 YAML 中。
 
 订阅更新必须使用最新原文与已保存的覆写/策略重新 Compile，不能把上一份 generated YAML 当作订阅原文，否则旧订阅字段和策略生成可能累积。编译结果是私有数据，不得把 Result/YAML/Original/source.json 作为日志或公开配置导出。
 
