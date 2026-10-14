@@ -16,7 +16,8 @@ const state = { Current: { ID: 'version-old', Path: '/versions/old', ProfileID: 
 state.Profiles['old.yaml'] = state.Current;
 let id = 0;
 let response = 'applied';
-let commitHook = null, switchRestoreAt = -1;
+let commitHook = null, afterCommitHook = null, clearUnknownMarker = false, switchRestoreAt = -1;
+const smartVersionOverrides = new Map();
 let session = 'synthetic-session';
 let resolveApply;
 let pending = false;
@@ -49,7 +50,7 @@ const core = { CoreApi: {
 } };
 const versions = { EffectiveVersions: {
   read: () => state,
-  smartConversion: () => smartCurrent,
+  smartConversion: (_, version) => smartVersionOverrides.has(version.ID) ? smartVersionOverrides.get(version.ID) : smartCurrent,
   original: (_, version) => originals[version.ProfileID],
   overlay: () => '',
 
@@ -63,7 +64,7 @@ const versions = { EffectiveVersions: {
   stage: async (_, name, original, overlay, metadata, expected, regionPlan) => {
     assert.equal(expected, state.Current?.ID ?? '');
     const version = { ID: `version-${++id}`, Path: `/versions/${id}`, ProfileID: name };
-    staged.set(version.Path, { version, original, overlay, metadata, regionPlan });
+    staged.set(version.Path, { version, original, overlay, metadata, regionPlan, smartPolicy:smartAutoConvert });
     return { version, receipt: '' };
   },
   verify: async () => '',
@@ -76,7 +77,8 @@ const versions = { EffectiveVersions: {
     originals[version.ProfileID] = entry.original;
     state.Profiles[version.ProfileID] = version;
     if (active) { state.Previous = state.Current; state.Current = version; }
-    if (active) smartCurrent = smartAutoConvert;
+    if (active) smartCurrent = entry.smartPolicy;
+    if (afterCommitHook) await afterCommitHook();
     if (lostAck) throw Error('synthetic lost acknowledgement');
   },
   discard: async (_, version) => { staged.delete(version.Path); }
@@ -91,7 +93,7 @@ const store = { ProfileStore: {
   setPreviousRegionObservation: (_, __, observed) => { previousRegionObserved = observed; },
   clearPreviousRegionSelection: () => { previousRegionChoice = ''; previousRegionObserved = ''; },
   isApplyUncertain: () => uncertain,
-  markApplyUncertain: () => { uncertain = true; },
+  markApplyUncertain: () => { uncertain = !clearUnknownMarker; },
   getProfileContent: (_, name) => originals[name] ?? null,
   getActiveContent: () => originals[state.Current.ProfileID],
   getActiveFile: () => state.Current.ProfileID,
@@ -262,11 +264,31 @@ const tx = context.exports.ProfileTransactions;
   assert.equal(state.Previous.ID, beforeRestore, 'the pre-restore version remains available');
   controller.VpnController.status = 2;
   const rejectedRestore = tx.previewPrevious({});
+  const beforeRejectedPreference=smartAutoConvert;
+  smartVersionOverrides.set(state.Previous.ID,!smartAutoConvert);
   response = 'rejected';
   const rejectId = state.Current.ID;
   await assert.rejects(tx.restorePrevious({}, rejectedRestore.currentId, rejectedRestore.previousId), /拒绝/);
   assert.equal(state.Current.ID, rejectId, 'rejected restore preserves the current pointer');
+  assert.equal(smartAutoConvert,beforeRejectedPreference,'confirmed rejection restores the prior Smart preference');
   response = 'applied';
+  // A commit can publish and only then lose session confirmation. Never revert
+  // the preference alone while retaining the newly published candidate.
+  for (const operation of ['toggle','previous']) {
+    const beforePreference=smartAutoConvert, beforePublished=state.Current.ID;
+    const restored=tx.previewPrevious({});
+    if(operation==='previous')smartVersionOverrides.set(state.Previous.ID,!beforePreference);
+    clearUnknownMarker=operation==='previous';
+    afterCommitHook=async()=>{session=`post-commit-${operation}`};
+    await assert.rejects(operation==='toggle'?tx.setSmartAutoConvert({},!beforePreference):tx.restorePrevious({},restored.currentId,restored.previousId),/应用未确认/);
+    assert.notEqual(state.Current.ID,beforePublished,'published candidate must remain the truthful pointer');
+    assert.equal(smartAutoConvert,!beforePreference,'unknown cannot roll back just the preference');
+    assert.equal(smartAutoConvert,staged.get(state.Current.Path).smartPolicy,'retained preference matches the actual staged policy');
+    assert.equal(uncertain,!clearUnknownMarker);
+    await assert.rejects(tx.activate({},'new.yaml'),/重连恢复/,'in-memory unknown fence survives a cleared persistent marker');
+    afterCommitHook=null;clearUnknownMarker=false;uncertain=false;controller.VpnController.status=0;
+    await tx.activate({},'old.yaml');controller.VpnController.status=2;
+  }
   let valid = true; pending = true;
   const cancelledVersion = state.Current.ID;
   const cancelled = tx.update({}, 'old.yaml', () => valid);

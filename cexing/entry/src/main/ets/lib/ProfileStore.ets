@@ -533,13 +533,20 @@ export namespace ProfileStore {
     const d = ensureDir(context);
     const oldPath = `${d}/${oldFile}`;
     const newPath = `${d}/${target}`;
+    const suffixes: string[] = ['.url', '.last-good', '.merge.json', '.region-select.json',
+      '.region-previous.json', '.update.json', '.intent.json'];
+    // moveFileSync may replace a destination. Reject every managed collision
+    // before moving the raw source or materializing an immutable-only source.
+    const newDraft = draftPath(context, target);
+    if (pendingImports.includes(target) || fileIo.accessSync(newPath) || fileIo.accessSync(newDraft) ||
+      suffixes.some((suffix: string) => fileIo.accessSync(`${newPath}${suffix}`)) ||
+      readMetaStrict(context)[target] !== undefined) {
+      throw new Error('目标名称已有资料，请使用其他名称');
+    }
     if (!fileIo.accessSync(oldPath)) {
       const original = getProfileContent(context, oldFile);
       if (original === null) { throw new Error('配置文件不存在'); }
       atomicText(oldPath, original);
-    }
-    if (fileIo.accessSync(newPath)) {
-      throw new Error(`已存在同名配置：${target}`);
     }
     try {
       fileIo.moveFileSync(oldPath, newPath);
@@ -548,8 +555,7 @@ export namespace ProfileStore {
     }
     const moved: string[][] = [];
     try {
-      for (const suffix of ['.url', '.last-good', '.merge.json', '.region-select.json',
-        '.region-previous.json', '.update.json']) {
+      for (const suffix of suffixes) {
         const from = `${oldPath}${suffix}`;
         const to = `${newPath}${suffix}`;
         if (fileIo.accessSync(from)) {
@@ -559,7 +565,6 @@ export namespace ProfileStore {
       }
       const oldDraft = draftPath(context, oldFile);
       if (fileIo.accessSync(oldDraft)) {
-        const newDraft = draftPath(context, target);
         fileIo.moveFileSync(oldDraft, newDraft);
         moved.push([oldDraft, newDraft]);
       }
