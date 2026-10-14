@@ -15,6 +15,7 @@ func SmartAuto(ctx context.Context, root *yaml.Node) error {
 
 type SmartGroupChange struct {
 	ID       string `json:"id"`
+	ChoiceID string `json:"choiceId"`
 	Before   string `json:"before"`
 	After    string `json:"after"`
 	Override bool   `json:"override"`
@@ -43,10 +44,11 @@ func PreviewSmartPolicy(root *yaml.Node, defaultEnabled bool, intent *EditIntent
 			continue
 		}
 		id := targetID("proxy-groups", name.Value)
+		choiceID := smartChoiceID(intent, id)
 		convert := defaultEnabled && kind.Value == "url-test"
 		override := false
 		if intent != nil && !intent.Disabled {
-			if choice, ok := intent.SmartGroups[id]; ok {
+			if choice, ok := intent.SmartGroups[choiceID]; ok {
 				convert = choice
 				override = true
 			}
@@ -55,7 +57,7 @@ func PreviewSmartPolicy(root *yaml.Node, defaultEnabled bool, intent *EditIntent
 		if convert {
 			after = "smart"
 		}
-		out = append(out, SmartGroupChange{ID: id, Before: kind.Value, After: after, Override: override})
+		out = append(out, SmartGroupChange{ID: id, ChoiceID: choiceID, Before: kind.Value, After: after, Override: override})
 	}
 	return out, nil
 }
@@ -100,4 +102,19 @@ func (c Compiler) SmartPreview(ctx context.Context, r Request, defaultEnabled bo
 		return nil, err
 	}
 	return PreviewSmartPolicy(root, defaultEnabled, r.Intent)
+}
+
+// Choices belong to the source entity, while editor target IDs follow the
+// sequential transformed view. Reverse personal renames to retain that identity.
+func smartChoiceID(intent *EditIntent, current string) string {
+	if intent == nil || intent.Disabled {
+		return current
+	}
+	for i := len(intent.Operations) - 1; i >= 0; i-- {
+		op := intent.Operations[i]
+		if op.Kind == "rename" && op.Section == "proxy-groups" && targetID("proxy-groups", op.Name) == current {
+			current = op.Target
+		}
+	}
+	return current
 }

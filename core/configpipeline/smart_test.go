@@ -2,6 +2,7 @@ package configpipeline
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -159,5 +160,74 @@ rules: ["MATCH,manual"]
 	preview, e = PreviewSmartPolicy(empty, true, plan)
 	if e != nil || len(preview) != 0 {
 		t.Fatal("no groups treated as fault", e)
+	}
+}
+
+func TestSmartChoiceRetainsSourceIdentityAcrossRenameChainAndUndo(t *testing.T) {
+	source := editFixture(t)
+	for _, index := range []int{1, 2} {
+		t.Run([]string{"url-test-exception", "balance-opt-in"}[index-1], func(t *testing.T) {
+			target := editTarget(t, source, "proxy-groups", index)
+			choice := index == 2
+			plan := editPlan(t, source, EditOperation{ID: "rename", Kind: "rename", Section: "proxy-groups", Target: target.Item.ID, Expected: target.Item.Revision, Name: "renamed"})
+			plan.SmartGroups = map[string]bool{target.Item.ID: choice}
+			c := editCompiler()
+			r, e := c.Compile(context.Background(), Request{Original: source, Intent: plan, Strategy: func(ctx context.Context, root *yaml.Node) error { return ApplySmartPolicy(ctx, root, true, plan) }})
+			if e != nil {
+				t.Fatal(e)
+			}
+			root, _ := parse(r.YAML)
+			group := field(root, "proxy-groups").Content[index]
+			want := "url-test"
+			if choice {
+				want = "smart"
+			}
+			if field(group, "name").Value != "renamed" || field(group, "type").Value != want {
+				t.Fatal("rename lost explicit Smart choice")
+			}
+			view, e := (Compiler{}).SmartPreview(context.Background(), Request{Original: source, Intent: plan}, true)
+			if e != nil {
+				t.Fatal(e)
+			}
+			row := view[index-1]
+			if row.ChoiceID != target.Item.ID || row.ID == row.ChoiceID || !row.Override || row.After != want {
+				t.Fatal("UI cannot preserve logical choice", row)
+			}
+			second, e := (Compiler{}).EditTarget(context.Background(), Request{Original: source, Intent: plan}, "proxy-groups", row.ID)
+			if e != nil {
+				t.Fatal(e)
+			}
+			plan.Operations = append(plan.Operations, EditOperation{ID: "rename-again", Kind: "rename", Section: "proxy-groups", Target: row.ID, Expected: second.Item.Revision, Name: "renamed-twice"})
+			encodedBefore, _ := json.Marshal(plan)
+			view, e = (Compiler{}).SmartPreview(context.Background(), Request{Original: source, Intent: plan}, true)
+			if e != nil || view[index-1].ChoiceID != target.Item.ID || view[index-1].After != want {
+				t.Fatal("rename chain lost identity", e, view)
+			}
+			encodedAfter, _ := json.Marshal(plan)
+			if string(encodedBefore) != string(encodedAfter) {
+				t.Fatal("preview changed durable intent")
+			}
+			// Flip the checkbox through its stable choiceId, then undo the rename.
+			plan.SmartGroups[row.ChoiceID] = !choice
+			plan.Operations = []EditOperation{}
+			view, e = (Compiler{}).SmartPreview(context.Background(), Request{Original: source, Intent: plan}, true)
+			if e != nil {
+				t.Fatal(e)
+			}
+			if !view[index-1].Override || view[index-1].ChoiceID != target.Item.ID || (view[index-1].After == "smart") != (!choice) {
+				t.Fatal("undo lost checkbox choice", view)
+			}
+			upstream, _ := parse(source)
+			groups := field(upstream, "proxy-groups")
+			groups.Content = append(groups.Content[:index], groups.Content[index+1:]...)
+			updated, _ := yaml.Marshal(upstream)
+			if _, e = (Compiler{}).SmartPreview(context.Background(), Request{Original: updated, Intent: plan}, true); e != nil {
+				t.Fatal("dormant choice became failure", e)
+			}
+			view, e = (Compiler{}).SmartPreview(context.Background(), Request{Original: source, Intent: plan}, true)
+			if e != nil || !view[index-1].Override || view[index-1].ChoiceID != target.Item.ID {
+				t.Fatal("reappearing group lost choice", e)
+			}
+		})
 	}
 }

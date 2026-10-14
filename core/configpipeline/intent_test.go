@@ -317,3 +317,32 @@ func TestIntentDNSPolicyOrderParticipatesInSourceAndFieldRevision(t *testing.T) 
 		t.Fatal("upstream priority change silently overwritten")
 	}
 }
+
+func TestIntentCompoundUpdateRenameUsesOriginalGuardAndRejectsRealSourceChange(t *testing.T) {
+	source := editFixture(t)
+	target := editTarget(t, source, "proxies", 0)
+	plan := editPlan(t, source,
+		EditOperation{ID: "update", Kind: "update", Section: "proxies", Target: target.Item.ID, Preconditions: map[string]string{"udp": target.Item.Fields["udp"]}, Patch: json.RawMessage(`{"udp":false}`)},
+		EditOperation{ID: "rename", Kind: "rename", Section: "proxies", Target: target.Item.ID, Expected: target.Item.Revision, Name: "renamed-node"},
+	)
+	before, _ := json.Marshal(plan)
+	r, e := editCompiler().Compile(context.Background(), Request{Original: source, Intent: plan})
+	if e != nil {
+		t.Fatal("own update invalidates original rename guard", e)
+	}
+	if !strings.Contains(string(r.YAML), "name: renamed-node") || !strings.Contains(string(r.YAML), "udp: false") {
+		t.Fatal("compound edit lost fields")
+	}
+	again, e := editCompiler().Compile(context.Background(), Request{Original: source, Intent: plan})
+	if e != nil || again.Digest != r.Digest {
+		t.Fatal("compound recompile not idempotent", e)
+	}
+	after, _ := json.Marshal(plan)
+	if string(before) != string(after) {
+		t.Fatal("compile rewrote authored guards")
+	}
+	changed := []byte(strings.Replace(string(source), "udp: true", "udp: false", 1))
+	if _, e = editCompiler().Compile(context.Background(), Request{Original: changed, Intent: plan}); e == nil {
+		t.Fatal("real upstream conflict bypassed")
+	}
+}
