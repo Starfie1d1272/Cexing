@@ -10,14 +10,20 @@ export class ProfileTemplateBus { static file: string = ''; }
 export struct ProfileTemplatePage {
   @Prop @Watch('visibilityChanged') visible: boolean = false;
   @Consume('nav') navStack: NavPathStack;
+  @Consume('profileRevision') profileRevision: number;
   @State private ready: boolean = false;
   private file: string = '';
   private editor: EditorDraftHost | undefined = undefined;
 
   aboutToAppear(): void { this.file = ProfileTemplateBus.file; this.visibilityChanged(); }
-  aboutToDisappear(): void { this.ready = false; this.editor = undefined; }
+  aboutToDisappear(): void { this.release(); }
+  private release(): void {
+    if (this.ready) { this.profileRevision++; }
+    this.ready = false; this.editor = undefined;
+  }
   private visibilityChanged(): void {
-    if (!this.visible) { this.ready = false; this.editor = undefined; return; }
+    if (!this.visible) { this.release(); return; }
+    if (this.file === '') { return; }
     if (this.ready) { return; }
     this.editor = EditorDraftHosts.create(getContext(this) as common.UIAbilityContext, this.file);
     this.ready = true;

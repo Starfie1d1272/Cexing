@@ -12,12 +12,13 @@ const sandbox = { exports: {}, getContext: () => ({}), require: name => name.inc
 vm.runInNewContext(ts.transpileModule(code).outputText, sandbox);
 const { ProfileTemplatePage: Page, ProfileTemplateBus: Bus } = sandbox.exports;
 Bus.file = 'one.yaml';
-const page = new Page(); page.aboutToAppear();
+const page = new Page(); page.profileRevision = 0; page.aboutToAppear();
 assert.equal(created.length, 0, 'hidden navigation cannot create an editing session');
 page.visible = true; page.visibilityChanged();
 assert.equal(created.length, 1); assert.equal(page.editor.file, 'one.yaml');
 const editor = page.editor; page.visibilityChanged(); assert.equal(page.editor, editor);
 Bus.file = 'two.yaml'; page.visible = false; page.visibilityChanged();
+assert.equal(page.profileRevision, 1, 'returning refreshes subscription details from committed state');
 assert.equal(page.ready, false); assert.equal(page.editor, undefined, 'hidden wizard is unmounted and its model closes');
 page.visible = true; page.visibilityChanged();
 assert.equal(page.editor.file, 'one.yaml', 'an existing route cannot adopt another selected profile');
