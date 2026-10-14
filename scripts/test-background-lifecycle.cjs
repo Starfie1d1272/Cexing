@@ -147,21 +147,22 @@ async function stopKeeper(f, context) {
   if (f.stops.length > count) f.stops.at(-1).wait.resolve();
   await result;
 }
-async function testLateTraffic() {
+async function testSharedTraffic() {
   const f = keeperFixture();
   const context = await startKeeper(f);
   const queuedTick = [...f.timers.values()].find(t => t.delay === 60000).fn;
-  const traffic = deferred();
-  f.modules['./CoreApi'].CoreApi.getTraffic = () => traffic.promise;
-  [...f.timers.values()].find(t => t.delay === 60000).fn();
-  await stopKeeper(f, context);
-  await startKeeper(f, 200);
-  const count = f.publications.length;
-  traffic.resolve({ up: 900000, down: 900000 });
-  await flush();
-  assert.equal(f.publications.length, count, 'Old traffic completion must not publish into new task');
+  let reads = 0;
+  f.modules['./TrafficStats'].TrafficStats.rate = () => { reads++; return { up: 1000, down: 2000 }; };
+  f.modules['./CoreApi'].CoreApi.getTraffic = () => { throw Error('duplicate cumulative polling'); };
   queuedTick();
   await flush();
+  assert.equal(reads, 1, 'LiveView must consume the shared sampler, not poll counters');
+  await stopKeeper(f, context);
+  await startKeeper(f, 200);
+  const count = f.publications.length, previousReads = reads;
+  queuedTick();
+  await flush();
+  assert.equal(reads, previousReads, 'Old task cannot consume a new-session rate');
   assert.equal(f.publications.length, count, 'Cleared but already queued old timer must not run in new task');
 }
 async function testLateHeartbeat() {
@@ -346,7 +347,7 @@ async function testUpdaterOverlapAndRetry() {
   assert.equal(f.reloads.length, 1, 'Failed check must release latch for retry');
 }
 (async () => {
-  const cases = [testRapidReconnect, testKeeperContext, testUpdaterContext, testLateTraffic, testLateHeartbeat, testPreTaskFailure, testPendingPublish,
+  const cases = [testRapidReconnect, testKeeperContext, testUpdaterContext, testSharedTraffic, testLateHeartbeat, testPreTaskFailure, testPendingPublish,
     testPartialListeners, testCancelProbeRace, testUserCancel, testUpdaterLateCompletion, testUpdaterQueuedTickAfterStop, testUpdaterOverlapAndRetry];
   for (const test of cases) {
     if (!process.env.RUNTIME_CASE || process.env.RUNTIME_CASE === test.name) {
