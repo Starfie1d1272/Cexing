@@ -2,6 +2,7 @@ import { NativeTheme as UI } from './NativeTheme';
 import { NativeMaterial, NativeTabStyle } from './NativeMaterial';
 import { SmartPage } from './SmartPage';
 import { DiagnosticsPage } from './DiagnosticsPage';
+import { TrafficPage } from './TrafficPage';
 import { HomePage } from './HomePage';
 import { ProfilePage, ProfileDetailBus } from './ProfilePage';
 import { SettingsPage } from './SettingsPage';
@@ -51,6 +52,8 @@ struct Index {
       NavDestination() { SmartPage({ visible: this.smartVisible }) }.title('Smart')
         .onShown(() => { this.smartVisible = true; })
         .onHidden(() => { this.smartVisible = false; })
+    } else if (name === 'traffic') {
+      NavDestination() { TrafficPage() }.title('流量')
     } else if (name === 'diagnostics') {
       NavDestination() { DiagnosticsPage() }.title('诊断')
     } else if (name === 'network') {

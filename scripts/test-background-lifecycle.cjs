@@ -42,6 +42,7 @@ function keeperFixture() {
       OperationType: { START_ABILITY: 1 }, WantAgentFlags: { UPDATE_PRESENT_FLAG: 1 } } },
     '@kit.NotificationKit': { notificationManager: { publish: async request => { publications.push(request); }, cancel: async id => { cancellations.push(id); },
       ContentType: { NOTIFICATION_CONTENT_SYSTEM_LIVE_VIEW: 1 }, SlotType: { LIVE_VIEW: 1 } } },
+    './TrafficStats': { TrafficStats: { rate: () => null } },
     './CoreApi': { CoreApi: { getProxies: async () => ({ test: { name: 'test', type: 'Selector', now: 'DIRECT', all: ['DIRECT'] } }), getConfigs: async () => null,
       getTraffic: async () => null, isAlive: async () => true }, formatRate: () => '' },
     './Settings': { Settings: { load: ctx => { contexts.push(ctx); return settings; }, save() {} } },

@@ -51,6 +51,7 @@ function fixture(options = {}) {
     } } },
     './VpnController': { VpnController: controller, VpnStatus: status },
     './AutoUpdater': { AutoUpdater: { stop: () => calls.push('updater-stop') } },
+    './TrafficStats': { TrafficStats: { initialize() {}, sample: async () => {}, invalidate() {}, rate: () => null } },
     './LiveViewKeeper': { LiveViewKeeper: { stop: async () => {
       calls.push('background-stop');
       if (options.backgroundFailure) throw Error('background error');

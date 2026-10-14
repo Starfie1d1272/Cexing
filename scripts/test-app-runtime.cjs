@@ -14,7 +14,7 @@ function fixture(recovered = status.Disconnected) {
   const listeners = [];
   const timers = new Map();
   let timerId = 0;
-  const calls = { backgroundStart: 0, backgroundStop: 0, updatesStart: 0, updatesStop: 0, check: 0, ensure: 0, start: 0 };
+  const calls = { backgroundStart: 0, backgroundStop: 0, updatesStart: 0, updatesStop: 0, check: 0, ensure: 0, start: 0, trafficSamples: 0, trafficStops: 0 };
   const settings = { autoRestore: false, vpnWasConnected: false };
   const controller = {
     status: status.Disconnected,
@@ -25,6 +25,7 @@ function fixture(recovered = status.Disconnected) {
   };
   const modules = {
     './VpnController': { VpnController: controller, VpnStatus: status },
+    './TrafficStats': { TrafficStats: { initialize() {}, sample: async () => { calls.trafficSamples++; }, invalidate() { calls.trafficStops++; }, rate: () => null } },
     './LiveViewKeeper': { LiveViewKeeper: {
       rebindContext: ctx => { calls.backgroundContext = ctx; },
       start: async () => { calls.backgroundStart++; return true; },
@@ -56,6 +57,7 @@ async function testOwnership() {
   await flush();
   assert.equal(f.calls.backgroundStart, 1, 'Recovery event and completion must not double-start services');
   assert.equal(f.calls.updatesStart, 1);
+  assert.equal(f.calls.trafficSamples, 1, 'Traffic collection starts on recovery, without a page');
   const newContext = { name: 'recreated ability' };
   f.runtime.initialize(newContext);
   assert.equal(f.calls.backgroundContext, newContext);
@@ -73,6 +75,7 @@ async function testOwnership() {
   f.emit(status.Disconnected);
   await flush();
   assert.equal(f.calls.backgroundStop, 1);
+  assert.equal(f.calls.trafficStops, 1, 'Disconnect fences traffic callbacks');
   assert.equal(f.calls.updatesStop, 1);
   f.emit(status.Connecting);
   f.emit(status.Connected);

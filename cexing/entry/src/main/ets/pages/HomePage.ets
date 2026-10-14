@@ -266,10 +266,17 @@ export struct HomePage {
           this.Rate(true, '↑ 上传')
           Divider().vertical(true).height(48).color('#52616A')
           this.Rate(false, '↓ 下载')
+          SymbolGlyph($r('sys.symbol.chevron_right')).fontSize(14).fontColor([Color.White])
         }.padding({ top: 18, bottom: 18, left: 24, right: 24 }).width('100%').backgroundColor(UI.stage)
+          .accessibilityGroup(true).accessibilityText(`流量 上传 ${this.upRate} 下载 ${this.downRate}`)
+          .onClick(() => { this.navStack.pushPath({ name: 'traffic' }); })
       } else {
-        Text('连接后显示实时速率').fontSize(12).fontColor('#C9D3D9').width('100%')
-          .padding({ top: 17, bottom: 17, left: 24, right: 24 }).backgroundColor(UI.stage)
+        Row() {
+          Text('流量').fontSize(12).fontColor('#C9D3D9').layoutWeight(1)
+          SymbolGlyph($r('sys.symbol.chevron_right')).fontSize(14).fontColor([Color.White])
+        }.width('100%').padding({ top: 17, bottom: 17, left: 24, right: 24 }).backgroundColor(UI.stage)
+          .accessibilityGroup(true).accessibilityText('查看流量')
+          .onClick(() => { this.navStack.pushPath({ name: 'traffic' }); })
       }
     }.width(this.wide ? '48%' : '100%').backgroundColor(Color.White)
       .borderRadius(28).clip(true).border({ width: 1, color: UI.line })
