@@ -1,11 +1,12 @@
 const assert = require('node:assert/strict'), fs = require('node:fs'), vm = require('node:vm');
 const ts = require('./ci/transpile-arkts.cjs');
-let inputs = [], prepared = 0, pendingRead;
+let inputs = [], prepared = 0, pendingRead, precision = false;
 const snapshot = { templateId: 'ai', version: 1, entries: [] };
 const intent = { schemaVersion: 1, revision: 'intent', sourceRevision: 'source', operations: [], template: { templateId: 'ai', version: 1, targetGroup: 'Pick' } };
 const session = revision => ({ profileId: 'one.yaml', revision, intent: structuredClone(intent), snapshot: { sourceRevision: 'source', sections: [] } });
 const modules = {
  'libentry.so': { versionAction: async (root, raw) => {
+  if (precision) return JSON.stringify({ error: 'TEMPLATE_UPDATE_PRECISION' });
   assert.equal(root, '/synthetic'); const value = JSON.parse(raw); assert.equal(value.op, 'template-update-preview'); inputs.push(value.source);
   assert.equal(value.source.profileVersion, 'version-successful'); assert.equal(value.source.original, 'prepared original');
   assert.equal(value.source.globalMerge, 'global'); assert.equal(value.source.overlay, 'local');
@@ -33,5 +34,6 @@ vm.runInNewContext(ts.transpileModule(fs.readFileSync('cexing/entry/src/main/ets
  const newer = session('new-page'); await source.read(newer); release();
  await assert.rejects(older, /SESSION/); await source.encode(snapshot, newer);
  assert.equal(source.label({ section: 'rules' }), '分流规则');
+ precision = true; await assert.rejects(source.read(session('precise')), /PRECISION/);
  console.log('PASS: real update source uses existing worker/context/provenance, binds candidate encoding and rejects changed/late sessions');
 })().catch(error => { console.error(error); process.exitCode = 1; });

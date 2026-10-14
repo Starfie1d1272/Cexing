@@ -28,7 +28,7 @@ Base 是最后成功版本的自有模板基线；Mine 是个人模板结果/墓
 
 `TemplateWizard` 内的更新操作打开 `TemplateUpdateReview`，两页都可仅传 profileId 组合真实工厂与 source；自定义 editor/source 仅用于同一会话注入。默认仅显示冲突操作、短影响与应用状态，不展示快照原文。不存在的模板生成器版本不提供应用路径：当前目录只支持 v1，纯算法的合成 v2/v3 夹具不表示真实模板已经升级。
 
-模板 snapshot 只保存自有实体；绑定只活于一次 worker，不进入 GC/备份。所有历史与回滚引用沿现有 Current/Previous/Profiles 及可靠性组引用门禁。取消/失败保留旧 Current，恢复沿既有 Previous 事务。
+模板 snapshot 只保存自有实体；绑定只活于一次 worker，不进入 GC/备份。所有历史与回滚引用沿现有 Current/Previous/Profiles 及可靠性组引用门禁。取消/失败保留旧 Current，恢复沿既有 Previous 事务。结构化 JSON 数字若不能精确往返，比较前拒绝并引导高级文本编辑，不取整后写回未知字段。
 
 ## 取证与许可
 

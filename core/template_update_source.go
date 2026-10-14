@@ -1,16 +1,18 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"io"
+	"math/big"
 	"os"
 	"path/filepath"
 	"reflect"
-	"sort"
+	"strconv"
 
 	"core/configpipeline"
 	"core/profiletemplates"
@@ -54,12 +56,22 @@ func templateUpdateSource(home string, input templateUpdateSourceInput) (templat
 	if !ok || previous.ID != input.ProfileVersion {
 		return templateUpdateSourceReply{}, fail
 	}
+	for _, directory := range []string{store.Root, filepath.Join(store.Root, previous.ID)} {
+		info, e := os.Lstat(directory)
+		if e != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+			return templateUpdateSourceReply{}, fail
+		}
+	}
 	read := func(name string, limit int) ([]byte, error) {
 		f, e := os.Open(filepath.Join(store.Root, previous.ID, name))
 		if e != nil {
 			return nil, e
 		}
 		defer f.Close()
+		info, e := f.Stat()
+		if e != nil || !info.Mode().IsRegular() {
+			return nil, fail
+		}
 		b, e := io.ReadAll(io.LimitReader(f, int64(limit)+1))
 		if len(b) > limit {
 			return nil, fail
@@ -72,37 +84,48 @@ func templateUpdateSource(home string, input templateUpdateSourceInput) (templat
 	}
 	var source struct {
 		GlobalMerge string
-		EditIntent  *configpipeline.EditIntent
+		EditIntent  json.RawMessage
 	}
-	if json.Unmarshal(provenance, &source) != nil || source.EditIntent == nil || source.EditIntent.Template == nil || source.EditIntent.Template.TemplateID != intent.Template.TemplateID {
+	if json.Unmarshal(provenance, &source) != nil {
 		return templateUpdateSourceReply{}, fail
 	}
-	oldOriginal, err := read("original.yaml", maxConfigBytes)
-	if err != nil {
+	successful, err := configpipeline.DecodeEditIntent(source.EditIntent)
+	if err != nil || successful == nil || successful.Template == nil || successful.Template.TemplateID != intent.Template.TemplateID {
 		return templateUpdateSourceReply{}, fail
 	}
-	oldOverlay, err := read("overlay.yaml", maxConfigBytes)
-	if os.IsNotExist(err) {
-		oldOverlay = nil
-	} else if err != nil {
-		return templateUpdateSourceReply{}, fail
+	if !safeTemplateJSON(source.EditIntent) || !safeTemplateJSON(input.Intent) {
+		return templateUpdateSourceReply{}, errors.New("TEMPLATE_UPDATE_PRECISION")
 	}
-	oldBytes, _ := json.Marshal(intent)
-	old, err := configpipeline.DecodeEditIntent(oldBytes)
-	if err != nil {
-		return templateUpdateSourceReply{}, fail
-	}
-	// Read current personal edits against their successful old template and source.
-	// A changed form target is Next, never a reason to apply old guards to Next.
-	old.Template = source.EditIntent.Template
-	old.Disabled = false
-	compiled, _, err := compileLayeredMergeWithIntent(home, string(oldOriginal), source.GlobalMerge, string(oldOverlay), input.Overrides, false, nil, old)
-	if err != nil || compiled.EditIntent == nil || compiled.EditIntent.Template == nil || compiled.EditIntent.Template.Baseline == nil || compiled.EditIntent.Template.Mine == nil {
-		return templateUpdateSourceReply{}, fail
-	}
-	base := compiled.EditIntent.Template.Baseline
-	if source.EditIntent.Template.Baseline != nil {
-		base = source.EditIntent.Template.Baseline
+	base, mine := successful.Template.Baseline, successful.Template.Mine
+	// Successful provenance is authoritative for unchanged personal operations.
+	// Provider refresh cannot rewrite the historical side of the comparison.
+	if base == nil || mine == nil || !reflect.DeepEqual(intent.Operations, successful.Operations) {
+		oldOriginal, e := read("original.yaml", maxConfigBytes)
+		if e != nil {
+			return templateUpdateSourceReply{}, fail
+		}
+		oldOverlay, e := read("overlay.yaml", maxConfigBytes)
+		if os.IsNotExist(e) {
+			oldOverlay = nil
+		} else if e != nil {
+			return templateUpdateSourceReply{}, fail
+		}
+		oldBytes, _ := json.Marshal(intent)
+		old, e := configpipeline.DecodeEditIntent(oldBytes)
+		if e != nil {
+			return templateUpdateSourceReply{}, fail
+		}
+		// New draft edits use their old successful template/source guards.
+		old.Template = successful.Template
+		old.Disabled = false
+		compiled, _, e := compileLayeredMergeWithIntent(home, string(oldOriginal), source.GlobalMerge, string(oldOverlay), input.Overrides, false, nil, old)
+		if e != nil || compiled.EditIntent == nil || compiled.EditIntent.Template == nil || compiled.EditIntent.Template.Baseline == nil || compiled.EditIntent.Template.Mine == nil {
+			return templateUpdateSourceReply{}, fail
+		}
+		if base == nil {
+			base = compiled.EditIntent.Template.Baseline
+		}
+		mine = compiled.EditIntent.Template.Mine
 	}
 	root, err := configpipeline.LayeredMergeSource([]byte(input.Original), []byte(input.GlobalMerge), []byte(input.Overlay))
 	if err != nil {
@@ -116,11 +139,15 @@ func templateUpdateSource(home string, input templateUpdateSourceInput) (templat
 	if next.Baseline.Version > base.Version {
 		kind = "template"
 	}
-	request := profiletemplates.UpdateRequest{Kind: kind, Base: *base, Mine: *compiled.EditIntent.Template.Mine, Next: *next.Baseline}
+	request := profiletemplates.UpdateRequest{Kind: kind, Base: *base, Mine: *mine, Next: *next.Baseline}
 	token, _ := json.Marshal(struct {
 		Input   templateUpdateSourceInput
 		Request profiletemplates.UpdateRequest
 	}{Input: templateUpdateSourceInput{ProfileID: input.ProfileID, ProfileVersion: input.ProfileVersion, Original: input.Original, GlobalMerge: input.GlobalMerge, Overlay: input.Overlay, Overrides: input.Overrides, Intent: input.Intent}, Request: request})
+	encodedRequest, _ := json.Marshal(request)
+	if !safeTemplateJSON(encodedRequest) {
+		return templateUpdateSourceReply{}, errors.New("TEMPLATE_UPDATE_PRECISION")
+	}
 	digest := sha256.Sum256(token)
 	stamp := hex.EncodeToString(digest[:])
 	switch input.Action {
@@ -159,17 +186,38 @@ func templateUpdateSource(home string, input templateUpdateSourceInput) (templat
 	}
 }
 func sameTemplateSnapshot(a, b *configpipeline.TemplateSnapshot) bool {
-	if a == nil || b == nil {
-		return a == nil && b == nil
+	return profiletemplates.EqualSnapshots(a, b)
+}
+
+// ArkTS currently transports structured intent through JSON number values.
+// Refuse an inexact round trip before it can become a personal patch. Existing
+// text/advanced editing remains available; never silently round unknown data.
+func safeTemplateJSON(data []byte) bool {
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.UseNumber()
+	for {
+		token, err := decoder.Token()
+		if err == io.EOF {
+			return true
+		}
+		if err != nil {
+			return false
+		}
+		number, ok := token.(json.Number)
+		if !ok {
+			continue
+		}
+		value, err := strconv.ParseFloat(number.String(), 64)
+		if err != nil {
+			return false
+		}
+		before, ok := new(big.Rat).SetString(number.String())
+		if !ok {
+			return false
+		}
+		after, ok := new(big.Rat).SetString(strconv.FormatFloat(value, 'g', -1, 64))
+		if !ok || before.Cmp(after) != 0 {
+			return false
+		}
 	}
-	clone := func(s *configpipeline.TemplateSnapshot) any {
-		data, _ := json.Marshal(s)
-		var out map[string]any
-		_ = json.Unmarshal(data, &out)
-		deleted := append([]string{}, s.Deleted...)
-		sort.Strings(deleted)
-		out["deleted"] = deleted
-		return out
-	}
-	return reflect.DeepEqual(clone(a), clone(b))
 }

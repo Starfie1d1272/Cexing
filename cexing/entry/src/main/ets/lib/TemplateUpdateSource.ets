@@ -28,6 +28,7 @@ export function createTemplateUpdateSource(context: common.Context, profileId: s
     if (text.length > 50 * 1024 * 1024) { throw new Error('TEMPLATE_UPDATE_LIMIT'); }
     const raw = await core.versionAction(context.filesDir, text);
     const reply = JSON.parse(raw) as SourceReply;
+    if (reply.error === 'TEMPLATE_UPDATE_PRECISION') { throw new Error('TEMPLATE_UPDATE_PRECISION'); }
     if (reply.error !== undefined) { throw new Error('TEMPLATE_UPDATE_SOURCE_CHANGED'); }
     return reply;
   };

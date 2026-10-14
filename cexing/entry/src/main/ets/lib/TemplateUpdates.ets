@@ -65,7 +65,8 @@ export class TemplateUpdateModel {
         throw new Error('TEMPLATE_VALIDATION_REQUIRED');
       }
       if (this.current(generation)) { this.preview = result; }
-    } catch (_) { if (this.current(generation)) { this.error = '无法比较，请重新预览'; } }
+    } catch (error) { if (this.current(generation)) { this.error = (error as Error).message === 'TEMPLATE_UPDATE_PRECISION' ?
+      '部分高级字段需通过高级编辑修改' : '无法比较，请重新预览'; } }
     finally { if (this.current(generation)) { this.busy = false; this.emit(); } }
   }
   async choose(id: string, choice: string): Promise<void> {
