@@ -7,6 +7,18 @@
     {
       "name": "EntryAbility_desc",
       "value": "策星原生代理客户端"
+    },
+    {
+      "name": "settings_dns_read_failed",
+      "value": "订阅读取失败，请重试"
+    },
+    {
+      "name": "settings_dns_import_first",
+      "value": "请先在订阅页导入订阅"
+    },
+    {
+      "name": "settings_dns_choose",
+      "value": "选择订阅"
     }
   ]
 }

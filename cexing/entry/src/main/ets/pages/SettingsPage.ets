@@ -1,3 +1,6 @@
+import { UiText } from '../lib/UiText';
+import { ProfileStore } from '../lib/ProfileStore';
+import { RuleDnsEditorBus } from './RuleDnsEditorPage';
 import { SettingsReconnectButton } from './SettingsReconnectButton';
 import { NativeTheme as UI } from './NativeTheme';
 /*
@@ -52,6 +55,7 @@ export struct SettingsPage {
     {
       title: '系统与连接',
       rows: [
+        { title: 'DNS', sub: '', hasToggle: false, dest: '', action: 'dns', toggleKey: '' },
         { title: '网络设置', sub: '按应用分流 · IPv6', hasToggle: false, dest: 'network', action: '', toggleKey: '' },
         { title: 'Smart', sub: '统计策略 · 离线模型', hasToggle: false, dest: 'smart', action: '', toggleKey: '' },
         { title: '内核设置', sub: '端口 · 日志等级 · 局域网', hasToggle: false, dest: 'override', action: '', toggleKey: '' }
@@ -248,7 +252,41 @@ export struct SettingsPage {
     }
   }
 
+  private openDns(): void {
+    if (!this.pageActive || !this.ready) { return; }
+    const generation = ++this.feedbackGeneration;
+    const context = getContext(this) as common.UIAbilityContext;
+    try {
+      const profiles = ProfileStore.list(context);
+      const active = ProfileStore.getActiveFile(context);
+      const current = (): boolean => this.pageActive && this.currentVisibleTab === 2 && this.rootVisible &&
+        generation === this.feedbackGeneration && this.navStack.getAllPathName().length === 0;
+      const open = (file: string): void => {
+        if (!current()) { return; }
+        if (!ProfileStore.list(context).some((profile) => profile.file === file)) {
+          promptAction.showToast({ message: UiText.get($r('app.string.settings_dns_read_failed')) }); return;
+        }
+        RuleDnsEditorBus.file = file;
+        RuleDnsEditorBus.section = 'dns';
+        this.navStack.pushPath({ name: 'ruleDnsEditor' });
+      };
+      if (profiles.some((profile) => profile.file === active)) { open(active); }
+      else if (profiles.length === 1) { open(profiles[0].file); }
+      else if (profiles.length === 0) {
+        promptAction.showToast({ message: UiText.get($r('app.string.settings_dns_import_first')) });
+      } else {
+        ActionSheet.show({ title: UiText.get($r('app.string.settings_dns_choose')),
+          cancel: () => { if (current()) { this.feedbackGeneration++; } },
+          sheets: profiles.map((profile): SheetInfo => ({ title: profile.name, action: () => {
+            try { open(profile.file); }
+            catch (_) { if (current()) { promptAction.showToast({ message: UiText.get($r('app.string.settings_dns_read_failed')) }); } }
+          } })) });
+      }
+    } catch (_) { promptAction.showToast({ message: UiText.get($r('app.string.settings_dns_read_failed')) }); }
+  }
+
   private onRowTap(row: SettingRow): void {
+    if (row.action === 'dns') { this.openDns(); return; }
     if (row.dest.length > 0) {
       this.navStack.pushPath({ name: row.dest });
       return;

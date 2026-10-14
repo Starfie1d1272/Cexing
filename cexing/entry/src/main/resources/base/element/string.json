@@ -31,6 +31,18 @@
     {
       "name": "connection_card_description",
       "value": "查看连接状态，一键连接或断开"
+    },
+    {
+      "name": "settings_dns_read_failed",
+      "value": "Cannot read subscriptions. Try again."
+    },
+    {
+      "name": "settings_dns_import_first",
+      "value": "Import a subscription on the subscriptions page first."
+    },
+    {
+      "name": "settings_dns_choose",
+      "value": "Choose subscription"
     }
   ]
 }
