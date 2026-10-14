@@ -11,7 +11,8 @@ const { ProxyMappingForm: Form } = load('cexing/entry/src/main/ets/lib/ProxyMapp
 const { ProxyIntentEdits: edits } = load('cexing/entry/src/main/ets/lib/ProxyIntentEdits.ets');
 let intent = { schemaVersion: 1, sourceRevision: input.sourceRevision, revision: 'synthetic-draft', operations: [] };
 const node = new Form('proxies', input.node);
-node.setText('name', 'renamed-node'); node.setNumber('port', '8443'); node.setFlag('udp', true);
+if (input.rename) node.setText('name', 'renamed-node');
+node.setNumber('port', '8443'); node.setFlag('udp', true);
 intent = edits.mapping(intent, input.node, node.finish(), 'node-change', input.missing);
 const provider = new Form('proxy-providers', input.provider);
 provider.setNumber('interval', '3600');

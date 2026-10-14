@@ -13,7 +13,9 @@ const node = { item: { id: 'opaque-node', revision: 'opaque-revision', fields: {
 const original = JSON.stringify(node);
 const form = new Form('proxies', node);
 form.setText('name', 'renamed'); form.setNumber('port', '8443');
+form.setNestedText(['ws-opts', 'path'], '/synthetic');
 const result = form.finish();
+assert.equal(result.value['ws-opts'].path, '/synthetic');
 assert.equal(result.value.uuid, 'synthetic-private');
 assert.deepEqual(JSON.parse(JSON.stringify(result.value['reality-opts'])), { 'public-key': 'synthetic-key' });
 assert.equal(result.value['ws-opts'].headers.Host, 'synthetic.invalid');

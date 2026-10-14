@@ -19,12 +19,21 @@ import (
 // Disposable process, synthetic loopback nodes and inline provider; no Start/network.
 func TestNativeProxyFormsReachCompilerAndParser(t *testing.T) {
 	if os.Getenv("CE_XING_PROXY_FORM_CHILD") != "1" {
-		child := exec.Command(os.Args[0], "-test.run=^TestNativeProxyFormsReachCompilerAndParser$", "-test.v")
-		child.Env = append(os.Environ(), "CE_XING_PROXY_FORM_CHILD=1")
-		if output, err := child.CombinedOutput(); err != nil {
-			t.Fatalf("child: %v\n%s", err, output)
+		for _, mode := range []string{"fields", "rename"} {
+			t.Run(mode, func(t *testing.T) {
+				child := exec.Command(os.Args[0], "-test.run=^TestNativeProxyFormsReachCompilerAndParser$", "-test.v")
+				child.Env = append(os.Environ(), "CE_XING_PROXY_FORM_CHILD=1", "CE_XING_PROXY_FORM_MODE="+mode)
+				if output, err := child.CombinedOutput(); err != nil {
+					t.Fatalf("child: %v\n%s", err, output)
+				}
+			})
 		}
 		return
+	}
+	rename := os.Getenv("CE_XING_PROXY_FORM_MODE") == "rename"
+	expectedName := "original-node"
+	if rename {
+		expectedName = "renamed-node"
 	}
 	source := []byte(`proxies:
   - {name: original-node, type: ss, server: 127.0.0.1, port: 443, cipher: aes-128-gcm, password: synthetic-password, x-advanced: {keep: true}}
@@ -52,7 +61,7 @@ x-top-level: {keep: true}
 		targets[section.Section] = target
 	}
 	input, _ := json.Marshal(map[string]any{"sourceRevision": snapshot.SourceRevision, "node": targets["proxies"],
-		"provider": targets["proxy-providers"], "missing": configpipeline.MissingFieldRevision()})
+		"provider": targets["proxy-providers"], "missing": configpipeline.MissingFieldRevision(), "rename": rename})
 	root, _ := filepath.Abs("../..")
 	command := exec.Command("node", "scripts/emit-proxy-form-fixture.cjs")
 	command.Dir = root
@@ -69,7 +78,7 @@ x-top-level: {keep: true}
 		Validate: func(_ context.Context, data []byte) error { _, err := config.Parse(data); return err }}
 	generated, err := compiler.Compile(context.Background(), configpipeline.Request{Original: source, Intent: intent})
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("compile: %#v", err)
 	}
 	if _, err := config.Parse(generated.YAML); err != nil {
 		t.Fatal(err)
@@ -79,14 +88,14 @@ x-top-level: {keep: true}
 		t.Fatal(err)
 	}
 	node := value["proxies"].([]any)[0].(map[string]any)
-	if node["name"] != "renamed-node" || node["port"] != 8443 || node["udp"] != true {
+	if node["name"] != expectedName || node["port"] != 8443 || node["udp"] != true {
 		t.Fatal("native node fields were not compiled")
 	}
 	if node["x-advanced"].(map[string]any)["keep"] != true || value["x-top-level"].(map[string]any)["keep"] != true {
 		t.Fatal("unknown fields were dropped")
 	}
 	groups := value["proxy-groups"].([]any)
-	if groups[0].(map[string]any)["proxies"].([]any)[0] != "renamed-node" {
+	if groups[0].(map[string]any)["proxies"].([]any)[0] != expectedName {
 		t.Fatal("rename did not update group references")
 	}
 	if len(groups) != 3 {

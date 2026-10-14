@@ -40,6 +40,30 @@ export class ProxyMappingForm {
   flag(key: string): boolean { return this.value[key] === true; }
   setFlag(key: string, value: boolean): void { this.value[key] = value; }
 
+  nestedText(path: string[]): string {
+    let value: Object | undefined = this.value;
+    for (const key of path) {
+      if (value === null || typeof value !== 'object' || Array.isArray(value)) { return ''; }
+      value = (value as Record<string, Object>)[key];
+    }
+    return typeof value === 'string' || typeof value === 'number' ? String(value) : '';
+  }
+
+  setNestedText(path: string[], value: string): void {
+    let mapping = this.value;
+    for (let index = 0; index < path.length - 1; index++) {
+      const key = path[index];
+      const current = mapping[key];
+      if (current === undefined) { mapping[key] = {}; }
+      else if (current === null || typeof current !== 'object' || Array.isArray(current)) {
+        throw new Error('该字段请使用高级编辑');
+      }
+      mapping = mapping[key] as Record<string, Object>;
+    }
+    if (value === '') { delete mapping[path[path.length - 1]]; }
+    else { mapping[path[path.length - 1]] = value; }
+  }
+
   setNumber(key: string, value: string): void {
     this.invalidNumbers = this.invalidNumbers.filter((name: string) => name !== key);
     if (value.trim() === '') { delete this.value[key]; return; }

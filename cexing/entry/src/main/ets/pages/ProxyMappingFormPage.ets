@@ -18,6 +18,8 @@ export struct ProxyMappingFormPage {
   onCancel: () => void = () => {};
   @State type: string = '';
   @State submitting: boolean = false;
+  @State transport: string = '';
+  @State reality: boolean = false;
   private generation: number = 0;
   @State members: string[] = [];
   @State providers: string[] = [];
@@ -30,6 +32,8 @@ export struct ProxyMappingFormPage {
     this.form = new ProxyMappingForm(this.section, this.target);
     this.type = this.form.text('type') || (this.section === 'proxies' ? 'ss' :
       this.section === 'proxy-providers' ? 'http' : 'select');
+    this.transport = this.form.text('network');
+    this.reality = this.form.nestedText(['reality-opts', 'public-key']) !== '';
     this.form.setText('type', this.type);
     this.members = this.form.list('proxies');
     this.providers = this.form.list('use');
@@ -85,6 +89,19 @@ export struct ProxyMappingFormPage {
   }
 
   @Builder
+  NestedField(label: string, path: string[], secret: boolean = false) {
+    Column({ space: 6 }) {
+      Text(label).fontSize(14).fontColor(UI.muted).width('100%')
+      TextInput({ text: this.form.nestedText(path), placeholder: label }).height(48).width('100%')
+        .type(secret ? InputType.Password : InputType.Normal).enabled(!this.submitting)
+        .onChange((value: string) => {
+          try { this.form.setNestedText(path, value); this.error = ''; }
+          catch (_) { this.error = '该字段请使用高级编辑'; }
+        })
+    }.width('100%')
+  }
+
+  @Builder
   NodeFields() {
     this.Field('服务器', 'server')
     this.Field('端口', 'port', false, true)
@@ -98,8 +115,25 @@ export struct ProxyMappingFormPage {
       Toggle({ type: ToggleType.Switch, isOn: this.form.flag('tls') }).enabled(!this.submitting)
         .onChange((value: boolean) => { this.form.setFlag('tls', value); })
     }.width('100%')
-    this.Field('传输方式', 'network')
+    Select(['tcp', 'ws', 'grpc', 'http', 'h2', 'quic'].map((value: string) => new ProxyFormOption(value)))
+      .value(this.transport || 'tcp').enabled(!this.submitting).onSelect((_, value: string) => {
+        this.transport = value; this.form.setText('network', value);
+      })
+    if (this.transport === 'ws') {
+      this.NestedField('请求路径', ['ws-opts', 'path'])
+      this.NestedField('Host', ['ws-opts', 'headers', 'Host'])
+    }
+    if (this.transport === 'grpc') { this.NestedField('服务名称', ['grpc-opts', 'grpc-service-name']) }
     this.Field('服务器名称', 'servername')
+    this.Field('客户端指纹', 'client-fingerprint')
+    if (this.type === 'vless') {
+      Button(this.reality ? 'Reality 参数' : '添加 Reality 参数').backgroundColor(UI.soft).fontColor(UI.ink)
+        .onClick(() => { this.reality = true; })
+      if (this.reality) {
+        this.NestedField('Reality 公钥', ['reality-opts', 'public-key'])
+        this.NestedField('Short ID', ['reality-opts', 'short-id'])
+      }
+    }
   }
 
   @Builder
