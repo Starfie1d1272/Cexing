@@ -41,7 +41,7 @@ function load(options = {}) {
     './Settings': { Settings: { load: () => settings, save() {} } },
     '@kit.IPCKit': { rpc: { MessageSequence: { create: () => ({values:[], writeString(value){this.values.push(value);}, reclaim() {} }) }, MessageOption: class {} } },
     './ConnectionFailure': { ConnectionFailures: { classify: () => ({phase:'service'}), label: () => '连接服务不可用，请重试' } },
-    './ProfileStore': { ProfileStore: { clearApplyUncertain() {} } }
+    './ProfileStore': { ProfileStore: { clearApplyUncertain() { options.onClear?.(); } } }
   };
   const context = { filesDir: '/synthetic', applicationInfo: { name: 'test.bundle' },
     connectServiceExtensionAbility: (want, value) => {
