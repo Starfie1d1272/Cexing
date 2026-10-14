@@ -31,7 +31,9 @@ Mihomo `/restart` 使用进程 exec 语义，不适合鸿蒙扩展宿主；原�
 
 ## 桌面连接入口
 
-`ConnectionFormAbility` 通过公开 `FormExtensionAbility` 的创建、更新、移除回调登记卡片 ID，使用 `formProvider.updateForm` 同步运行时核对的状态。卡片扩展不持有 VPN、后台任务或恢复定时器；闲置回收后读取缓存仅显示“状态待核对”与上次核对时间，不恢复历史连接结论。卡片标注核对时间，运行时发布携带数值时间戳；超过一分钟的结论转为“状态待核对”。卡片使用公开 `TextClock.onDateChange` 核对新鲜度，按平台卡片的分钟回调节奏更新（不宣称即时失联检测）。不把历史状态或 Controller 探活当作当前系统隧道与转发证明。未确认停止继续显示结果未知，冷进程不自动清除此保护。
+`ConnectionFormAbility` 通过公开 `FormExtensionAbility` 的创建、更新、移除回调登记卡片 ID，使用 `formProvider.updateForm` 同步运行时核对的状态。卡片扩展不持有 VPN、后台任务或恢复定时器。卡片保留运行时发布的状态与数值时间戳；一分钟内显示已核实状态，超过一分钟以“上次状态”标明历史结论。卡片使用公开 `TextClock.onDateChange` 核对新鲜度，按平台卡片的分钟回调节奏更新。未确认停止显示“断开未完成”，保留重试断开保护；冷进程不自动清除此保护。
+
+1×2 卡片以状态和单个操作并排显示，根容器铺满主题背景、由桌面处理外轮廓，避免自绘圆角暴露底层背景；文字与按钮复用应用深浅色资源。未连接时连接，已连接或连接中时断开，断开中禁用操作。桌面长按菜单通过 API 20 的 `shortcutManager.setShortcutVisibleForSelf` 同步同一连接意图，先隐藏另一项再显示当前项；异步调用串行处理最新状态，避免迟到回调恢复旧入口。静态配置默认只显示连接。显示控制遵循官方 [shortcutManager](https://github.com/openharmony/docs/blob/master/zh-cn/application-dev/reference/apis-ability-kit/js-apis-shortcutManager.md)，背景叠层问题参考[圆角边框说明](https://developer.huawei.com/consumer/cn/doc/doccenter-dev-faq/faqs-arkui-1083)。
 
 卡片的 `postCardAction(router)` 和图标的 `ohos.ability.shortcuts` 都进入 singleton `EntryAbility`。前者的 JSON 数据位于 `Want.parameters.params`，后者直接位于 `Want.parameters`；冷启动由 `onCreate` 接收，已有实例由 `onNewWant` 接收。`ConnectionEntry` 仅接受显式 connect/disconnect 请求，运行时恢复后直接执行一次。异步配置准备后重新核对最新请求、上下文、当前订阅、配置事务占用及未知标记；重复请求保持对应连接意图，断开意图能取消在途准备或启动。连接和断开仍由 `VpnController` 执行，连接保留系统正常授权流程。可分别移除 form 扩展注册或 shortcuts metadata 停用对应桌面入口。
 

@@ -8,11 +8,10 @@
       "uiSyntax": "arkts",
       "isDynamic": true,
       "isDefault": true,
-      "colorMode": "light",
       "supportDimensions": [
-        "2*4"
+        "1*2"
       ],
-      "defaultDimension": "2*4",
+      "defaultDimension": "1*2",
       "updateEnabled": true,
       "updateDuration": 1,
       "formVisibleNotify": false
