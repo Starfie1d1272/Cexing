@@ -6,7 +6,7 @@
 |---|---|---|
 | 1 | 运行时与 Controller 安全 | 保持 VPN 状态机；统一回环/端口/随机密钥，原生 REST/WS 认证通过；系统会话健康与 Controller 探活分开 |
 | 2 | 统一配置与覆写事务 | 依赖平台强约束；通过 [配置契约](reference/configuration.md) 的导入、幂等、更新、重载一致性与失败回退用例，之后替换旧激活路径 |
-| 3 | Zashboard | 依赖认证与配置事务；通过 [面板契约](reference/integrations.md#zashboard)，然后删除临时 `ProxyPage` |
+| 3 | Zashboard | 依赖认证与配置事务；持续通过 [面板契约](reference/integrations.md#zashboard)；旧页删除前证明无生产路由调用，保留现有面板错误恢复；ArkWeb 真机单独验收 |
 | 4 | Mihomo Smart | 使用固定模块/模型，许可明确；保持 ABI，通过 [Smart 契约](reference/integrations.md#mihomo-smart) 和真机预测验证 |
 | 5 | 平台可靠性 | [设备测试](how-to/device.md#验收方法)：UDP/DNS、IPv6、路由排除、日常低流量后台运行、网络切换与异常恢复 |
 | 6 | 发布与独立品牌 | 可复现源码/资源、发行身份、许可证、签名流程与回退；应用身份与签名 Profile 一致 |

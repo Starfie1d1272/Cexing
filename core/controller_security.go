@@ -141,7 +141,7 @@ func redactControllerSecret(text string) string {
 type controllerLogWriter struct{}
 
 func (controllerLogWriter) Write(p []byte) (int, error) {
-	_, err := io.WriteString(os.Stdout, redactControllerSecret(string(p)))
+	_, err := io.WriteString(os.Stdout, redactOrdinaryLog(string(p)))
 	return len(p), err
 }
 
