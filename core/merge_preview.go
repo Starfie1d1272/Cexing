@@ -131,7 +131,7 @@ func compileLayeredMergeWithIntent(home, original, global, overlay, overrides st
 	strategy = func(ctx context.Context, root *yaml.Node) error {
 		return configpipeline.ApplySmartPolicy(ctx, root, smartConversion, intent)
 	}
-	result, err := (configpipeline.Compiler{Platform: project, Validate: validator, Template: editorTemplate(home)}).Compile(
+	result, err := (configpipeline.Compiler{Platform: project, Validate: validator, Template: editorTemplate(home), PrepareTemplate: editorTemplatePrepare(home)}).Compile(
 		context.Background(), configpipeline.Request{Original: []byte(original), Overlays: overlays,
 			Strategy: strategy, Intent: intent, Region: resolvedRegion, Previous: []byte(original)})
 	return result, receipt, err

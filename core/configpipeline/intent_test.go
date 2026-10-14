@@ -317,3 +317,47 @@ func TestIntentDNSPolicyOrderParticipatesInSourceAndFieldRevision(t *testing.T) 
 		t.Fatal("upstream priority change silently overwritten")
 	}
 }
+
+func TestIntentCompoundUpdateRenameUsesOriginalGuardAndRejectsRealSourceChange(t *testing.T) {
+	source := editFixture(t)
+	target := editTarget(t, source, "proxies", 0)
+	plan := editPlan(t, source,
+		EditOperation{ID: "update", Kind: "update", Section: "proxies", Target: target.Item.ID, Preconditions: map[string]string{"udp": target.Item.Fields["udp"]}, Patch: json.RawMessage(`{"udp":false}`)},
+		EditOperation{ID: "rename", Kind: "rename", Section: "proxies", Target: target.Item.ID, Expected: target.Item.Revision, Name: "renamed-node"},
+	)
+	before, _ := json.Marshal(plan)
+	r, e := editCompiler().Compile(context.Background(), Request{Original: source, Intent: plan})
+	if e != nil {
+		t.Fatal("own update invalidates original rename guard", e)
+	}
+	if !strings.Contains(string(r.YAML), "name: renamed-node") || !strings.Contains(string(r.YAML), "udp: false") {
+		t.Fatal("compound edit lost fields")
+	}
+	again, e := editCompiler().Compile(context.Background(), Request{Original: source, Intent: plan})
+	if e != nil || again.Digest != r.Digest {
+		t.Fatal("compound recompile not idempotent", e)
+	}
+	after, _ := json.Marshal(plan)
+	if string(before) != string(after) {
+		t.Fatal("compile rewrote authored guards")
+	}
+	changed := []byte(strings.Replace(string(source), "udp: true", "udp: false", 1))
+	if _, e = editCompiler().Compile(context.Background(), Request{Original: changed, Intent: plan}); e == nil {
+		t.Fatal("real upstream conflict bypassed")
+	}
+}
+
+func TestIntentCrossObjectRenameUsesOriginalBaseline(t *testing.T) {
+	source := []byte("proxies: [{name: node, type: direct}]\nproxy-groups: [{name: group, type: select, proxies: [node]}]\nrules: ['MATCH,group']\n")
+	node := editTarget(t, source, "proxies", 0)
+	group := editTarget(t, source, "proxy-groups", 0)
+	plan := editPlan(t, source, EditOperation{ID: "node", Kind: "rename", Section: "proxies", Target: node.Item.ID, Expected: node.Item.Revision, Name: "new-node"}, EditOperation{ID: "group", Kind: "rename", Section: "proxy-groups", Target: group.Item.ID, Expected: group.Item.Revision, Name: "new-group"})
+	result, err := editCompiler().Compile(context.Background(), Request{Original: source, Intent: plan})
+	if err != nil || !strings.Contains(string(result.YAML), "MATCH,new-group") {
+		t.Fatal("unchanged chained references rejected", err)
+	}
+	changed := []byte(strings.Replace(string(source), "proxies: [node]", "proxies: [DIRECT]", 1))
+	if _, err = editCompiler().Compile(context.Background(), Request{Original: changed, Intent: plan}); err == nil {
+		t.Fatal("real upstream change admitted")
+	}
+}
