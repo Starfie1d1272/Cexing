@@ -10,8 +10,15 @@ export namespace ProxyIntentEdits {
     draft: ProxyMappingDraft, action: string, missingFieldRevision: string): EditIntent {
     const next = copy(intent);
     if (original === null) {
-      next.operations.push({ id: action, kind: 'add', section: draft.section,
-        name: draft.name, value: draft.value });
+      const existing = next.operations.findIndex((operation: EditOperation) => operation.id === action);
+      const addition: EditOperation = { id: action, kind: 'add', section: draft.section,
+        name: draft.name, value: draft.value };
+      if (existing < 0) { next.operations.push(addition); }
+      else {
+        const previous = next.operations[existing];
+        if (previous.kind !== 'add' || previous.section !== draft.section) { throw new Error('新增操作已变化，请重新打开'); }
+        addition.before = previous.before; next.operations[existing] = addition;
+      }
       return next;
     }
     const id = original.item.id;

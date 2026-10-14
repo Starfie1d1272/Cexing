@@ -59,6 +59,7 @@ export struct ProfileProxyEditorPage {
   private model: ProfileProxyEditorModel | null = null;
   private originalTarget: EditTarget | null = null;
   private selectedAdd: string = '';
+  private newAction: string = '';
   private labels: Record<string, string> = {};
   private missingRevision: string = '';
   private epoch: number = 0;
@@ -228,7 +229,7 @@ export struct ProfileProxyEditorPage {
     if (this.busy || this.model === null) { return; }
     const epoch = ++this.epoch; this.busy = true; this.providerState = '';
     try {
-      const intent = this.model.workingIntent();
+      const intent = this.model.workingIntent(); this.newAction = '';
       if (row.added) {
         const operation = intent.operations.find((op: EditOperation) => op.id === row.id);
         if (operation?.value === undefined) { return; }
@@ -280,7 +281,7 @@ export struct ProfileProxyEditorPage {
   private add(): void {
     if (this.busy) { return; }
     if (this.section === 'proxies') { this.sourceKey = 'custom'; this.sourceLabel = this.t('proxy_editor_custom'); }
-    this.originalTarget = null; this.formTarget = null; this.selectedAdd = ''; this.formOpen = true;
+    this.originalTarget = null; this.formTarget = null; this.selectedAdd = ''; this.newAction = ''; this.formOpen = true;
   }
 
   private previewFailure(intent: EditIntent, error: Error): string {
@@ -314,7 +315,9 @@ export struct ProfileProxyEditorPage {
       next.operations = next.operations.map((op: EditOperation) => op.id === this.selectedAdd ?
         { id: op.id, kind: 'add', section: op.section, name: draft.name, value: draft.value, before: op.before } : op);
     } else {
-      next = ProxyIntentEdits.mapping(next, this.originalTarget, draft, util.generateRandomUUID(true), this.missingRevision);
+      if (this.originalTarget === null && this.newAction === '') { this.newAction = util.generateRandomUUID(true); }
+      next = ProxyIntentEdits.mapping(next, this.originalTarget, draft,
+        this.originalTarget === null ? this.newAction : util.generateRandomUUID(true), this.missingRevision);
     }
     await this.save(next);
   }

@@ -7,6 +7,7 @@ let code = fs.readFileSync('cexing/entry/src/main/ets/pages/ProfileProxyEditorPa
 code = code.slice(0, code.indexOf('  build()')) + '\n}';
 code = code.split('\n').map(line => line.trimStart().startsWith('@') ?
   line.replace(/@\w+(?:\([^\n)]*\))?\s*/g, '') : line).join('\n').replace('export struct ', 'export class ');
+let actionIds = 0;
 let finishObservation, observations = 0, restores = 0, undoSteps = 0;
 let finishLoad, finishTarget, finishSave, targetCalls = 0, saveCalls = 0, dialog;
 const intent = { schemaVersion: 1, sourceRevision: 'source', revision: 'draft', operations: [] };
@@ -32,9 +33,11 @@ vm.runInNewContext(ts.transpileModule(fs.readFileSync('cexing/entry/src/main/ets
 const textBox = { exports: {} };
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('cexing/entry/src/main/ets/lib/ProxyEditorText.ets', 'utf8')).outputText, textBox);
 const editBus = { current: '' };
+const editExports = { exports: {} };
+vm.runInNewContext(ts.transpileModule(fs.readFileSync('cexing/entry/src/main/ets/lib/ProxyIntentEdits.ets', 'utf8')).outputText, editExports);
 const sandbox = { exports: {}, getContext: () => resourceContext(), AlertDialog: { show: value => { dialog = value; } },
   require: name => name.includes('ProfileProxyEditorModel') ? { ProfileProxyEditorModel: Model } :
-    name.includes('ProfileEditPage') ? { ProfileEditBus: editBus } : name.includes('ProxyEditorText') ? textBox.exports : name.includes('ConfigEditor') ? editorExports.exports : name.includes('ProxyProviderStatus') ?
+    name === '@kit.ArkTS' ? { util: { generateRandomUUID: () => `add-action-${++actionIds}` } } : name.includes('ProxyIntentEdits') ? editExports.exports : name.includes('ProfileEditPage') ? { ProfileEditBus: editBus } : name.includes('ProxyEditorText') ? textBox.exports : name.includes('ConfigEditor') ? editorExports.exports : name.includes('ProxyProviderStatus') ?
       { ProxyProviderStatus: { observe: () => { observations++; return new Promise(resolve => { finishObservation = resolve; }); } } } : {} };
 vm.runInNewContext(ts.transpileModule(code).outputText, sandbox);
 const Page = sandbox.exports.ProfileProxyEditorPage; sandbox.exports.ProfileProxyEditorBus.file = 'one.yaml';
@@ -119,5 +122,16 @@ const Page = sandbox.exports.ProfileProxyEditorPage; sandbox.exports.ProfileProx
   const rawPaths = []; undoPage.navStack = { getAllPathName: () => rawPaths.slice(), pushPath: value => rawPaths.push(value.name) };
   undoPage.openOriginal(); undoPage.openOriginal();
   assert.equal(rawPaths.join(','), 'profileEdit'); assert.equal(editBus.current, 'one.yaml'); assert.equal(undoPage.formOpen, false);
+
+  intent.operations = []; const retryAdd = new Page(); retryAdd.visible = true; retryAdd.aboutToAppear(); finishLoad(); await new Promise(setImmediate);
+  retryAdd.section = 'proxy-groups'; retryAdd.add(); let attempts = 0;
+  retryAdd.model.save = async next => { intent.operations = JSON.parse(JSON.stringify(next.operations));
+    if (++attempts === 1) { throw Error('invalid reference'); }
+    retryAdd.model.preview = { changes: [] }; return true; };
+  const createGroup = { section: 'proxy-groups', name: 'repairable', value: { name: 'repairable', type: 'select', use: ['missing'] } };
+  await retryAdd.saveForm(createGroup); assert.equal(retryAdd.formOpen, true); assert.equal(intent.operations.length, 1);
+  const firstId = intent.operations[0].id; createGroup.value.use = ['known-source'];
+  await retryAdd.saveForm(createGroup); assert.equal(intent.operations.length, 1, 'failed new-item preview must be repairable without a duplicate add');
+  assert.equal(intent.operations[0].id, firstId); assert.equal(intent.operations[0].value.use[0], 'known-source'); assert.equal(retryAdd.formOpen, false);
   console.log('PASS: real native proxy editor load/target/save lifecycle, repeat actions, hidden private values and stale delete confirmation');
 })().catch(error => { console.error(error); process.exitCode = 1; });

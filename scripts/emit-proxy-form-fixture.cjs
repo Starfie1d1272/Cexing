@@ -22,7 +22,9 @@ const provider = new Form('proxy-providers', input.provider);
 provider.setNumber('interval', '3600');
 intent = edits.mapping(intent, input.provider, provider.finish(), 'provider-change', input.missing);
 const group = new Form('proxy-groups');
-group.setText('name', 'new-provider-only'); group.setText('type', 'select'); group.setList('use', ['source']);
+group.setText('name', 'new-provider-only'); group.setText('type', 'select'); group.setList('use', ['missing-source']);
+intent = edits.mapping(intent, null, group.finish(), 'group-add', input.missing);
+group.setList('use', ['source']);
 intent = edits.mapping(intent, null, group.finish(), 'group-add', input.missing);
 if (input.link) {
   const { ProxyNodeImport } = load('cexing/entry/src/main/ets/lib/ProxyNodeImport.ets');
