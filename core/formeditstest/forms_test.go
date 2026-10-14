@@ -142,3 +142,43 @@ x-top-level: {keep: true}
 		t.Fatal("preset disable failed")
 	}
 }
+
+func TestRepeatedHostFormEditKeepsSourceGuard(t *testing.T) {
+	source := []byte("proxies: [{name: node, type: direct}]\nrules: ['MATCH,node']\nhosts: {public.test: 192.0.2.1}\n")
+	snapshot, err := configpipeline.ReadEditable(source, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var target configpipeline.EditTarget
+	for _, section := range snapshot.Sections {
+		if section.Section == "hosts" {
+			target, err = configpipeline.ReadEditTarget(source, nil, nil, "hosts", section.Items[0].ID)
+		}
+	}
+	if err != nil || target.Item.ID == "" {
+		t.Fatal("host target", err)
+	}
+	input, _ := json.Marshal(map[string]any{"variant": "hosts", "sourceRevision": snapshot.SourceRevision, "host": target})
+	cmd := exec.Command("node", "../../scripts/emit-rule-dns-fixture.cjs")
+	cmd.Stdin = bytes.NewReader(input)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("form emission: %v %s", err, output)
+	}
+	intent, err := configpipeline.DecodeEditIntent(output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	compiler := configpipeline.Compiler{Platform: func(context.Context, *yaml.Node) error { return nil }, Validate: func(_ context.Context, data []byte) error { _, err := config.Parse(data); return err }}
+	generated, err := compiler.Compile(context.Background(), configpipeline.Request{Original: source, Intent: intent})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(generated.YAML), "192.0.2.3") {
+		t.Fatal("final host value absent")
+	}
+	changed := []byte("proxies: [{name: node, type: direct}]\nrules: ['MATCH,node']\nhosts: {public.test: 192.0.2.9}\n")
+	if _, err = compiler.Compile(context.Background(), configpipeline.Request{Original: changed, Intent: intent}); err == nil {
+		t.Fatal("real upstream host change accepted")
+	}
+}

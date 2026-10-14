@@ -41,5 +41,8 @@ const {RuleDnsEditorPage:Page,RuleDnsEditorBus:Bus}=load(source,modules,{getCont
  const projected=clone(target);projected.item.fields={nameserver:'projected-ns'};
  composed=drafts.RuleDnsDraft.put(composed,forms.RuleDnsForms.patch('custom-again','dns',projected,{nameserver:['https://new.test/dns-query']}));
  assert.equal(composed.operations.length,1);assert.ok(composed.operations[0].patch['x-advanced']);assert.equal(composed.operations[0].preconditions.nameserver,'missing-revision','coalesced update retains initial field revision');
+ let hosts=drafts.RuleDnsDraft.put({schemaVersion:1,revision:'r',sourceRevision:'s',operations:[]},{id:'host-first',kind:'update',section:'hosts',target:'host-id',expected:'original-host',value:'192.0.2.1'});
+ hosts=drafts.RuleDnsDraft.put(hosts,{id:'host-second',kind:'update',section:'hosts',target:'host-id',expected:'projected-host',value:'192.0.2.2'});
+ assert.equal(hosts.operations.length,1);assert.equal(hosts.operations[0].expected,'original-host');assert.equal(hosts.operations[0].value,'192.0.2.2');
  console.log('PASS: unified EditorDraftHost load/target/save/preview/digest-bound apply/undo, names, repeats, stale view and retained source preconditions');
 })().catch(e=>{console.error(e);process.exitCode=1;});

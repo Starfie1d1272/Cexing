@@ -9,10 +9,15 @@ const f=host.exports.RuleDnsForms;
 const draftHost={exports:{},require:()=>({})};
 vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(__dirname,'../cexing/entry/src/main/ets/lib/RuleDnsDraft.ets'),'utf8')).outputText,draftHost);
 let intent={schemaVersion:1,revision:'forms-fixture',sourceRevision:input.sourceRevision,
- operations:[f.moveRule('move',input.rule,input.before,input.match),f.recommendedDns(input.dns)]};
+ operations:input.variant==='hosts' ? [] : [f.moveRule('move',input.rule,input.before,input.match),f.recommendedDns(input.dns)]};
 if (input.variant==='added' || input.variant==='added-moved') {
  intent.operations=[f.addRule('added-direct',{type:'DOMAIN',condition:'public.test',target:'DIRECT',noResolve:false},input.before),
  f.addRule('added-reject',{type:'DOMAIN',condition:'public.test',target:'REJECT',noResolve:false},input.before)];
  if(input.variant==='added-moved') intent=draftHost.exports.RuleDnsDraft.moveAdded(intent,'rules',1,0);
+}
+if (input.variant==='hosts') {
+ intent.operations=[];
+ intent=draftHost.exports.RuleDnsDraft.put(intent,{id:'first',kind:'update',section:'hosts',target:input.host.item.id,expected:input.host.item.revision,value:'192.0.2.2'});
+ intent=draftHost.exports.RuleDnsDraft.put(intent,{id:'second',kind:'update',section:'hosts',target:input.host.item.id,expected:'intermediate-projected-revision',value:'192.0.2.3'});
 }
 process.stdout.write(JSON.stringify(intent));
