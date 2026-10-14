@@ -29,7 +29,10 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   const toasts = [];
   let scanCallback, scanCalls = 0;
   let readYaml = async () => 'proxies: []';
-  let importedWrites = 0;
+  let importedWrites = 0, uncertainProfile = false, recoveryCalls = 0;
+  let reconnectProfile = async (_context, current) => { recoveryCalls++; return current(); };
+  let autoRetry = async () => {};
+  const updateState = { id: 'source-fixture', succeededAt: 10, failedAt: 20, retryAt: 30 };
   let stopResult = async () => true;
   let smartPrepare = async () => {};
   let activeHomeFile = 'fixture.yaml';
@@ -49,6 +52,8 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
       } } }, '../lib/ProfileImportInput': { ProfileImportInput: { take: () => null,
       parseText: value => value.startsWith('https://') ? { kind: 'url', value } : null } }, '@kit.CoreFileKit': {}, '@kit.ShareKit': {}, '@kit.ArkData': {},
     '../lib/DiagnosticExportSnapshots': {},
+    '../lib/ProfileRecovery': { ProfileRecovery: { reconnect: (...args) => reconnectProfile(...args) } },
+    '../lib/AutoUpdater': { AutoUpdater: { retry: (...args) => autoRetry(...args) } },
     '../lib/BoundedFileReader': { BoundedFileReader: { yaml: (...args) => readYaml(...args) } },
     '../lib/AppRuntime': { AppRuntime: { cancelRestore: () => cancelRestore++ } },
     '../lib/DiagnosticsBundleView': { DiagnosticsBundleView: { result: r => r.reason === 'page_check_timeout' ? '检查超时' : r.stage === 'controller_authorization' ? '连接认证失败，请断开后重新连接' : '本机服务可达', title: () => '本机服务' } },
@@ -268,6 +273,7 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
       update: async () => 'applied', rename: () => 'fixture.yaml'
     } },
     '../lib/ProfileStore': { ProfileStore: { list: () => profiles, getMeta: () => ({}),
+      isApplyUncertain: () => uncertainProfile, updateState: () => ({ ...updateState }),
       importContent: () => { importedWrites++; return 'candidate.yaml'; },
       getActiveFile: () => active, getOrigin: () => '', pendingRegionSelection: () => '',
       importFromUrl: async () => { if (rejectImport) throw Error('network'); return 'candidate.yaml'; } } }
@@ -413,6 +419,37 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   assert.equal(importedWrites, 1); assert.equal(damagedFile.importing, false);
   assert.ok(!toasts.some(value => value.includes('private-uri')));
   console.log('PASS: shared async file helper, repeated import, late read suppression and safe failure');
+  uncertainProfile = true;
+  const recovery = activationPage().page;
+  assert.equal(recovery.recoveryNeeded, true);
+  recovery.confirmRecovery(); const cancelledRecovery = dialog;
+  cancelledRecovery.primaryButton.action(); cancelledRecovery.secondaryButton.action();
+  assert.equal(recoveryCalls, 0, 'cancelled recovery confirmation stays cancelled');
+  recovery.confirmRecovery(); const oldRecovery = dialog;
+  recovery.aboutToDisappear(); oldRecovery.secondaryButton.action(); assert.equal(recoveryCalls, 0);
+  const freshRecovery = activationPage().page;
+  let finishRecovery;
+  reconnectProfile = (_context, current) => { recoveryCalls++; return new Promise(resolve => {
+    finishRecovery = () => resolve(current());
+  }); };
+  freshRecovery.confirmRecovery(); const confirmedRecovery = dialog;
+  confirmedRecovery.secondaryButton.action(); confirmedRecovery.secondaryButton.action();
+  assert.equal(recoveryCalls, 1, 'one confirmation produces one reconnect');
+  freshRecovery.aboutToDisappear(); finishRecovery(); await Promise.resolve(); await Promise.resolve();
+  assert.equal(freshRecovery.tabJump, -1, 'late recovery cannot navigate');
+  uncertainProfile = false;
+  const retryPage = activationPage().page;
+  let finishRetry, retries = 0;
+  autoRetry = () => { retries++; return new Promise(resolve => { finishRetry = resolve; }); };
+  const retrying = retryPage.retryAutomatic(profiles[0]); await retryPage.retryAutomatic(profiles[0]);
+  assert.equal(retries, 1, 'automatic update retry is single-flight');
+  const priorRetryToasts = toasts.length;
+  retryPage.aboutToDisappear(); finishRetry(); await retrying;
+  assert.equal(toasts.length, priorRetryToasts, 'late auto-update retry must not report success');
+  const skippedRetry = activationPage().page; autoRetry = async () => {};
+  await skippedRetry.retryAutomatic(profiles[0]);
+  assert.equal(toasts.at(-1), '未能更新，请检查网络及自动更新设置', 'skipped retry is not success');
+  console.log('PASS: unknown recovery explicit confirmation/cancel/single-flight, late navigation and skipped/late automatic retry');
   function regionPage() {
     const page = activationPage().page;
     page.importedFile = 'candidate.yaml'; page.regionFromImport = true;
@@ -447,6 +484,7 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
       }
     } },
     '../lib/ProfileStore': { ProfileStore: {
+      isApplyUncertain: () => false, getOrigin: () => '',
       list: () => { regionLists++; return profiles; }, getMeta: () => ({}), getActiveFile: () => active
     } }
   });

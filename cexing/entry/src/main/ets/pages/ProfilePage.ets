@@ -8,6 +8,8 @@ import { picker, fileIo } from '@kit.CoreFileKit';
 import { scanBarcode, scanCore } from '@kit.ScanKit';
 import { ProfileImportInput } from '../lib/ProfileImportInput';
 import { BoundedFileReader } from '../lib/BoundedFileReader';
+import { ProfileRecovery } from '../lib/ProfileRecovery';
+import { AutoUpdater } from '../lib/AutoUpdater';
 import { promptAction } from '@kit.ArkUI';
 import { pasteboard } from '@kit.BasicServicesKit';
 import { ProfileStore, ProfileMeta, ProfileMetaExt } from '../lib/ProfileStore';
@@ -57,6 +59,9 @@ export struct ProfilePage {
   @State importing: boolean = false;
   @State activating: boolean = false;
   @State scanning: boolean = false;
+  @State recoveryNeeded: boolean = false;
+  @State recovering: boolean = false;
+  @State updateFeedback: Record<string, string> = {};
   private sharedFileUri: string = '';
   private importGeneration: number = 0;
   @State updatingFile: string = '';
@@ -260,6 +265,16 @@ export struct ProfilePage {
     const context = getContext(this) as common.UIAbilityContext;
     this.profiles = ProfileStore.list(context);
     this.metas = ProfileStore.getMeta(context);
+    this.recoveryNeeded = ProfileStore.isApplyUncertain(context);
+    const feedback: Record<string, string> = {};
+    for (const p of this.profiles) {
+      if (!this.isUrlProfile(p.file)) { continue; }
+      try {
+        const state = ProfileStore.updateState(context, p.file);
+        if (state.failedAt > state.succeededAt) { feedback[p.file] = '自动更新失败'; }
+      } catch (_) { feedback[p.file] = '更新记录不可用'; }
+    }
+    this.updateFeedback = feedback;
     if (this.selectedFile.length > 0 && !this.profiles.some((p: ProfileMeta) => p.file === this.selectedFile)) {
       this.selectedFile = '';
       if (this.detailOnTop()) { this.navStack.pop(); }
@@ -389,9 +404,68 @@ export struct ProfilePage {
       this.finishActivationNavigation(request, page, tab, paths);
     } catch (e) {
       if (this.activationPageCurrent(request, page, tab, paths)) {
-        this.toast((e as Error).message ?? '切换失败');
+        this.refresh();
+        this.toast(this.recoveryNeeded ? '应用未确认，请重连恢复' : this.activationError(e as Error));
       }
     } finally { this.activating = false; }
+  }
+
+  private recoveryPageCurrent(page: number, request: number, tab: number, paths: string[]): boolean {
+    return this.activationPageCurrent(request, page, tab, paths);
+  }
+
+  private confirmRecovery(): void {
+    if (this.recovering) { return; }
+    const page = this.pageGeneration;
+    const request = ++this.activationRequest;
+    const tab = this.currentVisibleTab;
+    const paths = this.navStack.getAllPathName();
+    let consumed = false;
+    AlertDialog.show({ title: '重新连接？', message: '当前连接会暂时中断。',
+      primaryButton: { value: '取消', action: () => { consumed = true; } },
+      secondaryButton: { value: '重新连接', action: () => {
+        if (consumed || !this.recoveryPageCurrent(page, request, tab, paths)) { return; }
+        consumed = true;
+        this.recoverProfile(page, request, tab, paths);
+      } } });
+  }
+
+  private async recoverProfile(page: number, request: number, tab: number, paths: string[]): Promise<void> {
+    if (this.recovering || !this.recoveryPageCurrent(page, request, tab, paths)) { return; }
+    const current = (): boolean => this.recoveryPageCurrent(page, request, tab, paths);
+    this.recovering = true;
+    try {
+      const context = getContext(this) as common.UIAbilityContext;
+      const accepted = await ProfileRecovery.reconnect(context, current);
+      if (!current()) { return; }
+      this.refresh();
+      if (accepted) { this.finishActivationNavigation(request, page, tab, paths); }
+      else { this.toast('连接未开始，请重试'); }
+    } catch (_) {
+      if (current()) { this.refresh(); this.toast('恢复未完成，请重试或前往连接页检查'); }
+    } finally { this.recovering = false; }
+  }
+
+  private async retryAutomatic(p: ProfileMeta): Promise<void> {
+    if (this.updatingFile.length > 0 || !p.active) { return; }
+    const page = this.pageGeneration;
+    const context = getContext(this) as common.UIAbilityContext;
+    const paths = this.navStack.getAllPathName();
+    this.updatingFile = p.file;
+    try {
+      const before = ProfileStore.updateState(context, p.file);
+      await AutoUpdater.retry(context);
+      if (!this.pageVisible || page !== this.pageGeneration || !this.samePath(paths)) { return; }
+      this.changed();
+      const after = ProfileStore.updateState(context, p.file);
+      if (after.id === before.id && after.succeededAt > before.succeededAt && after.failedAt === 0) {
+        this.toast('已更新');
+      } else { this.toast('未能更新，请检查网络及自动更新设置'); }
+    } catch (_) {
+      if (this.pageVisible && page === this.pageGeneration && this.samePath(paths)) {
+        this.refresh(); this.toast('更新未完成，请重试');
+      }
+    } finally { this.updatingFile = ''; }
   }
 
   private async updateProfile(p: ProfileMeta): Promise<void> {
@@ -405,7 +479,8 @@ export struct ProfilePage {
       this.toast(result === 'applied' ? '已更新并应用' : '已更新，启用或启动后生效');
       this.changed();
     } catch (e) {
-      this.toast(`更新失败: ${(e as Error).message}`);
+      this.refresh();
+      this.toast(this.recoveryNeeded ? '应用未确认，请重连恢复' : '更新失败，请检查网络后重试');
     } finally {
       this.updatingFile = '';
     }
@@ -644,8 +719,8 @@ export struct ProfilePage {
           const result = await ProfileTransactions.update(context, active);
           this.toast(result === 'applied' ? '已更新并应用' : '已更新，启用或启动后生效');
         } catch (e) {
-          Logger.warn(TAG, `pull refresh update failed: ${(e as Error).message ?? JSON.stringify(e)}`);
-          this.toast(`更新失败: ${(e as Error).message}`);
+          this.refresh();
+          this.toast(this.recoveryNeeded ? '应用未确认，请重连恢复' : '更新失败，请检查网络后重试');
         }
       }
       this.refresh();
@@ -702,6 +777,13 @@ export struct ProfilePage {
           Text(p.name).fontSize(28).fontWeight(FontWeight.Bold).fontColor(UI.ink).width('100%')
           Text(this.isUrlProfile(p.file) ? 'URL 订阅' : '本地配置').fontSize(14).fontColor(UI.muted).width('100%')
           Text(this.subText(p)).fontSize(14).fontColor(UI.muted).width('100%')
+          if (this.updateFeedback[p.file] !== undefined) {
+            Text(this.updateFeedback[p.file]).fontSize(14).fontColor(UI.error).width('100%')
+            if (p.active) {
+              Button(this.updatingFile === p.file ? '更新中…' : '重试自动更新').width('100%').height(48)
+                .enabled(this.updatingFile.length === 0).onClick(() => { this.retryAutomatic(p); })
+            }
+          }
           this.DetailAction('原始配置', () => {
             ProfileEditBus.current = p.file;
             this.navStack.pushPath({ name: 'profileEdit' });
@@ -1045,6 +1127,11 @@ export struct ProfilePage {
 
   build() {
     Column({ space: 16 }) {
+      if (this.recoveryNeeded) {
+        Text('应用未确认').fontSize(14).fontColor(UI.error).width('100%')
+        Button(this.recovering ? '恢复中…' : '重连恢复').width('100%').height(48)
+          .enabled(!this.recovering).onClick(() => { this.confirmRecovery(); })
+      }
       if (this.selectedFile.length > 0) {
         ForEach(this.profiles.filter((p: ProfileMeta) => p.file === this.selectedFile), (p: ProfileMeta) => {
           this.ProfileDetail(p)
