@@ -919,7 +919,7 @@ export struct ProfilePage {
     else if (this.sheetMode === SHEET_PASTE) { this.PasteSheet() }
     else if (this.sheetMode === SHEET_REGION) { this.RegionSheet() }
     else if (this.sheetMode === SHEET_GLOBAL) {
-      GlobalMergeEditor({ onClose: () => { this.showSheet = false; this.sheetMode = SHEET_NONE; } })
+      GlobalMergeEditor({ onClose: () => { this.showSheet = false; } })
     }
   }
 
@@ -964,6 +964,7 @@ export struct ProfilePage {
     }.width('100%').height('100%').padding({ left: 24, right: 24, bottom: 12 })
       .backgroundColor(UI.paper).constraintSize({ maxWidth: 760 }).alignSelf(ItemAlign.Center)
       .bindSheet($$this.showSheet, this.MainSheet(), { height: this.sheetMode === SHEET_GLOBAL ? SheetSize.LARGE : SheetSize.FIT_CONTENT,
+        onDisappear: () => { this.sheetMode = SHEET_NONE; },
         shouldDismiss: (dismiss: SheetDismiss) => {
           if (this.sheetMode !== SHEET_GLOBAL && !this.importing && !this.regionBusy && !ProfileTransactions.isBusy()) { dismiss.dismiss(); }
         } })

@@ -145,5 +145,16 @@ const Editor = compile('pages/GlobalMergeEditor.ets', true).GlobalMergeEditor;
   await assert.rejects(tx.applyGlobalMerge(ctx, 'unknown'), /未知/);
   assert.equal(JSON.stringify(state), beforeUnknown); await assert.rejects(tx.activate(ctx, 'two.yaml'), /断开/);
   assert.equal(data.get(prior.Path), priorBytes); assert.equal(originals.get('one.yaml'), original);
+  const pageSource = fs.readFileSync(path.join(base, 'pages/ProfilePage.ets'), 'utf8');
+  const closeBody = pageSource.match(/GlobalMergeEditor\(\{ onClose: \(\) => \{([^}]*)\}/)[1];
+  const disappearBody = pageSource.slice(pageSource.lastIndexOf('.bindSheet('))
+    .match(/onDisappear: \(\) => \{([^}]*)\}/)[1];
+  const owner = { showSheet: true, sheetMode: 7 };
+  const runCallback = body => vm.runInNewContext(`(function () {${body}}).call(owner)`, { owner, SHEET_NONE: 0 });
+  runCallback(closeBody);
+  assert.equal(owner.showSheet, false);
+  assert.equal(owner.sheetMode, 7, 'closing keeps the content and height stable during the exit transition');
+  runCallback(disappearBody);
+  assert.equal(owner.sheetMode, 0, 'content is cleared after the sheet has disappeared');
   console.log('PASS: atomic global bridge/transaction flow, rejection/rollback/unknown, all generation paths, stale-start rebuild and inert draft/editor recovery');
 })().catch(error => { console.error(error); process.exitCode = 1; });
