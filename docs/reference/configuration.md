@@ -69,6 +69,6 @@ Go 异步读者须用 `FileStore.AcquireReadLease` 覆盖读取生命周期；�
 
 每次启动的系统配置和 `HOST_SETTINGS` 来自同一份主进程已确认快照；VPN Extension 不跨进程重用 Preferences 缓存。启动后的偏好修改留到后续连接，设置中的“重连应用”须确认中断，取消、切页或旧会话确认不能重启新连接。
 
-配置事务持有 Controller 发布门禁以阻止新连接越过在途操作，停止仍可立即取消旧代次。apply、commit 与 rollback 的完成边界重新核对会话及操作身份；HTTP payload 携带 expectedSession，服务端在应用前核对，旧回滚不能作用于新内核。已发布后才发现会话变化时保留真实指针并进入 unknown，不报告 applied 或盲目覆盖新会话。
+配置事务持有 Controller 发布门禁以阻止新连接越过在途操作，停止仍可立即取消旧代次。apply、commit 与 rollback 的完成边界重新核对会话及操作身份；HTTP payload 携带 expectedSession，服务端在应用前核对，旧回滚不能作用于新内核。已发布后才发现会话变化时保留真实指针并进入 unknown，不报告 applied 或盲目覆盖新会话。 Smart 偏好与版本发布结果共同对账：仅确认未发布且旧指针未变时恢复旧偏好；已发布或发布结果无法确认时保留候选偏好，不将控制面 unknown 当作未提交。重命名前先检查全部目标侧车、草稿与元数据，拒绝碰撞后不得移动或覆盖任一来源资料。
 
 完整来源上限 15 MiB，生成 YAML 上限 16 MiB。Controller JSON 传输限额独立计入包装和最坏转义，解码后仍严格限制 YAML 字节；worker 请求亦有独立有界传输限制，不静默截断。文件导入读取用 BoundedFileReader，写入用 `ProfileStore.importContentAsync` 的有界异步短写循环及原子移动。

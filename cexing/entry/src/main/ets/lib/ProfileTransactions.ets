@@ -31,6 +31,8 @@ export interface PreviousVersionPreview {
   smartPolicyChanged: boolean;
 }
 
+interface SmartPublication { committed: boolean; unresolved: boolean; expected?: string; }
+
 export namespace ProfileTransactions {
   let busy = false;
   let uncertain = false;
@@ -91,14 +93,31 @@ export namespace ProfileTransactions {
     markUnknown(context);
   }
 
+  async function rollbackSmartPreference(context: common.Context, previous: boolean,
+    publication: SmartPublication): Promise<void> {
+    // Runtime uncertainty and pointer publication are different facts. Only a
+    // confirmed unpublished pointer permits restoring the old preference.
+    if (publication.committed || publication.unresolved) { return; }
+    if (publication.expected !== undefined) {
+      try {
+        if ((EffectiveVersions.read(context)?.Current?.ID ?? '') !== publication.expected) {
+          markUnknown(context); return;
+        }
+      } catch (_) { markUnknown(context); return; }
+    }
+    try { await Settings.setSmartAutoConvert(context, previous); }
+    catch (_) { markUnknown(context); }
+  }
+
   async function publish(context: common.Context, file: string, original: string,
     overlay: string, metadata: string, select: boolean,
     isCurrent?: (published?: boolean) => boolean, regionOverride?: RegionPlan | null,
     globalOverride?: string, intentOverride?: EditIntent | null, expectedDigest?: string,
-    guard?: (published: boolean) => Promise<void>): Promise<ProfileApplyState> {
+    guard?: (published: boolean) => Promise<void>, smartPublication?: SmartPublication): Promise<ProfileApplyState> {
     const epoch = VpnController.configurationEpoch();
     const state = EffectiveVersions.read(context);
     const expected = state?.Current?.ID ?? '';
+    if (smartPublication !== undefined) { smartPublication.expected = expected; }
     const live = select ? await running(context) : false;
     const session = live ? await CoreApi.getControllerSession() : null;
     if (live && (session === null || epoch !== VpnController.configurationEpoch())) { markUnknown(context); throw new Error('应用未确认，请重连恢复'); }
@@ -141,19 +160,27 @@ export namespace ProfileTransactions {
       if (guard !== undefined) { await guard(false); }
       if (!current()) { throw new Error('更新已取消'); }
       if (!(await sameSession())) { markUnknown(context); throw new Error('应用未确认，请重连恢复'); }
+      if (smartPublication !== undefined) { smartPublication.unresolved = true; }
       try {
         await EffectiveVersions.commit(context, staged.version, expected, select, globalOverride);
         published = true;
+        if (smartPublication !== undefined) { smartPublication.committed = true; smartPublication.unresolved = false; }
       } catch (e) {
         let after: EffectiveState | null = null;
         try { after = EffectiveVersions.read(context); }
         catch (_) { markUnknown(context); throw new Error('版本发布结果未知，请断开 VPN 后检查'); }
         const actual = select ? after?.Current?.ID : after?.Profiles[file]?.ID;
-        if (actual === staged.version.ID) { published = true; }
+        if (actual === staged.version.ID) {
+          published = true;
+          if (smartPublication !== undefined) { smartPublication.committed = true; smartPublication.unresolved = false; }
+        }
         else if ((after?.Current?.ID ?? '') !== expected) {
           markUnknown(context);
           throw new Error('版本发布结果未知，请断开 VPN 后检查');
-        } else { throw new Error((e as Error).message); }
+        } else {
+          if (smartPublication !== undefined) { smartPublication.unresolved = false; }
+          throw new Error((e as Error).message);
+        }
       }
       if (guard !== undefined) {
         try { await guard(true); } catch (_) { markUnknown(context); throw new Error('应用未确认，请重连恢复'); }
@@ -168,11 +195,11 @@ export namespace ProfileTransactions {
       if (!(await sameSession()) || !current(true)) { markUnknown(context); throw new Error('应用未确认，请重连恢复'); }
       return live ? 'applied' : 'saved';
     } catch (e) {
-      if (applied && !published && !ProfileStore.isApplyUncertain(context)) {
+      if (applied && !published && !uncertain && !ProfileStore.isApplyUncertain(context)) {
         if (await sameSession()) { await restore(context, previous, session ?? '', sameSession); }
         else { markUnknown(context); }
       }
-      if (!ProfileStore.isApplyUncertain(context)) {
+      if (!published && !uncertain && !ProfileStore.isApplyUncertain(context)) {
         try { await EffectiveVersions.discard(context, staged.version, expected); } catch (_) {}
       }
       throw new Error(ProfileStore.isApplyUncertain(context) ? '应用未确认，请重连恢复' : (e as Error).message);
@@ -279,6 +306,7 @@ export namespace ProfileTransactions {
     enter(context);
     const smart = Settings.load(context).smartAutoConvert;
     let preferenceChanged = false;
+    const publication: SmartPublication = { committed: false, unresolved: false };
     try {
       const state = EffectiveVersions.read(context);
       const previous = state?.Previous;
@@ -297,11 +325,10 @@ export namespace ProfileTransactions {
       await Settings.setSmartAutoConvert(context, EffectiveVersions.smartConversion(context, previous));
       preferenceChanged = true;
       return await publish(context, previous.ProfileID, original, overlay, meta, true,
-        undefined, region, globalMerge, EffectiveVersions.editIntent(context, previous));
+        undefined, region, globalMerge, EffectiveVersions.editIntent(context, previous), undefined, undefined, publication);
     } catch (e) {
       if (preferenceChanged) {
-        try { await Settings.setSmartAutoConvert(context, smart); }
-        catch (_) { markUnknown(context); }
+        await rollbackSmartPreference(context, smart, publication);
       }
       throw new Error(ProfileStore.isApplyUncertain(context) ? '应用未确认，请重连恢复' : (e as Error).message);
     } finally { leave(); }
@@ -469,6 +496,7 @@ export namespace ProfileTransactions {
     enabled: boolean): Promise<ProfileApplyState> {
     enter(context);
     const previous = Settings.load(context).smartAutoConvert;
+    const publication: SmartPublication = { committed: false, unresolved: false };
     try {
       await Settings.setSmartAutoConvert(context, enabled);
       const file = ProfileStore.getActiveFile(context);
@@ -476,10 +504,10 @@ export namespace ProfileTransactions {
       const original = ProfileStore.getProfileContent(context, file);
       if (original === null) { throw new Error('当前配置不存在或读取失败'); }
       return await publish(context, file, ProfileStore.prepareContent(original),
-        ProfileStore.getEnabledMerge(context, file), metadata(context, file), true);
+        ProfileStore.getEnabledMerge(context, file), metadata(context, file), true,
+        undefined, undefined, undefined, undefined, undefined, undefined, publication);
     } catch (e) {
-      try { await Settings.setSmartAutoConvert(context, previous); }
-      catch (_) { markUnknown(context); }
+      await rollbackSmartPreference(context, previous, publication);
       throw new Error((e as Error).message);
     } finally { leave(); }
   }
