@@ -6,20 +6,33 @@ import { VpnController, VpnStatus } from '../lib/VpnController';
 
 @Component
 export struct ResourceRecoveryPage {
+  @Prop @Watch('visibilityChanged') visible: boolean = true;
   @State resources: ResourceStatus[] = [];
   @State busy: boolean = false;
   @State message: string = '';
   private epoch: number = 0;
-  private visible: boolean = false;
+  private active: boolean = false;
   private cancellation: ResourceCancellation = { cancelled: false };
 
   aboutToAppear(): void {
-    this.visible = true;
-    this.refresh();
+    this.active = this.visible;
+    if (this.active) { this.refresh(); }
+  }
+
+  private visibilityChanged(): void {
+    if (this.active === this.visible) { return; }
+    if (this.visible) {
+      this.active = true;
+      this.refresh();
+    } else { this.suspend(); }
   }
 
   aboutToDisappear(): void {
-    this.visible = false;
+    this.suspend();
+  }
+
+  private suspend(): void {
+    this.active = false;
     this.epoch++;
     this.cancellation.cancelled = true;
     this.busy = false;
@@ -30,16 +43,16 @@ export struct ResourceRecoveryPage {
     this.busy = true;
     try {
       const resources = await ResourceRecovery.inspect(getContext(this) as common.UIAbilityContext);
-      if (this.visible && epoch === this.epoch) { this.resources = resources; }
+      if (this.active && epoch === this.epoch) { this.resources = resources; }
     } catch (_) {
-      if (this.visible && epoch === this.epoch) { this.message = '无法查看资源，请重试'; }
+      if (this.active && epoch === this.epoch) { this.message = '无法查看资源，请重试'; }
     } finally {
-      if (this.visible && epoch === this.epoch) { this.busy = false; }
+      if (this.active && epoch === this.epoch) { this.busy = false; }
     }
   }
 
   private async restore(id: RecoverableResource): Promise<void> {
-    if (this.busy || !this.visible) { return; }
+    if (this.busy || !this.active) { return; }
     const epoch = ++this.epoch;
     this.busy = true;
     this.message = '';
@@ -48,14 +61,14 @@ export struct ResourceRecoveryPage {
     try {
       await ResourceRecovery.restore(getContext(this) as common.UIAbilityContext, id,
         cancellation, () => VpnController.status === VpnStatus.Disconnected && !VpnController.needsStop());
-      if (!this.visible || epoch !== this.epoch) { return; }
+      if (!this.active || epoch !== this.epoch) { return; }
       this.message = '已恢复';
       const resources = await ResourceRecovery.inspect(getContext(this) as common.UIAbilityContext);
-      if (this.visible && epoch === this.epoch) { this.resources = resources; }
+      if (this.active && epoch === this.epoch) { this.resources = resources; }
     } catch (error) {
-      if (this.visible && epoch === this.epoch) { this.message = (error as Error).message; }
+      if (this.active && epoch === this.epoch) { this.message = (error as Error).message; }
     } finally {
-      if (this.visible && epoch === this.epoch) { this.busy = false; }
+      if (this.active && epoch === this.epoch) { this.busy = false; }
     }
   }
 

@@ -8,7 +8,7 @@ GeoData 从受信安装包读取；构建阶段 `prepare-geodata.py` 核验上�
 
 ## 页面接线契约
 
-UI 整合者导入 `ResourceRecoveryPage`，在高级设置提供“资源”入口，在对应 NavDestination 中渲染此组件。组件使用 `NativeTheme`；没有自行注册路由或更改 SettingsPage。列表显示状态与恢复操作，失败显示短反馈。重复点击、返回/重开和旧异步结果由页面 epoch 与服务队列保护。
+UI 整合者导入 `ResourceRecoveryPage`，在高级设置提供“资源”入口，在对应 NavDestination 中渲染此组件。传入 `visible` 状态，并在 NavDestination 的 onShown/onHidden 更新它，覆盖导航缓存与页面切换。组件使用 `NativeTheme`；没有自行注册路由或更改 SettingsPage。列表显示状态与恢复操作，失败显示短反馈。重复点击、返回/重开和旧异步结果由页面 epoch 与服务队列保护。
 
 GeoData 铺盘整合者可在既有资源准备处调用：
 

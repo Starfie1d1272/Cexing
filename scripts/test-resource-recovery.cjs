@@ -29,6 +29,13 @@ vm.runInNewContext(ts.transpileModule(source).outputText, sandbox);
   page.aboutToAppear(); await page.refresh();
   page.message = '新页面'; pending.resolve(); await operation;
   assert.equal(page.message, '新页面', 'old completion cannot update reopened page');
+  pending = deferred();
+  const hidden = page.restore('panel');
+  page.visible = false; page.visibilityChanged();
+  assert.equal(page.cancellation.cancelled, true);
+  page.visible = true; page.visibilityChanged(); await page.refresh();
+  page.message = '返回前台'; pending.resolve(); await hidden;
+  assert.equal(page.message, '返回前台', 'cached navigation hide invalidates old completion');
   pending = null;
   await page.restore('model'); assert.equal(page.message, '已恢复');
 
