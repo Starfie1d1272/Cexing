@@ -1,14 +1,8 @@
 /* Template UI owns a draft only. The host must use ProfileTransactions and the
  * existing effective version; it never writes settings or publishes YAML here. */
-import { RegionPlan } from './EffectiveVersions';
+import { TemplatePlan as EditorTemplatePlan } from './ConfigEditor';
 
-export interface TemplatePlan {
-  templateId: string;
-  version: number;
-  targetGroup?: string;
-  region?: RegionPlan;
-  replaceRules?: boolean;
-}
+export type TemplatePlan = EditorTemplatePlan;
 export interface TemplateInputs {
   groups: string[];
   selectors: string[];
@@ -18,13 +12,14 @@ export interface TemplatePreview {
   revision: string;
   digest: string;
   summary: string;
+  inactiveEdits?: boolean;
 }
 export interface TemplateWizardHost {
   load: () => Promise<TemplateInputs>;
   preview: (plan: TemplatePlan) => Promise<TemplatePreview>;
   // Verify revision AND digest against the latest original, both Merge layers,
   // settings and provider snapshot inside the existing transaction gate.
-  apply: (plan: TemplatePlan, preview: TemplatePreview) => Promise<string>;
+  apply: (plan: TemplatePlan, preview: TemplatePreview, confirmed?: boolean) => Promise<string>;
 }
 
 export interface TemplateWizardView {
@@ -129,7 +124,7 @@ export class TemplateWizardModel {
 
   async apply(confirmed: boolean = false): Promise<void> {
     if (!this.open || !this.ready || this.busy || this.preview === null) { return; }
-    if (this.templateId === 'automatic' && !confirmed) { return; }
+    if ((this.templateId === 'automatic' || this.preview.inactiveEdits === true) && !confirmed) { return; }
     const epoch = ++this.epoch;
     const preview = this.preview;
     const plan = this.plan();
@@ -137,7 +132,7 @@ export class TemplateWizardModel {
     this.error = '';
     this.emit();
     try {
-      const result = await this.host.apply(plan, preview);
+      const result = await this.host.apply(plan, preview, confirmed);
       if (!this.current(epoch)) { return; }
       this.inputs.current = plan;
       this.result = result;
