@@ -655,6 +655,14 @@
     {
       "name": "resource_restore_name",
       "value": "恢复%s"
+    },
+    {
+      "name": "nav_profile_merge",
+      "value": "本订阅覆写"
+    },
+    {
+      "name": "nav_generated",
+      "value": "生成配置"
     }
   ]
 }

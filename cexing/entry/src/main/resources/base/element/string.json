@@ -679,6 +679,14 @@
     {
       "name": "resource_restore_name",
       "value": "Restore %s"
+    },
+    {
+      "name": "nav_profile_merge",
+      "value": "Subscription overrides"
+    },
+    {
+      "name": "nav_generated",
+      "value": "Generated configuration"
     }
   ]
 }

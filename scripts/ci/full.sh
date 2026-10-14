@@ -12,6 +12,7 @@ rm -f cexing/entry/build/default/outputs/default/entry-default-unsigned.hap
 source scripts/env.sh
 python3 scripts/ci/check-toolchain.py
 node scripts/ci/source-check.cjs
+python3 scripts/ci/test-private-stderr.py
 if [ -f third_party/zashboard/source.json ]; then
   python3 scripts/ci/timed.py zashboard bash scripts/ci/prepare-zashboard.sh
 fi
