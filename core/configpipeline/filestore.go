@@ -70,6 +70,9 @@ func (s FileStore) Load(ctx context.Context) (Snapshot, error) {
 	return state, nil
 }
 func (s FileStore) Stage(ctx context.Context, r Result) (Version, error) {
+	if err := CheckEditIntent(r.EditIntent); err != nil {
+		return Version{}, err
+	}
 	if err := ctx.Err(); err != nil {
 		return Version{}, err
 	}
@@ -106,7 +109,8 @@ func (s FileStore) Stage(ctx context.Context, r Result) (Version, error) {
 		SmartConversion bool
 		RegionPlan      *RegionPlan
 		GlobalMerge     string
-	}{r.Original, r.Overlays, r.Digest, r.ProfileID, r.Metadata, r.SmartConversion, r.RegionPlan, r.GlobalMerge})
+		EditIntent      *EditIntent `json:",omitempty"`
+	}{r.Original, r.Overlays, r.Digest, r.ProfileID, r.Metadata, r.SmartConversion, r.RegionPlan, r.GlobalMerge, r.EditIntent})
 	if err != nil {
 		return Version{}, err
 	}

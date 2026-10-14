@@ -4,6 +4,7 @@ import { fileIo } from '@kit.CoreFileKit';
 import core from 'libentry.so';
 import { Settings } from './Settings';
 import { MergePreview } from './CoreValidator';
+import { EditIntent } from './ConfigEditor';
 
 export interface EffectiveVersion { ID: string; Path: string; ProfileID: string; }
 export interface EffectiveState {
@@ -32,6 +33,7 @@ export interface RegionPreview {
 }
 interface VersionRequest {
   op: string;
+  editIntent?: EditIntent | null;
   profileId?: string;
   original?: string;
   overlay?: string;
@@ -127,6 +129,23 @@ export namespace EffectiveVersions {
     return plan ?? null;
   }
 
+  /** Missing legacy provenance means no structured edits. Drafts are never read here. */
+  export function editIntent(context: common.Context, version: EffectiveVersion): EditIntent | null {
+    check(context, version);
+    const source = JSON.parse(fileIo.readTextSync(
+      `${context.filesDir}/profile-versions/${version.ID}/source.json`)) as Record<string, Object>;
+    const intent = source['EditIntent'] as EditIntent | null;
+    if (intent === undefined || intent === null) { return null; }
+    if (intent.schemaVersion !== 1 || typeof intent.revision !== 'string' ||
+      intent.revision.length === 0 || !Array.isArray(intent.operations)) { throw new Error('编辑意图损坏'); }
+    return intent;
+  }
+
+  export async function checkIntent(context: common.Context, intent: EditIntent | null,
+    expected: string): Promise<void> {
+    await call(context, { op: 'edit-check', editIntent: intent, expected: expected });
+  }
+
   async function call(context: common.Context, action: VersionRequest): Promise<Record<string, Object>> {
     const result = await core.versionAction(context.filesDir, JSON.stringify(action));
     try {
@@ -138,14 +157,14 @@ export namespace EffectiveVersions {
 
   export async function stage(context: common.Context, profileId: string, original: string,
     overlay: string, metadata: string, expected: string,
-    regionPlan: RegionPlan | null, globalMerge?: string): Promise<StagedVersion> {
+    regionPlan: RegionPlan | null, globalMerge?: string, editIntent?: EditIntent | null): Promise<StagedVersion> {
     const s = Settings.load(context);
     const overrides = JSON.stringify({ mixedPort: s.mixedPort, logLevel: s.logLevel,
-      allowLan: s.allowLan, mode: s.mode, logToFile: s.logToFile });
+      allowLan: s.allowLan, ipv6: s.ipv6, mode: s.mode, logToFile: s.logToFile });
     const result = await call(context, { op: 'stage', profileId: profileId, original: original,
       overlay: overlay, metadata: metadata, expected: expected, overrides: overrides,
       smartConversion: s.smartAutoConvert, regionPlan: regionPlan,
-      globalMerge: globalMerge, updateGlobal: globalMerge !== undefined });
+      globalMerge: globalMerge, updateGlobal: globalMerge !== undefined, editIntent: editIntent });
     const version = result['version'] as EffectiveVersion;
     if (version === undefined) { throw new Error('暂存配置失败'); }
     check(context, version);
@@ -153,14 +172,14 @@ export namespace EffectiveVersions {
   }
 
   export async function previewMerge(context: common.Context, original: string,
-    overlay: string, regionPlan: RegionPlan | null, globalMerge?: string): Promise<MergePreview> {
+    overlay: string, regionPlan: RegionPlan | null, globalMerge?: string, editIntent?: EditIntent | null): Promise<MergePreview> {
     const s = Settings.load(context);
     const overrides = JSON.stringify({ mixedPort: s.mixedPort, logLevel: s.logLevel,
-      allowLan: s.allowLan, mode: s.mode, logToFile: s.logToFile });
+      allowLan: s.allowLan, ipv6: s.ipv6, mode: s.mode, logToFile: s.logToFile });
     const result = await call(context, { op: 'merge-preview', original: original,
       overlay: overlay, regionPlan: regionPlan, smartConversion: s.smartAutoConvert,
       expected: read(context)?.Current?.ID ?? '', overrides: overrides,
-      globalMerge: globalMerge, updateGlobal: globalMerge !== undefined });
+      globalMerge: globalMerge, updateGlobal: globalMerge !== undefined, editIntent: editIntent });
     const preview = result['mergePreview'] as MergePreview;
     if (preview === undefined || typeof preview.digest !== 'string' || !Array.isArray(preview.changes)) {
       throw new Error('覆写未通过本机校验或资源未解析');
@@ -169,9 +188,9 @@ export namespace EffectiveVersions {
   }
 
   export async function previewRegion(context: common.Context, original: string,
-    overlay: string, plan: RegionPlan): Promise<RegionPreview> {
+    overlay: string, plan: RegionPlan, editIntent?: EditIntent | null): Promise<RegionPreview> {
     const result = await call(context, { op: 'region-preview', original: original,
-      overlay: overlay, regionPlan: plan, expected: read(context)?.Current?.ID ?? '' });
+      overlay: overlay, regionPlan: plan, editIntent: editIntent, expected: read(context)?.Current?.ID ?? '' });
     const preview = result['regionPreview'] as RegionPreview;
     if (preview === undefined || !Array.isArray(preview.selectors)) {
       throw new Error('地区策略预览失败');
@@ -183,7 +202,7 @@ export namespace EffectiveVersions {
     expected: string, globalMerge?: string): Promise<string> {
     const s = Settings.load(context);
     const overrides = JSON.stringify({ mixedPort: s.mixedPort, logLevel: s.logLevel,
-      allowLan: s.allowLan, mode: s.mode, logToFile: s.logToFile });
+      allowLan: s.allowLan, ipv6: s.ipv6, mode: s.mode, logToFile: s.logToFile });
     const result = await call(context, { op: 'verify', versionId: version.ID,
       expected: expected, overrides: overrides,
       globalMerge: globalMerge, updateGlobal: globalMerge !== undefined });

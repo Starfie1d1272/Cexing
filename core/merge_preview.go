@@ -46,11 +46,18 @@ func compilePinnedMergeWithStrategies(home, original, overlay, overrides string,
 }
 
 func compileLayeredMerge(home, original, global, overlay, overrides string, smartConversion bool,
-	region *configpipeline.RegionPlan) (configpipeline.Result, string, error) {
+	region *configpipeline.RegionPlan, intents ...*configpipeline.EditIntent) (configpipeline.Result, string, error) {
+	var intent *configpipeline.EditIntent
+	if len(intents) > 0 {
+		intent = intents[0]
+	}
 	var resolvedRegion *configpipeline.RegionPlan
 	if region != nil && !region.Disabled {
 		root, err := configpipeline.LayeredMergeSource([]byte(original), []byte(global), []byte(overlay))
 		if err != nil {
+			return configpipeline.Result{}, "", err
+		}
+		if err := configpipeline.ApplyEditIntent(context.Background(), root, intent); err != nil {
 			return configpipeline.Result{}, "", err
 		}
 		members, err := regionProviderNames(home, root)
@@ -122,7 +129,8 @@ func compileLayeredMerge(home, original, global, overlay, overrides string, smar
 	}
 	result, err := (configpipeline.Compiler{Platform: project, Validate: validator}).Compile(
 		context.Background(), configpipeline.Request{Original: []byte(original), Overlays: overlays,
-			Strategy: strategy, Previous: []byte(original)})
+			Strategy: strategy, Intent: intent, Previous: []byte(original)})
+	result.EditIntent = intent
 	return result, receipt, err
 }
 
@@ -130,10 +138,15 @@ func previewRegion(home, original, overlay string, plan configpipeline.RegionPla
 	return previewLayeredRegion(home, original, "", overlay, plan)
 }
 
-func previewLayeredRegion(home, original, global, overlay string, plan configpipeline.RegionPlan) (configpipeline.RegionPreview, error) {
+func previewLayeredRegion(home, original, global, overlay string, plan configpipeline.RegionPlan, intents ...*configpipeline.EditIntent) (configpipeline.RegionPreview, error) {
 	root, err := configpipeline.LayeredMergeSource([]byte(original), []byte(global), []byte(overlay))
 	if err != nil {
 		return configpipeline.RegionPreview{}, err
+	}
+	if len(intents) > 0 {
+		if err := configpipeline.ApplyEditIntent(context.Background(), root, intents[0]); err != nil {
+			return configpipeline.RegionPreview{}, err
+		}
 	}
 	providers, err := regionProviderNames(home, root)
 	if err != nil {

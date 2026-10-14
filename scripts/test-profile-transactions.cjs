@@ -16,6 +16,7 @@ const state = { Current: { ID: 'version-old', Path: '/versions/old', ProfileID: 
 state.Profiles['old.yaml'] = state.Current;
 let id = 0;
 let response = 'applied';
+let responses = [];
 let session = 'synthetic-session';
 let resolveApply;
 let pending = false;
@@ -40,13 +41,14 @@ const core = { CoreApi: {
   selectProxy: async (_, name) => { if (selectAccepted) currentProxyChoice = name; return selectAccepted; },
   applyConfigText: async () => {
     applies++;
-    const result = pending ? await new Promise(resolve => { resolveApply = resolve; }) : response;
+    const result = pending ? await new Promise(resolve => { resolveApply = resolve; }) : (responses.shift() ?? response);
     if (result === 'applied' && reloadFallbackChoice !== '') { currentProxyChoice = reloadFallbackChoice; }
     return result;
   }
 } };
 const versions = { EffectiveVersions: {
   read: () => state,
+  editIntent: () => null,
   smartConversion: () => smartCurrent,
   original: (_, version) => originals[version.ProfileID],
   overlay: () => '',
@@ -263,6 +265,14 @@ const tx = context.exports.ProfileTransactions;
   await assert.rejects(tx.restorePrevious({}, rejectedRestore.currentId, rejectedRestore.previousId), /拒绝/);
   assert.equal(state.Current.ID, rejectId, 'rejected restore preserves the current pointer');
   response = 'applied';
+  responses = ['applied', 'unknown']; failCommit = true;
+  const beforeRollbackFailure = state.Current.ID;
+  await assert.rejects(tx.update({}, 'old.yaml'), /应用未确认/);
+  assert.equal(state.Current.ID, beforeRollbackFailure);
+  await assert.rejects(tx.activate({}, 'new.yaml'), /重连恢复/);
+  failCommit = false; controller.VpnController.status = 0; uncertain = false;
+  await tx.activate({}, 'old.yaml');
+  controller.VpnController.status = 2;
   pending = true;
   const priorSessionVersion = state.Current.ID;
   const oldResult = tx.update({}, 'old.yaml');

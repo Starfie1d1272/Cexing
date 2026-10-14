@@ -51,6 +51,7 @@ type Change struct {
 	After   int    `json:"after"`
 }
 type Result struct {
+	EditIntent      *EditIntent
 	Original        []byte
 	Overlays        [][]byte
 	GlobalMerge     string
@@ -136,7 +137,7 @@ func (c Compiler) Compile(ctx context.Context, r Request) (Result, error) {
 		return Result{}, err
 	}
 	sum := sha256.Sum256(output)
-	result := Result{Original: append([]byte(nil), r.Original...), YAML: output, Digest: hex.EncodeToString(sum[:])}
+	result := Result{EditIntent: r.Intent, Original: append([]byte(nil), r.Original...), YAML: output, Digest: hex.EncodeToString(sum[:])}
 	for _, b := range r.Overlays {
 		result.Overlays = append(result.Overlays, append([]byte(nil), b...))
 	}
