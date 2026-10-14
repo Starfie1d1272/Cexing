@@ -30,8 +30,7 @@ rules: ["MATCH,Main"]
 		t.Fatal(err)
 	}
 	intent := &configpipeline.EditIntent{SchemaVersion: 1, Revision: "private-draft", SourceRevision: view.SourceRevision, Operations: []configpipeline.EditOperation{{ID: "port", Kind: "update", Section: "proxies", Target: id, Preconditions: map[string]string{"port": target.Item.Fields["port"]}, Patch: json.RawMessage(`{"port":1081}`)}}}
-	data, _ := json.Marshal(intent)
-	action := versionAction{Op: "stage", ProfileID: "synthetic.yaml", Original: original, Metadata: `{}`, EditIntent: data}
+	action := versionAction{Op: "stage", ProfileID: "synthetic.yaml", Original: original, Metadata: `{}`, EditIntent: intent}
 	staged, err := executeVersionAction(home, action)
 	if err != nil {
 		t.Fatal(err)
@@ -61,7 +60,7 @@ rules: ["MATCH,Main"]
 		t.Fatal("unrelated source update must rebase", err)
 	}
 	action.Original = strings.Replace(original, "port: 1080", "port: 2080", 1)
-	if _, err = executeVersionAction(home, action); err == nil {
+	if result, e := executeVersionAction(home, action); e == nil && result.Error == "" {
 		t.Fatal("same-field update conflict accepted")
 	}
 	state, err := executeVersionAction(home, versionAction{Op: "read"})
@@ -69,8 +68,13 @@ rules: ["MATCH,Main"]
 		t.Fatal("failed compile changed pointer", err)
 	}
 	action.Op = "edit-check"
-	action.EditIntent = json.RawMessage(`{"schemaVersion":1,"revision":"r","sourceRevision":"s","operations":[],"unknown":true}`)
-	if _, err = executeVersionAction(home, action); err == nil || err.Error() != "EDIT_INTENT_INVALID" {
-		t.Fatal("unknown field accepted", err)
+	rawAction, _ := json.Marshal(action)
+	var request map[string]any
+	json.Unmarshal(rawAction, &request)
+	request["editIntent"] = json.RawMessage(`{"schemaVersion":1,"revision":"r","sourceRevision":"s","operations":[],"unknown":true}`)
+	rawAction, _ = json.Marshal(request)
+	response := coreVersionAction(home, string(rawAction))
+	if !strings.Contains(response, "EDIT_INTENT_FAILED") {
+		t.Fatal("unknown field accepted", response)
 	}
 }

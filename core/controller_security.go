@@ -266,7 +266,7 @@ func validateProviderPath(path string) error {
 		return unsafe
 	}
 	parts := strings.Split(rel, string(filepath.Separator))
-	if parts[0] == "controller-security" || parts[0] == "diagnostics" || parts[0] == "ui" ||
+	if parts[0] == "backups" || parts[0] == "profiles" || parts[0] == "profile-versions" || parts[0] == "controller-security" || parts[0] == "diagnostics" || parts[0] == "ui" ||
 		strings.HasPrefix(parts[0], "zashboard-staging-") || strings.HasPrefix(parts[0], "zashboard-quarantine-") {
 		return unsafe
 	}

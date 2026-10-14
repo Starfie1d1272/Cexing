@@ -334,7 +334,7 @@ dns:
 		}
 		for _, section := range []string{"proxy-providers", "rule-providers"} {
 			for _, kind := range []string{"http", "file"} {
-				for _, path := range []string{"controller-security", controllerSecretFile, "cache/../" + controllerSecretFile, secretPath, filepath.Dir(secretPath), "provider-alias/secret", aliasFile, "../outside.yaml"} {
+				for _, path := range []string{"backups/backup-import-test.json", "profiles/meta.json", "profile-versions/state.json", "controller-security", controllerSecretFile, "cache/../" + controllerSecretFile, secretPath, filepath.Dir(secretPath), "provider-alias/secret", aliasFile, "../outside.yaml"} {
 					provider := map[string]any{"type": kind, "path": path, "url": "http://127.0.0.1:1/synthetic", "behavior": "domain", "format": "yaml"}
 					text, _ := yaml.Marshal(map[string]any{"mixed-port": 0, "dns": map[string]any{"enable": false}, section: map[string]any{"synthetic": provider}})
 					body, _ := json.Marshal(map[string]string{"payload": string(text)})

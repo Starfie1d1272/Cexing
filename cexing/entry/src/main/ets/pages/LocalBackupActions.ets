@@ -24,6 +24,9 @@ export struct LocalBackupActions {
     }
     this.active = false; this.generation++; this.working = false; }
   private onVisibilityChanged(): void {
+    if (this.pending !== null && this.restoring !== this.generation && (this.tab !== 2 || !this.rootVisible)) {
+      LocalBackup.cancel(getContext(this) as common.UIAbilityContext, this.pending).catch(() => {}); this.pending = null;
+    }
     this.generation++; this.working = false; this.active = this.tab === 2 && this.rootVisible;
   }
   private current(generation: number): boolean {

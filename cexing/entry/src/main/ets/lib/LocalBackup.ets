@@ -58,9 +58,7 @@ export namespace LocalBackup {
   }
 
   export async function cancel(context: common.Context, preview: BackupResult): Promise<void> {
-    await ProfileTransactions.backupWork(context, false, async () => {
-      await BackupJournal.call(context, JSON.stringify({ op: 'backup-finish', backupToken: preview.token }));
-    });
+    await BackupJournal.call(context, JSON.stringify({ op: 'backup-finish', backupToken: preview.token }));
   }
 
   /** The confirmation describes settings changes and, when needed, interruption. */

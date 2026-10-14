@@ -337,7 +337,7 @@ func backupManifestFromStore(home string, prior configpipeline.Snapshot, prefs p
 					Dialect, SourceVersion, Content string
 					Enabled                         bool
 				}
-				if decodeBackupJSON(raw, &merge) != nil {
+				if decodeBackupJSON(raw, &merge) != nil || merge.Dialect != "clash-verge-merge-2.5.8" {
 					root.Close()
 					return result, errors.New("BACKUP_SOURCE_INVALID")
 				}
@@ -369,6 +369,12 @@ func loadBackupPlan(root *os.Root, token string) (backupPlan, error) {
 	raw, err := backupRead(root, token+"/plan.json", 2*1024*1024)
 	if err != nil || decodeBackupJSON(raw, &plan) != nil || plan.SchemaVersion != 1 || !validPortable(plan.Preferences) || len(plan.Versions) != len(plan.Receipts) || len(plan.Versions) > 128 {
 		return plan, errors.New("BACKUP_INVALID")
+	}
+	for _, v := range plan.Versions {
+		if !strings.HasPrefix(v.ID, "version-") || filepath.Base(v.ID) != v.ID || !profileIDPattern.MatchString(v.ProfileID) ||
+			v.Path != filepath.Join(filepath.Dir(root.Name()), "profile-versions", v.ID, "config.yaml") || plan.Target.Profiles[v.ProfileID].ID != v.ID {
+			return backupPlan{}, errors.New("BACKUP_INVALID")
+		}
 	}
 	return plan, nil
 }

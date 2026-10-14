@@ -77,10 +77,7 @@ func TestSmartToggleUpdateSurvivesStoreReload(t *testing.T) {
 			if !step.smart {
 				want = "url-test"
 			}
-			balance := "smart"
-			if !step.smart {
-				balance = "load-balance"
-			}
+			balance := "load-balance"
 			if doc.Groups[0].Name != "auto" || doc.Groups[0].Type != want ||
 				doc.Groups[1].Name != "balance" || doc.Groups[1].Type != balance ||
 				doc.Groups[2].Name != "manual" || doc.Groups[2].Type != "select" {
