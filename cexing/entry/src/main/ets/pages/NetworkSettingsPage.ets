@@ -7,7 +7,7 @@ import { NativeTheme as UI } from './NativeTheme';
 import { common } from '@kit.AbilityKit';
 import { promptAction } from '@kit.ArkUI';
 import { Settings } from '../lib/Settings';
-import { buildVpnApplicationPolicy, validVpnBundleName } from '../lib/VpnController';
+import { buildVpnApplicationPolicy, validVpnBundleName, vpnRouteExceptions } from '../lib/VpnController';
 
 const ACCESS_MODES: string[] = ['全部应用', '仅选中应用', '排除选中应用'];
 const ACCESS_VALUES: string[] = ['all', 'white', 'black'];
@@ -22,6 +22,7 @@ export struct NetworkSettingsPage {
   private pageActive: boolean = false;
   @State ready: boolean = false;
   private saveGeneration: number = 0;
+  @State showRouteDetails: boolean = false;
 
   aboutToAppear(): void {
     this.pageActive = true;
@@ -39,7 +40,7 @@ export struct NetworkSettingsPage {
     });
   }
 
-  aboutToDisappear(): void { this.pageActive = false; this.saveGeneration++; }
+  aboutToDisappear(): void { this.pageActive = false; this.saveGeneration++; this.cancelAddPackage(); this.showRouteDetails = false; }
 
   private readSettings(): void {
     const context = getContext(this) as common.UIAbilityContext;
@@ -157,6 +158,21 @@ export struct NetworkSettingsPage {
     .borderRadius(24)
   }
 
+  @Builder
+  RouteDetails() {
+    Column({ space: 12 }) {
+      Text('系统路由例外').fontSize(17).fontWeight(FontWeight.Medium).fontColor(UI.ink)
+      Text('以下地址直接使用当前网络，匹配的流量不进入 VPN。')
+        .fontSize(13).fontColor(UI.muted).width('100%')
+      ForEach(vpnRouteExceptions(), (cidr: string) => {
+        Text(cidr).fontSize(14).fontColor(UI.ink).width('100%')
+      }, (cidr: string) => cidr)
+      Text('每次连接自动恢复默认例外。').fontSize(13).fontColor(UI.muted).width('100%')
+      Button('完成').width('100%').height(48).backgroundColor(UI.action).fontColor(UI.onAccent)
+        .onClick(() => { this.showRouteDetails = false; })
+    }.padding(20).backgroundColor(UI.surface)
+  }
+
   build() {
     Scroll() {
       Column({ space: 16 }) {
@@ -270,6 +286,9 @@ export struct NetworkSettingsPage {
         .backgroundColor(UI.surface)
         .borderRadius(24)
 
+        Button('系统路由例外').height(48).width('100%').backgroundColor(UI.soft).fontColor(UI.ink)
+          .onClick(() => { this.showRouteDetails = true; })
+
         Text('手动输入应用包名 · 本应用始终直连')
           .fontSize(13)
           .fontColor(UI.muted)
@@ -280,6 +299,7 @@ export struct NetworkSettingsPage {
       .padding({ left: 24, right: 24, top: 8 })
     }
     .width('100%').height('100%').enabled(this.ready).backgroundColor(UI.paper).constraintSize({ maxWidth: 760 }).alignSelf(ItemAlign.Center)
+    .bindSheet($$this.showRouteDetails, this.RouteDetails(), { height: SheetSize.MEDIUM })
     .bindSheet($$this.showAddDialog, this.AddPkgDialog(), { height: SheetSize.MEDIUM })
   }
 }

@@ -24,3 +24,24 @@ IPv4 始终保留；IPv6-only 接入网络不是删除系统 IPv4 地址的理�
 配置模块接线契约：CoreValidator.settingsOverrides 与 EffectiveVersions.stage/previewMerge/verify 的现有 overrides 加入 `ipv6: s.ipv6`。这是唯一布尔字段，不携带网络地址或凭据；没有该字段的断开态配置校验按 IPv4-only 处理。连接中仍以 Go 的系统会话快照为准。接线由这些共享文件的所有者完成。
 
 同平台[NekoBox4Harmony 固定提交](https://github.com/xiaoli8571/NekoBox4Harmony/blob/8c4c646aba97e968c0a43c718bdb6bfa151e848a/entry/src/main/ets/vpnext/VpnExtAbility.ets)也将平台 IPv4/IPv6 地址与进程保护配套；仅参考其设计，不复制源码。TUN 选项依据仓库锁定的 Mihomo/sing-tun 声明独立实现。
+
+## HTTPDNS 例外与恢复默认
+
+生产系统路由例外仅由 VpnController 的单一表构造，不保存用户自定义路由；每次连接重新构造默认表，因此无需增加无作用的恢复按钮。网络页按需打开“系统路由例外”才能看到明细。匹配地址的所有流量都绕过 TUN，不能声称只有 DNS 绕过或所有后续内容一定走代理。
+
+| CIDR | 历史来源与意图 | 逐项设备 A/B |
+|---|---|---|
+| 139.9.98.98/32 | 初始实现的 HTTPDNS 引导地址 | 未执行 |
+| 139.9.99.99/32 | 初始实现的 HTTPDNS 引导地址 | 未执行 |
+| 139.9.0.0/16 | 初始实现的 HTTPDNS/静默代理兼容范围；包含上两项 | 未执行 |
+| 49.4.0.0/16 | 初始实现的 HTTPDNS/静默代理兼容范围 | 未执行 |
+| 121.36.0.0/16 | 初始实现的 HTTPDNS/静默代理兼容范围 | 未执行 |
+| 125.88.0.0/16 | 初始实现的 HTTPDNS/静默代理兼容范围 | 未执行 |
+| 119.147.0.0/16 | 初始实现的 HTTPDNS/静默代理兼容范围 | 未执行 |
+| 183.61.0.0/16 | 初始实现的 HTTPDNS/静默代理兼容范围 | 未执行 |
+
+来源是仓库[初始提交 9647745](https://github.com/Starfie1d1272/Cexing/blob/964774595feab1c96382fb00f885cce5ca4a11bf/clash-openharmony/entry/src/main/ets/lib/VpnController.ets)中已有的表与注释；原注释称参考 FlClash，但没有逐项外部来源或逐项 A/B 记录，不能把该称谓当成独立实测。#92 历史浏览器成功是完整既有范围上的结果，无法判定其中某一项必要或冗余。
+
+云端纯夹具：`node scripts/test-vpn-routes.cjs --fixtures` 输出 IPv4-only/双栈各 8 组 baseline/candidate，candidate 每次仅省略一项；输出不是实际系统配置，也不会修改设置、设备或网络。生产调用只能使用默认表。移除 /32 时对应 /16 仍覆盖相同地址，夹具明确保留这种重叠，不把静态重叠作为允许改路由的证据。
+
+设备核验按 #92：在可恢复的专用测试包上逐项比较原表/省略一项，分别记录 Wi-Fi/蜂窝、ArkWeb HTTPS、系统浏览器、DNS UDP/TCP、匹配及未匹配地址的真实出口和连接稳定性。使用合成服务与脱敏结果；测试后重新连接默认构造表。不经设备证据收敛 /16，不以路由参数断言泄漏或无泄漏。

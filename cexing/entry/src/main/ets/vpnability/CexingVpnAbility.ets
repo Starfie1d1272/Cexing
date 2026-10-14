@@ -280,7 +280,7 @@ export default class CexingVpnAbility extends VpnExtensionAbility {
       this.diagnostic('configuration_prepare', 'started');
       const cfg: string = await this.buildCoreConfig();
       this.diagnostic('configuration_prepare', 'success');
-      // 用户覆写合并进内核配置：覆写项 > 订阅配置同名键（ipv6 只用于 VpnConfig，不传）
+      // 用户覆写合并进内核配置：覆写项 > 订阅配置同名键（IPv6 使用本次系统 TUN 快照）
       const hostSettings = want.parameters?.['HOST_SETTINGS'];
       if (typeof hostSettings !== 'string' || hostSettings.length > 4096) { throw new Error('启动设置未确认，请重新连接'); }
       const s = JSON.parse(hostSettings) as UserOverrides;
