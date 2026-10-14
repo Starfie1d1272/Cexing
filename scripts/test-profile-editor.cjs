@@ -123,6 +123,20 @@ function idle() { const pending = [...timers.values()]; timers.clear(); pending.
   failWrite = true; dirtyMerge.mergeText = 'retry override';
   dirtyMerge.closeMerge(); assert.equal(pops, 1, 'failed save keeps the explicit close action on page');
   assert.equal(merges.get('first.yaml'), 'keep changed override'); failWrite = false;
+  merges.set('first.yaml', 'previous override');
+  const systemBack = open(); systemBack.mergeOnly = true;
+  systemBack.mergeText = 'unsaved override after system back';
+  failWrite = true;
+  assert.equal(ProfileEditBus.shouldBlockBack(), true, 'production back guard blocks exit when either draft cannot be saved');
+  assert.equal(systemBack.mergeText, 'unsaved override after system back');
+  assert.equal(merges.get('first.yaml'), 'previous override');
+  failWrite = false;
+  assert.equal(ProfileEditBus.shouldBlockBack(), false, 'retrying system back after recovery persists the draft before exit');
+  systemBack.aboutToDisappear();
+  assert.equal(open().mergeText, 'unsaved override after system back');
+  const routeSource = fs.readFileSync(path.join(__dirname, '../cexing/entry/src/main/ets/pages/Index.ets'), 'utf8');
+  assert.equal((routeSource.match(/onBackPressed\(\(\) => ProfileEditBus\.shouldBlockBack\(\)\)/g) || []).length, 2,
+    'raw and direct merge NavDestinations both use the production return guard');
   const missing = open('missing.yaml'); await missing.save(); assert.equal(missing.loadFailed, true);
   console.log('PASS: large-text write coalescing, stable reactive seed, exact draft/save/copy, navigation flush, discard, recovery and save races');
 })().catch(error => { console.error(error); process.exitCode = 1; });
