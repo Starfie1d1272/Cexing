@@ -6,6 +6,7 @@ import { NativeTheme as UI } from './NativeTheme';
 import { common } from '@kit.AbilityKit';
 import { promptAction } from '@kit.ArkUI';
 import { Settings } from '../lib/Settings';
+import { buildVpnApplicationPolicy, validVpnBundleName } from '../lib/VpnController';
 
 const ACCESS_MODES: string[] = ['全部应用', '仅选中应用', '排除选中应用'];
 const ACCESS_VALUES: string[] = ['all', 'white', 'black'];
@@ -38,6 +39,33 @@ export struct NetworkSettingsPage {
 
   private changedHint(): void {
     promptAction.showToast({ message: '已保存，下次启动 VPN 生效', duration: 1500 });
+  }
+
+  private addPackage(): void {
+    if (!this.showAddDialog) { return; }
+    const pkg = this.inputPkg.trim();
+    const context = getContext(this) as common.UIAbilityContext;
+    if (!validVpnBundleName(pkg) || pkg === context.applicationInfo.name) {
+      promptAction.showToast({ message: '请输入其他应用的有效包名', duration: 1500 });
+      return;
+    }
+    if (this.accessList.indexOf(pkg) >= 0) {
+      promptAction.showToast({ message: '应用已添加', duration: 1500 });
+      return;
+    }
+    const next = [...this.accessList, pkg];
+    try { buildVpnApplicationPolicy(ACCESS_VALUES[this.accessIndex], next, context.applicationInfo.name); }
+    catch (e) { promptAction.showToast({ message: (e as Error).message, duration: 1500 }); return; }
+    this.accessList = next;
+    this.persist();
+    this.changedHint();
+    this.inputPkg = '';
+    this.showAddDialog = false;
+  }
+
+  private cancelAddPackage(): void {
+    this.inputPkg = '';
+    this.showAddDialog = false;
   }
 
   @Builder
@@ -83,20 +111,13 @@ export struct NetworkSettingsPage {
           .backgroundColor(UI.soft)
           .fontColor(UI.ink)
           .onClick(() => {
-            this.showAddDialog = false;
+            this.cancelAddPackage();
           })
         Button('添加')
           .height(48).backgroundColor(UI.action).fontColor(UI.onAccent)
           .layoutWeight(1)
           .onClick(() => {
-            const pkg = this.inputPkg.trim();
-            if (pkg.length > 0 && this.accessList.indexOf(pkg) < 0) {
-              this.accessList = [...this.accessList, pkg];
-              this.persist();
-              this.changedHint();
-            }
-            this.inputPkg = '';
-            this.showAddDialog = false;
+            this.addPackage();
           })
       }
       .width('100%')
@@ -159,6 +180,11 @@ export struct NetworkSettingsPage {
           .margin({ left: 14, right: 14, bottom: 8 })
 
           if (this.accessIndex > 0) {
+            if (this.accessIndex === 1 && this.accessList.filter((pkg: string) =>
+              validVpnBundleName(pkg) && pkg !== (getContext(this) as common.UIAbilityContext).applicationInfo.name).length === 0) {
+              Text('请添加要连接的应用').fontSize(13).fontColor(UI.error)
+                .width('100%').padding({ left: 14, right: 14, bottom: 6 })
+            }
             ForEach(this.accessList, (pkg: string) => {
               Row() {
                 Text(pkg)
@@ -184,6 +210,7 @@ export struct NetworkSettingsPage {
                 .onClick(() => {
                   this.accessList = this.accessList.filter((x) => x !== pkg);
                   this.persist();
+                  this.changedHint();
                 })
               }
               .width('100%')
@@ -206,6 +233,7 @@ export struct NetworkSettingsPage {
               normal: { .opacity(1.0) }
             })
             .onClick(() => {
+              this.inputPkg = '';
               this.showAddDialog = true;
             })
           }

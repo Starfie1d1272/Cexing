@@ -40,7 +40,7 @@ function load(relative, modules, timers = [], clock = Date) {
   vm.runInNewContext(output, context);
   return context.exports;
 }
-async function testClient(mode) {
+async function testClient(mode, accessMode = 'all', accessList = []) {
   let cleared = 0;
   let callbacks;
   let session = '';
@@ -49,10 +49,14 @@ async function testClient(mode) {
   let ready = false;
   let error = '';
   const timers = [];
-  const settings = { accessMode: 'all', accessList: [], ipv6: false, vpnWasConnected: false };
+  const settings = { accessMode, accessList, ipv6: false, vpnWasConnected: false };
   const context = {
     filesDir: '/private', applicationInfo: { name: 'test.bundle' },
     connectServiceExtensionAbility: (want, value) => {
+      const config = want.parameters.VPN_CONFIG;
+      assert.ok(!(config.trustedApplications && config.blockedApplications), 'SDK application fields must be exclusive');
+      if (accessMode === 'white') assert.deepEqual(Array.from(config.trustedApplications), ['sample.app']);
+      else assert.ok(config.blockedApplications.includes('test.bundle'), 'host remains excluded');
       callbacks = value; session = want.parameters.SESSION_ID; activeSession = session; return mode === 'zero' ? 0 : 1;
     },
     disconnectServiceExtensionAbility: async () => {
@@ -241,8 +245,35 @@ async function testExtension(failStop = false, lateCreate = false) {
   await assert.rejects(extension.buildCoreConfig(), /invalid effective pointer/,
     'broken effective pointer must not silently start the built-in fallback');
 }
+function testApplicationPolicy() {
+  const modules = {
+    '@kit.NetworkKit': {}, '@kit.CoreFileKit': {}, '@kit.IPCKit': {}, './Logger': logger,
+    './ConnectionFailure': failureModule.exports, './VpnPhases': phaseModule.exports,
+    './CoreApi': {}, './Settings': { Settings: {load: () => ({accessMode:'white',accessList:[]})} }, './ProfileStore': {}
+  };
+  const policy = load('lib/VpnController.ets', modules);
+  const self = 'test.bundle';
+  assert.deepEqual(Array.from(policy.buildVpnApplicationPolicy('all', ['ignored'], self).blockedApplications), [self]);
+  assert.deepEqual(Array.from(policy.buildVpnApplicationPolicy('white', [self,'sample.app','sample.app'], self).trustedApplications), ['sample.app']);
+  assert.deepEqual(Array.from(policy.buildVpnApplicationPolicy('black', [self,'sample.app','sample.app'], self).blockedApplications), [self,'sample.app']);
+  for (const list of [[], [self], ['bad'], ['foo..bar'], ['foo.bar;DROP'], ['foo.bar\n'], [null], ['x'.repeat(129)]]) {
+    assert.throws(() => policy.buildVpnApplicationPolicy('white', list, self));
+  }
+  assert.throws(() => policy.buildVpnApplicationPolicy('invalid', [], self));
+  const names = Array.from({length:64}, (_,i) => `sample.app${i}`);
+  assert.equal(policy.buildVpnApplicationPolicy('white', names, self).trustedApplications.length,64);
+  assert.throws(() => policy.buildVpnApplicationPolicy('white', [...names,'sample.extra'], self));
+  assert.equal(policy.buildVpnApplicationPolicy('black', names.slice(0,63), self).blockedApplications.length,64);
+  assert.throws(() => policy.buildVpnApplicationPolicy('black', names, self));
+  assert.equal(policy.VpnController.start({applicationInfo:{name:self}}),false,'empty whitelist refuses before authorization');
+  assert.equal(policy.VpnController.status,policy.VpnStatus.Disconnected);
+  assert.match(policy.VpnController.lastStartError,/添加/);
+}
 (async () => {
+  testApplicationPolicy();
   await testClient('ready');
+  await testClient('ready', 'white', ['test.bundle','sample.app','sample.app']);
+  await testClient('ready', 'black', ['sample.app','sample.app']);
   await testClient('error');
   await testClient('stale');
   await testClient('cancel');
