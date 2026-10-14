@@ -1,7 +1,7 @@
 // 应用进程拥有后台任务和订阅调度；页面销毁不释放 VPN 运行资源。
 import { common } from '@kit.AbilityKit';
 import { VpnController, VpnStatus } from './VpnController';
-import { LiveViewKeeper } from './LiveViewKeeper';
+import { LiveViewKeeper, BackgroundState } from './LiveViewKeeper';
 import { AutoUpdater } from './AutoUpdater';
 import { Settings } from './Settings';
 import { Logger } from './Logger';
@@ -131,6 +131,21 @@ export namespace AppRuntime {
         ConnectionCards.publish(ctx, '已连接', false);
       }
     } finally { checking = false; }
+  }
+
+  // UI reads background observations without changing VPN status or task ownership.
+  export function backgroundState(): BackgroundState { return LiveViewKeeper.state(); }
+
+  export function onBackgroundChanged(listener: (state: BackgroundState) => void): () => void {
+    return LiveViewKeeper.onChanged(listener);
+  }
+
+  export function retryBackground(): Promise<boolean> {
+    const ctx = context;
+    if (ctx === null || VpnController.status !== VpnStatus.Connected || !Settings.load(ctx).keepAlive) {
+      return Promise.resolve(false);
+    }
+    return LiveViewKeeper.retry(ctx);
   }
 
   export function foreground(): void {
