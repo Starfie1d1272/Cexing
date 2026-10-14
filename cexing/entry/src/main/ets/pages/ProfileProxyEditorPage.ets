@@ -164,10 +164,19 @@ export struct ProfileProxyEditorPage {
 
   private isProviderSource(): boolean { return this.sourceKey.startsWith('provider:') || this.sourceKey.startsWith('added:'); }
 
-  private shownRows(): ProxyEditorRow[] {
+  private filteredRows(): ProxyEditorRow[] {
+    const source = this.section === 'proxies' ? this.sourceKey : 'all';
     return this.rows.filter((row: ProxyEditorRow) =>
-      (this.sourceKey !== 'raw' || !row.added) && (this.sourceKey !== 'custom' || row.added) &&
-      (row.label.includes(this.query) || row.type.includes(this.query))).slice(0, this.visibleCount);
+      (source !== 'raw' || !row.added) && (source !== 'custom' || row.added) &&
+      (row.label.includes(this.query) || row.type.includes(this.query)));
+  }
+
+  private shownRows(): ProxyEditorRow[] { return this.filteredRows().slice(0, this.visibleCount); }
+
+  private moreRows(): void {
+    const count = this.section === 'proxies' && this.isProviderSource() ? this.sourceNodes.filter((node: ProxyProviderNode) =>
+      node.name.includes(this.query) || node.type.includes(this.query)).length : this.filteredRows().length;
+    if (this.visibleCount < count) { this.visibleCount = Math.min(this.visibleCount + 100, count); }
   }
 
   private async chooseSource(index: number): Promise<void> {
@@ -443,7 +452,7 @@ export struct ProfileProxyEditorPage {
               .slice(0, this.visibleCount), (node: ProxyProviderNode) => {
               ListItem() { Row({ space: 8 }) { Text(node.name).fontColor(UI.ink).layoutWeight(1); Text(node.type).fontSize(12).fontColor(UI.muted) }.width('100%').padding(12) }
             }, (node: ProxyProviderNode) => node.name)
-          }.width('100%').layoutWeight(1).onReachEnd(() => { this.visibleCount += 100; })
+          }.width('100%').layoutWeight(1).onReachEnd(() => { this.moreRows(); })
         } else {
         List({ space: 8 }) {
           ForEach(this.shownRows(), (row: ProxyEditorRow) => {
@@ -458,7 +467,7 @@ export struct ProfileProxyEditorPage {
               }.enabled(!this.busy)
             }
           }, (row: ProxyEditorRow) => row.id).onMove(this.moveHandler())
-        }.width('100%').layoutWeight(1).onReachEnd(() => { this.visibleCount += 100; })
+        }.width('100%').layoutWeight(1).onReachEnd(() => { this.moreRows(); })
         }
         Button('新增').width('100%').height(48).enabled(!this.busy).onClick(() => { this.add(); })
         Row({ space: 8 }) {
