@@ -37,7 +37,7 @@ export class ProxyMappingForm {
 
   setText(key: string, value: string): void {
     if (this.section === 'proxy-providers' && key === 'name') { this.mappingName = value; return; }
-    if (value === '') { delete this.value[key]; } else { this.value[key] = value; }
+    if (value === '') { this.value = this.without(this.value, key); } else { this.value[key] = value; }
   }
   setList(key: string, value: string[]): void { this.value[key] = value.slice(); }
   flag(key: string): boolean { return this.value[key] === true; }
@@ -52,24 +52,33 @@ export class ProxyMappingForm {
     return typeof value === 'string' || typeof value === 'number' ? String(value) : '';
   }
 
-  setNestedText(path: string[], value: string): void {
-    let mapping = this.value;
-    for (let index = 0; index < path.length - 1; index++) {
-      const key = path[index];
-      const current = mapping[key];
-      if (current === undefined) { mapping[key] = {}; }
-      else if (current === null || typeof current !== 'object' || Array.isArray(current)) {
-        throw new Error('该字段请使用高级编辑');
-      }
-      mapping = mapping[key] as Record<string, Object>;
+  private without(mapping: Record<string, Object>, removed: string): Record<string, Object> {
+    const next: Record<string, Object> = {};
+    for (const key of Object.keys(mapping)) { if (key !== removed) { next[key] = mapping[key]; } }
+    return next;
+  }
+
+  private nested(mapping: Record<string, Object>, path: string[], index: number, value: string): Record<string, Object> {
+    const key = path[index];
+    const next = this.without(mapping, key);
+    if (index === path.length - 1) { if (value !== '') { next[key] = value; } return next; }
+    const current = mapping[key];
+    const empty: Record<string, Object> = {};
+    if (current !== undefined && (current === null || typeof current !== 'object' || Array.isArray(current))) {
+      throw new Error('该字段请使用高级编辑');
     }
-    if (value === '') { delete mapping[path[path.length - 1]]; }
-    else { mapping[path[path.length - 1]] = value; }
+    next[key] = this.nested(current === undefined ? empty : current as Record<string, Object>, path, index + 1, value);
+    return next;
+  }
+
+  setNestedText(path: string[], value: string): void {
+    if (path.length === 0) { return; }
+    this.value = this.nested(this.value, path, 0, value);
   }
 
   setNumber(key: string, value: string): void {
     this.invalidNumbers = this.invalidNumbers.filter((name: string) => name !== key);
-    if (value.trim() === '') { delete this.value[key]; return; }
+    if (value.trim() === '') { this.value = this.without(this.value, key); return; }
     if (!/^\d+$/.test(value) || !Number.isSafeInteger(Number(value))) {
       this.invalidNumbers.push(key); return;
     }

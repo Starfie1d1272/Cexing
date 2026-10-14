@@ -273,7 +273,11 @@ export struct ProfileProxyEditorPage {
       if (!this.current(epoch)) { return; }
       next = this.model.workingIntent();
       if (next.smartGroups === undefined) { next.smartGroups = {}; }
-      if (result.index === 0) { delete next.smartGroups[choice.choiceId]; }
+      if (result.index === 0) {
+        const overrides: Record<string, boolean> = {};
+        for (const id of Object.keys(next.smartGroups)) { if (id !== choice.choiceId) { overrides[id] = next.smartGroups[id]; } }
+        next.smartGroups = overrides;
+      }
       else if (result.index === 1 || result.index === 2) { next.smartGroups[choice.choiceId] = result.index === 1; }
       else { next = null; }
     } catch (_) { if (this.current(epoch)) { this.error = '智能选择读取失败，请重试'; } }

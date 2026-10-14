@@ -187,7 +187,7 @@ export class ProfileProxyEditorModel {
     const previous = this.history.pop() ?? null;
     const ticket = this.ticket;
     try { return await this.save(previous, false); }
-    catch (error) { if (this.ticket === ticket) { this.history.push(previous); } throw error; }
+    catch (error) { if (this.ticket === ticket) { this.history.push(previous); } throw new Error((error as Error).message); }
   }
 
   async reset(): Promise<boolean> {
