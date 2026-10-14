@@ -35,6 +35,7 @@ func TestAIProbeAuthenticationAndRuntimeIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer stopController()
+	lastMessage := ""
 	request := func(body, auth string) int {
 		req, _ := http.NewRequest("POST", "http://"+defaultController+"/ohos/ai-probe", strings.NewReader(body))
 		req.Header.Set("Authorization", auth)
@@ -47,6 +48,9 @@ func TestAIProbeAuthenticationAndRuntimeIdentity(t *testing.T) {
 		if strings.Contains(string(bytes), controllerSecret) {
 			t.Fatal("secret in response")
 		}
+		var reply map[string]string
+		_ = json.Unmarshal(bytes, &reply)
+		lastMessage = reply["message"]
 		return response.StatusCode
 	}
 	if code := request(`{"revision":"version-synthetic"}`, ""); code != 401 {
@@ -100,6 +104,43 @@ rules: ["MATCH,AI"]
 	id, err := activeAIProbeIdentity(version.ID)
 	if err != nil || id.Group != "AI" || id.Revision != version.ID {
 		t.Fatal("current applied identity rejected", err)
+	}
+
+	priorRuntime := id.Runtime
+	observeAIProbeConfig(text)
+	identical, epochErr := activeAIProbeIdentity(version.ID)
+	if epochErr != nil || identical.Runtime == priorRuntime {
+		t.Fatal("identical applied YAML reused old runtime identity", epochErr)
+	}
+	beforeRefresh, refreshErr := probeSelection("AI")
+	if refreshErr != nil {
+		t.Fatal(refreshErr)
+	}
+	refreshed, refreshErr := config.Parse([]byte(text))
+	if refreshErr != nil {
+		t.Fatal(refreshErr)
+	}
+	tunnel.UpdateProxies(refreshed.Proxies, refreshed.Providers)
+	afterRefresh, refreshErr := probeSelection("AI")
+	if refreshErr != nil || beforeRefresh == afterRefresh {
+		t.Fatal("same-name proxy replacement reused old route/cache identity", refreshErr)
+	}
+
+	chained, chainErr := config.Parse([]byte(`proxies:
+  - {name: chained, type: ss, server: 192.0.2.1, port: 443, cipher: aes-128-gcm, password: synthetic, dialer-proxy: hop}
+  - {name: hop, type: direct}
+proxy-groups: [{name: AI, type: select, proxies: [chained]}]
+rules: ['MATCH,AI']
+`))
+	if chainErr != nil {
+		t.Fatal(chainErr)
+	}
+	tunnel.UpdateProxies(chained.Proxies, chained.Providers)
+	if _, err := probeSelection("AI"); err == nil {
+		t.Fatal("mutable named dialer chain admitted without a pinned route")
+	}
+	if code := request(mustEditorJSON(t, aiProbeInput{Revision: version.ID}), "Bearer "+controllerSecret); code != 409 || lastMessage != "PROBE_ROUTE_UNPROVEN" {
+		t.Fatal("unproven route did not remain unchecked", code, lastMessage)
 	}
 
 	empty, err := config.Parse([]byte(`proxy-providers:

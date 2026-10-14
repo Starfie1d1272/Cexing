@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"reflect"
 
 	"core/aiprobe"
 	"core/configpipeline"
@@ -25,10 +26,12 @@ var aiProbeManager aiprobe.Manager
 // Accessed under the existing runLock. Set only by native start/authenticated
 // reload immediately after executor.ApplyConfig, never from a probe request.
 var aiAppliedDigest string
+var aiAppliedEpoch uint64
 
 func observeAIProbeConfig(text string) {
 	sum := sha256.Sum256([]byte(text))
 	aiAppliedDigest = hex.EncodeToString(sum[:])
+	aiAppliedEpoch++
 }
 
 func init() {
@@ -54,15 +57,23 @@ func checkAIReachability(w MHTTP.ResponseWriter, req *MHTTP.Request) {
 	runLock.Lock()
 	id, err := activeAIProbeIdentity(input.Revision)
 	appliedDigest := aiAppliedDigest
+	var target C.Proxy
+	if err == nil {
+		target = tunnel.Proxies()[id.Group]
+	}
 	runLock.Unlock()
-	if err != nil || !controllerRunning.Load() {
-		controllerError(w, 409, "PROBE_NOT_APPLIED")
+	if err != nil || target == nil || !controllerRunning.Load() {
+		code := "PROBE_NOT_APPLIED"
+		if err != nil && err.Error() != "PROBE_NOT_APPLIED" {
+			code = "PROBE_ROUTE_UNPROVEN"
+		}
+		controllerError(w, 409, code)
 		return
 	}
 	current := func() bool {
 		runLock.Lock()
 		defer runLock.Unlock()
-		if !controllerRunning.Load() || epoch != controllerEpoch.Load() || tunListener == nil || aiAppliedDigest != appliedDigest {
+		if !controllerRunning.Load() || epoch != controllerEpoch.Load() || tunListener == nil || aiAppliedDigest != appliedDigest || aiAppliedEpoch != id.Runtime {
 			return false
 		}
 		state, err := (configpipeline.FileStore{Root: filepath.Join(homeDir, "profile-versions")}).Load(context.Background())
@@ -72,7 +83,7 @@ func checkAIReachability(w MHTTP.ResponseWriter, req *MHTTP.Request) {
 		selected, err := probeSelection(id.Group)
 		return err == nil && selected == id.Selection
 	}
-	results, err := aiProbeManager.Check(req.Context(), id, tunnel.Tunnel, current, input.Retry)
+	results, err := aiProbeManager.Check(req.Context(), id, target, current, input.Retry)
 	if err != nil || req.Context().Err() != nil || !current() {
 		controllerError(w, 409, "PROBE_NOT_CURRENT")
 		return
@@ -126,7 +137,7 @@ func activeAIProbeIdentity(expected string) (aiprobe.Identity, error) {
 	if err != nil {
 		return aiprobe.Identity{}, err
 	}
-	return aiprobe.Identity{Profile: state.Current.ProfileID, Revision: expected, Group: group, Selection: selected}, nil
+	return aiprobe.Identity{Profile: state.Current.ProfileID, Revision: expected, Group: group, Selection: selected, Runtime: aiAppliedEpoch}, nil
 }
 
 // Follow successful personal renames using the compiler's public opaque IDs.
@@ -178,7 +189,7 @@ func aiProbeTarget(intent *configpipeline.EditIntent) (string, error) {
 	return name, nil
 }
 
-// Snapshot only user-controlled Selector choices in the selected group's graph.
+// Snapshot live proxy objects and user-controlled Selector choices in the group graph.
 // Smart/url-test decisions remain per request; results describe the group, not
 // a permanently attributed node. No names/fingerprints are returned or logged.
 func probeSelection(group string) (string, error) {
@@ -191,16 +202,29 @@ func probeSelection(group string) (string, error) {
 		return "", errors.New("PROBE_NOT_A_GROUP")
 	}
 	choices := map[string]string{}
-	visited := map[string]bool{}
+	visited := map[string]uintptr{}
 	var visit func(C.Proxy) error
 	visit = func(p C.Proxy) error {
 		if p == nil {
 			return errors.New("PROBE_GROUP_MISSING")
 		}
-		if visited[p.Name()] {
+		object := reflect.ValueOf(p)
+		if object.Kind() != reflect.Ptr || object.IsNil() {
+			return errors.New("PROBE_ROUTE_UNPROVEN")
+		}
+		token := object.Pointer()
+		if prior, seen := visited[p.Name()]; seen {
+			if prior != token {
+				return errors.New("PROBE_ROUTE_AMBIGUOUS")
+			}
 			return nil
 		}
-		visited[p.Name()] = true
+		if p.ProxyInfo().DialerProxy != "" {
+			// This adapter resolves a later dialer by the mutable global name
+			// registry. Leave unchecked until that entire chain can be pinned.
+			return errors.New("PROBE_CHAIN_UNPINNED")
+		}
+		visited[p.Name()] = token
 		if len(visited) > 512 {
 			return errors.New("PROBE_GROUP_LIMIT")
 		}
@@ -241,7 +265,10 @@ func probeSelection(group string) (string, error) {
 	if err := visit(root); err != nil {
 		return "", err
 	}
-	encoded, _ := json.Marshal(choices)
+	encoded, _ := json.Marshal(struct {
+		Choices map[string]string
+		Objects map[string]uintptr
+	}{choices, visited})
 	digest := sha256.Sum256(encoded)
 	return hex.EncodeToString(digest[:]), nil
 }

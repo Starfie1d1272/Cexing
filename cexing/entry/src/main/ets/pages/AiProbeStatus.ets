@@ -9,6 +9,7 @@ export struct AiProbeStatus {
   @Prop @Watch('revisionChanged') revision: string = '';
   @State private results: AiServiceResult[] = [];
   @State private checking: boolean = false;
+  @State private routeUnproven: boolean = false;
   @State private expanded: boolean = false;
   private service: AiProbeService | null = null;
   private network: connection.NetConnection | null = null;
@@ -24,7 +25,7 @@ export struct AiProbeStatus {
   aboutToAppear(): void {
     this.visible = true;
     this.service = new AiProbeService(() => this.visible && this.online && VpnController.status === VpnStatus.Connected,
-      (results: AiServiceResult[], checking: boolean): void => { this.results = results; this.checking = checking; });
+      (results: AiServiceResult[], checking: boolean, state?: string): void => { this.results = results; this.checking = checking; this.routeUnproven = state === 'route_unproven'; });
     VpnController.onChanged(this.onVpn);
     // Read-only observation: no bearer/network requests, bindings or system
     // settings. GET_NETWORK_INFO is a normal app permission supplied by host.
@@ -59,7 +60,7 @@ export struct AiProbeStatus {
     const observer = this.network; this.network = null;
     try { observer?.unregister(() => {}); } catch (_) {}
   }
-  private clear(): void { this.service?.cancel(); this.checking = false; this.results = []; }
+  private clear(): void { this.service?.cancel(); this.checking = false; this.results = []; this.routeUnproven = false; }
   private revisionChanged(): void { this.clear(); if (this.visible) { this.service?.check(this.revision); } }
   private status(state: string): string {
     if (state === 'reachable') { return '可达'; }
@@ -87,10 +88,13 @@ export struct AiProbeStatus {
           Text(new Date(this.results[0].at).toLocaleTimeString()).fontSize(12).fontColor(UI.muted)
         }
         Blank()
-        Button('重试').backgroundColor(UI.soft).fontColor(UI.ink).enabled(!this.checking)
+        Button('重试').backgroundColor(UI.soft).fontColor(UI.ink).enabled(!this.checking && this.revision.length > 0 && this.online && VpnController.status === VpnStatus.Connected)
           .onClick(() => this.service?.check(this.revision, true))
       }.width('100%')
       if (this.expanded) {
+        if (this.routeUnproven && this.results.length === 0) {
+          Text('当前出口暂不能确认，可更换出口重试').fontSize(13).fontColor(UI.muted)
+        }
         ForEach(this.results, (result: AiServiceResult) => {
           Row() {
             Text(result.service === 'chatgpt' ? 'ChatGPT' : result.service === 'claude' ? 'Claude' : 'Gemini').fontSize(13)
