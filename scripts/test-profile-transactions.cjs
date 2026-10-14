@@ -272,6 +272,20 @@ const tx = context.exports.ProfileTransactions;
   assert.equal(state.Current.ID, rejectId, 'rejected restore preserves the current pointer');
   assert.equal(smartAutoConvert,beforeRejectedPreference,'confirmed rejection restores the prior Smart preference');
   response = 'applied';
+  const beforeUnknownApply = smartAutoConvert, beforeUnknownPointer = state.Current.ID;
+  response='unknown';
+  await assert.rejects(tx.setSmartAutoConvert({},!beforeUnknownApply),/应用未确认/);
+  assert.equal(state.Current.ID,beforeUnknownPointer);
+  assert.equal(smartAutoConvert,beforeUnknownApply,'no commit was attempted: keep the known pointer and preference paired');
+  response='applied';uncertain=false;controller.VpnController.status=0;
+  await tx.activate({},'old.yaml');controller.VpnController.status=2;
+  const beforeFailedCommit = smartAutoConvert, knownPointer = state.Current.ID;
+  failCommit=true;switchRestoreAt=applies+2;
+  await assert.rejects(tx.setSmartAutoConvert({},!beforeFailedCommit),/应用未确认/);
+  assert.equal(state.Current.ID,knownPointer);
+  assert.equal(smartAutoConvert,beforeFailedCommit,'confirmed unpublished pointer retains its old preference even if runtime rollback is unknown');
+  failCommit=false;switchRestoreAt=-1;uncertain=false;controller.VpnController.status=0;
+  await tx.activate({},'old.yaml');controller.VpnController.status=2;
   // A commit can publish and only then lose session confirmation. Never revert
   // the preference alone while retaining the newly published candidate.
   for (const operation of ['toggle','previous']) {
