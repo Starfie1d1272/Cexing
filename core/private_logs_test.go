@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/base64"
 	"os"
 	"path/filepath"
 	"strings"
@@ -33,18 +34,19 @@ func TestPrivateLogPrivacyAndBounds(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	writeLogLine("SyntheticPrivateNode SyntheticPrivatePassword Bearer SyntheticBearer https://user:password@sub.example/private?token=secret 192.0.2.1 [2001:db8::1] 2001:db8::2 fe80::a%wlan0")
+	encoded := base64.StdEncoding.EncodeToString([]byte("SyntheticFileUser:SyntheticFilePassword"))
+	writeLogLine("SyntheticPrivateNode SyntheticPrivatePassword Bearer SyntheticBearer https://user:password@sub.example/private?token=secret 192.0.2.1 [2001:db8::1] 2001:db8::2 fe80::a%wlan0 Proxy-Authorization: Basic " + encoded)
 	data, err := os.ReadFile(filepath.Join(home, "mihomo.log"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, value := range []string{"SyntheticPrivateNode", "SyntheticPrivatePassword", "SyntheticBearer", "sub.example", "192.0.2.1", "2001:db8::1", "2001:db8::2", "fe80::a%wlan0", "legacy-private-data"} {
+	for _, value := range []string{"SyntheticPrivateNode", "SyntheticPrivatePassword", "SyntheticBearer", "sub.example", "192.0.2.1", "2001:db8::1", "2001:db8::2", "fe80::a%wlan0", "legacy-private-data", encoded} {
 		if strings.Contains(string(data), value) {
 			t.Fatal("private value survived ordinary log redaction")
 		}
 	}
-	before, _ := os.ReadFile(filepath.Join(home, "mihomo.log"))
 	setLogToFile(false)
+	before, _ := os.ReadFile(filepath.Join(home, "mihomo.log"))
 	writeLogLine("disabled")
 	after, _ := os.ReadFile(filepath.Join(home, "mihomo.log"))
 	setLogToFile(true)

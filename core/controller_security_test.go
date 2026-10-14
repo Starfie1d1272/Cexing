@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -552,7 +553,8 @@ dns:
 			if format != "" {
 				marker = "synthetic-log-structured"
 			}
-			log.Infoln("%s %s https://synthetic-private.example/path?token=wire-fixture", marker, secret)
+			encoded := base64.StdEncoding.EncodeToString([]byte("SyntheticWireUser:SyntheticWirePassword"))
+			log.Infoln("%s %s https://synthetic-private.example/path?token=wire-fixture Proxy-Authorization: Basic %s", marker, secret, encoded)
 			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 			_, data, err := conn.Read(ctx)
 			cancel()
@@ -565,7 +567,7 @@ dns:
 				key = "message"
 			}
 			payload, ok := wire[key].(string)
-			if err != nil || decodeErr != nil || !ok || payload == "" || strings.Contains(string(data), secret) || strings.Contains(string(data), "synthetic-private.example") || strings.Contains(string(data), "wire-fixture") {
+			if err != nil || decodeErr != nil || !ok || payload == "" || strings.Contains(string(data), secret) || strings.Contains(string(data), encoded) || strings.Contains(string(data), "synthetic-private.example") || strings.Contains(string(data), "wire-fixture") {
 				t.Fatal("log wire format or redaction failed")
 			}
 		}

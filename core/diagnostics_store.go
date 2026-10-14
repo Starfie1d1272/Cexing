@@ -186,7 +186,13 @@ var diagnosticHost = regexp.MustCompile(`(?i)(?:[a-z0-9_-]+\.)+[a-z][a-z0-9-]*|(
 var diagnosticPath = regexp.MustCompile(`(?:[A-Za-z]:[\\/]|/)[^\s,;()]+`)
 var diagnosticHex = regexp.MustCompile(`(?i)\b[0-9a-f]{32,}\b`)
 var diagnosticOpaque = regexp.MustCompile(`object-[0-9a-f]{16}`)
-var diagnosticBearer = regexp.MustCompile(`(?i)\bBearer\s+[^\s,;]+`)
+
+// Authentication values may contain a scheme, token68 or comma-separated
+// parameters (RFC 9110 section 11.6.2). Redact the complete field line and any
+// folded continuation, not just its first whitespace-delimited word. For log
+// formats without a header name, apply the same rule to known auth schemes.
+// Ambiguous same-line suffixes are omitted rather than exposing credentials.
+var diagnosticAuthorization = regexp.MustCompile(`(?i)(?:\b(?:proxy-)?authorization["']?\s*[:=]\s*|\b(?:Basic|Bearer|Digest|NTLM|Negotiate)\s+)[^\r\n]*(?:\r?\n[ \t]+[^\r\n]*)*`)
 var diagnosticIPv6 = regexp.MustCompile(`(?i)(?:[0-9a-f]{0,4}:){2,}[0-9a-f:.%a-z0-9_-]*`)
 
 func (s *diagnosticStore) text(input string) string {
@@ -200,9 +206,9 @@ func (s *diagnosticStore) text(input string) string {
 		return "DETAIL_OMITTED_REDACTION_CAPACITY"
 	}
 	input = redactControllerSecret(input)
+	input = diagnosticAuthorization.ReplaceAllString(input, "authentication=[redacted]")
 	protected := map[string]bool{}
 	input = diagnosticURL.ReplaceAllStringFunc(input, func(v string) string { id := s.object(v); protected[id] = true; return "url-" + id })
-	input = diagnosticBearer.ReplaceAllString(input, "Bearer [redacted]")
 	input = diagnosticCredentials.ReplaceAllString(input, "credential=[redacted]")
 	input = diagnosticIPv6.ReplaceAllStringFunc(input, func(value string) string {
 		if address, err := netip.ParseAddr(value); err == nil && address.Is6() {
