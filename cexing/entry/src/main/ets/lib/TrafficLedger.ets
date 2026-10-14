@@ -17,6 +17,7 @@ export class TrafficCheckpoint {
 export class TrafficState {
   version: number = 1;
   startedAt: number = 0;
+  latestSession: string = '';
   checkpoint: TrafficCheckpoint = new TrafficCheckpoint();
   current: TrafficBucket = new TrafficBucket();
   days: TrafficBucket[] = [];
@@ -40,9 +41,13 @@ export function trafficBucket(buckets: TrafficBucket[], key: string): TrafficBuc
   }
   return bucket;
 }
-function trim(buckets: TrafficBucket[], limit: number): void {
-  // Retain the most recently visited periods, including after a clock rollback.
-  while (buckets.length > limit) { buckets.shift(); }
+function trim(buckets: TrafficBucket[], limit: number, checkpointKey: string): void {
+  // Keep the referenced checkpoint bucket even after a clock rollback visits
+  // an older retained period; otherwise our own bounded write is unrestorable.
+  while (buckets.length > limit) {
+    const index = buckets.findIndex((bucket: TrafficBucket) => bucket.key !== checkpointKey);
+    buckets.splice(index, 1);
+  }
 }
 export function validCounter(value: number): boolean {
   return Number.isSafeInteger(value) && value >= 0;
@@ -50,6 +55,7 @@ export function validCounter(value: number): boolean {
 export function recordTraffic(state: TrafficState, session: string, up: number, down: number,
   at: number, period: TrafficPeriod): boolean {
   if (session.length === 0 || !validCounter(up) || !validCounter(down) || !Number.isFinite(at) || at <= 0) { return false; }
+  state.latestSession = session;
   const day = trafficBucket(state.days, period.day);
   const month = trafficBucket(state.months, period.month);
   const previous = state.checkpoint;
@@ -87,7 +93,7 @@ export function recordTraffic(state: TrafficState, session: string, up: number, 
   }
   state.checkpoint = { session: session, up: up, down: down, at: at,
     day: period.day, month: period.month, zone: period.zone };
-  trim(state.days, 35); trim(state.months, 14);
+  trim(state.days, 35, state.checkpoint.day); trim(state.months, 14, state.checkpoint.month);
   return true;
 }
 export function markTrafficGap(state: TrafficState, at: number): void {
@@ -98,7 +104,7 @@ export function markTrafficGap(state: TrafficState, at: number): void {
   trafficBucket(state.months, period.month).partial = true;
   trafficBucket(state.days, state.checkpoint.day).partial = true;
   trafficBucket(state.months, state.checkpoint.month).partial = true;
-  trim(state.days, 35); trim(state.months, 14);
+  trim(state.days, 35, state.checkpoint.day); trim(state.months, 14, state.checkpoint.month);
 }
 function validBucket(bucket: TrafficBucket): boolean {
   return bucket !== null && typeof bucket === 'object' && typeof bucket.key === 'string' && bucket.key.length <= 100 &&
@@ -130,7 +136,15 @@ export function restoreTraffic(text: string): TrafficState {
     !validCounter(p.up) || !validCounter(p.down) || !validCounter(p.at) || typeof p.day !== 'string' ||
     typeof p.month !== 'string' || !Number.isInteger(p.zone) || Math.abs(p.zone) > 1440 ||
     (p.session.length > 0 && (!validDay(p.day) || !validMonth(p.month) || p.day.slice(0, 7) !== p.month ||
-      p.session !== state.current.key || p.at <= 0 || state.startedAt <= 0)) ||
+      p.session !== state.current.key || p.at <= 0 || state.startedAt <= 0 ||
+      !state.days.some((bucket: TrafficBucket) => bucket.key === p.day) ||
+      !state.months.some((bucket: TrafficBucket) => bucket.key === p.month))) ||
     (p.session.length === 0 && (state.startedAt !== 0 || state.current.key.length > 0))) { throw new Error('invalid traffic checkpoint'); }
+  // Version 1 files from before session projection used the checkpoint as
+  // the latest confirmed session. Preserve that identity during migration.
+  if (state.latestSession === undefined) { state.latestSession = p.session; }
+  if (typeof state.latestSession !== 'string' || state.latestSession.length > 100) {
+    throw new Error('invalid latest traffic session');
+  }
   return state;
 }

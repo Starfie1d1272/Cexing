@@ -83,15 +83,15 @@ export struct TrafficPage {
       Row() {
         Column({ space: 7 }) {
           Text('上传').fontSize(12).fontColor(UI.muted)
-          Text(this.snapshot.ready ? bytes(this.bucket(index).up) : '—').fontSize(17).minFontSize(12).maxFontSize(17).maxLines(1).fontColor(UI.ink).fontFeature('tnum')
+          Text(this.snapshot.ready && (index !== 0 || this.snapshot.currentReady) ? bytes(this.bucket(index).up) : '—').fontSize(17).minFontSize(12).maxFontSize(17).maxLines(1).fontColor(UI.ink).fontFeature('tnum')
         }.alignItems(HorizontalAlign.Start).layoutWeight(1)
         Column({ space: 7 }) {
           Text('下载').fontSize(12).fontColor(UI.muted)
-          Text(this.snapshot.ready ? bytes(this.bucket(index).down) : '—').fontSize(17).minFontSize(12).maxFontSize(17).maxLines(1).fontColor(UI.ink).fontFeature('tnum')
+          Text(this.snapshot.ready && (index !== 0 || this.snapshot.currentReady) ? bytes(this.bucket(index).down) : '—').fontSize(17).minFontSize(12).maxFontSize(17).maxLines(1).fontColor(UI.ink).fontFeature('tnum')
         }.alignItems(HorizontalAlign.Start).layoutWeight(1)
         Column({ space: 7 }) {
           Text('合计').fontSize(12).fontColor(UI.muted)
-          Text(this.snapshot.ready ? bytes(this.bucket(index).up + this.bucket(index).down) : '—').fontSize(17).minFontSize(12).maxFontSize(17).maxLines(1).fontWeight(FontWeight.Medium)
+          Text(this.snapshot.ready && (index !== 0 || this.snapshot.currentReady) ? bytes(this.bucket(index).up + this.bucket(index).down) : '—').fontSize(17).minFontSize(12).maxFontSize(17).maxLines(1).fontWeight(FontWeight.Medium)
             .fontColor(UI.ink).fontFeature('tnum')
         }.alignItems(HorizontalAlign.Start).layoutWeight(1)
       }.width('100%')

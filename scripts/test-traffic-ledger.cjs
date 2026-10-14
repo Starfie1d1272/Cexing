@@ -10,7 +10,7 @@ function load(name, modules = {}, extras = {}) {
   vm.runInNewContext(code, sandbox); return sandbox.exports;
 }
 const ledger = load('TrafficLedger');
-const { TrafficState, recordTraffic, trafficPeriod, restoreTraffic } = ledger;
+const { TrafficState, recordTraffic, trafficPeriod, restoreTraffic, markTrafficGap } = ledger;
 const start = Date.UTC(2026, 9, 14, 10);
 function sample(s, session, up, down, at = start, period = trafficPeriod(at)) { return recordTraffic(s, session, up, down, at, period); }
 {
@@ -68,6 +68,28 @@ function sample(s, session, up, down, at = start, period = trafficPeriod(at)) { 
   assert.throws(() => restoreTraffic(JSON.stringify({ ...s, current: { ...s.current, key: 'different' } })));
 
 }
+{
+  const s = new TrafficState();
+  sample(s, 'one', 0, 0);
+  sample(s, 'one', 1000, 2000, start + 5000);
+  // A checkpoint asserts that its last cumulative delta was already recorded.
+  // Missing its day/month bucket must not silently restart a complete bucket.
+  for (const missing of ['days', 'months']) {
+    const corrupt = { ...s, [missing]: [] };
+    assert.throws(() => restoreTraffic(JSON.stringify(corrupt)),
+      `Missing checkpoint ${missing} must be rejected before claiming saved/complete`);
+  }
+}
+{
+  const s = new TrafficState();
+  for (let i = 0; i < 35; i++) sample(s, 'one', i, i, start + i * 86400000);
+  sample(s, 'one', 40, 40, start); // Visit oldest retained day after a clock rollback.
+  markTrafficGap(s, start + 36 * 86400000);
+  assert.equal(restoreTraffic(JSON.stringify(s)).checkpoint.day, trafficPeriod(start).day,
+    'Bounded pruning must retain the referenced day/month bucket');
+  const legacy = { ...s }; delete legacy.latestSession;
+  assert.equal(restoreTraffic(JSON.stringify(legacy)).latestSession, 'one', 'Migrate existing version-1 ledger');
+}
 const flush = () => new Promise(resolve => setImmediate(resolve));
 (async () => {
   let now = start, pending, writes = [], durable = '', fail = false;
@@ -92,7 +114,10 @@ const flush = () => new Promise(resolve => setImmediate(resolve));
   assert.equal(service.view().current.up, 60); assert.equal(service.rate().down, 16);
   request = service.sample(); service.invalidate(); controller.session = 'two';
   pending({ up: 999, down: 999 }); await request; await flush();
-  assert.equal(service.view().current.up, 60, 'Late old-session callback is fenced');
+  assert.equal(service.view().currentReady, false, 'New session must be unknown before a successful baseline');
+  assert.equal(service.view().current.up, 0, 'Never expose the old session as the new current session');
+  assert.equal(service.view().today.up, 60, 'Projecting unknown current does not erase daily history');
+  assert.equal(service.rate(), null, 'Shared rates must also match the confirmed session');
   request = service.sample(); pending({ up: 180, down: 300 }); await request;
   now += 5000; fail = true;
   request = service.sample(); pending({ up: 190, down: 320 }); await request; await flush();
@@ -102,6 +127,31 @@ const flush = () => new Promise(resolve => setImmediate(resolve));
   fail = false;
   request = service.sample(); pending({ up: 200, down: 340 }); await request; await flush();
   assert.equal(service.view().saved, true);
+  // Confirm reconnect, then fail its cumulative read. Period history stays.
+  const beforeReconnect = JSON.parse(durable);
+  controller.session = 'new-without-baseline';
+  assert.equal(service.view().currentReady, false, 'Identity changes view before polling');
+  assert.equal(service.view().current.up, 0);
+  assert.equal(service.view().points.length, 0);
+  assert.equal(service.rate(), null);
+  for (const counters of [null, { up: NaN, down: 0 }]) {
+    request = service.sample(); pending(counters); await request; await flush();
+    assert.equal(service.view().currentReady, false);
+    assert.equal(service.view().today.up, beforeReconnect.days[0].up);
+    assert.equal(service.view().month.down, beforeReconnect.months[0].down);
+    const after = JSON.parse(durable);
+    assert.deepEqual(after.checkpoint, beforeReconnect.checkpoint, 'Failed baseline must preserve checkpoint');
+    assert.equal(after.latestSession, 'new-without-baseline', 'Latest confirmed identity survives restart');
+    assert.equal(after.current.up, beforeReconnect.current.up, 'Unknown projection must not erase old recorded totals');
+  }
+  controller.status = 0;
+  assert.equal(service.view().currentReady, false, 'Disconnect after failed baseline cannot reveal an old current');
+  const { TrafficStats: unknownRestart } = load('TrafficStats', modules, { Date: FakeDate });
+  unknownRestart.initialize({});
+  assert.equal(unknownRestart.view().currentReady, false, 'Unknown current must also survive process restart');
+  controller.status = 2; controller.session = 'two';
+  request = service.sample(); pending(null); await request; await flush();
+  assert.equal(service.view().currentReady, true, 'Reconfirming the actual recorded session retains known values');
   const { TrafficStats: restarted } = load('TrafficStats', modules, { Date: FakeDate });
   restarted.initialize({}); now += 5000;
   request = restarted.sample(); pending({ up: 220, down: 360 }); await request; await flush();
@@ -111,6 +161,19 @@ const flush = () => new Promise(resolve => setImmediate(resolve));
   corrupt.initialize({}); request = corrupt.sample(); pending({ up: 300, down: 400 }); await request; await flush();
   assert.equal(corrupt.view().saved, false);
   assert.equal(durable, '{broken', 'Do not overwrite unrecoverable history');
+  const missingBuckets = new TrafficState();
+  sample(missingBuckets, 'two', 0, 0);
+  sample(missingBuckets, 'two', 1000, 2000, start + 5000);
+  missingBuckets.days = []; missingBuckets.months = [];
+  durable = JSON.stringify(missingBuckets);
+  const missingDisk = durable;
+  const { TrafficStats: missing } = load('TrafficStats', modules, { Date: FakeDate });
+  missing.initialize({}); request = missing.sample(); pending({ up: 1100, down: 2200 }); await request; await flush();
+  now += 5000; request = missing.sample(); pending({ up: 1200, down: 2400 }); await request; await flush();
+  assert.equal(missing.view().saved, false, 'Incomplete restored ledger cannot be acknowledged as saved');
+  assert.equal(missing.view().today.partial, true);
+  assert.equal(missing.view().month.partial, true);
+  assert.equal(durable, missingDisk, 'Incomplete disk ledger remains untouched');
   // Stall disk through many samples: exactly first + latest snapshot survive.
   durable = ''; fail = false; let releaseDisk;
   const slowStore = { ...store, flush: () => new Promise(resolve => { releaseDisk = resolve; }) };

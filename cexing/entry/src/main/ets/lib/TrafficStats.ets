@@ -15,6 +15,7 @@ export class TrafficView {
   month: TrafficBucket = new TrafficBucket();
   saved: boolean = true;
   ready: boolean = false;
+  currentReady: boolean = false;
   points: TrafficPoint[] = [];
 }
 export namespace TrafficStats {
@@ -67,9 +68,16 @@ export namespace TrafficStats {
     persist();
   }
   export async function sample(): Promise<void> {
-    if (!loaded || busy || VpnController.status !== VpnStatus.Connected) { return; }
+    if (!loaded || VpnController.status !== VpnStatus.Connected) { return; }
     const session = VpnController.trafficSession();
     if (session.length === 0) { return; }
+    if (state.latestSession !== session) {
+      state.latestSession = session;
+      points = [];
+      markTrafficGap(state, Date.now());
+      persist(); // Persist unknown current independently of the cumulative read.
+    }
+    if (busy) { return; }
     const request = generation;
     busy = true;
     try {
@@ -94,12 +102,21 @@ export namespace TrafficStats {
     const period = trafficPeriod(Date.now());
     const today = state.days.find((b: TrafficBucket) => b.key === period.day);
     const month = state.months.find((b: TrafficBucket) => b.key === period.month);
-    return { current: state.current, today: today ?? new TrafficBucket(), month: month ?? new TrafficBucket(),
-      saved: saved, ready: state.startedAt > 0, points: points.slice() };
+    const session = VpnController.trafficSession();
+    const currentReady = state.startedAt > 0 && state.latestSession === state.current.key &&
+      (VpnController.status !== VpnStatus.Connected ||
+      (session.length > 0 && session === state.current.key));
+    // A confirmed new session has no observed baseline yet. Hide the previous
+    // session immediately, including while its request is still in flight.
+    const current = currentReady ? state.current : new TrafficBucket();
+    return { current: current, today: today ?? new TrafficBucket(), month: month ?? new TrafficBucket(),
+      saved: saved, ready: state.startedAt > 0, currentReady: currentReady,
+      points: currentReady ? points.slice() : [] };
   }
   export function rate(): TrafficMsg | null {
     const point = points.length > 0 ? points[points.length - 1] : null;
     return point !== null && Date.now() - point.at <= 15000 &&
-      VpnController.status === VpnStatus.Connected ? { up: point.up, down: point.down } : null;
+      VpnController.status === VpnStatus.Connected &&
+      state.checkpoint.session === VpnController.trafficSession() ? { up: point.up, down: point.down } : null;
   }
 }
