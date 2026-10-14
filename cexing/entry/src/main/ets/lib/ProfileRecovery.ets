@@ -4,6 +4,7 @@
 import { common } from '@kit.AbilityKit';
 import { VpnController, VpnStatus } from './VpnController';
 import { ProfileTransactions } from './ProfileTransactions';
+import { ProfileStore } from './ProfileStore';
 import { AppRuntime } from './AppRuntime';
 
 export namespace ProfileRecovery {
@@ -14,8 +15,9 @@ export namespace ProfileRecovery {
     busy = true;
     AppRuntime.cancelRestore();
     try {
-      if (VpnController.status !== VpnStatus.Disconnected || VpnController.needsStop()) {
-        if (!(await VpnController.stop(context))) { throw new Error('断开未确认，请重试'); }
+      const unknown = ProfileStore.isApplyUncertain(context);
+      if (VpnController.status !== VpnStatus.Disconnected || VpnController.needsStop() || unknown) {
+        if (!(await VpnController.stop(context, false, unknown))) { throw new Error('断开未确认，请重试'); }
       }
       if (!isCurrent()) { return false; }
       await ProfileTransactions.ensureActiveSmartPolicy(context);

@@ -683,14 +683,14 @@ export namespace VpnController {
   }
 
   /** True means this session's extension cleanup and system stop both completed. False is unknown. */
-  export function stop(context: common.UIAbilityContext, preserveFailure: boolean = false): Promise<boolean> {
+  export function stop(context: common.UIAbilityContext, preserveFailure: boolean = false, confirmUnknown: boolean = false): Promise<boolean> {
     cancelRecovery();
     if (stopPending !== null) { return stopPending; }
-    if (status !== VpnStatus.Connected && status !== VpnStatus.Connecting && serviceId < 0 && lastStopCompleted !== false) {
+    if (!confirmUnknown && status !== VpnStatus.Connected && status !== VpnStatus.Connecting && serviceId < 0 && lastStopCompleted !== false) {
       Logger.warn(TAG, `stop ignored, status=${VpnStatus[status]}`);
       return Promise.resolve(false);
     }
-    const retryUnknown = lastStopCompleted === false;
+    const retryUnknown = confirmUnknown || lastStopCompleted === false;
     const attempt = ++startAttempt;
     let session = startSession;
     const pendingAuthorization = authorization;
