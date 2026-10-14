@@ -35,6 +35,7 @@ export struct ProfileProxyEditorPage {
   @State names: string[] = [];
   @State providers: string[] = [];
   @State previewReady: boolean = false;
+  @State renameReferences: boolean = false;
   @State disabled: boolean = false;
   @State previewText: string = '';
   @State providerState: string = '';
@@ -127,6 +128,7 @@ export struct ProfileProxyEditorPage {
     }
     this.names = names; this.providers = providers;
     this.previewReady = model.preview !== null;
+    this.renameReferences = this.previewReady && operations.some((op: EditOperation) => op.kind === 'rename');
     this.previewText = model.preview?.changes.map((change) => `${change.section} ${change.before} → ${change.after}`).join(' · ') ?? '';
   }
 
@@ -313,6 +315,7 @@ export struct ProfileProxyEditorPage {
           })
           if (this.previewReady) { Button('应用').enabled(!this.busy).onClick(() => { this.apply(); }) }
         }
+        if (this.renameReferences) { Text('名称修改会同步更新引用').fontSize(13).fontColor(UI.muted).width('100%') }
         if (this.previewText !== '') { Text(this.previewText).fontSize(13).fontColor(UI.muted) }
         if (this.model?.snapshot === null && !this.busy) { Button('重试').onClick(() => { this.load(); }) }
       }
