@@ -66,18 +66,18 @@ export function buildVpnApplicationPolicy(mode: string, list: string[], self: st
   return { blockedApplications: [self, ...names] };
 }
 
-/**
- * 构建 VpnConfig.routes（FlClash 实证方案）：
- * 1. 显式默认路由 0.0.0.0/0（IPv6 开启时追加 ::/0）——保证 VPN 成为应用的解析网络，
- *    系统 DNS（fake-ip 链路）正确传播；
- * 2. 华为 HTTPDNS 引导服务器（139.9.98.98/139.9.99.99，/32）与边缘段
- *    （139.9/16、49.4/16、121.36/16、125.88/16、119.147/16、183.61/16）
- *    标记为排除路由（isExcludedRoute）——ArkWeb 浏览器的 HTTPDNS/静默代理
- *    （SilentProxy）直连运营商网络完成解析，不再被隧道送到境外节点导致
- *    空代理（x.x.x）解析失败 → ERR_PROXY_CONNECTION_FAILED；
- *    后续内容连接仍走隧道，由内核 SNI 嗅探（override-destination）修正目标。
- */
-function buildVpnRoutes(ipv6: boolean): connection.RouteInfo[] {
+// Preserved compatibility table from 964774595feab1c96382fb00f885cce5ca4a11bf.
+// All matching traffic bypasses TUN, not only HTTPDNS. Per-CIDR device A/B is pending.
+const HTTPDNS_ROUTE_EXCEPTIONS: string[] = [
+  '139.9.98.98/32', '139.9.99.99/32',
+  '139.9.0.0/16', '49.4.0.0/16', '121.36.0.0/16',
+  '125.88.0.0/16', '119.147.0.0/16', '183.61.0.0/16'
+];
+
+export function vpnRouteExceptions(): string[] { return [...HTTPDNS_ROUTE_EXCEPTIONS]; }
+
+// The optional list is for synthetic A/B fixtures only. Production always uses defaults.
+export function buildVpnRoutes(ipv6: boolean, excludedCidrs: string[] = vpnRouteExceptions()): connection.RouteInfo[] {
   const routes: connection.RouteInfo[] = [];
   routes.push({
     interface: 'vpn-tun',
@@ -86,19 +86,6 @@ function buildVpnRoutes(ipv6: boolean): connection.RouteInfo[] {
     hasGateway: false,
     isDefaultRoute: true
   });
-  const bootstrap: string[] = ['139.9.98.98', '139.9.99.99'];
-  for (const ip of bootstrap) {
-    routes.push({
-      interface: 'vpn-tun',
-      destination: { address: { address: ip, family: 1 }, prefixLength: 32 },
-      gateway: { address: '', family: 1 },
-      hasGateway: false,
-      isDefaultRoute: false,
-      isExcludedRoute: true
-    });
-  }
-  const excludedCidrs: string[] = ['139.9.0.0/16', '49.4.0.0/16', '121.36.0.0/16',
-    '125.88.0.0/16', '119.147.0.0/16', '183.61.0.0/16'];
   for (const cidr of excludedCidrs) {
     const parts: string[] = cidr.split('/');
     routes.push({
@@ -555,8 +542,7 @@ export namespace VpnController {
       // 避免 gVisor 产出 9KB 帧打进 1500 MTU 设备被丢弃
       mtu: 9000,
       dnsAddresses: s.ipv6 ? ['223.5.5.5', '8.8.8.8', 'fdfe:dcba:9876::2'] : ['223.5.5.5', '8.8.8.8'],
-      // 显式默认路由 + 华为 HTTPDNS 排除路由（FlClash 方案，修复 ArkWeb 浏览器
-      // 空代理 x.x.x → ERR_PROXY_CONNECTION_FAILED）
+      // Preserve the tested compatibility scope; excluded CIDRs bypass all TUN traffic.
       routes: buildVpnRoutes(s.ipv6),
       isIPv4Accepted: true,
       isIPv6Accepted: s.ipv6
