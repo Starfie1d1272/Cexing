@@ -7,6 +7,7 @@ import { NativeTheme as UI } from './NativeTheme';
 
 @Component
 export struct SettingsReconnectButton {
+  @Prop canApply: boolean = true;
   @Consume('nav') navStack: NavPathStack;
   @Consume('tab') @Watch('onVisibilityChanged') currentVisibleTab: number = 2;
   @Consume('rootVisible') @Watch('onVisibilityChanged') rootVisible: boolean = true;
@@ -30,7 +31,7 @@ export struct SettingsReconnectButton {
     if (this.listener !== null) { VpnController.offChanged(this.listener); this.listener = null; }
   }
   private confirm(): void {
-    if (this.working || this.confirming) { return; }
+    if (!this.canApply || this.working || this.confirming) { return; }
     const context = getContext(this) as common.UIAbilityContext;
     const request = ++this.request;
     const epoch = VpnController.configurationEpoch();
@@ -43,7 +44,7 @@ export struct SettingsReconnectButton {
     const current = (): boolean => {
       try {
         const now = this.navStack.getAllPathName();
-        return this.active && request === this.request && tab === this.currentVisibleTab && root === this.rootVisible &&
+        return this.canApply && this.active && request === this.request && tab === this.currentVisibleTab && root === this.rootVisible &&
           paths.length === now.length && paths.every((value: string, index: number) => value === now[index]) &&
           ProfileStore.getActiveFile(context) === file;
       }
@@ -71,7 +72,7 @@ export struct SettingsReconnectButton {
     if (this.connected) {
       Button(this.working ? '正在重连' : '重连应用')
         .width('100%').height(48).backgroundColor(UI.soft).fontColor(UI.ink)
-        .enabled(!this.working && !this.confirming).onClick(() => this.confirm())
+        .enabled(this.canApply && !this.working && !this.confirming).onClick(() => this.confirm())
     }
   }
 }

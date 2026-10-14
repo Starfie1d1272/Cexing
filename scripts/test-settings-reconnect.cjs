@@ -12,6 +12,10 @@ const sandbox = { exports: {}, require: key => modules[key] ?? {}, getContext: (
 vm.runInNewContext(ts.transpileModule(source).outputText, sandbox);
 (async () => {
   const page = new sandbox.exports.SettingsReconnectButton(); page.navStack = { getAllPathName: () => [] }; page.aboutToAppear();
+  page.canApply = false; page.confirm(); assert.equal(dialog, undefined, 'unsaved settings cannot reconnect');
+  page.canApply = true; page.confirm(); const dirty = dialog; page.canApply = false;
+  await dirty.secondaryButton.action(); assert.equal(calls, 0, 'settings changed while confirmation was open');
+  page.canApply = true;
   page.confirm(); const first = dialog; page.confirm(); assert.equal(dialog, first);
   first.primaryButton.action(); assert.equal(calls, 0);
   page.confirm(); const old = dialog; epoch++; await old.secondaryButton.action(); assert.equal(calls, 0);

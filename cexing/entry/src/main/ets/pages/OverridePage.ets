@@ -20,6 +20,7 @@ export struct OverridePage {
   @State allowLan: boolean = false;
   @State portError: string = '';
   @State lanError: string = '';
+  @State dirty: boolean = false;
   private lanDialogGeneration: number = 0;
   private saveGeneration: number = 0;
   private pageActive: boolean = false;
@@ -47,11 +48,13 @@ export struct OverridePage {
     this.mixedPort = String(s.mixedPort);
     this.logLevel = s.logLevel;
     this.allowLan = s.allowLan;
+    this.dirty = false;
   }
 
   private async persist(): Promise<void> {
     if (!this.pageActive || !this.ready) { return; }
     const generation = ++this.saveGeneration;
+    const lanGeneration = this.lanDialogGeneration;
     const context = getContext(this) as common.UIAbilityContext;
     const s = Settings.load(context);
     const port = Number(this.mixedPort);
@@ -64,7 +67,9 @@ export struct OverridePage {
     s.logLevel = this.logLevel;
     try { await Settings.save(context, s, ['mixedPort', 'logLevel']); }
     catch (_) { if (!this.pageActive || generation !== this.saveGeneration) { return; } this.portError = '保存失败，请重试'; return; }
-    if (!this.pageActive || generation !== this.saveGeneration) { return; }
+    if (!this.pageActive || generation !== this.saveGeneration || this.mixedPort !== String(port) || this.logLevel !== s.logLevel) { return; }
+    this.dirty = false;
+    if (lanGeneration === this.lanDialogGeneration) { this.allowLan = Settings.load(context).allowLan; this.lanError = ''; }
     promptAction.showToast({ message: '已保存，下次启动 VPN 生效', duration: 1500 });
   }
 
@@ -132,7 +137,7 @@ export struct OverridePage {
                 .height(48)
                 .textAlign(TextAlign.End)
                 .onChange((v: string) => {
-                  this.mixedPort = v;
+                  this.mixedPort = v; this.dirty = true;
                 })
                 .type(InputType.Number)
             }
@@ -167,7 +172,7 @@ export struct OverridePage {
               Select(LOG_OPTIONS)
                 .selected(LOG_LEVELS.indexOf(this.logLevel)).value(this.logLevel)
                 .font({ size: 14 }).height(48).width('100%')
-                .onSelect((index: number) => { this.logLevel = LOG_LEVELS[index]; })
+                .onSelect((index: number) => { this.logLevel = LOG_LEVELS[index]; this.dirty = true; })
             }
             .alignItems(HorizontalAlign.Start)
             .width('100%')
@@ -185,7 +190,7 @@ export struct OverridePage {
           }
         }.width('100%')
       }.layoutWeight(1).width('100%').scrollBar(BarState.Off)
-      SettingsReconnectButton()
+      SettingsReconnectButton({ canApply: !this.dirty })
       Button('保存').width('100%').height(56).backgroundColor(UI.action).fontColor(UI.onAccent).onClick(() => this.persist())
     }
     .width('100%')
