@@ -538,10 +538,6 @@ export namespace VpnController {
   }
 
   function connectService(context: common.UIAbilityContext, want: Want): void {
-    const linkAddr: connection.LinkAddress = {
-      address: { address: '172.19.0.1', family: 1 },
-      prefixLength: 30
-    };
     const s = Settings.load(context);
     let applications: VpnApplicationPolicy;
     try { applications = buildVpnApplicationPolicy(s.accessMode, s.accessList, context.applicationInfo.name); }
@@ -551,14 +547,18 @@ export namespace VpnController {
       return;
     }
     const vpnConfig: vpnExtension.VpnConfig = {
-      addresses: [linkAddr],
+      addresses: s.ipv6 ? [
+        { address: { address: '172.19.0.1', family: 1 }, prefixLength: 30 },
+        { address: { address: 'fdfe:dcba:9876::1', family: 2 }, prefixLength: 126 }
+      ] : [{ address: { address: '172.19.0.1', family: 1 }, prefixLength: 30 }],
       // 与内核 gVisor 栈 MTU（core/engine.go defaultTunExt 9000）保持一致，
       // 避免 gVisor 产出 9KB 帧打进 1500 MTU 设备被丢弃
       mtu: 9000,
-      dnsAddresses: ['223.5.5.5', '8.8.8.8'],
+      dnsAddresses: s.ipv6 ? ['223.5.5.5', '8.8.8.8', 'fdfe:dcba:9876::2'] : ['223.5.5.5', '8.8.8.8'],
       // 显式默认路由 + 华为 HTTPDNS 排除路由（FlClash 方案，修复 ArkWeb 浏览器
       // 空代理 x.x.x → ERR_PROXY_CONNECTION_FAILED）
       routes: buildVpnRoutes(s.ipv6),
+      isIPv4Accepted: true,
       isIPv6Accepted: s.ipv6
     };
     if (applications.trustedApplications !== undefined) {
