@@ -392,3 +392,31 @@ func TestDisableProxyRetainsAllReferencesAndUndo(t *testing.T) {
 		t.Fatal("upstream change silently disabled")
 	}
 }
+
+func TestRuleSummaryTypesUseParserWhitelistWithoutPayload(t *testing.T) {
+	source := []byte("rules: ['DOMAIN,private.synthetic,DIRECT', 'AND,((DOMAIN,private.synthetic),(NETWORK,TCP)),DIRECT', 'MATCH,DIRECT', 'PRIVATE-TYPE,private.synthetic,DIRECT']\n")
+	c := Compiler{}
+	ctx := context.Background()
+	r := Request{Original: source}
+	for _, read := range []func(context.Context, Request) (EditableSnapshot, error){c.Editable, c.EditorList} {
+		view, err := read(ctx, r)
+		if err != nil {
+			t.Fatal(err)
+		}
+		rules := view.Sections[3].Items
+		want := []string{"DOMAIN", "AND", "MATCH", ""}
+		for i, item := range rules {
+			if item.Type != want[i] {
+				t.Fatal("rule metadata missing or unsafe", i, item.Type)
+			}
+		}
+		encoded, _ := json.Marshal(view)
+		if strings.Contains(string(encoded), "private.synthetic") || strings.Contains(string(encoded), "PRIVATE-TYPE") {
+			t.Fatal("private rule payload leaked in summary")
+		}
+		explicit, err := c.EditTarget(ctx, r, "rules", rules[2].ID)
+		if err != nil || explicit.Item.Type != "MATCH" {
+			t.Fatal("explicit target metadata diverged", err)
+		}
+	}
+}
