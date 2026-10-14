@@ -27,6 +27,13 @@ const page = new sandbox.exports.TrafficPage(); page.aboutToAppear();
 assert.equal(listeners.size, 1); assert.ok(stream);
 stream({ up: 10, down: 20 }); assert.equal(page.up, '10 B/s');
 assert.equal(page.uploads.length, 2, 'Curve must break at unobserved interval');
+points = [{ at: now - 5000, up: 0, down: 0 }, { at: now, up: 1024 * 1024, down: 512 * 1024 }];
+page.refresh();
+for (const [x, y] of [...page.uploads, ...page.downloads]) {
+  assert.ok(x >= 8 && x <= page.chartWidth - 8, 'Samples must stay inside the plot frame');
+  assert.ok(y >= 8 && y <= 112, 'Both idle and peak samples must fit the shared rate scale');
+}
+assert.equal(page.chartLevels[page.chartLevels.length - 1], '0 B/s', 'Rate axis must start at zero');
 now += 5000; tick(); assert.equal(page.up, '—', 'Silent socket must not freeze a live-looking speed');
 controller.status = 0; for (const listener of listeners) listener(0);
 assert.equal(stream, null); assert.equal(page.down, '—');

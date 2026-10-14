@@ -19,7 +19,7 @@ export struct TrafficPage {
   @State private chartWidth: number = 280;
   @State private uploads: number[][] = [];
   @State private downloads: number[][] = [];
-  @State private chartMax: string = '';
+  @State private chartLevels: string[] = [];
   private timer: number = -1;
   private lastRate: number = 0;
   private active: boolean = false;
@@ -57,11 +57,14 @@ export struct TrafficPage {
     let start = points.length - 1;
     while (start > 0 && points[start].at - points[start - 1].at <= 15000) { start--; }
     const recent = points.slice(Math.max(0, start)).filter((p: TrafficPoint) => now - p.at <= 300000);
-    let max = 1;
-    recent.forEach((p: TrafficPoint) => { max = Math.max(max, p.up, p.down); });
-    this.chartMax = formatRate(max);
-    this.uploads = recent.map((p: TrafficPoint) => [Math.max(0, this.chartWidth * (1 - (now - p.at) / 300000)), 88 - 80 * p.up / max]);
-    this.downloads = recent.map((p: TrafficPoint) => [Math.max(0, this.chartWidth * (1 - (now - p.at) / 300000)), 88 - 80 * p.down / max]);
+    let peak = 0;
+    recent.forEach((p: TrafficPoint) => { peak = Math.max(peak, p.up, p.down); });
+    let max = 1024;
+    while (max < peak) { max *= 2; }
+    this.chartLevels = [max, max * 0.75, max / 2, max / 4, 0].map((value: number) => formatRate(value));
+    const width = Math.max(0, this.chartWidth - 16);
+    this.uploads = recent.map((p: TrafficPoint) => [8 + Math.max(0, width * (1 - (now - p.at) / 300000)), 112 - 104 * p.up / max]);
+    this.downloads = recent.map((p: TrafficPoint) => [8 + Math.max(0, width * (1 - (now - p.at) / 300000)), 112 - 104 * p.down / max]);
   }
   @Builder
   Rate(upload: boolean) {
@@ -103,16 +106,38 @@ export struct TrafficPage {
         Column({ space: 16 }) {
           Row({ space: 12 }) { this.Rate(true); this.Rate(false) }.width('100%')
           if (this.uploads.length > 1) {
-            Column({ space: 6 }) {
-              Text(this.chartMax).fontSize(11).fontColor(UI.muted).width('100%')
-              Stack() {
-                Polyline().width('100%').height(96).points(this.uploads).fill(Color.Transparent).stroke(UI.accentText).strokeWidth(2)
-                Polyline().width('100%').height(96).points(this.downloads).fill(Color.Transparent).stroke(UI.muted).strokeWidth(2)
-              }.width('100%').height(96).clip(true)
-                .onAreaChange((_old: Area, area: Area) => { this.chartWidth = Number(area.width); })
+            Column({ space: 8 }) {
+              Row({ space: 16 }) {
+                Row({ space: 4 }) {
+                  Circle().width(6).height(6).fill(UI.accentText)
+                  Text('上传').fontSize(11).fontColor(UI.muted)
+                }
+                Row({ space: 4 }) {
+                  Circle().width(6).height(6).fill(UI.muted)
+                  Text('下载').fontSize(11).fontColor(UI.muted)
+                }
+              }.width('100%')
+              Row({ space: 8 }) {
+                Column() {
+                  ForEach(this.chartLevels, (level: string) => {
+                    Text(level).fontSize(10).fontColor(UI.muted).maxLines(1)
+                  })
+                }.width(58).height(120).alignItems(HorizontalAlign.End).justifyContent(FlexAlign.SpaceBetween)
+                Stack() {
+                  Divider().color(UI.line).opacity(0.5).position({ x: 0, y: 34 })
+                  Divider().color(UI.line).opacity(0.5).position({ x: 0, y: 60 })
+                  Divider().color(UI.line).opacity(0.5).position({ x: 0, y: 86 })
+                  Divider().vertical(true).height(120).color(UI.line).opacity(0.5).position({ x: '50%', y: 0 })
+                  Polyline().width('100%').height(120).points(this.uploads).fill(Color.Transparent).stroke(UI.accentText).strokeWidth(2)
+                  Polyline().width('100%').height(120).points(this.downloads).fill(Color.Transparent).stroke(UI.muted).strokeWidth(2)
+                }.layoutWeight(1).height(120).border({ width: 1, color: UI.line }).borderRadius(8).clip(true)
+                  .onAreaChange((_old: Area, area: Area) => { this.chartWidth = Number(area.width); })
+              }.width('100%')
               Row() {
-                Text('5 分钟前').layoutWeight(1).fontSize(11).fontColor(UI.muted)
-                Text('现在').fontSize(11).fontColor(UI.muted)
+                Blank().width(66)
+                Text('5 分钟前').layoutWeight(1).fontSize(10).fontColor(UI.muted)
+                Text('2.5 分钟前').layoutWeight(1).textAlign(TextAlign.Center).fontSize(10).fontColor(UI.muted)
+                Text('现在').layoutWeight(1).textAlign(TextAlign.End).fontSize(10).fontColor(UI.muted)
               }.width('100%')
             }.width('100%').accessibilityGroup(true).accessibilityText('最近五分钟上传与下载速率')
           }
