@@ -12,6 +12,7 @@ import { NetworkSettingsPage } from './NetworkSettingsPage';
 import { OverridePage } from './OverridePage';
 import { ProfileEditPage } from './ProfileEditPage';
 import { ProfileGeneratedPage } from './ProfileGeneratedPage';
+import { RuleDnsEditorPage } from './RuleDnsEditorPage';
 
 @Entry
 @Component
@@ -26,6 +27,7 @@ struct Index {
   @State currentTab: number = 0;
   @State windowWidth: number = 390;
   @State private smartVisible: boolean = false;
+  @State private ruleDnsVisible: boolean = false;
   @State private zashboardVisible: boolean = false;
 
   aboutToAppear(): void {
@@ -74,6 +76,10 @@ struct Index {
       NavDestination() { OverridePage() }.title('内核设置')
     } else if (name === 'profileDetail') {
       NavDestination() { ProfilePage({ detailFile: ProfileDetailBus.current }) }.title('订阅详情')
+    } else if (name === 'ruleDnsEditor') {
+      NavDestination() { RuleDnsEditorPage({ visible: this.ruleDnsVisible }) }.title('规则与 DNS')
+        .onShown(() => { this.ruleDnsVisible = true; })
+        .onHidden(() => { this.ruleDnsVisible = false; })
     } else if (name === 'profileMerge') {
       NavDestination() { ProfileEditPage({ mergeOnly: true }) }.title('本订阅覆写')
     } else if (name === 'profileGenerated') {

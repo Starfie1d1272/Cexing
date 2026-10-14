@@ -20,6 +20,7 @@ import { CoreApi } from '../lib/CoreApi';
 import { AppRuntime } from '../lib/AppRuntime';
 import { Logger } from '../lib/Logger';
 import { ProfileEditBus } from './ProfileEditPage';
+import { RuleDnsEditorBus } from './RuleDnsEditorPage';
 import { GlobalMergeEditor } from './GlobalMergeEditor';
 
 const TAG = 'profile';
@@ -85,6 +86,14 @@ export struct ProfilePage {
   private pageVisible: boolean = false;
   private pageGeneration: number = 0;
   private activationRequest: number = 0;
+
+  private openRuleDns(file: string): void {
+    const paths = this.navStack.getAllPathName();
+    if (paths[paths.length - 1] === 'ruleDnsEditor') { return; }
+    RuleDnsEditorBus.file = file;
+    RuleDnsEditorBus.section = 'rules';
+    this.navStack.pushPath({ name: 'ruleDnsEditor' });
+  }
 
   private detailOnTop(): boolean {
     const paths = this.navStack.getAllPathName();
@@ -808,6 +817,9 @@ export struct ProfilePage {
                 .enabled(this.updatingFile.length === 0).onClick(() => { this.retryAutomatic(p); })
             }
           }
+          this.DetailAction('规则与 DNS', () => {
+            this.openRuleDns(p.file);
+          })
           this.DetailAction('原始配置', () => {
             ProfileEditBus.current = p.file;
             this.navStack.pushPath({ name: 'profileEdit' });
