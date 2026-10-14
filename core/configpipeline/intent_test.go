@@ -296,3 +296,53 @@ func TestEditorProjectionShowsDraftWithoutValidateOrPublication(t *testing.T) {
 		t.Fatal("source mutated")
 	}
 }
+
+func TestIntentDNSPolicyOrderParticipatesInSourceAndFieldRevision(t *testing.T) {
+	source := []byte("proxies: [{name: a, type: direct}]\ndns: {nameserver-policy: {private-a.test: 1.1.1.1, private-b.test: 8.8.8.8}}\n")
+	changed := []byte("proxies: [{name: a, type: direct}]\ndns: {nameserver-policy: {private-b.test: 8.8.8.8, private-a.test: 1.1.1.1}}\n")
+	a, e := ReadEditable(source, nil, nil)
+	if e != nil {
+		t.Fatal(e)
+	}
+	b, e := ReadEditable(changed, nil, nil)
+	if e != nil {
+		t.Fatal(e)
+	}
+	if a.SourceRevision == b.SourceRevision {
+		t.Fatal("ordered DNS policy source change not revisioned")
+	}
+	dns := editTarget(t, source, "dns", 0)
+	plan := editPlan(t, source, EditOperation{ID: "dns-policy", Kind: "update", Section: "dns", Target: dns.Item.ID, Preconditions: map[string]string{"nameserver-policy": dns.Item.Fields["nameserver-policy"]}, Patch: json.RawMessage(`{"nameserver-policy":{"private-c.test":"9.9.9.9"}}`)})
+	if _, e = editCompiler().Compile(context.Background(), Request{Original: changed, Intent: plan}); e == nil {
+		t.Fatal("upstream priority change silently overwritten")
+	}
+}
+
+func TestIntentCompoundUpdateRenameUsesOriginalGuardAndRejectsRealSourceChange(t *testing.T) {
+	source := editFixture(t)
+	target := editTarget(t, source, "proxies", 0)
+	plan := editPlan(t, source,
+		EditOperation{ID: "update", Kind: "update", Section: "proxies", Target: target.Item.ID, Preconditions: map[string]string{"udp": target.Item.Fields["udp"]}, Patch: json.RawMessage(`{"udp":false}`)},
+		EditOperation{ID: "rename", Kind: "rename", Section: "proxies", Target: target.Item.ID, Expected: target.Item.Revision, Name: "renamed-node"},
+	)
+	before, _ := json.Marshal(plan)
+	r, e := editCompiler().Compile(context.Background(), Request{Original: source, Intent: plan})
+	if e != nil {
+		t.Fatal("own update invalidates original rename guard", e)
+	}
+	if !strings.Contains(string(r.YAML), "name: renamed-node") || !strings.Contains(string(r.YAML), "udp: false") {
+		t.Fatal("compound edit lost fields")
+	}
+	again, e := editCompiler().Compile(context.Background(), Request{Original: source, Intent: plan})
+	if e != nil || again.Digest != r.Digest {
+		t.Fatal("compound recompile not idempotent", e)
+	}
+	after, _ := json.Marshal(plan)
+	if string(before) != string(after) {
+		t.Fatal("compile rewrote authored guards")
+	}
+	changed := []byte(strings.Replace(string(source), "udp: true", "udp: false", 1))
+	if _, e = editCompiler().Compile(context.Background(), Request{Original: changed, Intent: plan}); e == nil {
+		t.Fatal("real upstream conflict bypassed")
+	}
+}

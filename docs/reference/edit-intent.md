@@ -34,7 +34,7 @@ DNS 是一个 mapping 目标，缺失时提供虚拟空 mapping；通过 update 
 
 命名目标 ID 由 section 与原名生成，上游修改无关字段不会换 ID。规则 ID 使用语义内容、同内容出现序号及重复总数：重复条目数量变化时不会错删另一条。上游改名/修改规则后的 update/move/rename 返回缺失目标；delete 不猜测替代目标。重复规则仍存在但 ID 因重复数量变化失效时，delete 返回冲突。用户需重新选取发生冲突的目标。任意私有 ID/指纹也不得进入诊断或支持导出。
 
-一个意图每次从最新原文重新执行，重复编译幂等；不把生成 YAML 用作下一次原文。草稿应合并同目标同字段的 update 操作，而不是叠加相互矛盾的前置条件；移动与旧规则 ID 操作先于影响该 ID 的改名/规则替换。撤销移除该操作，停用设置 disabled；两者都重新编译最新输入。只读操作不验证外部 provider 资源，不联网、不 stage，不宣称已可运行。
+一个意图每次从最新原文重新执行，重复编译幂等；不把生成 YAML 用作下一次原文。同份意图的前序修改不会使后序操作的原基线守卫失效；update 后 rename/delete 可使用原基线或已通过守卫的投影视图 revision。真实上游冲突仍拒绝。草稿应合并同目标同字段的 update 操作；移动与旧规则 ID 操作先于影响该 ID 的改名/规则替换。撤销移除该操作，停用设置 disabled；两者都重新编译最新输入。只读操作不验证外部 provider 资源，不联网、不 stage，不宣称已可运行。
 
 `smartGroups` 使用 smartPreview.choiceId → boolean；choiceId 逆向追踪个人改名以保持来源实体身份，id 仍表示当前列表目标。多次改名、撤销与来源消失后恢复均保留选择，预览不修改持久意图。，true 是用户明确 opt-in，false 是保留原类型。Smart 参数与转换逻辑由同一 configpipeline 提供；由 `ApplySmartPolicy` / `PreviewSmartPolicy` 接通。url-test 默认转换，load-balance 默认保留；明确 opt-in 才去除其 strategy；已存在 Smart 参数和手动 Selector 不覆盖。全局关闭时，逐订阅显式 true 仍优先；intent.disabled 只停用个人编辑/例外，不改变全局默认。
 

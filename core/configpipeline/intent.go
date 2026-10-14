@@ -99,6 +99,26 @@ func fingerprint(n *yaml.Node) string {
 	if err != nil {
 		return ""
 	}
+	// These DNS maps are consumed in insertion order by the locked parser.
+	dns := field(n, "dns")
+	if dns == nil {
+		dns = n
+	}
+	orders := [][]string{}
+	for _, key := range []string{"nameserver-policy", "proxy-server-nameserver-policy"} {
+		if policy := field(dns, key); policy != nil && policy.Kind == yaml.MappingNode {
+			orders = append(orders, mappingEditorNames(policy))
+		}
+	}
+	if len(orders) > 0 {
+		b, err = json.Marshal(struct {
+			Value any
+			Order [][]string
+		}{v, orders})
+		if err != nil {
+			return ""
+		}
+	}
 	if n == nil {
 		b = []byte("missing field")
 	}
@@ -174,7 +194,7 @@ func editableItem(section, name string, n *yaml.Node, explicit bool) EditableIte
 	if explicit && n.Kind == yaml.MappingNode {
 		item.Fields = map[string]string{}
 		for i := 0; i < len(n.Content); i += 2 {
-			item.Fields[n.Content[i].Value] = fingerprint(n.Content[i+1])
+			item.Fields[n.Content[i].Value] = fieldFingerprint(section, n.Content[i].Value, n.Content[i+1])
 		}
 	}
 	return item
@@ -333,11 +353,12 @@ func ApplyEditIntent(ctx context.Context, root *yaml.Node, intent *EditIntent) e
 	if intent == nil || intent.Disabled {
 		return nil
 	}
+	baselines := map[*yaml.Node]*yaml.Node{}
 	for i, op := range intent.Operations {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		if err := applyEditOperation(root, op); err != nil {
+		if err := applyEditOperation(root, op, baselines); err != nil {
 			var typed *IntentError
 			if errors.As(err, &typed) {
 				return intentError(typed.Code, i)
@@ -347,7 +368,7 @@ func ApplyEditIntent(ctx context.Context, root *yaml.Node, intent *EditIntent) e
 	}
 	return nil
 }
-func applyEditOperation(root *yaml.Node, op EditOperation) error {
+func applyEditOperation(root *yaml.Node, op EditOperation, baselines map[*yaml.Node]*yaml.Node) error {
 	fail := func(code string) error { return intentError(code, -1) }
 	nodes, names, err := editNodes(root, op.Section)
 	if err != nil {
@@ -423,13 +444,24 @@ func applyEditOperation(root *yaml.Node, op EditOperation) error {
 		return fail("missing_target")
 	}
 	node := nodes[position]
+	baseline := baselines[node]
+	if baseline == nil {
+		baseline, err = normalize(node, map[*yaml.Node]bool{})
+		if err != nil {
+			return fail("invalid_source")
+		}
+		baselines[node] = baseline
+	}
+	matchesRevision := func(expected string) bool {
+		return expected != "" && (fingerprint(node) == expected || fingerprint(baseline) == expected)
+	}
 	if op.Section == "dns" && container == nil {
 		set(root, "dns", node)
 	}
 	switch op.Kind {
 	case "update":
 		if node.Kind != yaml.MappingNode {
-			if op.Expected == "" || fingerprint(node) != op.Expected {
+			if !matchesRevision(op.Expected) {
 				return fail("conflict")
 			}
 			value, err := jsonNode(op.Value)
@@ -439,6 +471,7 @@ func applyEditOperation(root *yaml.Node, op EditOperation) error {
 			if op.Section == "rules" && value.Tag != "!!str" {
 				return fail("invalid_value")
 			}
+			baselines[value] = baseline
 			if container.Kind == yaml.MappingNode {
 				set(container, names[position], value)
 			} else {
@@ -461,7 +494,7 @@ func applyEditOperation(root *yaml.Node, op EditOperation) error {
 			}
 			seen[key] = true
 			expected, ok := op.Preconditions[key]
-			if !ok || fingerprint(field(node, key)) != expected {
+			if !ok || (fieldFingerprint(op.Section, key, field(node, key)) != expected && fieldFingerprint(op.Section, key, field(baseline, key)) != expected) {
 				return fail("conflict")
 			}
 		}
@@ -472,7 +505,7 @@ func applyEditOperation(root *yaml.Node, op EditOperation) error {
 			set(node, key, nil)
 		}
 	case "delete":
-		if op.Expected == "" || fingerprint(node) != op.Expected {
+		if !matchesRevision(op.Expected) {
 			return fail("conflict")
 		}
 		if op.Section == "dns" {
@@ -505,7 +538,7 @@ func applyEditOperation(root *yaml.Node, op EditOperation) error {
 		if op.Section == "rules" || op.Section == "dns" || op.Section == "hosts" || op.Name == "" || strings.ContainsAny(op.Name, ",\r\n") {
 			return fail("invalid_operation")
 		}
-		if op.Expected == "" || fingerprint(node) != op.Expected {
+		if !matchesRevision(op.Expected) {
 			return fail("conflict")
 		}
 		for _, name := range names {
@@ -773,4 +806,26 @@ func mappingEditorNames(n *yaml.Node) []string {
 		}
 	}
 	return names
+}
+
+func fieldFingerprint(section, key string, n *yaml.Node) string {
+	if n == nil {
+		return MissingFieldRevision()
+	}
+	if section != "dns" || (key != "nameserver-policy" && key != "proxy-server-nameserver-policy") {
+		return fingerprint(n)
+	}
+	var value any
+	if err := n.Decode(&value); err != nil {
+		return ""
+	}
+	data, err := json.Marshal(struct {
+		Value any
+		Order []string
+	}{value, mappingEditorNames(n)})
+	if err != nil {
+		return ""
+	}
+	sum := sha256.Sum256(data)
+	return hex.EncodeToString(sum[:])
 }
