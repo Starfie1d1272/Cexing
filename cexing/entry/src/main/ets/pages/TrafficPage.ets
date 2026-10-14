@@ -95,35 +95,35 @@ export struct TrafficPage {
             .fontColor(UI.ink).fontFeature('tnum')
         }.alignItems(HorizontalAlign.Start).layoutWeight(1)
       }.width('100%')
-    }.width('100%').padding({ top: 22, bottom: 22 })
+    }.width('100%').padding(20).borderRadius(24).backgroundColor(UI.surface)
   }
   build() {
     Scroll() {
-      Column({ space: 0 }) {
-        Row({ space: 12 }) { this.Rate(true); this.Rate(false) }.width('100%').padding({ top: 12, bottom: 20 })
-        if (this.uploads.length > 1) {
-          Column({ space: 6 }) {
-            Text(this.chartMax).fontSize(11).fontColor(UI.muted).width('100%')
-            Stack() {
-              Polyline().points(this.uploads).fill(Color.Transparent).stroke(UI.accentText).strokeWidth(2)
-              Polyline().points(this.downloads).fill(Color.Transparent).stroke(UI.muted).strokeWidth(2)
-            }.width('100%').height(96).clip(true)
-              .onAreaChange((_old: Area, area: Area) => { this.chartWidth = Number(area.width); })
-            Row() {
-              Text('5 分钟前').layoutWeight(1).fontSize(11).fontColor(UI.muted)
-              Text('现在').fontSize(11).fontColor(UI.muted)
-            }.width('100%')
-          }.width('100%').padding({ bottom: 10 }).accessibilityGroup(true).accessibilityText('最近五分钟上传与下载速率')
-        }
+      Column({ space: 12 }) {
+        Column({ space: 16 }) {
+          Row({ space: 12 }) { this.Rate(true); this.Rate(false) }.width('100%')
+          if (this.uploads.length > 1) {
+            Column({ space: 6 }) {
+              Text(this.chartMax).fontSize(11).fontColor(UI.muted).width('100%')
+              Stack() {
+                Polyline().width('100%').height(96).points(this.uploads).fill(Color.Transparent).stroke(UI.accentText).strokeWidth(2)
+                Polyline().width('100%').height(96).points(this.downloads).fill(Color.Transparent).stroke(UI.muted).strokeWidth(2)
+              }.width('100%').height(96).clip(true)
+                .onAreaChange((_old: Area, area: Area) => { this.chartWidth = Number(area.width); })
+              Row() {
+                Text('5 分钟前').layoutWeight(1).fontSize(11).fontColor(UI.muted)
+                Text('现在').fontSize(11).fontColor(UI.muted)
+              }.width('100%')
+            }.width('100%').accessibilityGroup(true).accessibilityText('最近五分钟上传与下载速率')
+          }
+        }.width('100%').padding(20).borderRadius(24).backgroundColor(UI.surface)
         this.Period(0, '本次')
-        Divider().color(UI.line)
         this.Period(1, '今日')
-        Divider().color(UI.line)
         this.Period(2, '本月')
         if (!this.snapshot.saved) {
           Text('记录未保存').fontSize(12).fontColor(UI.muted).width('100%').padding({ bottom: 16 })
         }
-      }.width('100%').constraintSize({ maxWidth: 640 }).padding({ left: 24, right: 24, bottom: 24 })
-    }.width('100%').height('100%').backgroundColor(UI.paper).scrollBar(BarState.Off)
+      }.width('100%').constraintSize({ maxWidth: 640 }).padding(24)
+    }.width('100%').height('100%').align(Alignment.Top).backgroundColor(UI.paper).scrollBar(BarState.Off)
   }
 }
