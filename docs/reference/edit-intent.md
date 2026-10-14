@@ -48,11 +48,10 @@ DNS 是一个 mapping 目标，缺失时提供虚拟空 mapping；通过 update 
 
 ## 事务与可靠性组接线契约
 
-既有生产接线仍提供 `ProfileTransactions.editTicket/saveEditDraft/previewEditDraft/applyEditDraft` 和 `ProfileStore.readEditDraft`；ticket 必须在异步读取前捕获，save 返回 revision 后从原 ticket 派生新 revision 再核对，不能在迟到回调中冒用新 ticket。草稿为 `{intent,revision}`；成功版本与草稿分开，null 草稿表示移除个人意图。下述强身份 host 接口用于后续统一适配，不代替已实现的事务。
-
-ArkTS 统一生产适配名为 `EditorDraftHost`（实际接口已在 `ConfigEditor.ets`）：`load()` 返回 profileId、revision、intent、snapshot；`target(section,id,revision)` 明确取单项私有值；`save(intent,expectedRevision)` 保存私有草稿并返回新 session；`preview(expectedRevision)` 返回 `{revision,digest,changes}`；`apply(preview)` 重新编译/核对 revision+digest 后走既有事务；`undo(expectedRevision)` 丢弃未发布草稿，恢复该订阅成功版本的意图并增加 revision。每个 host 绑定一个稳定 profile；UI 不传当前选择来替换它。revision 是宿主绑定来源、草稿、两层 Merge、设置与 provider 快照的私有不透明身份，不能仅用 active version ID。过期均拒绝，不写盘/不应用。此处接口供可靠性组实现，当前不宣称已经有生产适配对象。
+ArkTS 统一生产适配名为 `EditorDraftHost`（实际接口已在 `ConfigEditor.ets`）：`load()` 返回 profileId、revision、intent、snapshot；`target(section,id,revision)` 明确取单项私有值；`save(intent,expectedRevision)` 保存私有草稿并返回新 session；`preview(expectedRevision)` 返回 `{revision,digest,changes}`；`apply(preview)` 重新编译/核对 revision+digest 后走既有事务；`undo(expectedRevision)` 丢弃未发布草稿，恢复该订阅成功版本的意图并增加 revision。每个 host 绑定一个稳定 profile；UI 不传当前选择来替换它。revision 是宿主绑定来源、草稿、两层 Merge、设置与 provider 快照的私有不透明身份，不能仅用 active version ID。过期均拒绝，不写盘/不应用。生产适配由 `EditorDraftHosts.create(context, file)` 返回，实现位于 `lib/EditorDraftHosts.ets`。UI 只在用户进入编辑时创建并保存这个实例；load 使用私有 list，target/保存/预览/应用/撤销均绑定同一来源。修订同时比较来源/草稿 ticket、两层 Merge、设置与 native 有界本地 provider 字节指纹；缺失缓存也有独立状态，不联网。应用必须来自本实例的预览 digest；stage 返回实际 digest 并在 apply 前核对，之后继续走既有 verify/apply/commit。
 
 宿主保存每订阅独立草稿 `{intent, expectedDraftRevision}`。成功应用通过现有 stage/verify/apply/commit，将完整 `EditIntent` 加入 `source.json`（字段名 `EditIntent`），与原文、本订阅 Merge、地区计划一起发布。Compiler 返回独立 `Result.EditIntent` 副本，可靠性组只需在既有 FileStore source 结构添加该字段，不新增版本引用或第二个成功指针。更新、切换、重启与全局 Merge 应用必须从该订阅成功版本读取意图重新编译。草稿修改不能改变成功意图。校验/应用/持久化失败均保持旧意图、旧指针和旧原版，不能先保存新意图再调用 reload。
+
 
 GC 引用清单不新增版本引用：`sourceRevision`/`revision`/target/field fingerprints 都是私有数据标识，不是 version ID 或路径。版本仍仅由现有 Current/Previous/Profiles、可靠性组的备份/回滚引用保留。意图不持有外部文件句柄，不重写 FileStore GC。
 

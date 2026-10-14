@@ -172,6 +172,8 @@ const Editor = compile('pages/GlobalMergeEditor.ets', true).GlobalMergeEditor;
   await assert.rejects(tx.applyEditDraft(ctx, applyTicket), /拒绝/);
   assert.equal(state.Current.ID, oldEditVersion);
   response = 'applied';
+  await assert.rejects(tx.applyEditDraft(ctx, applyTicket, 'changed-preview'), /预览已变化/);
+  assert.equal(state.Current.ID, oldEditVersion, 'digest mismatch cannot publish');
   await tx.applyEditDraft(ctx, applyTicket);
   assert.equal(versions.editIntent(ctx, state.Current).revision, editRevision);
   await tx.update(ctx, editFile);
