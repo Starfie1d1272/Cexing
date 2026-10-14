@@ -1,5 +1,6 @@
 import { ZashboardAssets } from '../lib/ZashboardAssets';
 import { SmartModelAssets } from '../lib/SmartModelAssets';
+import { GeoDataAssets } from '../lib/GeoDataAssets';
 /*
  * CexingVpnAbility.ets - VPN 扩展能力(独立进程 :vpn)
  *
@@ -321,21 +322,10 @@ export default class CexingVpnAbility extends VpnExtensionAbility {
     }
   }
 
-  private async seedGeoData(filesDir: string): Promise<void> {
-    const path = `${filesDir}/geoip.metadb`;
-    if (fileIo.accessSync(path) && fileIo.statSync(path).size > 0) {
-      return;
+  private async seedGeoData(_filesDir: string): Promise<void> {
+    if (await GeoDataAssets.inspect(this.context) !== 'ready') {
+      await GeoDataAssets.restore(this.context, { cancelled: false });
     }
-    const bytes = await this.context.resourceManager.getRawFileContent('geodata/geoip.metadb');
-    const temp = `${path}.tmp`;
-    const file = fileIo.openSync(temp, fileIo.OpenMode.WRITE_ONLY | fileIo.OpenMode.CREATE | fileIo.OpenMode.TRUNC);
-    try {
-      fileIo.writeSync(file.fd, bytes.buffer);
-    } finally {
-      fileIo.closeSync(file);
-    }
-    fileIo.renameSync(temp, path);
-    Logger.info(TAG, `seeded GeoIP database (${bytes.length} bytes)`);
   }
 
   private stopSession(session: string): Promise<boolean> {
