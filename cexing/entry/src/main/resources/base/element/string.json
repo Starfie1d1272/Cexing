@@ -679,6 +679,302 @@
     {
       "name": "resource_restore_name",
       "value": "Restore %s"
+    },
+    {
+      "name": "diag_not_checked",
+      "value": "Local service not checked"
+    },
+    {
+      "name": "diag_checking",
+      "value": "Checking…"
+    },
+    {
+      "name": "diag_evidence_failed",
+      "value": "Check evidence could not be saved. Retry export"
+    },
+    {
+      "name": "diag_proxy_unavailable",
+      "value": "Test proxies unavailable. Connect and retry"
+    },
+    {
+      "name": "diag_preparing_export",
+      "value": "Preparing support bundle…"
+    },
+    {
+      "name": "diag_bundle_name",
+      "value": "Cexing support bundle"
+    },
+    {
+      "name": "diag_share_open",
+      "value": "Share sheet opened. Review contents and choose an app"
+    },
+    {
+      "name": "diag_picker_type",
+      "value": "Support bundle|.json"
+    },
+    {
+      "name": "diag_save_cancelled",
+      "value": "Save cancelled. Bundle retained in the app"
+    },
+    {
+      "name": "diag_saved",
+      "value": "Support bundle saved. Review evidence scope before submitting"
+    },
+    {
+      "name": "diag_files_pending",
+      "value": "Existing diagnostic files are pending or retained. Complete save/share or retry later"
+    },
+    {
+      "name": "diag_export_failed",
+      "value": "Bundle save/share incomplete. Retry; historical evidence is retained"
+    },
+    {
+      "name": "diag_reachable",
+      "value": "Local service reachable"
+    },
+    {
+      "name": "diag_timeout",
+      "value": "Check timed out"
+    },
+    {
+      "name": "diag_summary_copied",
+      "value": "Redacted summary copied"
+    },
+    {
+      "name": "diag_copy_failed",
+      "value": "Copy failed. Retry"
+    },
+    {
+      "name": "diag_feedback_failed",
+      "value": "Could not open feedback. Use the GitHub repository issue page"
+    },
+    {
+      "name": "diag_connection_check",
+      "value": "Connection checks"
+    },
+    {
+      "name": "diag_local_service",
+      "value": "Local service"
+    },
+    {
+      "name": "diag_retry_timeout",
+      "value": "Retry the check. If it still times out, disconnect and reconnect."
+    },
+    {
+      "name": "diag_collapse",
+      "value": "Hide technical details"
+    },
+    {
+      "name": "diag_details",
+      "value": "Technical details"
+    },
+    {
+      "name": "diag_check_scope",
+      "value": "These checks cover the local API, configured DNS and selected proxy. Website access and system tunnel forwarding require separate confirmation."
+    },
+    {
+      "name": "diag_check_dns",
+      "value": "Check DNS"
+    },
+    {
+      "name": "diag_read_proxies",
+      "value": "Read test proxy list"
+    },
+    {
+      "name": "diag_choose_proxy",
+      "value": "Choose test proxy"
+    },
+    {
+      "name": "diag_check_proxy",
+      "value": "Check proxy connection"
+    },
+    {
+      "name": "diag_check_delay",
+      "value": "Check proxy latency"
+    },
+    {
+      "name": "diag_bandwidth_not_run",
+      "value": "Bandwidth testing is not performed here."
+    },
+    {
+      "name": "diag_visit_site",
+      "value": "After the local service responds, open a website to confirm access. Use dashboard logs if access fails."
+    },
+    {
+      "name": "diag_kernel_ready",
+      "value": "Kernel reported ready"
+    },
+    {
+      "name": "diag_kernel_waiting",
+      "value": "Waiting for kernel readiness"
+    },
+    {
+      "name": "diag_share",
+      "value": "Share support bundle file"
+    },
+    {
+      "name": "diag_copy_summary",
+      "value": "Copy redacted summary"
+    },
+    {
+      "name": "diag_feedback",
+      "value": "Open GitHub feedback template"
+    },
+    {
+      "name": "diag_check_service",
+      "value": "Check local service"
+    },
+    {
+      "name": "diag_save_bundle",
+      "value": "Save support bundle"
+    },
+    {
+      "name": "diag_evidence_scope",
+      "value": "Evidence scope in this bundle"
+    },
+    {
+      "name": "diag_title_connection",
+      "value": "Proxy connection"
+    },
+    {
+      "name": "diag_title_delay",
+      "value": "Proxy latency"
+    },
+    {
+      "name": "diag_title_bandwidth",
+      "value": "Bandwidth test"
+    },
+    {
+      "name": "diag_credentials_failed",
+      "value": "Connection information unavailable. Reconnect"
+    },
+    {
+      "name": "diag_auth_failed",
+      "value": "Connection authentication failed. Disconnect and reconnect"
+    },
+    {
+      "name": "diag_connect_first",
+      "value": "Not run. Connect VPN first"
+    },
+    {
+      "name": "diag_proxy_first",
+      "value": "Not run. Choose a test proxy first"
+    },
+    {
+      "name": "diag_bandwidth_disabled",
+      "value": "Bandwidth testing is not performed here"
+    },
+    {
+      "name": "diag_skipped",
+      "value": "Check not run. Reason recorded in the bundle"
+    },
+    {
+      "name": "diag_unknown",
+      "value": "Check result unconfirmed. Save a support bundle"
+    },
+    {
+      "name": "diag_fact_host",
+      "value": "App"
+    },
+    {
+      "name": "diag_fact_kernel",
+      "value": "Kernel"
+    },
+    {
+      "name": "diag_fact_current",
+      "value": "Current session"
+    },
+    {
+      "name": "diag_fact_previous",
+      "value": "Previous session"
+    },
+    {
+      "name": "diag_fact_older",
+      "value": "Older session"
+    },
+    {
+      "name": "diag_fact_no_evidence",
+      "value": "No retained evidence"
+    },
+    {
+      "name": "diag_fact_missing",
+      "value": "No evidence retained for this session; first use or rotation possible"
+    },
+    {
+      "name": "diag_fact_invalid",
+      "value": "Evidence file damaged or over limit"
+    },
+    {
+      "name": "diag_fact_unreadable",
+      "value": "Evidence unavailable"
+    },
+    {
+      "name": "diag_fact_environment",
+      "value": "App environment snapshot incomplete"
+    },
+    {
+      "name": "diag_fact_version",
+      "value": "Effective configuration version unconfirmed"
+    },
+    {
+      "name": "diag_fact_retention",
+      "value": "Each source retains current and two prior process sessions; older evidence may be rotated."
+    },
+    {
+      "name": "diag_fact_bandwidth",
+      "value": "Bandwidth testing must be started separately; this page only performs low-traffic checks."
+    },
+    {
+      "name": "diag_last_failure",
+      "value": "Last startup failure: %s"
+    },
+    {
+      "name": "diag_checked_at",
+      "value": "Checked at: %s"
+    },
+    {
+      "name": "diag_passed",
+      "value": "%s check passed"
+    },
+    {
+      "name": "diag_error_code",
+      "value": " (error code %s)"
+    },
+    {
+      "name": "diag_failed",
+      "value": "Check failed%s. Save a support bundle"
+    },
+    {
+      "name": "diag_fact_label",
+      "value": "%s · %s"
+    },
+    {
+      "name": "diag_fact_line",
+      "value": "%s: %s"
+    },
+    {
+      "name": "diag_fact_count",
+      "value": "%s: %d records"
+    },
+    {
+      "name": "diag_fact_losses",
+      "value": "%s: %d dropped, %d export omissions, %d write failures, %d unpersisted, %d rate-limited"
+    },
+    {
+      "name": "diag_fact_checks",
+      "value": "%s: %d check records retained"
+    },
+    {
+      "name": "diag_fact_no_checks",
+      "value": "%s: no retained results; cannot infer whether the check ran"
+    },
+    {
+      "name": "diag_connecting",
+      "value": "Connecting"
+    },
+    {
+      "name": "diag_disconnecting",
+      "value": "Disconnecting"
     }
   ]
 }

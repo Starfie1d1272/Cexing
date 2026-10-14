@@ -655,6 +655,302 @@
     {
       "name": "resource_restore_name",
       "value": "恢复%s"
+    },
+    {
+      "name": "diag_not_checked",
+      "value": "尚未检查本机服务"
+    },
+    {
+      "name": "diag_checking",
+      "value": "正在检查…"
+    },
+    {
+      "name": "diag_evidence_failed",
+      "value": "本次检查证据未保存成功，请重试导出"
+    },
+    {
+      "name": "diag_proxy_unavailable",
+      "value": "测试代理列表未读取到，请连接后重试"
+    },
+    {
+      "name": "diag_preparing_export",
+      "value": "正在准备诊断支持包…"
+    },
+    {
+      "name": "diag_bundle_name",
+      "value": "策星诊断支持包"
+    },
+    {
+      "name": "diag_share_open",
+      "value": "已打开系统分享面板，请审核内容后选择接收应用"
+    },
+    {
+      "name": "diag_picker_type",
+      "value": "诊断支持包|.json"
+    },
+    {
+      "name": "diag_save_cancelled",
+      "value": "保存已取消，诊断包保留在应用中"
+    },
+    {
+      "name": "diag_saved",
+      "value": "诊断支持包已保存，请审核证据范围后提交"
+    },
+    {
+      "name": "diag_files_pending",
+      "value": "已有诊断文件仍在等待或保留，请先完成保存/分享或稍后重试"
+    },
+    {
+      "name": "diag_export_failed",
+      "value": "诊断包保存或分享未完成，可重试；历史证据保留"
+    },
+    {
+      "name": "diag_reachable",
+      "value": "本机服务可达"
+    },
+    {
+      "name": "diag_timeout",
+      "value": "检查超时"
+    },
+    {
+      "name": "diag_summary_copied",
+      "value": "脱敏摘要已复制"
+    },
+    {
+      "name": "diag_copy_failed",
+      "value": "复制失败，请重试"
+    },
+    {
+      "name": "diag_feedback_failed",
+      "value": "打开失败，请在 GitHub 仓库的问题页提交反馈"
+    },
+    {
+      "name": "diag_connection_check",
+      "value": "连接检查"
+    },
+    {
+      "name": "diag_local_service",
+      "value": "本机服务"
+    },
+    {
+      "name": "diag_retry_timeout",
+      "value": "请重试检查；若仍超时，请断开后重新连接。"
+    },
+    {
+      "name": "diag_collapse",
+      "value": "收起技术详情"
+    },
+    {
+      "name": "diag_details",
+      "value": "查看技术详情"
+    },
+    {
+      "name": "diag_check_scope",
+      "value": "这些检查分别验证本机 API、配置的 DNS 和所选代理；网站访问与系统隧道转发仍需单独确认。"
+    },
+    {
+      "name": "diag_check_dns",
+      "value": "检查 DNS"
+    },
+    {
+      "name": "diag_read_proxies",
+      "value": "读取测试代理列表"
+    },
+    {
+      "name": "diag_choose_proxy",
+      "value": "请选择测试代理"
+    },
+    {
+      "name": "diag_check_proxy",
+      "value": "检查代理连接"
+    },
+    {
+      "name": "diag_check_delay",
+      "value": "检查代理延迟"
+    },
+    {
+      "name": "diag_bandwidth_not_run",
+      "value": "带宽测速在本页未执行。"
+    },
+    {
+      "name": "diag_visit_site",
+      "value": "本机服务响应正常后，请打开网站确认网络访问；访问异常时可在控制面板查看日志。"
+    },
+    {
+      "name": "diag_kernel_ready",
+      "value": "内核已报告就绪"
+    },
+    {
+      "name": "diag_kernel_waiting",
+      "value": "等待内核报告就绪"
+    },
+    {
+      "name": "diag_share",
+      "value": "分享诊断包文件"
+    },
+    {
+      "name": "diag_copy_summary",
+      "value": "复制简短脱敏摘要"
+    },
+    {
+      "name": "diag_feedback",
+      "value": "打开 GitHub 反馈模板"
+    },
+    {
+      "name": "diag_check_service",
+      "value": "检查本机服务"
+    },
+    {
+      "name": "diag_save_bundle",
+      "value": "保存诊断支持包"
+    },
+    {
+      "name": "diag_evidence_scope",
+      "value": "本次诊断包的证据范围"
+    },
+    {
+      "name": "diag_title_connection",
+      "value": "代理连接"
+    },
+    {
+      "name": "diag_title_delay",
+      "value": "代理延迟"
+    },
+    {
+      "name": "diag_title_bandwidth",
+      "value": "带宽测速"
+    },
+    {
+      "name": "diag_credentials_failed",
+      "value": "连接信息不可用，请重新连接"
+    },
+    {
+      "name": "diag_auth_failed",
+      "value": "连接认证失败，请断开后重新连接"
+    },
+    {
+      "name": "diag_connect_first",
+      "value": "尚未执行，请先连接 VPN"
+    },
+    {
+      "name": "diag_proxy_first",
+      "value": "尚未执行，请先选择测试代理"
+    },
+    {
+      "name": "diag_bandwidth_disabled",
+      "value": "本页不执行带宽测速"
+    },
+    {
+      "name": "diag_skipped",
+      "value": "检查未执行，原因已记录在诊断包"
+    },
+    {
+      "name": "diag_unknown",
+      "value": "检查结果待确认，可保存诊断包排查"
+    },
+    {
+      "name": "diag_fact_host",
+      "value": "应用"
+    },
+    {
+      "name": "diag_fact_kernel",
+      "value": "内核"
+    },
+    {
+      "name": "diag_fact_current",
+      "value": "当前会话"
+    },
+    {
+      "name": "diag_fact_previous",
+      "value": "上一会话"
+    },
+    {
+      "name": "diag_fact_older",
+      "value": "更早会话"
+    },
+    {
+      "name": "diag_fact_no_evidence",
+      "value": "没有保留证据"
+    },
+    {
+      "name": "diag_fact_missing",
+      "value": "没有保留该会话证据，可能为首次启用或已轮转"
+    },
+    {
+      "name": "diag_fact_invalid",
+      "value": "证据文件损坏或超过限制"
+    },
+    {
+      "name": "diag_fact_unreadable",
+      "value": "证据无法读取"
+    },
+    {
+      "name": "diag_fact_environment",
+      "value": "应用环境快照未采集完整"
+    },
+    {
+      "name": "diag_fact_version",
+      "value": "有效配置版本未确认"
+    },
+    {
+      "name": "diag_fact_retention",
+      "value": "每个来源保留当前与两次历史进程会话；更早证据可能已轮转。"
+    },
+    {
+      "name": "diag_fact_bandwidth",
+      "value": "带宽测速需单独主动执行；本页仅提供低流量检查。"
+    },
+    {
+      "name": "diag_last_failure",
+      "value": "最近启动失败：%s"
+    },
+    {
+      "name": "diag_checked_at",
+      "value": "检查时间：%s"
+    },
+    {
+      "name": "diag_passed",
+      "value": "%s检查通过"
+    },
+    {
+      "name": "diag_error_code",
+      "value": "（错误码 %s）"
+    },
+    {
+      "name": "diag_failed",
+      "value": "检查失败%s，可保存诊断包排查"
+    },
+    {
+      "name": "diag_fact_label",
+      "value": "%s · %s"
+    },
+    {
+      "name": "diag_fact_line",
+      "value": "%s：%s"
+    },
+    {
+      "name": "diag_fact_count",
+      "value": "%s：%d 条记录"
+    },
+    {
+      "name": "diag_fact_losses",
+      "value": "%s：记录丢弃 %d，导出省略 %d，写入失败 %d，未落盘 %d，限流省略 %d"
+    },
+    {
+      "name": "diag_fact_checks",
+      "value": "%s：包内保留 %d 条检查记录"
+    },
+    {
+      "name": "diag_fact_no_checks",
+      "value": "%s：没有保留检查结果，不能据此判断是否执行过"
+    },
+    {
+      "name": "diag_connecting",
+      "value": "正在连接"
+    },
+    {
+      "name": "diag_disconnecting",
+      "value": "正在断开"
     }
   ]
 }
