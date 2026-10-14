@@ -38,7 +38,7 @@ function load(options = {}) {
     '@kit.CoreFileKit': { fileIo: { accessSync: () => receipt.length > 0, readTextSync: () => receipt } },
     './Logger': { Logger: { info() {}, warn() {}, error() {} } },
     './CoreApi': { CoreApi: { bindContext() {}, isAlive: () => new Promise(resolve => probes.push(resolve)) } },
-    './Settings': { Settings: { isLanPersistenceUncertain: () => false, load: () => settings, save() {} } },
+    './Settings': { Settings: { isLanPersistenceUncertain: () => false, idle: async () => {}, load: () => settings, save() {} } },
     '@kit.IPCKit': { rpc: { MessageSequence: { create: () => ({values:[], writeString(value){this.values.push(value);}, reclaim() {} }) }, MessageOption: class {} } },
     './ConnectionFailure': { ConnectionFailures: { classify: () => ({phase:'service'}), label: () => '连接服务不可用，请重试' } },
     './ProfileStore': { ProfileStore: { clearApplyUncertain() { options.onClear?.(); } } }

@@ -12,7 +12,8 @@ import { ZashboardPage } from './ZashboardPage';
 import { ResourceRecoveryPage } from './ResourceRecoveryPage';
 import { NetworkSettingsPage } from './NetworkSettingsPage';
 import { OverridePage } from './OverridePage';
-import { ProfileEditPage } from './ProfileEditPage';
+import { ProfileEditPage, ProfileEditBus } from './ProfileEditPage';
+import { ProfileGeneratedPage } from './ProfileGeneratedPage';
 
 @Entry
 @Component
@@ -68,8 +69,14 @@ struct Index {
       NavDestination() { OverridePage() }.title(UiText.get($r('app.string.nav_core')))
     } else if (name === 'profileDetail') {
       NavDestination() { ProfilePage({ detailFile: ProfileDetailBus.current }) }.title(UiText.get($r('app.string.nav_profile_details')))
+    } else if (name === 'profileMerge') {
+      NavDestination() { ProfileEditPage({ mergeOnly: true }) }.title(UiText.get($r('app.string.nav_profile_merge')))
+        .onBackPressed(() => ProfileEditBus.shouldBlockBack())
+    } else if (name === 'profileGenerated') {
+      NavDestination() { ProfileGeneratedPage() }.title(UiText.get($r('app.string.nav_generated')))
     } else if (name === 'profileEdit') {
       NavDestination() { ProfileEditPage() }.title(UiText.get($r('app.string.nav_original')))
+        .onBackPressed(() => ProfileEditBus.shouldBlockBack())
     }
   }
 

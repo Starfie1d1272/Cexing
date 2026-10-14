@@ -16,6 +16,7 @@
  */
 #include "bridge.h"
 #include "vpn_log.h"
+#include "stderr_capture.h"
 
 #include <dlfcn.h>
 #include <pthread.h>
@@ -69,24 +70,10 @@ static std::deque<std::shared_ptr<Job>> gQueue;
 static pthread_t gWorker;
 static bool gWorkerStarted = false;
 
-static void redirectStderrOnce() {
-    if (gStderrRedirected) {
-        return;
-    }
-    gStderrRedirected = true;
-    const char *path = "/data/storage/el2/base/haps/entry/files/go_stderr.log";
-    int fd = open(path, O_WRONLY | O_CREAT | O_APPEND, 0644);
-    if (fd < 0) {
-        VPN_LOGW("stderr redirect open failed: %{public}d", errno);
-        return;
-    }
-    if (dup2(fd, STDERR_FILENO) < 0) {
-        VPN_LOGW("stderr redirect dup2 failed: %{public}d", errno);
-        close(fd);
-        return;
-    }
-    close(fd);
-    VPN_LOGI("stderr redirected to go_stderr.log");
+static void redirectStderrOnce(const std::string &home) {
+    if (gStderrRedirected || home.empty()) return;
+    gStderrRedirected = true; // bounded one attempt; logging failure never blocks core load
+    if (!stderr_capture::start(home)) VPN_LOGW("private stderr capture unavailable");
 }
 
 static bool ensureLoaded() {
@@ -94,7 +81,6 @@ static bool ensureLoaded() {
         // Go runtime cannot be unloaded. Cache an incomplete ABI as unavailable.
         return gInit != nullptr && gStartTun != nullptr && gStop != nullptr && gFree != nullptr && gValidate != nullptr && gPreview != nullptr && gVersion != nullptr;
     }
-    redirectStderrOnce();
     dlerror();
     void *h = dlopen("libmihomo.so", RTLD_NOW | RTLD_GLOBAL);
     if (h == nullptr) {
@@ -204,6 +190,7 @@ static bool ensureWorker() {
 static std::string submit(const std::shared_ptr<Job> &job) {
     {
         std::lock_guard<std::mutex> lock(gMutex);
+        redirectStderrOnce(job->op == Op::Init ? job->arg : job->homeDir);
         if (!ensureLoaded()) {
             gStatus.failCount++;
             return gStatus.lastError;

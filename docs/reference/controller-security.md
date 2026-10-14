@@ -1,6 +1,6 @@
 # Controller 宿主契约
 
-Controller 安全线的实现与其他配置/面板任务对接入口。基于 main `7f731d5c9c8d4eba7a1680bcb3981d7877232bcc` 和锁定 Mihomo 模块，保留原有四个 C ABI、ProfileStore 格式及应用身份。离线候选校验与 Merge 预览分别新增 `mihomoValidateOffline`、`mihomoPreviewMerge`，仍由同一 C++ worker 调用，不启动监听器。
+Controller 安全线的实现与其他配置/面板任务对接入口。以当前锁定模块和生产 bridge 为准，保留四个基础兼容 ABI、ProfileStore 格式及应用身份。生产还使用 `mihomoValidateOffline`、`mihomoPreviewMerge`、`mihomoVersionAction`，全部由同一 C++ worker 调用；完整契约见[平台参考](platform.md#abi-与线程)。
 
 ## 地址、认证与存储
 
@@ -26,7 +26,7 @@ REST 与原生 WS 使用 `Authorization: Bearer <secret>`。浏览器 WS 只能�
 
 ## 面板资源边界
 
-`external-ui` 固定为 `<filesDir>/ui`；资源线应将验过摘要的离线文件原子铺盘到这个实际目录，目录及文件不使用符号链接。启动前检查 root 必须是目录，递归检查符号链接/特殊文件，并按面板版本布局校验当前选择器、manifest 身份、文件全集与文件摘要；资源缺失、损坏或任何检查失败时静态根降级为 404，不联网下载，也不中止认证 API/VPN 初始化。不要在服务运行时写入来源不明的文件或绕过边界替换目录。
+持久化投影 `external-ui=ui` 对应宿主管理的 `<filesDir>/ui` 静态根；运行态 ExternalUI 置空以禁用上游下载器。资源线应将验过摘要的离线文件原子铺盘到这个实际目录，目录及文件不使用符号链接。启动前检查 root 必须是目录，递归检查符号链接/特殊文件，并按面板版本布局校验当前选择器、manifest 身份、文件全集与文件摘要；资源缺失、损坏或任何检查失败时静态根降级为 404，不联网下载，也不中止认证 API/VPN 初始化。不要在服务运行时写入来源不明的文件或绕过边界替换目录。
 
 CORS 仅允许 `http://127.0.0.1:9090`，不开放通配来源或 private-network。使用同源 `/ui/`；原生 REST/WS 不受浏览器 CORS 限制。外部导航、JS bridge、PWA 和面板凭据注入由面板线验收。Controller 探活与系统 VPN 健康继续分开。
 
@@ -65,7 +65,7 @@ UI 故障与凭据故障分离：凭据异常仍拒绝启动；UI 缺失、普�
 
 Controller 使用宿主同步 `net.Listen(tcp4,127.0.0.1:9090)` 和自有 Server 生命周期，停止时使会话代次失效、关闭 HTTP/全部已接受的连接（包含上游 Hijack 的 WS）、等待 Serve 退出，再返回。已升级 WS 使用强制 TCP 终止，避免半关闭后仍能缓冲写入；下一次 start 在同一生命周期锁内先完成前次关闭。排队的 PUT/PATCH 在取得运行锁后再次检查会话代次，旧会话不能在停止后重新应用配置。没有依赖延迟重试或异步 ReCreateServer 来宣称停止完成。
 
-为了保留锁定内核原有 REST/WS 路由、认证和扩展路由，宿主只用 go:linkname 绑定 Mihomo v1.19.32 的私有 router(bool,string,string,route.Cors) 工厂；监听器仍只有宿主这一份。没有复制上游 API 实现、修改模块缓存或增加第二台 HTTP 服务，go.mod/go.sum 与四个 C ABI 不变。这是明确的私有 Go 耦合，不能外推为稳定公开接口；内核升级/候选 Smart 必须核对工厂源码签名、完整链接构建及真实启停回归。本分支未关闭 Go 链接检查。
+为了保留锁定内核原有 REST/WS 路由、认证和扩展路由，宿主只用 go:linkname 绑定锁定 Smart fork 的私有 router(bool,string,string,route.Cors) 工厂；监听器仍只有宿主这一份。没有复制上游 API 实现、修改模块缓存或增加第二台 HTTP 服务，go.mod/go.sum 与四个 C ABI 不变。这是明确的私有 Go 耦合，不能外推为稳定公开接口；内核升级/候选 Smart 必须核对工厂源码签名、完整链接构建及真实启停回归。本分支未关闭 Go 链接检查。
 
 另外，上游 executor 在 ExternalUI 非空时会尝试 AutoDownloadUI，即便 URL 为空。因此运行态 config.Controller.ExternalUI 明确置空以禁用该 updater，静态根由宿主显式 SetUIPath 管理；这不是 SetUIPath(空字符串)。持久化投影仍标记受控 external-ui=ui，重载从不把它交给 hub.ApplyConfig 重建路由。
 

@@ -975,6 +975,14 @@
     {
       "name": "diag_disconnecting",
       "value": "Disconnecting"
+    },
+    {
+      "name": "nav_profile_merge",
+      "value": "Subscription overrides"
+    },
+    {
+      "name": "nav_generated",
+      "value": "Generated configuration"
     }
   ]
 }

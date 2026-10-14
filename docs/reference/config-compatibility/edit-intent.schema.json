@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cexing.local/schema/edit-intent-v1",
+  "title": "Private per-subscription EditIntent v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "revision", "sourceRevision", "operations"],
+  "properties": {
+    "schemaVersion": {"const": 1},
+    "revision": {"type": "string", "minLength": 1},
+    "sourceRevision": {"type": "string", "minLength": 1},
+    "disabled": {"type": "boolean"},
+    "smartGroups": {"type": "object", "maxProperties": 512, "additionalProperties": {"type": "boolean"}},
+    "operations": {
+      "type": "array", "maxItems": 512,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["id", "kind", "section"],
+        "properties": {
+          "id": {"type": "string", "minLength": 1},
+          "kind": {"enum": ["add", "update", "delete", "move", "rename"]},
+          "section": {"enum": ["proxies", "proxy-providers", "proxy-groups", "rules", "rule-providers", "dns", "hosts"]},
+          "target": {"type": "string"},
+          "expected": {"type": "string"},
+          "preconditions": {"type": "object", "additionalProperties": {"type": "string"}},
+          "value": {},
+          "patch": {"type": "object"},
+          "remove": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+          "before": {"type": "string"},
+          "name": {"type": "string"}
+        }
+      }
+    }
+  }
+}

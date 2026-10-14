@@ -975,6 +975,14 @@
     {
       "name": "connection_card_description",
       "value": "查看连接状态，一键连接或断开"
+    },
+    {
+      "name": "nav_profile_merge",
+      "value": "本订阅覆写"
+    },
+    {
+      "name": "nav_generated",
+      "value": "生成配置"
     }
   ]
 }

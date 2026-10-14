@@ -39,6 +39,7 @@ if operation == 'record':
     recorded['inputs'] = {name: digest(root / name) for name in [
         'core/go.mod', 'core/go.sum', 'core/patches/smart-offline.patch',
         'scripts/build-core.sh', 'scripts/ci/patch-smart.py', 'scripts/ci/patch-gvisor.py',
+        'scripts/ci/check-controller-contract.py',
         'core/patches/inbound-policy-race.patch', 'scripts/ci/patch-inbound-race.py']}
     recorded['inputs'].update({file.relative_to(root).as_posix(): digest(file) for file in (root / 'core').rglob('*.go') if not file.name.endswith('_test.go') and 'third_party' not in file.relative_to(root / 'core').parts})
     library.with_name('smart-build.pending.json').write_text(json.dumps(recorded, indent=2) + '\n')
