@@ -4,8 +4,6 @@ export interface RuleFields { type: string; condition: string; target: string; n
 export interface ProviderFields { name: string; type: string; behavior: string; format: string; location: string; interval: number; }
 export interface DnsFields { enabled: boolean; mode: string; nameservers: string[]; bootstrap: string[]; }
 export const COMMON_RULE_TYPES: string[] = ['DOMAIN', 'DOMAIN-SUFFIX', 'DOMAIN-KEYWORD', 'IP-CIDR', 'IP-CIDR6', 'GEOIP', 'GEOSITE', 'RULE-SET', 'MATCH'];
-// configpipeline schema v1 MissingFieldRevision(), not a local fingerprint dialect.
-const MISSING_FIELD: string = 'aad237422de2c3b38e680048a007b7e46d4fc21080ea1f76821cf2fba6fc24c2';
 
 function atom(value: string): boolean { return value.length > 0 && !/[,\r\n\u0000]/.test(value); }
 function object(value: Object): Record<string, Object> { return value as Record<string, Object>; }
@@ -55,7 +53,9 @@ export class RuleDnsForms {
     }
     const preconditions: Record<string, string> = {};
     for (const key of Object.keys(changes).concat(remove)) {
-      preconditions[key] = selected.item.fields?.[key] ?? MISSING_FIELD;
+      const revision = selected.item.fields?.[key] ?? selected.missingFieldRevision;
+      if (!revision) { throw new Error('字段版本未读取，请重新打开'); }
+      preconditions[key] = revision;
     }
     return { id, kind: 'update', section, target: selected.item.id, patch: changes, remove, preconditions };
   }

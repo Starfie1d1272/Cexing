@@ -7,7 +7,7 @@ const code = ts.transpileModule(fs.readFileSync('cexing/entry/src/main/ets/lib/R
 const host = { exports: {}, require: () => ({}) }; vm.runInNewContext(code,host);
 const f=host.exports.RuleDnsForms;
 const item={id:'rule-id',revision:'rule-revision'};
-const target={item:{id:'dns-id',revision:'dns-revision',fields:{nameserver:'existing-fingerprint'}},value:{nameserver:['https://old.test/dns-query'],listen:'127.0.0.1:1053','x-advanced':{keep:true}}};
+const target={missingFieldRevision:crypto.createHash('sha256').update('missing field').digest('hex'),item:{id:'dns-id',revision:'dns-revision',fields:{nameserver:'existing-fingerprint'}},value:{nameserver:['https://old.test/dns-query'],listen:'127.0.0.1:1053','x-advanced':{keep:true}}};
 const rule={type:'IP-CIDR',condition:'192.0.2.0/24',target:'manual',noResolve:true};
 assert.equal(f.ruleValue(rule),'IP-CIDR,192.0.2.0/24,manual,no-resolve');
 assert.equal(f.parseRule(f.ruleValue(rule)).noResolve,true);
