@@ -415,6 +415,270 @@
     {
       "name": "a11y_current_profile",
       "value": "Current subscription: %s"
+    },
+    {
+      "name": "smart_after_connect",
+      "value": "Connect to view smart selection"
+    },
+    {
+      "name": "smart_connect_first",
+      "value": "Connect VPN first to view Smart groups."
+    },
+    {
+      "name": "state_not_checked",
+      "value": "Not checked"
+    },
+    {
+      "name": "smart_no_evidence",
+      "value": "No prediction evidence yet"
+    },
+    {
+      "name": "state_unavailable",
+      "value": "Status temporarily unavailable"
+    },
+    {
+      "name": "smart_wait_config",
+      "value": "Waiting for runtime configuration"
+    },
+    {
+      "name": "smart_retry_status",
+      "value": "Retry shortly; check the local service if it remains unavailable."
+    },
+    {
+      "name": "smart_wait_predictions",
+      "value": "Waiting for prediction count"
+    },
+    {
+      "name": "smart_not_used",
+      "value": "Smart selection is not used in this configuration"
+    },
+    {
+      "name": "smart_enabled",
+      "value": "Smart selection enabled"
+    },
+    {
+      "name": "smart_profile_strategy",
+      "value": "Set strategies in subscription details."
+    },
+    {
+      "name": "smart_panel_strategy",
+      "value": "View Smart groups and options in the dashboard."
+    },
+    {
+      "name": "smart_choose_strategy",
+      "value": "Choose a strategy for the subscription's group types"
+    },
+    {
+      "name": "smart_model_strategy",
+      "value": "Model strategy"
+    },
+    {
+      "name": "smart_statistics",
+      "value": "Statistical strategy"
+    },
+    {
+      "name": "smart_model_loaded",
+      "value": "Model loaded"
+    },
+    {
+      "name": "smart_model_missing",
+      "value": "Model missing; using statistical strategy"
+    },
+    {
+      "name": "smart_model_invalid",
+      "value": "Model invalid; using statistical strategy"
+    },
+    {
+      "name": "smart_model_loading",
+      "value": "Loading model"
+    },
+    {
+      "name": "smart_model_not_requested",
+      "value": "Model loading not requested"
+    },
+    {
+      "name": "smart_predictions_zero",
+      "value": "0 valid predictions in this process"
+    },
+    {
+      "name": "smart_prediction_evidence",
+      "value": "Valid predictions recorded across all Smart groups in this process; not attributed to a website visit."
+    },
+    {
+      "name": "smart_prediction_none",
+      "value": "No valid predictions recorded. A loaded model still needs eligible samples from an active Smart group."
+    },
+    {
+      "name": "smart_applied",
+      "value": "Applied to the runtime configuration"
+    },
+    {
+      "name": "smart_saved_next",
+      "value": "Saved. Applies on next connection"
+    },
+    {
+      "name": "smart_import_failed",
+      "value": "Import failed. Check the official Model.bin version, checksum and VPN connection"
+    },
+    {
+      "name": "smart_installed_restart",
+      "value": "Model verified and installed. Restart the app to apply"
+    },
+    {
+      "name": "smart_installed",
+      "value": "Model verified and installed. View its strategy status in Smart groups"
+    },
+    {
+      "name": "smart_restart_title",
+      "value": "Restart the app to apply the model?"
+    },
+    {
+      "name": "smart_restart_warning",
+      "value": "VPN will disconnect and the app will restart. Reconnect after opening it."
+    },
+    {
+      "name": "smart_restart",
+      "value": "Restart app"
+    },
+    {
+      "name": "action_open_panel",
+      "value": "Open dashboard"
+    },
+    {
+      "name": "smart_auto_enable",
+      "value": "Enable smart selection automatically"
+    },
+    {
+      "name": "smart_restart_apply",
+      "value": "Restart app to apply model"
+    },
+    {
+      "name": "action_collapse_details",
+      "value": "Hide details"
+    },
+    {
+      "name": "action_details",
+      "value": "Details"
+    },
+    {
+      "name": "smart_current_config",
+      "value": "Current configuration"
+    },
+    {
+      "name": "smart_region_details",
+      "value": "Set region strategies in subscription details."
+    },
+    {
+      "name": "resource_model",
+      "value": "Offline model"
+    },
+    {
+      "name": "smart_bundled_model",
+      "value": "The official model is bundled. Loading and prediction evidence are shown separately; statistical strategy is used when unavailable."
+    },
+    {
+      "name": "smart_official_model",
+      "value": "View official model source"
+    },
+    {
+      "name": "smart_manual_hint",
+      "value": "Import official Model.bin only for manual recovery; the file will be verified."
+    },
+    {
+      "name": "action_working",
+      "value": "Working…"
+    },
+    {
+      "name": "smart_import_recovery",
+      "value": "Import model for recovery"
+    },
+    {
+      "name": "strategy_unavailable",
+      "value": "Strategies temporarily unavailable"
+    },
+    {
+      "name": "strategy_changed",
+      "value": "Strategies changed. Choose again"
+    },
+    {
+      "name": "strategy_updated",
+      "value": "Display strategy updated"
+    },
+    {
+      "name": "strategy_save_failed",
+      "value": "Could not save display strategy. Retry"
+    },
+    {
+      "name": "strategy_display",
+      "value": "Live view display strategy"
+    },
+    {
+      "name": "strategy_auto",
+      "value": "Automatic"
+    },
+    {
+      "name": "action_saving",
+      "value": "Saving…"
+    },
+    {
+      "name": "action_apply",
+      "value": "Apply"
+    },
+    {
+      "name": "resource_read_failed",
+      "value": "Could not inspect resources. Retry"
+    },
+    {
+      "name": "resource_restored",
+      "value": "Restored"
+    },
+    {
+      "name": "resource_ready",
+      "value": "Ready"
+    },
+    {
+      "name": "resource_missing",
+      "value": "Not installed"
+    },
+    {
+      "name": "resource_invalid",
+      "value": "Recovery needed"
+    },
+    {
+      "name": "action_restore",
+      "value": "Restore"
+    },
+    {
+      "name": "resource_geodata",
+      "value": "Network data"
+    },
+    {
+      "name": "a11y_restore_stopped",
+      "value": "Disconnect and confirm shutdown first"
+    },
+    {
+      "name": "a11y_expanded",
+      "value": "Expanded"
+    },
+    {
+      "name": "a11y_collapsed",
+      "value": "Collapsed"
+    },
+    {
+      "name": "smart_group",
+      "value": "%s · %s"
+    },
+    {
+      "name": "smart_predictions",
+      "value": "%d valid predictions in this process (all Smart groups)"
+    },
+    {
+      "name": "smart_source_fallback",
+      "value": "Open %s in your browser"
+    },
+    {
+      "name": "resource_restore_name",
+      "value": "Restore %s"
     }
   ]
 }

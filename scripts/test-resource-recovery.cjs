@@ -1,3 +1,4 @@
+const uiFixture = require('./ci/ui-fixtures.cjs');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
@@ -10,22 +11,25 @@ const recovery = {
   inspect: async () => statuses,
   restore: async (_, id, token, permit) => { calls++; assert.ok(permit()); if (pending) await pending.promise; }
 };
-const controller = { status: 0, needsStop: () => false };
+const listeners = new Set();
+const controller = { status: 0, needsStop: () => false, onChanged: f => listeners.add(f), offChanged: f => listeners.delete(f) };
 let source = read('pages/ResourceRecoveryPage.ets');
 source = (source.slice(0, source.indexOf('  build()')) + '\n}').split('\n')
   .map(line => line.trimStart().startsWith('@') ? line.replace(/@\w+(?:\([^\n)]*\))?\s*/g, '') : line)
   .join('\n').replace('export struct ', 'export class ');
 const modules = { '../lib/ResourceRecovery': { ResourceRecovery: recovery }, '../lib/VpnController': { VpnController: controller, VpnStatus: { Disconnected: 0 } }, './NativeTheme': {} };
-const sandbox = { exports: {}, getContext: () => ({}), require: n => modules[n] };
+const sandbox = { exports: {}, getContext: () => ({}), require: n => n.endsWith('/UiText') ? uiFixture.module : modules[n] };
+Object.assign(sandbox, uiFixture.globals);
 vm.runInNewContext(ts.transpileModule(source).outputText, sandbox);
 (async () => {
   const page = new sandbox.exports.ResourceRecoveryPage();
   page.aboutToAppear(); await page.refresh();
+  assert.equal(listeners.size, 1);
   pending = deferred();
   const operation = page.restore('model');
   await page.restore('model'); assert.equal(calls, 1, 'repeat click ignored');
   const token = page.cancellation;
-  page.aboutToDisappear(); assert.equal(token.cancelled, true);
+  page.aboutToDisappear(); assert.equal(token.cancelled, true); assert.equal(listeners.size, 0);
   page.aboutToAppear(); await page.refresh();
   page.message = '新页面'; pending.resolve(); await operation;
   assert.equal(page.message, '新页面', 'old completion cannot update reopened page');

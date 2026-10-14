@@ -391,6 +391,270 @@
     {
       "name": "a11y_current_profile",
       "value": "当前订阅：%s"
+    },
+    {
+      "name": "smart_after_connect",
+      "value": "连接后查看智能选择"
+    },
+    {
+      "name": "smart_connect_first",
+      "value": "先连接 VPN，再查看 Smart 策略组。"
+    },
+    {
+      "name": "state_not_checked",
+      "value": "尚未检查"
+    },
+    {
+      "name": "smart_no_evidence",
+      "value": "尚无模型参与证据"
+    },
+    {
+      "name": "state_unavailable",
+      "value": "暂时无法读取状态"
+    },
+    {
+      "name": "smart_wait_config",
+      "value": "等待读取运行配置"
+    },
+    {
+      "name": "smart_retry_status",
+      "value": "请稍后重试；仍无法读取时可检查本机服务。"
+    },
+    {
+      "name": "smart_wait_predictions",
+      "value": "等待读取有效预测次数"
+    },
+    {
+      "name": "smart_not_used",
+      "value": "当前配置未使用智能选择"
+    },
+    {
+      "name": "smart_enabled",
+      "value": "智能选择已启用"
+    },
+    {
+      "name": "smart_profile_strategy",
+      "value": "可在订阅详情设置策略。"
+    },
+    {
+      "name": "smart_panel_strategy",
+      "value": "可在控制面板查看 Smart 策略组与当前选项。"
+    },
+    {
+      "name": "smart_choose_strategy",
+      "value": "请按订阅的组类型选择策略"
+    },
+    {
+      "name": "smart_model_strategy",
+      "value": "模型策略"
+    },
+    {
+      "name": "smart_statistics",
+      "value": "统计策略"
+    },
+    {
+      "name": "smart_model_loaded",
+      "value": "模型已加载"
+    },
+    {
+      "name": "smart_model_missing",
+      "value": "模型缺失，使用统计策略"
+    },
+    {
+      "name": "smart_model_invalid",
+      "value": "模型无效，使用统计策略"
+    },
+    {
+      "name": "smart_model_loading",
+      "value": "模型加载中"
+    },
+    {
+      "name": "smart_model_not_requested",
+      "value": "尚未请求加载模型"
+    },
+    {
+      "name": "smart_predictions_zero",
+      "value": "本进程有效预测 0 次"
+    },
+    {
+      "name": "smart_prediction_evidence",
+      "value": "已记录有效预测；计数由全部 Smart 组累计，不对应某一次网站访问。"
+    },
+    {
+      "name": "smart_prediction_none",
+      "value": "尚未记录有效预测。模型加载后，仍需 Smart 组被使用并产生符合条件的样本。"
+    },
+    {
+      "name": "smart_applied",
+      "value": "已应用到当前运行配置"
+    },
+    {
+      "name": "smart_saved_next",
+      "value": "已保存，下次连接时生效"
+    },
+    {
+      "name": "smart_import_failed",
+      "value": "导入失败：请核对官方 Model.bin 版本、文件摘要和 VPN 连接"
+    },
+    {
+      "name": "smart_installed_restart",
+      "value": "模型已校验安装，请重启应用使模型生效"
+    },
+    {
+      "name": "smart_installed",
+      "value": "模型已校验安装，可查看 Smart 组的模型策略状态"
+    },
+    {
+      "name": "smart_restart_title",
+      "value": "重启应用使模型生效？"
+    },
+    {
+      "name": "smart_restart_warning",
+      "value": "会断开 VPN 并重启整个应用；重新打开后请手动连接。"
+    },
+    {
+      "name": "smart_restart",
+      "value": "重启应用"
+    },
+    {
+      "name": "action_open_panel",
+      "value": "打开控制面板"
+    },
+    {
+      "name": "smart_auto_enable",
+      "value": "自动启用智能选择"
+    },
+    {
+      "name": "smart_restart_apply",
+      "value": "重启应用使模型生效"
+    },
+    {
+      "name": "action_collapse_details",
+      "value": "收起详情"
+    },
+    {
+      "name": "action_details",
+      "value": "详情"
+    },
+    {
+      "name": "smart_current_config",
+      "value": "当前配置"
+    },
+    {
+      "name": "smart_region_details",
+      "value": "地区策略在订阅详情中设置。"
+    },
+    {
+      "name": "resource_model",
+      "value": "离线模型"
+    },
+    {
+      "name": "smart_bundled_model",
+      "value": "官方模型已随安装包提供。模型加载与有效预测分别展示；模型不可用时使用统计策略。"
+    },
+    {
+      "name": "smart_official_model",
+      "value": "查看官方模型来源"
+    },
+    {
+      "name": "smart_manual_hint",
+      "value": "仅在需要手动恢复时导入官方 Model.bin；应用会校验文件。"
+    },
+    {
+      "name": "action_working",
+      "value": "处理中…"
+    },
+    {
+      "name": "smart_import_recovery",
+      "value": "手动导入模型（恢复用）"
+    },
+    {
+      "name": "strategy_unavailable",
+      "value": "暂时无法读取策略"
+    },
+    {
+      "name": "strategy_changed",
+      "value": "策略已变化，请重新选择"
+    },
+    {
+      "name": "strategy_updated",
+      "value": "已更新显示策略"
+    },
+    {
+      "name": "strategy_save_failed",
+      "value": "显示策略保存失败，请重试"
+    },
+    {
+      "name": "strategy_display",
+      "value": "实况窗显示策略"
+    },
+    {
+      "name": "strategy_auto",
+      "value": "自动"
+    },
+    {
+      "name": "action_saving",
+      "value": "保存中…"
+    },
+    {
+      "name": "action_apply",
+      "value": "应用"
+    },
+    {
+      "name": "resource_read_failed",
+      "value": "无法查看资源，请重试"
+    },
+    {
+      "name": "resource_restored",
+      "value": "已恢复"
+    },
+    {
+      "name": "resource_ready",
+      "value": "可用"
+    },
+    {
+      "name": "resource_missing",
+      "value": "未安装"
+    },
+    {
+      "name": "resource_invalid",
+      "value": "需要恢复"
+    },
+    {
+      "name": "action_restore",
+      "value": "恢复"
+    },
+    {
+      "name": "resource_geodata",
+      "value": "网络数据"
+    },
+    {
+      "name": "a11y_restore_stopped",
+      "value": "请先断开并确认停止"
+    },
+    {
+      "name": "a11y_expanded",
+      "value": "已展开"
+    },
+    {
+      "name": "a11y_collapsed",
+      "value": "已收起"
+    },
+    {
+      "name": "smart_group",
+      "value": "%s · %s"
+    },
+    {
+      "name": "smart_predictions",
+      "value": "本进程有效预测 %d 次（全部 Smart 组累计）"
+    },
+    {
+      "name": "smart_source_fallback",
+      "value": "请在浏览器打开 %s"
+    },
+    {
+      "name": "resource_restore_name",
+      "value": "恢复%s"
     }
   ]
 }
