@@ -1,6 +1,7 @@
 from pathlib import Path
 import os,subprocess,sys,tempfile,zipfile,struct
 root=Path.cwd()
+verifier=Path(__file__).resolve().parents[2]/'scripts/ci/verify-hap.py'
 hap=root/'cexing/entry/build/default/outputs/default/entry-default-unsigned.hap'
 with tempfile.TemporaryDirectory(prefix='smart-hap-negative-') as temporary:
  d=Path(temporary)
@@ -27,7 +28,7 @@ with tempfile.TemporaryDirectory(prefix='smart-hap-negative-') as temporary:
   for optimize in ['0','1']:
    report=d/'report';report.mkdir(exist_ok=True)
    (report/'build-identity.json').write_text('old success fixture')
-   run=subprocess.run([sys.executable,'scripts/ci/verify-hap.py',str(target),str(d/'report')],env={**os.environ,'PYTHONOPTIMIZE':optimize},capture_output=True,text=True)
+   run=subprocess.run([sys.executable,str(verifier),str(target),str(d/'report')],env={**os.environ,'PYTHONOPTIMIZE':optimize},capture_output=True,text=True)
    if run.returncode==0:raise SystemExit('unexpected accepted tamper '+case)
    expected={'fake112-empty':'seven production C ABI exports','model':'unreviewed bundled Model.bin path',
              'model-corrupt':'raw resource mismatch', 'model-license':'raw resource mismatch',
