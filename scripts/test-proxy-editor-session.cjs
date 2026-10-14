@@ -17,6 +17,14 @@ let save = async (_context, expected, intent) => {
 let preview = async () => ({ digest: 'synthetic-digest', changes: [] });
 let apply = async () => 'saved';
 const modules = {
+  './EditorDraftHosts': { EditorDraftHosts: { create: () => {
+    let captured;
+    return { load: async () => { captured = {...ticket}; return { revision: 'host-private-revision' }; },
+      preview: async revision => { assert.equal(revision, 'host-private-revision');
+        const changes = await preview({}, captured); return { revision, digest: changes.digest, changes }; },
+      apply: async receipt => { assert.equal(receipt.revision, 'host-private-revision'); assert.ok(receipt.digest);
+        applyCalls++; return await apply({}, captured); } };
+  } } },
   './Settings': { Settings: { load: () => ({ smartAutoConvert: true }) } },
   './ConfigEditor': { ConfigEditor: { list: (...args) => read(...args), target: (...args) => target(...args), smartPreview: async (_ctx, _raw, _merge, expected, enabled, intent) => {
     assert.equal(expected, ticket.activeVersion); assert.equal(enabled, true);

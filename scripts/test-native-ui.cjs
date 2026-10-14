@@ -268,7 +268,7 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   const profiles = [{ file: 'fixture.yaml', name: 'Fixture', active: true },
     { file: 'candidate.yaml', name: 'Candidate', active: false }];
   const Profile = load('ProfilePage', { ...common,
-    '@kit.CoreFileKit': {}, '@kit.ArkTS': {}, '@kit.BasicServicesKit': {}, './ProfileEditPage': {}, './ProfileProxyEditorPage': { ProfileProxyEditorBus: { file: '' } }, './RuleDnsEditorPage': { RuleDnsEditorBus: { file: '', section: '' } },
+    '@kit.CoreFileKit': {}, '@kit.ArkTS': {}, '@kit.BasicServicesKit': {}, './ProfileEditPage': {}, './ProfileTemplatePage': { ProfileTemplateBus: { file: '' } }, './ProfileProxyEditorPage': { ProfileProxyEditorBus: { file: '' } }, './RuleDnsEditorPage': { RuleDnsEditorBus: { file: '', section: '' } },
     '../lib/CoreApi': { CoreApi: {} },
     '../lib/EffectiveVersions': { EffectiveVersions: { read: () => null } },
     '../lib/ProfileTransactions': { ProfileTransactions: {
@@ -485,7 +485,11 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   editorPaths.length = 0;
   editorNavigation.openProxyEditor('candidate.yaml'); editorNavigation.openProxyEditor('candidate.yaml');
   assert.equal(editorPaths.join(','), 'profileProxyEditor', 'node editor action also deduplicates navigation');
+  editorPaths.length = 0;
+  editorNavigation.openTemplate('candidate.yaml'); editorNavigation.openTemplate('candidate.yaml');
+  assert.equal(editorPaths.join(','), 'profileTemplate');
   const rootEntry = fs.readFileSync(path.join(pages, 'Index.ets'), 'utf8');
+  assert.match(rootEntry, /name === 'profileTemplate'[\s\S]*?ProfileTemplatePage\(\{ visible: this\.templateVisible \}\)/);
   assert.match(rootEntry, /name === 'ruleDnsEditor'[\s\S]*?RuleDnsEditorPage\(\{ visible: this\.ruleDnsVisible \}\)/);
   assert.match(rootEntry, /onHidden\(\(\) => \{ this\.ruleDnsVisible = false; \}\)/);
   function regionPage() {
@@ -509,7 +513,7 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   assert.equal(leftRegion.tabJump, -1, 'late create and enable cannot navigate after leaving');
   let regionLists = 0, committedRegionEnabled = true;
   const PartialDisable = load('ProfilePage', { ...common,
-    '@kit.CoreFileKit': {}, '@kit.ArkTS': {}, '@kit.BasicServicesKit': {}, './ProfileEditPage': {}, './ProfileProxyEditorPage': { ProfileProxyEditorBus: { file: '' } }, './RuleDnsEditorPage': { RuleDnsEditorBus: { file: '', section: '' } },
+    '@kit.CoreFileKit': {}, '@kit.ArkTS': {}, '@kit.BasicServicesKit': {}, './ProfileEditPage': {}, './ProfileTemplatePage': { ProfileTemplateBus: { file: '' } }, './ProfileProxyEditorPage': { ProfileProxyEditorBus: { file: '' } }, './RuleDnsEditorPage': { RuleDnsEditorBus: { file: '', section: '' } },
     '../lib/CoreApi': { CoreApi: {} },
     '../lib/EffectiveVersions': { EffectiveVersions: {
       read: () => ({ Profiles: { 'candidate.yaml': {} } }),

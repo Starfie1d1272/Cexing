@@ -1,10 +1,11 @@
 import { common } from '@kit.AbilityKit';
-import { ConfigEditor, EditableSnapshot, EditIntent, EditTarget, SmartGroupChange } from './ConfigEditor';
+import { ConfigEditor, EditableSnapshot, EditIntent, EditTarget, SmartGroupChange, EditorDraftHost, EditorDraftPreview } from './ConfigEditor';
 import { ProfileStore } from './ProfileStore';
 import { ProfileTransactions, EditTicket, ProfileApplyState } from './ProfileTransactions';
 import { MergePreview } from './CoreValidator';
 import { EffectiveVersions, RegionPlan } from './EffectiveVersions';
 import { Settings } from './Settings';
+import { EditorDraftHosts } from './EditorDraftHosts';
 
 /** UI session over the published #164/#172 APIs. Never writes a sidecar directly. */
 export class ProfileProxyEditorModel {
@@ -19,6 +20,8 @@ export class ProfileProxyEditorModel {
   private overlay: string = '';
   private region: RegionPlan | undefined = undefined;
   private generation: number = 0;
+  private editor: EditorDraftHost | null = null;
+  private confirmed: EditorDraftPreview | null = null;
   private history: Array<EditIntent | null> = [];
 
   constructor(context: common.Context, file: string) { this.context = context; this.file = file; }
@@ -64,7 +67,7 @@ export class ProfileProxyEditorModel {
     this.region = region;
     this.snapshot = snapshot;
     this.intent = draft.intent;
-    this.preview = null;
+    this.preview = null; this.editor = null; this.confirmed = null;
     return true;
   }
 
@@ -134,7 +137,7 @@ export class ProfileProxyEditorModel {
     const ticket = this.ticket;
     this.check(ticket);
     this.busy = true;
-    this.preview = null;
+    this.preview = null; this.editor = null; this.confirmed = null;
     try {
       if (request !== this.generation) { return false; }
       this.check(ticket);
@@ -151,12 +154,20 @@ export class ProfileProxyEditorModel {
       if (saved !== null) { saved.revision = revision; }
       this.intent = saved;
       this.ticket = next;
-      const preview = await ProfileTransactions.previewEditDraft(this.context, next);
-      if (request !== this.generation) { return false; }
-      this.check(next);
-      this.preview = preview;
-      return true;
+      return await this.confirmPreview(next, request);
     } finally { this.busy = false; }
+  }
+
+  private async confirmPreview(ticket: EditTicket, request: number): Promise<boolean> {
+    const editor = EditorDraftHosts.create(this.context, this.file);
+    const session = await editor.load();
+    if (request !== this.generation) { return false; }
+    this.check(ticket);
+    const receipt = await editor.preview(session.revision);
+    if (request !== this.generation) { return false; }
+    this.check(ticket);
+    this.editor = editor; this.confirmed = receipt; this.preview = receipt.changes;
+    return true;
   }
 
   async previewSaved(): Promise<boolean> {
@@ -165,13 +176,9 @@ export class ProfileProxyEditorModel {
     const ticket = this.ticket;
     this.check(ticket);
     this.busy = true;
-    this.preview = null;
+    this.preview = null; this.editor = null; this.confirmed = null;
     try {
-      const preview = await ProfileTransactions.previewEditDraft(this.context, ticket);
-      if (request !== this.generation) { return false; }
-      this.check(ticket);
-      this.preview = preview;
-      return true;
+      return await this.confirmPreview(ticket, request);
     } finally { this.busy = false; }
   }
 
@@ -191,15 +198,16 @@ export class ProfileProxyEditorModel {
   }
 
   async apply(): Promise<ProfileApplyState | null> {
-    if (this.busy || this.ticket === null || this.preview === null) { return null; }
+    if (this.busy || this.ticket === null || this.preview === null || this.editor === null || this.confirmed === null) { return null; }
     const request = ++this.generation;
     const ticket = this.ticket;
     this.check(ticket);
     this.busy = true;
     try {
-      const result = await ProfileTransactions.applyEditDraft(this.context, ticket);
+      const result = await this.editor.apply(this.confirmed);
+      if (result !== 'applied' && result !== 'saved') { throw new Error('应用结果未确认'); }
       if (request !== this.generation) { return null; }
-      this.preview = null;
+      this.preview = null; this.editor = null; this.confirmed = null;
       this.history = [];
       return result;
     } finally { this.busy = false; }
