@@ -10,6 +10,7 @@ export interface SmartModelPreparation {
 
 // Installs only a reviewed packaged model, before Mihomo's first model load.
 export class SmartModelAssets {
+  private static queue: Promise<void> = Promise.resolve();
   static async inspect(context: common.Context): Promise<SmartModelPreparation> {
     try {
       const path = `${context.filesDir}/Model.bin`;
@@ -49,7 +50,24 @@ export class SmartModelAssets {
     } finally { fileIo.closeSync(file); }
   }
 
-  static async prepare(context: common.Context): Promise<SmartModelPreparation> {
+  static prepare(context: common.Context): Promise<SmartModelPreparation> {
+    const job = SmartModelAssets.queue.then(() => SmartModelAssets.exclusive(context));
+    SmartModelAssets.queue = job.then(() => {}, () => {});
+    return job;
+  }
+
+  private static async exclusive(context: common.Context): Promise<SmartModelPreparation> {
+    let lock: fileIo.File | undefined = undefined;
+    try {
+      lock = fileIo.openSync(`${context.filesDir}/model-recovery.lock`,
+        fileIo.OpenMode.WRITE_ONLY | fileIo.OpenMode.CREATE | fileIo.OpenMode.NOFOLLOW);
+      lock.tryLock(true);
+      return await SmartModelAssets.install(context);
+    } catch (_) { return { state: 'invalid', message: '模型准备未完成，请稍后重试' }; }
+    finally { if (lock !== undefined) { try { fileIo.closeSync(lock); } catch (_) {} } }
+  }
+
+  private static async install(context: common.Context): Promise<SmartModelPreparation> {
     const path = `${context.filesDir}/Model.bin`;
     try {
       if (await SmartModelAssets.installed(path)) {
@@ -65,11 +83,11 @@ export class SmartModelAssets {
     if (!await SmartModelAssets.valid(bundled)) {
       return { state: 'invalid', message: '内置模型身份校验失败，Smart 使用统计权重' };
     }
+    const temp = `${path}.bundled.tmp`;
     try {
       const backup = fileIo.accessSync(`${path}.previous`) ?
         `${path}.invalid-${Date.now()}` : `${path}.previous`;
       if (fileIo.accessSync(backup)) { throw new Error('Model backup destination exists'); }
-      const temp = `${path}.bundled.tmp`;
       if (fileIo.accessSync(temp)) {
         const stat = fileIo.lstatSync(temp);
         if (stat.isSymbolicLink() || !stat.isFile()) { throw new Error('Unsafe model staging path'); }
@@ -81,15 +99,24 @@ export class SmartModelAssets {
         if (fileIo.writeSync(file.fd, bytes) !== bundled.length) { throw new Error('Short model write'); }
         fileIo.fsyncSync(file.fd);
       } finally { fileIo.closeSync(file); }
-      if (fileIo.accessSync(path)) { fileIo.renameSync(path, backup); }
-      try { fileIo.renameSync(temp, path); }
-      catch (_) {
-        if (fileIo.accessSync(backup) && !fileIo.accessSync(path)) { fileIo.renameSync(backup, path); }
+      if (!await SmartModelAssets.installed(temp)) { throw new Error('Staged model checksum mismatch'); }
+      const hadPrevious = fileIo.accessSync(path);
+      if (hadPrevious) { fileIo.renameSync(path, backup); }
+      let published = false;
+      try {
+        fileIo.renameSync(temp, path);
+        published = true;
+        if (!await SmartModelAssets.installed(path)) { throw new Error('Published model checksum mismatch'); }
+      } catch (_) {
+        if (published && fileIo.accessSync(path)) { fileIo.unlinkSync(path); }
+        if (hadPrevious && fileIo.accessSync(backup) && !fileIo.accessSync(path)) { fileIo.renameSync(backup, path); }
         throw new Error('Failed to install bundled model');
       }
       return { state: 'ready', message: '已安装经校验的内置模型' };
     } catch (_) {
       return { state: 'invalid', message: '内置模型安装失败，Smart 使用统计权重' };
+    } finally {
+      try { if (fileIo.accessSync(temp)) { fileIo.unlinkSync(temp); } } catch (_) {}
     }
   }
 }
