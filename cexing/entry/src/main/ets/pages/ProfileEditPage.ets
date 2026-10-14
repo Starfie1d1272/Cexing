@@ -19,6 +19,7 @@ export class ProfileEditBus {
 
 @Component
 export struct ProfileEditPage {
+  @Prop mergeOnly: boolean = false;
   @Consume('profileRevision') profileRevision: number;
   @Consume('nav') navStack: NavPathStack;
   @State text: string = '';
@@ -223,12 +224,14 @@ export struct ProfileEditPage {
   MergeSheet() {
     Column({ space: 12 }) {
       Text('本订阅覆写').fontSize(17).fontWeight(FontWeight.Medium).fontColor(UI.ink)
-      Text('为当前订阅设置专用配置，优先于全局覆写。')
+      Text('仅作用于当前订阅')
         .fontSize(13).fontColor(UI.muted).width('100%')
-      Text('预览保存草稿并查看变化，应用后生效。清空内容并应用可停用。')
-        .fontSize(13).fontColor(UI.muted).width('100%')
-      Text('填写规则或策略组列表时，会替换订阅中的对应列表。')
-        .fontSize(13).fontColor(UI.muted).width('100%')
+      Button('编辑帮助').fontSize(13).backgroundColor(Color.Transparent).fontColor(UI.accentText)
+        .onClick(() => {
+          AlertDialog.show({ title: '本订阅覆写',
+            message: '优先于全局覆写。预览保存草稿，应用后生效。清空内容并应用可停用。规则和策略组列表会替换订阅中的对应列表。',
+            confirm: { value: '知道了', action: () => {} } });
+        })
       if (this.mergeLoadFailed) {
         Text('覆写草稿读取失败，请关闭后重试').fontSize(13).fontColor(UI.error)
       }
@@ -241,7 +244,10 @@ export struct ProfileEditPage {
       }
       Row({ space: 12 }) {
         Button('关闭').height(44).layoutWeight(1).backgroundColor(UI.soft).fontColor(UI.ink)
-          .onClick(() => { this.showMergeSheet = false; })
+          .onClick(() => {
+            if (this.mergeOnly) { this.navStack.pop(); }
+            else { this.showMergeSheet = false; }
+          })
         Button(this.mergeBusy ? '预览中' : '预览')
           .height(44).layoutWeight(1).backgroundColor(UI.action).fontColor(UI.onAccent)
           .enabled(!this.mergeBusy && !this.mergeLoadFailed).onClick(() => { this.previewMerge(); })
@@ -290,6 +296,9 @@ export struct ProfileEditPage {
   }
 
   build() {
+    if (this.mergeOnly) {
+      this.MergeSheet()
+    } else {
     Column({ space: 8 }) {
       Column({ space: 6 }) {
         Text(this.file)
@@ -358,5 +367,6 @@ export struct ProfileEditPage {
     .backgroundColor(UI.paper).constraintSize({ maxWidth: 760 }).alignSelf(ItemAlign.Center)
     .bindSheet($$this.showSaveAsSheet, this.SaveAsSheet(), { height: SheetSize.MEDIUM })
     .bindSheet($$this.showMergeSheet, this.MergeSheet(), { height: SheetSize.LARGE })
+    }
   }
 }

@@ -600,7 +600,7 @@ export struct ProfilePage {
         Text(label).fontSize(16).fontWeight(FontWeight.Medium).layoutWeight(1)
         SymbolGlyph($r('sys.symbol.chevron_right')).fontSize(16).fontColor([UI.muted])
       }.padding(18).width('100%')
-    }.width('100%').height(72).borderRadius(24).backgroundColor(UI.surface).fontColor(UI.ink)
+    }.width('100%').constraintSize({ minHeight: 72 }).borderRadius(24).backgroundColor(UI.surface).fontColor(UI.ink)
       .onClick(onTap)
   }
 
@@ -617,7 +617,14 @@ export struct ProfilePage {
             ProfileEditBus.current = p.file;
             this.navStack.pushPath({ name: 'profileEdit' });
           })
-          this.DetailAction('内核参数覆写', () => { this.navStack.pushPath({ name: 'override' }); })
+          this.DetailAction('本订阅覆写', () => {
+            ProfileEditBus.current = p.file;
+            this.navStack.pushPath({ name: 'profileMerge' });
+          })
+          this.DetailAction('生成配置', () => {
+            ProfileEditBus.current = p.file;
+            this.navStack.pushPath({ name: 'profileGenerated' });
+          })
           if (this.savedRegion(p.file) !== null) {
             this.DetailAction('修改 Smart 地区策略', () => { this.editRegion(p.file); })
             this.DetailAction(this.savedRegion(p.file)?.enable ? '关闭地区策略并恢复原配置' :
