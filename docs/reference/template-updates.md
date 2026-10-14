@@ -32,6 +32,10 @@ if diagnostic.Op == "template-update-preview" {
 
 `TemplateUpdateReview` 只显示必要冲突选择和编译影响。Host 组合纯比较与共同编译预览，并附既有 `TemplatePreview` 的 revision/digest/summary；没有全量编译预览时模型拒绝应用。Host.apply 必须比较原先捕获的 profile/source/draft/selection/active ticket，再走现有 stage/verify/apply/commit。应用失败保留 Current、Base/Mine 和原文；成功后才将新 baseline 与个人 delta/墓碑一同保存进成功 EditIntent/source。模板升级和运行配置应用是两个确认，纯比较成功不是应用成功。
 
+`createTemplateUpdateHost(context, profileId, editor, source)` 已实现生产适配的本组部分；`TemplateUpdateReview({profileId, editor, source})` 直接消费它。source 只有 `read(session)`、`plan(candidate,session)`、`label(conflict)` 三个编译器数据转换回调：read 返回私有 Base/Mine/Next，plan 将已解决候选编码到统一 TemplatePlan 的受校验字段。它不持有 publisher/文件路径，不改变个人 operations/Smart/disabled/source 前提。三方未解决时绝不保存；解决后 save 惰性草稿→共同完整 preview→原 opaque receipt apply，缺 digest、错 profile、内容被改或重复 apply 均拒绝。成功/失败消耗回执后重新读取成功基线，不能复用旧升级请求。
+
+这三个 callback 的数据来自共同编译器及成功 provenance；本组不会以回调 mock 代替生产 source。编译组确定 alias/schema/prepare 编码后，接入该适配并跑联合编译/事务链路。
+
 共享模板字段、alias 读取/应用、草稿与成功 provenance、运行时 Host 适配须由 #146/事务所有者统一接线。本文定义本组服务边界，不把未接线函数称为已生效功能。GC 仍只用现有版本引用；模板 baseline/alias 不持有新版本 ID、路径或外部资源句柄。实际回滚使用既有 Previous/恢复事务。
 
 ## 取证与许可

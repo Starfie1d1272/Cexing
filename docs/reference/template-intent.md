@@ -8,7 +8,7 @@
 
 模板服务不负责 Smart 默认转换、宿主平台约束、provider 加载或版本发布。宿主仍须执行完整引用、目标组可用成员与资源检查，再走 stage → verify → apply → commit。静态空目标会被拒绝；动态 provider 的过滤后成员、嵌套组实际可用性与资源快照须由宿主完整校验，不能将本服务变换成功当作生效成功。
 
-模板意图须随现有不可变版本的来源原子保存；关闭、切换、订阅更新和重启均从来源重新编译。不得另建模板发布指针、冻结上游列表为 Merge，或将未发布草稿当作当前模板。Strategy 内模板、个人编辑、Smart 和地区的最终次序由 #146 的统一契约确定；地区变换不得重复执行。
+模板意图须随现有不可变版本的来源原子保存；关闭、切换、订阅更新和重启均从来源重新编译。不得另建模板发布指针、冻结上游列表为 Merge，或将未发布草稿当作当前模板。统一次序为模板/单次地区生成 → 个人编辑 → Smart；生产编译和 editor-list/read/target 使用相同视图。
 
 ## 向导接入
 
@@ -25,3 +25,15 @@
 - [Mihomo 规则语法](https://wiki.metacubex.one/config/rules/)。本组规则表为自编基础域名与本地地址规则，不使用外部模板文件。
 - [现有 RegionPlan](../../core/configpipeline/region.go) 与 [配置事务](configuration.md) 为唯一地区生成和版本发布基础。
 - [Clash Verge Rev v2.5.8 enhance](https://github.com/clash-verge-rev/clash-verge-rev/blob/v2.5.8/src-tauri/src/enhance/mod.rs) 与 [GUI.for.Clash v1.27.0 generator](https://github.com/GUI-for-Cores/GUI.for.Clash/blob/v1.27.0/frontend/src/utils/generator.ts) 仅用于比较原文与增强分离的架构，未移植代码。
+
+## 原生向导 Host
+
+`TemplateWizard({ profileId, editor })` 接受同一订阅绑定的生产 `EditorDraftHost`，由 `createTemplateWizardHost` 转接 load/save/preview/apply。模板类型直接 alias ConfigEditor.TemplatePlan，赋值通过 ConfigEditor.templatePlan；不在组件中重写事务或源文件。
+
+预览先保存惰性草稿，再取得共同全量编译 receipt。应用必须匹配该原始 receipt 和原先计划，不读取新 revision 来伪装旧请求；消耗 receipt 后不能重复应用。保留 existing operations、Smart 例外、Merge 与未知高级数据。“original”只停用模板，不清除其他个人编辑。
+
+读取成功版本意图需要 EffectiveVersions.editIntent；该 getter 属于统一 provenance 适配。对已停用个人编辑，预览可保留惰性草稿，但正式应用前需一次确认；即便离开后重开，也按成功版本状态判断风险，不能把上次未应用草稿当作已启用。确认与页面 generation 绑定，旧确认框结果不会应用到新页面。
+
+生产 EditorDraftHost 工厂须在既有串行 gate 内比较来源/草稿/选择、两层 Merge、设置/provider 身份及编译 digest。地区模板还须复用既有 pending/previous-selection 行为，成功后只消费一次明确选择；关闭模板按既有规则恢复原选择。仅创建组不能报告地区流量已使用新入口。
+
+ProfilePage 的唯一入口所有者只需要提供稳定 profileId 和该共同 Host；TemplateWizard 不自行创建另一个保存器，也不接管 VPN 生命周期。

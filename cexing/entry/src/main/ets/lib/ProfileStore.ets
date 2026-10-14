@@ -11,6 +11,8 @@ import { util } from '@kit.ArkTS';
 import { Logger } from './Logger';
 import { suggestProfileName, profileNameFromUrl } from './ProfileName';
 import { EffectiveVersions } from './EffectiveVersions';
+import { EditIntent } from './ConfigEditor';
+import { BoundedFileReader } from './BoundedFileReader';
 
 const TAG = 'profileStore';
 const ACTIVE_FILE = 'active.txt';
@@ -40,7 +42,72 @@ export interface ProfileMetaExt {
   updatedAt: number;
 }
 
+export interface ProfileUpdateState {
+  id: string;
+  attemptedAt: number;
+  succeededAt: number;
+  failedAt: number;
+  retryAt: number;
+}
+
+export interface EditDraft { revision: string; intent: EditIntent | null; }
+
 export namespace ProfileStore {
+  function intentDraftPath(context: common.Context, file: string): string {
+    if (!/^[^/\\\u0000-\u001f]{1,128}\.ya?ml$/i.test(file)) { throw new Error('无效的配置文件名'); }
+    return `${ensureDir(context)}/${file}.intent.json`;
+  }
+
+  export function readEditDraft(context: common.Context, file: string): EditDraft {
+    const path = intentDraftPath(context, file);
+    if (!fileIo.accessSync(path)) {
+      const version = EffectiveVersions.read(context)?.Profiles[file];
+      const intent = version !== undefined ? EffectiveVersions.editIntent(context, version) : null;
+      return { revision: intent?.revision ?? '', intent: intent };
+    }
+    if (fileIo.statSync(path).size > 1024 * 1024 + 1024) { throw new Error('编辑草稿超限'); }
+    const draft = JSON.parse(fileIo.readTextSync(path)) as EditDraft;
+    if (typeof draft.revision !== 'string' || draft.revision.length === 0 ||
+      draft.intent === undefined || (draft.intent !== null && draft.intent.revision !== draft.revision)) {
+      throw new Error('编辑草稿损坏');
+    }
+    return draft;
+  }
+
+  /** Called by the shared transaction gate after strict worker schema checking. */
+  export function saveEditDraft(context: common.Context, file: string, draft: EditDraft,
+    expected: string): void {
+    if (readEditDraft(context, file).revision !== expected) { throw new Error('草稿已变化，请重新打开'); }
+    atomicText(intentDraftPath(context, file), JSON.stringify(draft));
+  }
+
+  let pendingImports: string[] = [];
+  /** One stable identity per imported source; rename moves this sidecar too.
+   * Legacy global lastAutoUpdateMs is intentionally not attributed to any source.
+   */
+  export function updateState(context: common.Context, file: string): ProfileUpdateState {
+    if (!/^[^/\\\u0000-\u001f]{1,128}\.ya?ml$/i.test(file)) { throw new Error('无效的配置文件名'); }
+    const path = `${ensureDir(context)}/${file}.update.json`;
+    if (fileIo.accessSync(path)) {
+      const state = JSON.parse(fileIo.readTextSync(path)) as ProfileUpdateState;
+      if (typeof state.id !== 'string' || state.id.length === 0 ||
+        ![state.attemptedAt, state.succeededAt, state.failedAt, state.retryAt].every(
+          (value: number) => Number.isFinite(value) && value >= 0)) {
+        throw new Error('更新记录损坏');
+      }
+      return state;
+    }
+    const state: ProfileUpdateState = { id: util.generateRandomUUID(true), attemptedAt: 0,
+      succeededAt: 0, failedAt: 0, retryAt: 0 };
+    saveUpdateState(context, file, state);
+    return state;
+  }
+
+  export function saveUpdateState(context: common.Context, file: string, state: ProfileUpdateState): void {
+    if (!/^[^/\\\u0000-\u001f]{1,128}\.ya?ml$/i.test(file)) { throw new Error('无效的配置文件名'); }
+    atomicText(`${ensureDir(context)}/${file}.update.json`, JSON.stringify(state));
+  }
+
 
   function dir(context: common.Context): string {
     return `${context.filesDir}/profiles`;
@@ -213,6 +280,13 @@ export namespace ProfileStore {
     const out: ProfileMeta[] = [];
     try {
       const names = fileIo.listFileSync(d);
+      // Immutable versions remain authoritative after restoration even if the
+      // old compatibility file was deleted. Keep those profiles operable in UI.
+      if (state !== null) {
+        for (const name of Object.keys(state.Profiles)) {
+          if (!names.includes(name)) { names.push(name); }
+        }
+      }
       for (const name of names) {
         if (name === ACTIVE_FILE || !/\.(yaml|yml)$/i.test(name)) {
           continue;
@@ -334,7 +408,8 @@ export namespace ProfileStore {
   }
 
   export async function deleteProfile(context: common.Context, file: string): Promise<void> {
-    await fileIo.unlink(`${dir(context)}/${file}`);
+    const rawPath = `${dir(context)}/${file}`;
+    if (fileIo.accessSync(rawPath)) { await fileIo.unlink(rawPath); }
     deleteMetaEntry(context, file);
     const originPath = `${dir(context)}/${file}.url`;
     if (fileIo.accessSync(originPath)) {
@@ -350,6 +425,14 @@ export namespace ProfileStore {
     const merge = `${dir(context)}/${file}.merge.json`;
     if (fileIo.accessSync(merge)) {
       try { await fileIo.unlink(merge); } catch (_) { /* orphan draft is not effective */ }
+    }
+    const updatePath = `${dir(context)}/${file}.update.json`;
+    if (fileIo.accessSync(updatePath)) {
+      try { await fileIo.unlink(updatePath); } catch (_) { /* orphan schedule is not effective */ }
+    }
+    const intentPath = intentDraftPath(context, file);
+    if (fileIo.accessSync(intentPath)) {
+      try { await fileIo.unlink(intentPath); } catch (_) { /* inert orphan */ }
     }
     clearPendingRegionSelection(context, file);
     clearPreviousRegionSelection(context, file);
@@ -486,7 +569,9 @@ export namespace ProfileStore {
     const oldPath = `${d}/${oldFile}`;
     const newPath = `${d}/${target}`;
     if (!fileIo.accessSync(oldPath)) {
-      throw new Error('配置文件不存在');
+      const original = getProfileContent(context, oldFile);
+      if (original === null) { throw new Error('配置文件不存在'); }
+      atomicText(oldPath, original);
     }
     if (fileIo.accessSync(newPath)) {
       throw new Error(`已存在同名配置：${target}`);
@@ -499,7 +584,7 @@ export namespace ProfileStore {
     const moved: string[][] = [];
     try {
       for (const suffix of ['.url', '.last-good', '.merge.json', '.region-select.json',
-        '.region-previous.json']) {
+        '.region-previous.json', '.update.json', '.intent.json']) {
         const from = `${oldPath}${suffix}`;
         const to = `${newPath}${suffix}`;
         if (fileIo.accessSync(from)) {
@@ -606,14 +691,7 @@ export namespace ProfileStore {
   }
 
   function setOrigin(context: common.Context, file: string, url: string): void {
-    try {
-      const p = `${dir(context)}/${file}.url`;
-      const f = fileIo.openSync(p, fileIo.OpenMode.READ_WRITE | fileIo.OpenMode.CREATE | fileIo.OpenMode.TRUNC);
-      fileIo.writeSync(f.fd, url);
-      fileIo.closeSync(f);
-    } catch (e) {
-      Logger.warn(TAG, `setOrigin failed: ${JSON.stringify(e)}`);
-    }
+    atomicText(`${ensureDir(context)}/${file}.url`, url);
   }
 
   /** 从 URL 导入订阅，返回保存的文件名；失败抛错 */
@@ -634,10 +712,10 @@ export namespace ProfileStore {
       validateConfig(content);
       const name = suggestProfileName(resp.header as Record<string, Object>,
         profileNameFromUrl(url, '新订阅'));
-      const saved = save(context, name, content);
+      const saved = await saveAsync(context, name, content);
       setOrigin(context, saved, url);
-      setMetaEntry(context, saved, metaEntryFromResp(resp, url));
-      Logger.info(TAG, `imported ${name} (${content.length} bytes)`);
+      writeMetaEntryStrict(context, saved, metaEntryFromResp(resp, url));
+      Logger.info(TAG, 'profile imported');
       return saved;
     } finally {
       req.destroy();
@@ -649,7 +727,7 @@ export namespace ProfileStore {
     const clean = sanitizeConfigContent(content);
     validateConfig(clean);
     const file = save(context, name, clean);
-    setMetaEntry(context, file, {
+    writeMetaEntryStrict(context, file, {
       origin: '',
       sub: { upload: 0, download: 0, total: 0, expire: 0 },
       updatedAt: Math.floor(Date.now() / 1000)
@@ -694,6 +772,7 @@ export namespace ProfileStore {
   }
 
   function validateConfig(content: string): void {
+    BoundedFileReader.checkConfigSize(content);
     if (content.length < 16) {
       throw new Error('内容为空或过短');
     }
@@ -702,7 +781,7 @@ export namespace ProfileStore {
     }
   }
 
-  function save(context: common.Context, name: string, content: string): string {
+  function prepareSave(context: common.Context, name: string): string {
     let file = /\.(yaml|yml)$/i.test(name) ? name : `${name}.yaml`;
     // 避免路径穿越
     file = file.replace(/[\/\\]/g, '_');
@@ -710,13 +789,84 @@ export namespace ProfileStore {
     const stem = file.replace(/\.(yaml|yml)$/i, '');
     const ext = file.substring(stem.length);
     let suffix = 2;
-    while (fileIo.accessSync(`${d}/${file}`)) {
+    const effective = EffectiveVersions.read(context);
+    while (fileIo.accessSync(`${d}/${file}`) || effective?.Profiles[file] !== undefined || pendingImports.includes(file)) {
       file = `${stem} (${suffix++})${ext}`;
     }
-    const p = `${d}/${file}`;
-    const f = fileIo.openSync(p, fileIo.OpenMode.READ_WRITE | fileIo.OpenMode.CREATE | fileIo.OpenMode.TRUNC);
-    fileIo.writeSync(f.fd, content);
-    fileIo.closeSync(f);
+    // Reset the new source before publishing its raw file. A leftover sidecar
+    // must either be neutralized or make import fail, never silently reactivate.
+    for (const suffix of ['.intent.json', '.url', '.merge.json', '.region-select.json', '.region-previous.json']) {
+      const stale = `${d}/${file}${suffix}`;
+      if (fileIo.accessSync(stale)) { fileIo.unlinkSync(stale); }
+    }
+    const oldDraft = draftPath(context, file);
+    if (fileIo.accessSync(oldDraft)) { fileIo.unlinkSync(oldDraft); }
+    const metadata = readMetaStrict(context);
+    const kept: Record<string, ProfileMetaExt> = {};
+    for (const name of Object.keys(metadata)) { if (name !== file) { kept[name] = metadata[name]; } }
+    writeMeta(context, kept);
+    saveUpdateState(context, file, { id: util.generateRandomUUID(true), attemptedAt: 0,
+      succeededAt: 0, failedAt: 0, retryAt: 0 });
     return file;
   }
+
+  function save(context: common.Context, name: string, content: string): string {
+    const file = prepareSave(context, name);
+    const p = `${ensureDir(context)}/${file}`;
+    const f = fileIo.openSync(p, fileIo.OpenMode.READ_WRITE | fileIo.OpenMode.CREATE | fileIo.OpenMode.TRUNC);
+    try { fileIo.writeSync(f.fd, content); } finally { fileIo.closeSync(f); }
+    return file;
+  }
+  /** Picker and URL imports use bounded async writes as well as async reads. */
+  async function saveAsync(context: common.Context, name: string, content: string,
+    current?: () => boolean): Promise<string> {
+    const check = (): void => { if (current !== undefined && !current()) { throw new Error('导入已取消'); } };
+    check();
+    const file = prepareSave(context, name);
+    pendingImports.push(file);
+    const path = `${ensureDir(context)}/${file}`;
+    const temp = `${path}.import-${util.generateRandomUUID(true)}`;
+    let opened: fileIo.File | null = null;
+    try {
+      opened = await fileIo.open(temp, fileIo.OpenMode.READ_WRITE | fileIo.OpenMode.CREATE | fileIo.OpenMode.TRUNC);
+      const encoder = util.TextEncoder.create('utf-8');
+      let written = 0;
+      for (let start = 0; start < content.length;) {
+        check();
+        let end = Math.min(start + 64 * 1024, content.length);
+        if (end < content.length && content.charCodeAt(end - 1) >= 0xd800 && content.charCodeAt(end - 1) <= 0xdbff) { end--; }
+        const chunk = encoder.encodeInto(content.substring(start, end));
+        let offset = 0;
+        while (offset < chunk.byteLength) {
+          check();
+          const count = await fileIo.write(opened.fd, chunk.buffer.slice(offset), { offset: written });
+          if (!Number.isInteger(count) || count <= 0 || count > chunk.byteLength - offset) { throw new Error('配置未完整写入'); }
+          offset += count; written += count;
+        }
+        start = end;
+      }
+      check(); await fileIo.fsync(opened.fd);
+      await fileIo.close(opened); opened = null;
+      check(); await fileIo.moveFile(temp, path);
+      return file;
+    } finally {
+      try { if (opened !== null) { await fileIo.close(opened); } }
+      finally {
+        try { await fileIo.unlink(temp); } catch (_) { /* own temporary path only */ }
+        pendingImports = pendingImports.filter((name: string) => name !== file);
+      }
+    }
+  }
+
+  export async function importContentAsync(context: common.Context, name: string, content: string,
+    current?: () => boolean): Promise<string> {
+    if (current !== undefined && !current()) { throw new Error('导入已取消'); }
+    const clean = sanitizeConfigContent(content);
+    validateConfig(clean);
+    const file = await saveAsync(context, name, clean, current);
+    writeMetaEntryStrict(context, file, { origin: '',
+      sub: { upload: 0, download: 0, total: 0, expire: 0 }, updatedAt: Math.floor(Date.now() / 1000) });
+    return file;
+  }
+
 }

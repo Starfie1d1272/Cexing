@@ -30,6 +30,7 @@ export namespace TemplateUpdates {
 }
 
 export interface TemplateUpdateHost {
+  reset?: () => void;
   // Captures Base/Mine/Next and the existing source/draft/active ticket once.
   preview: (decisions: Record<string, string>) => Promise<TemplateUpdatePreview>;
   // Compile a delta over the latest template through the common EditIntent;
@@ -73,7 +74,7 @@ export class TemplateUpdateModel {
     this.decisions[id] = choice;
     await this.refresh();
   }
-  async reset(): Promise<void> { if (this.busy || !this.open) { return; } this.decisions = {}; await this.refresh(); }
+  async reset(): Promise<void> { if (this.busy || !this.open) { return; } this.decisions = {}; this.host.reset?.(); await this.refresh(); }
   async apply(): Promise<void> {
     const preview = this.preview;
     if (!this.open || this.busy || preview === null || !preview.ready || preview.conflicts.length > 0 || preview.candidate === undefined || preview.validation === undefined) { return; }

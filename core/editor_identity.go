@@ -1,0 +1,120 @@
+package main
+
+import (
+	"context"
+	"core/configpipeline"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"github.com/metacubex/mihomo/config"
+	"github.com/metacubex/mihomo/constant"
+	"gopkg.in/yaml.v3"
+	"io"
+	"os"
+	"sort"
+)
+
+// Private compare token for editor inputs and the local resources they refer to.
+// Missing/invalid cache bytes are still identifiable; no validation or fetch occurs.
+func editorIdentity(home string, a versionAction, global string) (string, error) {
+	runLock.Lock()
+	defer runLock.Unlock()
+	constant.SetHomeDir(home)
+	homeDir = home
+	root, e := configpipeline.LayeredMergeSource([]byte(a.Original), []byte(global), []byte(a.Overlay))
+	if e != nil {
+		return "", errors.New("EDIT_READ_FAILED")
+	}
+	request, e := editorReadRequest(home, a, global)
+	if e != nil {
+		return "", errors.New("EDIT_READ_FAILED")
+	}
+	if a.EditIntent != nil && !a.EditIntent.Disabled && a.EditIntent.Template != nil {
+		if e = editorTemplate(home)(context.Background(), root, *a.EditIntent.Template); e != nil {
+			return "", errors.New("EDIT_READ_FAILED")
+		}
+	} else if request.Region != nil {
+		if e = configpipeline.ApplyRegion(context.Background(), root, *request.Region); e != nil {
+			return "", errors.New("EDIT_READ_FAILED")
+		}
+	}
+	if e = configpipeline.ApplyEditIntent(context.Background(), root, a.EditIntent); e != nil {
+		return "", e
+	}
+	text, e := yaml.Marshal(root)
+	if e != nil {
+		return "", errors.New("EDIT_READ_FAILED")
+	}
+	raw := config.DefaultRawConfig()
+	if e = yaml.Unmarshal(text, raw); e != nil {
+		return "", errors.New("EDIT_READ_FAILED")
+	}
+	h := sha256.New()
+	input, _ := json.Marshal(struct {
+		Original, Global, Overlay, Settings string
+		Intent                              *configpipeline.EditIntent
+		Region                              *configpipeline.RegionPlan
+	}{a.Original, global, a.Overlay, a.Overrides, a.EditIntent, a.RegionPlan})
+	h.Write(input)
+	for _, section := range []struct {
+		prefix string
+		values map[string]map[string]any
+	}{{"proxies", raw.ProxyProvider}, {"rules", raw.RuleProvider}} {
+		names := make([]string, 0, len(section.values))
+		for name := range section.values {
+			names = append(names, name)
+		}
+		sort.Strings(names)
+		for _, name := range names {
+			p := section.values[name]
+			kind, e := providerStringField(p, "type")
+			if e != nil {
+				return "", errors.New("EDIT_RESOURCE_INVALID")
+			}
+			if kind != "http" && kind != "file" {
+				continue
+			}
+			path, e := providerStringField(p, "path")
+			if e != nil {
+				return "", errors.New("EDIT_RESOURCE_INVALID")
+			}
+			url, e := providerStringField(p, "url")
+			if e != nil {
+				return "", errors.New("EDIT_RESOURCE_INVALID")
+			}
+			if path == "" && kind == "http" {
+				path = constant.Path.GetPathByHash(section.prefix, url)
+			}
+			descriptor, _ := json.Marshal([]string{section.prefix, name, path})
+			h.Write(descriptor)
+			if _, e := os.Lstat(constant.Path.Resolve(path)); os.IsNotExist(e) {
+				h.Write([]byte("missing"))
+				continue
+			}
+			if validateProviderPath(path) != nil {
+				return "", errors.New("EDIT_RESOURCE_INVALID")
+			}
+			f, e := os.Open(constant.Path.Resolve(path))
+			if os.IsNotExist(e) {
+				h.Write([]byte("missing"))
+				continue
+			}
+			if e != nil {
+				return "", errors.New("EDIT_RESOURCE_INVALID")
+			}
+			info, e := f.Stat()
+			if e != nil || !info.Mode().IsRegular() || info.Size() > maxConfigBytes {
+				f.Close()
+				return "", errors.New("EDIT_RESOURCE_INVALID")
+			}
+			h.Write([]byte("present"))
+			n, e := io.Copy(h, io.LimitReader(f, maxConfigBytes+1))
+			f.Close()
+			if e != nil || n > maxConfigBytes {
+				return "", errors.New("EDIT_RESOURCE_INVALID")
+			}
+		}
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
+}

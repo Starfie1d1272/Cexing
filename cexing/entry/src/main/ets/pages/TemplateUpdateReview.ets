@@ -1,9 +1,16 @@
+import { common } from '@kit.AbilityKit';
+import { EditorDraftHost } from '../lib/ConfigEditor';
+import { createTemplateUpdateHost, TemplateUpdateSource } from '../lib/TemplateUpdateHost';
 import { TemplateConflict, TemplateUpdateHost, TemplateUpdateModel, TemplateUpdatePreview } from '../lib/TemplateUpdates';
 import { NativeTheme as UI } from './NativeTheme';
 
 @Component
 export struct TemplateUpdateReview {
   host?: TemplateUpdateHost;
+  editor?: EditorDraftHost;
+  source?: TemplateUpdateSource;
+  @Prop profileId: string = '';
+  private activeHost: TemplateUpdateHost | null = null;
   onClose: () => void = () => {};
   @State private conflicts: TemplateConflict[] = [];
   @State private ready: boolean = false;
@@ -12,8 +19,11 @@ export struct TemplateUpdateReview {
   @State private message: string = '';
   private model: TemplateUpdateModel | null = null;
   aboutToAppear(): void {
-    if (this.host === undefined) { return; }
-    this.model = new TemplateUpdateModel(this.host, () => {
+    const host = this.host ?? (this.source !== undefined && this.profileId.length > 0 ?
+      createTemplateUpdateHost(getContext(this) as common.UIAbilityContext, this.profileId, this.editor, this.source) : undefined);
+    if (host === undefined) { return; }
+    this.activeHost = host;
+    this.model = new TemplateUpdateModel(host, () => {
       const model = this.model;
       if (model === null) { return; }
       this.conflicts = model.preview?.conflicts ?? [];
@@ -33,7 +43,7 @@ export struct TemplateUpdateReview {
       if (this.summary.length > 0) { Text(this.summary).fontSize(14).fontColor(UI.muted) }
       ForEach(this.conflicts, (conflict: TemplateConflict) => {
         Column({ space: 8 }) {
-          Text(this.host?.label(conflict) ?? '个人修改').fontSize(15).fontColor(UI.ink)
+          Text(this.activeHost?.label(conflict) ?? '个人修改').fontSize(15).fontColor(UI.ink)
           Row({ space: 8 }) {
             Button('保留我的修改').layoutWeight(1).backgroundColor(UI.soft).fontColor(UI.ink)
               .enabled(!this.busy).onClick(() => this.model?.choose(conflict.id, 'mine'))
