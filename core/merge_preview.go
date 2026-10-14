@@ -14,8 +14,9 @@ import (
 )
 
 type mergePreview struct {
-	Digest  string                  `json:"digest"`
-	Changes []configpipeline.Change `json:"changes"`
+	Digest          string                  `json:"digest"`
+	Changes         []configpipeline.Change `json:"changes"`
+	PlatformChanges []configpipeline.Change `json:"platformChanges,omitempty"`
 }
 
 // corePreviewMerge follows the pinned Verge dialect through configpipeline.
@@ -25,7 +26,7 @@ func corePreviewMerge(home, original, overlay, overrides string) (string, error)
 	if err != nil {
 		return "", errors.New("MERGE_PREVIEW_FAILED")
 	}
-	data, err := json.Marshal(mergePreview{Digest: result.Digest, Changes: result.Changes})
+	data, err := json.Marshal(mergePreview{Digest: result.Digest, Changes: result.Changes, PlatformChanges: result.PlatformChanges})
 	if err != nil {
 		return "", errors.New("MERGE_PREVIEW_FAILED")
 	}
@@ -46,8 +47,12 @@ func compilePinnedMergeWithStrategies(home, original, overlay, overrides string,
 }
 
 func compileLayeredMerge(home, original, global, overlay, overrides string, smartConversion bool,
-	region *configpipeline.RegionPlan) (configpipeline.Result, string, error) {
-	return compileLayeredMergeWithIntent(home, original, global, overlay, overrides, smartConversion, region, nil)
+	region *configpipeline.RegionPlan, intents ...*configpipeline.EditIntent) (configpipeline.Result, string, error) {
+	var intent *configpipeline.EditIntent
+	if len(intents) > 0 {
+		intent = intents[0]
+	}
+	return compileLayeredMergeWithIntent(home, original, global, overlay, overrides, smartConversion, region, intent)
 }
 
 func compileLayeredMergeWithIntent(home, original, global, overlay, overrides string, smartConversion bool,
@@ -62,6 +67,9 @@ func compileLayeredMergeWithIntent(home, original, global, overlay, overrides st
 	if region != nil && !region.Disabled {
 		root, err := configpipeline.LayeredMergeSource([]byte(original), []byte(global), []byte(overlay))
 		if err != nil {
+			return configpipeline.Result{}, "", err
+		}
+		if err := configpipeline.ApplyEditIntent(context.Background(), root, intent); err != nil {
 			return configpipeline.Result{}, "", err
 		}
 		members, err := regionProviderNames(home, root)
@@ -123,7 +131,7 @@ func compileLayeredMergeWithIntent(home, original, global, overlay, overrides st
 	strategy = func(ctx context.Context, root *yaml.Node) error {
 		return configpipeline.ApplySmartPolicy(ctx, root, smartConversion, intent)
 	}
-	result, err := (configpipeline.Compiler{Platform: project, Validate: validator, Template: editorTemplate(home)}).Compile(
+	result, err := (configpipeline.Compiler{Platform: project, Validate: validator, Template: editorTemplate(home), PrepareTemplate: editorTemplatePrepare(home)}).Compile(
 		context.Background(), configpipeline.Request{Original: []byte(original), Overlays: overlays,
 			Strategy: strategy, Intent: intent, Region: resolvedRegion, Previous: []byte(original)})
 	return result, receipt, err
@@ -133,10 +141,15 @@ func previewRegion(home, original, overlay string, plan configpipeline.RegionPla
 	return previewLayeredRegion(home, original, "", overlay, plan)
 }
 
-func previewLayeredRegion(home, original, global, overlay string, plan configpipeline.RegionPlan) (configpipeline.RegionPreview, error) {
+func previewLayeredRegion(home, original, global, overlay string, plan configpipeline.RegionPlan, intents ...*configpipeline.EditIntent) (configpipeline.RegionPreview, error) {
 	root, err := configpipeline.LayeredMergeSource([]byte(original), []byte(global), []byte(overlay))
 	if err != nil {
 		return configpipeline.RegionPreview{}, err
+	}
+	if len(intents) > 0 {
+		if err := configpipeline.ApplyEditIntent(context.Background(), root, intents[0]); err != nil {
+			return configpipeline.RegionPreview{}, err
+		}
 	}
 	providers, err := regionProviderNames(home, root)
 	if err != nil {

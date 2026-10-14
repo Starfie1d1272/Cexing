@@ -34,6 +34,8 @@ type versionAction struct {
 }
 
 type versionResponse struct {
+	Identity      string                             `json:"identity,omitempty"`
+	Digest        string                             `json:"digest,omitempty"`
 	SmartPreview  *[]configpipeline.SmartGroupChange `json:"smartPreview,omitempty"`
 	EditError     *configpipeline.IntentError        `json:"editError,omitempty"`
 	Editable      *configpipeline.EditableSnapshot   `json:"editable,omitempty"`
@@ -51,8 +53,11 @@ func coreVersionAction(home, input string) string {
 	if json.Unmarshal([]byte(input), &diagnostic) == nil && (diagnostic.Op == "diagnostics-record" || diagnostic.Op == "diagnostics-export") {
 		return coreDiagnosticAction(home, input)
 	}
+	if diagnostic.Op == "template-update-preview" {
+		return coreTemplateUpdateAction(input)
+	}
 	var action versionAction
-	if len(input) > maxConfigBytes*4 || json.Unmarshal([]byte(input), &action) != nil ||
+	if len(input) > maxConfigBytes*6+2*1024*1024 || json.Unmarshal([]byte(input), &action) != nil ||
 		home == "" || !filepath.IsAbs(home) {
 		return `{"error":"VERSION_INVALID"}`
 	}
@@ -109,6 +114,14 @@ func executeVersionAction(home string, action versionAction) (versionResponse, e
 		return editFailure(err)
 	}
 	switch action.Op {
+	case "editor-identity":
+		identity, e := editorIdentity(home, action, global)
+		if e != nil {
+			return versionResponse{}, e
+		}
+		return versionResponse{Identity: identity}, nil
+	case "edit-check":
+		return versionResponse{}, nil
 	case "edit-read", "editor-list", "edit-target":
 		if len(action.Original) > maxConfigBytes || len(action.Overlay) > maxConfigBytes {
 			return versionResponse{}, errors.New("EDIT_LIMIT")
@@ -117,7 +130,7 @@ func executeVersionAction(home string, action versionAction) (versionResponse, e
 		if err != nil {
 			return versionResponse{}, errors.New("EDIT_READ_FAILED")
 		}
-		compiler := configpipeline.Compiler{Template: editorTemplate(home)}
+		compiler := configpipeline.Compiler{Template: editorTemplate(home), PrepareTemplate: editorTemplatePrepare(home)}
 		if action.Op == "edit-target" {
 			view, err := compiler.EditTarget(ctx, request, action.EditSection, action.EditTarget)
 			if err != nil {
@@ -143,7 +156,7 @@ func executeVersionAction(home string, action versionAction) (versionResponse, e
 		if err != nil {
 			return versionResponse{}, errors.New("SMART_PREVIEW_FAILED")
 		}
-		view, err := (configpipeline.Compiler{Template: editorTemplate(home)}).SmartPreview(ctx, request, action.SmartConversion)
+		view, err := (configpipeline.Compiler{Template: editorTemplate(home), PrepareTemplate: editorTemplatePrepare(home)}).SmartPreview(ctx, request, action.SmartConversion)
 		if err != nil {
 			return editFailure(err)
 		}
@@ -160,12 +173,12 @@ func executeVersionAction(home string, action versionAction) (versionResponse, e
 			}
 			return versionResponse{}, errors.New("MERGE_PREVIEW_FAILED")
 		}
-		return versionResponse{MergePreview: &mergePreview{Digest: result.Digest, Changes: result.Changes}}, nil
+		return versionResponse{MergePreview: &mergePreview{Digest: result.Digest, Changes: result.Changes, PlatformChanges: result.PlatformChanges}}, nil
 	case "region-preview":
 		if action.RegionPlan == nil || len(action.Original) > maxConfigBytes || len(action.Overlay) > maxConfigBytes {
 			return versionResponse{}, errors.New("REGION_INVALID")
 		}
-		preview, err := previewLayeredRegion(home, action.Original, global, action.Overlay, *action.RegionPlan)
+		preview, err := previewLayeredRegion(home, action.Original, global, action.Overlay, *action.RegionPlan, action.EditIntent)
 		if err != nil {
 			return versionResponse{}, errors.New("REGION_PREVIEW_FAILED")
 		}
@@ -220,7 +233,7 @@ func executeVersionAction(home string, action versionAction) (versionResponse, e
 		if err != nil {
 			return versionResponse{}, errors.New("VERSION_STAGE_FAILED")
 		}
-		return versionResponse{Version: &version, Receipt: receipt}, nil
+		return versionResponse{Version: &version, Receipt: receipt, Digest: result.Digest}, nil
 	case "remove", "rename":
 		if !profileIDPattern.MatchString(action.ProfileID) {
 			return versionResponse{}, errors.New("VERSION_INVALID")

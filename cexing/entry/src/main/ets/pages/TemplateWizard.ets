@@ -1,3 +1,7 @@
+import { createTemplateUpdateSource } from '../lib/TemplateUpdateSource';
+import { TemplateUpdateReview } from './TemplateUpdateReview';
+import { TemplateUpdateSource } from '../lib/TemplateUpdateHost';
+import { EditorDraftHosts } from '../lib/EditorDraftHosts';
 import { AiProbeStatus } from './AiProbeStatus';
 import { AiProbeBinding } from '../lib/AiProbeBinding';
 import { common } from '@kit.AbilityKit';
@@ -12,6 +16,10 @@ import { TemplateWizardHost, TemplateWizardModel, TemplateWizardView } from '../
 export struct TemplateWizard {
   host?: TemplateWizardHost;
   editor?: EditorDraftHost;
+  updateSource?: TemplateUpdateSource;
+  private activeUpdateSource?: TemplateUpdateSource;
+  private activeEditor?: EditorDraftHost;
+  @State private reviewingUpdate: boolean = false;
   @Prop profileId: string = '';
   onClose: () => void = () => {};
   @State private view: TemplateWizardView = { templateId: 'original', target: '', busy: false,
@@ -25,8 +33,13 @@ export struct TemplateWizard {
 
   aboutToAppear(): void {
     this.visible = true; this.confirmationGeneration++; this.confirming = false;
-    const host = this.host ?? (this.editor !== undefined && this.profileId.length > 0 ?
-      createTemplateWizardHost(getContext(this) as common.UIAbilityContext, this.profileId, this.editor) : undefined);
+    this.reviewingUpdate = false;
+    this.activeUpdateSource = this.updateSource ?? (this.profileId.length > 0 ?
+      createTemplateUpdateSource(getContext(this) as common.UIAbilityContext, this.profileId) : undefined);
+    this.activeEditor = this.editor ?? (this.profileId.length > 0 ?
+      EditorDraftHosts.create(getContext(this) as common.UIAbilityContext, this.profileId) : undefined);
+    const host = this.host ?? (this.profileId.length > 0 ?
+      createTemplateWizardHost(getContext(this) as common.UIAbilityContext, this.profileId, this.activeEditor) : undefined);
     if (host === undefined) { return; }
     this.model = new TemplateWizardModel(host, () => {
       if (this.model !== null) {
@@ -70,12 +83,20 @@ export struct TemplateWizard {
       .onClick(() => this.model?.choose(id, ''))
   }
   build() {
+    if (this.reviewingUpdate) {
+      TemplateUpdateReview({ profileId: this.profileId, editor: this.activeEditor, source: this.activeUpdateSource,
+        onClose: () => { this.reviewingUpdate = false; this.model?.load(); } })
+    } else {
     Column({ space: 12 }) {
       Row() {
         Text('分流方案').fontSize(22).fontWeight(FontWeight.Bold).fontColor(UI.ink)
         Blank()
         Button('返回').backgroundColor(UI.soft).fontColor(UI.ink).onClick(() => this.close())
       }.width('100%')
+      if (this.activeUpdateSource !== undefined && this.view.templateId !== 'original') {
+        Button('更新方案').backgroundColor(UI.soft).fontColor(UI.ink)
+          .enabled(this.view.ready && !this.view.busy).onClick(() => { this.reviewingUpdate = true; })
+      }
       this.option('original', '保持订阅原样')
       this.option('region', '按地区智能选择')
       this.option('ai', 'AI 专用出口')
@@ -114,5 +135,6 @@ export struct TemplateWizard {
         .enabled(this.view.ready === true && this.view.busy === false)
         .onClick(() => { if (this.model?.preview) { this.apply(); } else { this.model?.inspect(); } })
     }.width('100%').height('100%').padding(20).backgroundColor(UI.surface)
+    }
   }
 }

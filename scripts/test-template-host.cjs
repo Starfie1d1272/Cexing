@@ -13,12 +13,12 @@ const editor = {
   receipt = { revision: expected, digest: `digest-${revision}`, changes: { digest: `digest-${revision}`, changes: [{ section: 'rules', before: 1, after: 9 }] } }; return receipt; },
  apply: async checked => { assert.equal(checked, receipt); assert.equal(checked.revision, `ticket-${revision}`); calls.push('apply'); committed++; published = structuredClone(draft); return 'applied'; }
 };
-const modules = { './ConfigEditor': { ConfigEditor: { templatePlan: (templateId, version, targetGroup, region, replaceRules) => ({templateId, version, targetGroup, region, replaceRules}) } }, './EffectiveVersions': { EffectiveVersions: { read: () => ({ Profiles: { 'one.yaml': { ID: 'version-one' } } }),
+const modules = { './EditorDraftHosts': { EditorDraftHosts: { create: () => editor } }, './ConfigEditor': { ConfigEditor: { templatePlan: (templateId, version, targetGroup, region, replaceRules) => ({templateId, version, targetGroup, region, replaceRules}) } }, './EffectiveVersions': { EffectiveVersions: { read: () => ({ Profiles: { 'one.yaml': { ID: 'version-one' } } }),
  editIntent: () => structuredClone(published), regionPlan: () => null } } };
 const sandbox = { exports: {}, require: name => { assert.ok(name in modules, name); return modules[name]; } };
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('cexing/entry/src/main/ets/lib/TemplateHost.ets', 'utf8')).outputText, sandbox);
 (async () => {
- const host = sandbox.exports.createTemplateWizardHost({ filesDir: '/private' }, 'one.yaml', editor);
+ const host = sandbox.exports.createTemplateWizardHost({ filesDir: '/private' }, 'one.yaml');
  const inputs = await host.load(); assert.deepEqual(Array.from(inputs.groups), ['Pick']); assert.equal(inputs.current.templateId, 'original');
  const plan = { templateId: 'ai', version: 1, targetGroup: 'Pick' };
  const preview = await host.preview(plan); assert.equal(preview.inactiveEdits, true);

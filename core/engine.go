@@ -14,9 +14,9 @@ import (
 	"fmt"
 	"net/netip"
 	"os"
-	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 	"unicode/utf8"
 
@@ -39,20 +39,12 @@ const (
 )
 
 var (
-	runLock          sync.Mutex
-	initialized      bool
-	tunListener      *sing_tun.Listener
-	logFile          *os.File
-	logFileMu        sync.Mutex // 保护 logFile/logFileBytes（写日志与关闭开关并发）
-	logFileBytes     int64
-	logToFileEnabled = true // 设置页「记录内核日志到文件」；false 时只进系统 hilog
-	homeDir          string
-	logSub           <-chan log.Event
+	runLock     sync.Mutex
+	initialized bool
+	tunListener *sing_tun.Listener
+	homeDir     string
+	logSub      <-chan log.Event
 )
-
-// logFileMaxBytes - mihomo.log 轮转上限：超过 2MB 转存 mihomo.log.old（最多保留
-// 2 份共 ≤4MB），避免内核日志无限增长吃光应用沙箱存储。
-const logFileMaxBytes = 2 * 1024 * 1024
 
 // sanitizeConfigJson - 清洗 ArkTS 侧传入的配置文本（防御性，双端修复）：
 //  1. 去 UTF-8 BOM
@@ -104,6 +96,23 @@ func defaultTunExt() tunExt {
 	}
 }
 
+// Snapshot is immutable until the system TUN stops; readers include offline previews.
+var tunIPv6Snapshot atomic.Pointer[bool]
+
+func defaultTunOptions(fd int, ipv6 bool) LC.Tun {
+	ext := defaultTunExt()
+	opts := LC.Tun{
+		Enable: true, Device: "Cexing", Stack: enforceStack(constant.TunGvisor),
+		DNSHijack: ext.dnsHijack, AutoRoute: false, AutoDetectInterface: false,
+		Inet4Address: []netip.Prefix{netip.MustParsePrefix(ext.address)}, MTU: ext.mtu, FileDescriptor: fd,
+	}
+	if ipv6 {
+		opts.Inet6Address = []netip.Prefix{netip.MustParsePrefix("fdfe:dcba:9876::1/126")}
+		opts.DNSHijack = append(opts.DNSHijack, "[::]:53")
+	}
+	return opts
+}
+
 func coreInit(home string) (result error) {
 	defer func() { diagnosticStartResult("core_init", result) }()
 	runLock.Lock()
@@ -120,13 +129,11 @@ func coreInit(home string) (result error) {
 		return fmt.Errorf("mihomoInit: mkdir home: %w", err)
 	}
 	// The log relay survives coreStop. Switch its destination under the same lock
-	// used by writeLogLine, and release any file from the previous core session.
+	// used by writeLogLine; no file descriptor is retained across writes.
 	logFileMu.Lock()
-	if logFile != nil {
-		_ = logFile.Close()
-		logFile = nil
-		logFileBytes = 0
-	}
+	logRetryAfter = time.Time{}
+	logSessionActive = true
+	logNeedsMaintenance = true
 	homeDir = home
 	diagnosticKernelHome.Store(home)
 	_, _ = getDiagnosticStore(home, "kernel")
@@ -157,60 +164,12 @@ func coreInit(home string) (result error) {
 func startLogRelay() {
 	go func() {
 		for e := range logSub {
-			line := fmt.Sprintf("[%s] %s", e.LogLevel.String(), redactControllerSecret(e.Payload))
+			line := fmt.Sprintf("[%s] %s", e.LogLevel.String(), redactOrdinaryLog(e.Payload))
 			hilogPrint(int(e.LogLevel), "mihomo", line)
 			kernelDiagnosticLog(e.Type(), e.Payload)
 			writeLogLine(line)
 		}
 	}()
-}
-
-// writeLogLine - 追加一行到 mihomo.log；达到上限时轮转（rename 到 .old 覆盖旧份），
-// 开关关闭时跳过写盘。锁内完成状态读写，与 applyOverrides 的关闭路径并发安全。
-func writeLogLine(line string) {
-	logFileMu.Lock()
-	defer logFileMu.Unlock()
-
-	if !logToFileEnabled {
-		return
-	}
-	path := filepath.Join(homeDir, "mihomo.log")
-	if logFile == nil {
-		f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
-		if err != nil {
-			return
-		}
-		logFile = f
-		if st, err := f.Stat(); err == nil {
-			logFileBytes = st.Size()
-		}
-	}
-	if logFileBytes > logFileMaxBytes {
-		_ = logFile.Close()
-		logFile = nil
-		logFileBytes = 0
-		_ = os.Rename(path, path+".old")
-		f, err := os.OpenFile(path, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o644)
-		if err != nil {
-			return
-		}
-		logFile = f
-	}
-	n, _ := logFile.WriteString(line + "\n")
-	logFileBytes += int64(n)
-}
-
-// setLogToFile - 设置页开关的运行时生效入口（startTun 应用 overrides 时调用）：
-// 关闭时立即释放文件句柄，后续日志只进 hilog。
-func setLogToFile(enabled bool) {
-	logFileMu.Lock()
-	defer logFileMu.Unlock()
-	logToFileEnabled = enabled
-	if !enabled && logFile != nil {
-		_ = logFile.Close()
-		logFile = nil
-		logFileBytes = 0
-	}
 }
 
 func coreStartTun(fd int, configJson string, overridesJson string) (result error) {
@@ -252,33 +211,13 @@ func coreStartTun(fd int, configJson string, overridesJson string) (result error
 	kernelDiagnostic("controller_listen", "success", nil, nil)
 	stage = "config_apply"
 	executor.ApplyConfig(cfg, true)
+	observeAIProbeConfig(configJson)
 	applyLogOverride(overridesJson)
 	activeOverrides = overridesJson
 	kernelDiagnostic("config_apply", "completed", nil, nil)
 
 	// 6. 用系统 tun fd 起 gVisor 入站
-	stack, ok := constant.StackTypeMapping[strings.ToLower(ext.stack)]
-	if !ok {
-		return fmt.Errorf("mihomoStartTun: unknown tun stack %q", ext.stack)
-	}
-	stack = enforceStack(stack) // ohos 上强制 gVisor（系统栈 TCP 依赖内核回环，鸿蒙 VPN 沙箱没有）
-
-	prefix, err := parseTunPrefix(ext.address)
-	if err != nil {
-		return fmt.Errorf("mihomoStartTun: bad tun address %q: %w", ext.address, err)
-	}
-
-	opts := LC.Tun{
-		Enable:              true,
-		Device:              "Cexing",
-		Stack:               stack,
-		DNSHijack:           ext.dnsHijack,
-		AutoRoute:           false, // 鸿蒙沙箱无 root，路由由系统 VpnService 管理
-		AutoDetectInterface: false,
-		Inet4Address:        []netip.Prefix{prefix},
-		MTU:                 ext.mtu,
-		FileDescriptor:      fd,
-	}
+	opts := defaultTunOptions(fd, cfg.General.IPv6)
 	stage = "tun_start"
 	kernelDiagnostic("tun_start", "started", nil, nil)
 	l, err := sing_tun.New(opts, tunnel.Tunnel)
@@ -286,18 +225,31 @@ func coreStartTun(fd int, configJson string, overridesJson string) (result error
 		return fmt.Errorf("mihomoStartTun: start tun: %w", err)
 	}
 	tunListener = l
+	enabled := cfg.General.IPv6
+	tunIPv6Snapshot.Store(&enabled)
 	stage = "core_ready"
-	log.Infoln("[OHOS] TUN started fd=%d stack=%s address=%s mtu=%d hijack=%v", fd, stack.String(), ext.address, ext.mtu, ext.dnsHijack)
+	log.Infoln("[OHOS] TUN started fd=%d stack=%s address=%s mtu=%d hijack=%v", fd, opts.Stack.String(), ext.address, ext.mtu, ext.dnsHijack)
 	return nil
 }
 
 // applyOverrides - 把 ArkTS 设置页的用户覆写（JSON）合并进 overlay。
 // 合并顺序: profile overlay -> overrides -> 平台必需项，语义 = 用户覆写 > 订阅配置
 // 同名键。键映射（ArkTS 驼峰 -> mihomo 配置 kebab）: mixedPort->mixed-port、
-// logLevel->log-level、allowLan->allow-lan、mode->mode；ipv6 只用于系统 VpnConfig、
-// 不动内核，因此忽略。logToFile 是 wrapper 专用开关（不属 mihomo 配置），单独消费。
+// logLevel->log-level、allowLan->allow-lan、mode->mode；IPv6 与系统 TUN 会话一致。logToFile 是 wrapper 专用开关（不属 mihomo 配置），单独消费。
 // overridesJson 为空或解析失败时跳过该层（不影响启动）。
 func applyOverrides(overlay map[string]any, overridesJson string) {
+	// Neither a subscription nor REST reload can enable half a dual-stack tunnel.
+	network := map[string]any{}
+	_ = yaml.Unmarshal([]byte(overridesJson), &network)
+	ipv6, _ := network["ipv6"].(bool)
+	if snapshot := tunIPv6Snapshot.Load(); snapshot != nil {
+		ipv6 = *snapshot
+	}
+	overlay["ipv6"] = ipv6
+	if dns, ok := overlay["dns"].(map[string]any); ok {
+		dns["ipv6"] = ipv6
+	}
+
 	// LAN exposure requires the host setting; subscription values are not consent.
 	overlay["allow-lan"] = false
 	if overridesJson == "" {
@@ -372,8 +324,14 @@ func coreStop() {
 	MDNS.ReCreateServer("", nil, nil)
 	stopController()
 	activeOverrides = ""
+	tunIPv6Snapshot.Store(nil)
 	kernelDiagnostic("core_stop", "completed", nil, nil)
 	log.Infoln("[OHOS] mihomo core stopped")
+	// Quiesce only the ordinary file sink; the relay/hilog and diagnostic store
+	// survive stop. Queued events must not recreate files in an ended session.
+	logFileMu.Lock()
+	logSessionActive = false
+	logFileMu.Unlock()
 }
 
 // parseTunPrefix - 兼容 "172.19.0.1/30" 与裸地址 "172.19.0.1"（ohos 补 /30，参照 FlClash）
