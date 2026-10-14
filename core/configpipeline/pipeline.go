@@ -45,8 +45,9 @@ type Request struct {
 
 // Summary contains only fixed section names, never names, URLs or values.
 type Change struct {
-	Section       string
-	Before, After int
+	Section string `json:"section"`
+	Before  int    `json:"before"`
+	After   int    `json:"after"`
 }
 type Result struct {
 	Original        []byte

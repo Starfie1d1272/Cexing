@@ -10,12 +10,11 @@ import { MergeChange } from '../lib/CoreValidator';
 export struct GlobalMergeEditor {
   @Consume('profileRevision') profileRevision: number;
   onClose: () => void = () => {};
-  @State initialText: string = '';
+  @State private editedText: string = '';
   @State globalEnabled: boolean = false;
   @State busy: boolean = false;
   @State loadFailed: boolean = false;
   @State summary: string = '';
-  private editedText: string = '';
   private dirty: boolean = false;
 
   aboutToAppear(): void {
@@ -23,8 +22,7 @@ export struct GlobalMergeEditor {
       const context = getContext(this) as common.UIAbilityContext;
       const current = EffectiveVersions.globalContent(context);
       this.globalEnabled = current.length > 0;
-      this.initialText = GlobalMergeDraft.read(context) ?? current;
-      this.editedText = this.initialText;
+      this.editedText = GlobalMergeDraft.read(context) ?? current;
       this.loadFailed = false;
     } catch (_) { this.loadFailed = true; }
   }
@@ -84,18 +82,18 @@ export struct GlobalMergeEditor {
   build() {
     Column({ space: 12 }) {
       Text('全局覆写').fontSize(22).fontWeight(FontWeight.Bold).fontColor(UI.ink)
-      Text(this.globalEnabled ? '已启用 · 适用于所有订阅' : '未启用 · 空全局不改变原有行为')
+      Text(this.globalEnabled ? '已启用' : '未启用')
         .fontSize(13).fontColor(UI.accentText)
-      Text('全局覆写是所有订阅的共同基线，本订阅覆写优先。之后执行 Smart 策略，宿主安全设置最终生效。')
+      Text('为所有订阅设置通用配置，单个订阅的覆写优先。')
         .fontSize(13).fontColor(UI.muted)
-      Text('沿用 Clash Verge 2.5.8 Merge：规则、策略组等数组整体替换，不追加、不按名称合并。清空内容后应用可停用。')
+      Text('预览查看当前订阅的变化，应用后生效。清空内容并应用可停用。')
         .fontSize(13).fontColor(UI.muted)
-      Text('预览针对当前启用订阅；其他订阅启用或更新时重新校验。草稿不会生效。')
+      Text('填写规则或策略组列表时，会替换订阅中的对应列表。')
         .fontSize(13).fontColor(UI.muted)
       if (this.loadFailed) {
         Text('现有覆写或草稿读取失败，已阻止覆盖').fontSize(13).fontColor(UI.error)
       }
-      TextArea({ text: this.initialText, placeholder: '输入 Merge YAML（不支持脚本）' })
+      TextArea({ text: $$this.editedText, placeholder: '输入 YAML 覆写配置' })
         .width('100%').layoutWeight(1).fontSize(14).fontFamily('HarmonyOS Sans Mono')
         .backgroundColor(UI.paper).borderRadius(12).padding(12)
         .enabled(!this.busy && !this.loadFailed).onChange((value: string) => this.changeText(value))
@@ -104,7 +102,7 @@ export struct GlobalMergeEditor {
         Button('关闭').layoutWeight(1).height(44).backgroundColor(UI.soft).fontColor(UI.ink)
           .enabled(!this.busy).onClick(() => this.close())
         Button('保存草稿').layoutWeight(1).height(44).backgroundColor(UI.soft).fontColor(UI.ink)
-          .enabled(!this.busy && !this.loadFailed).onClick(() => { if (this.saveDraft()) { this.toast('草稿已保存，未应用'); } })
+          .enabled(!this.busy && !this.loadFailed).onClick(() => { if (this.saveDraft()) { this.toast('草稿已保存'); } })
         Button('预览').layoutWeight(1).height(44).backgroundColor(UI.soft).fontColor(UI.ink)
           .enabled(!this.busy && !this.loadFailed).onClick(() => this.preview())
       }.width('100%')
