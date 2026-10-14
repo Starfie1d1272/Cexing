@@ -6,7 +6,7 @@ import { COMMON_RULE_TYPES, RuleDnsForms, RuleFields, ProviderFields, DnsFields 
 @Component
 export struct RuleDnsEditForm {
   @Prop section: string = 'rules';
-  @Prop selected: EditTarget = { item: { id: '', revision: '' }, value: '' };
+  @Prop selected: EditTarget = { item: { id: '', revision: '' }, missingFieldRevision: '', value: '' };
   @Prop providers: string[] = [];
   @Prop targets: string[] = ['DIRECT', 'REJECT'];
   @Prop isNew: boolean = false;
@@ -64,7 +64,7 @@ export struct RuleDnsEditForm {
   private submit(): void {
     this.error = '';
     try {
-      const id = `form-${this.section}-${this.isNew ? util.generateRandomUUID(true) : this.selected.item.id}`;
+      const id = `form-${this.section}-${util.generateRandomUUID(true)}`;
       let operation: EditOperation;
       if (this.advanced) {
         operation = this.section === 'rules' ? RuleDnsForms.advancedRule(id, this.selected, this.advancedText) :

@@ -1,3 +1,5 @@
+import { util } from '@kit.ArkTS';
+import { RegionPlan } from '../lib/EffectiveVersions';
 import { common } from '@kit.AbilityKit';
 import { NativeTheme as UI } from './NativeTheme';
 import { RuleDnsEditForm } from './RuleDnsEditForm';
@@ -42,6 +44,7 @@ export struct RuleDnsEditorPage {
   private intent: EditIntent | null = null;
   private undo: EditIntent | null = null;
   private liveProviderName: string = '';
+  private region: RegionPlan | null = null;
 
   aboutToAppear(): void { this.file = RuleDnsEditorBus.file; this.section = RuleDnsEditorBus.section; this.active = this.visible; if (this.active) { this.load(); } }
   aboutToDisappear(): void { this.active = false; this.epoch++; this.busy = false; }
@@ -52,20 +55,8 @@ export struct RuleDnsEditorPage {
   }
   private current(epoch: number): boolean { return this.active && this.epoch === epoch; }
   private list(): void {
-    const items = (this.snapshot?.sections.find((part: EditableSection) => part.section === this.section)?.items ?? []).slice();
-    const operations = this.intent?.disabled === true ? [] : this.intent?.operations ?? [];
-    this.additions = operations.filter((op: EditOperation) => op.section === this.section && op.kind === 'add');
-    for (const op of operations.filter((entry: EditOperation) => entry.section === this.section)) {
-      const index = items.findIndex((item: EditableItem) => item.id === op.target);
-      if (index < 0) { continue; }
-      if (op.kind === 'delete') { items.splice(index, 1); }
-      if (op.kind === 'move') {
-        const item = items.splice(index, 1)[0];
-        const before = op.before === '' ? items.length : items.findIndex((entry: EditableItem) => entry.id === op.before);
-        if (before >= 0) { items.splice(before, 0, item); } else { items.splice(index, 0, item); }
-      }
-    }
-    this.items = items; this.selected = null; this.isNew = false;
+    this.items = (this.snapshot?.sections.find((part: EditableSection) => part.section === this.section)?.items ?? []).slice();
+    this.additions = []; this.selected = null; this.isNew = false;
   }
   private async load(): Promise<void> {
     const epoch = ++this.epoch; this.busy = true; this.previewReady = false;
@@ -77,51 +68,48 @@ export struct RuleDnsEditorPage {
       const original = ProfileStore.getProfileContent(context, this.file);
       if (original === null) { throw new Error('原始配置不存在'); }
       const overlay = ProfileStore.getEnabledMerge(context, this.file);
-      const view = await ConfigEditor.read(context, original, overlay, ticket.activeVersion);
+      const draft = ProfileStore.readEditDraft(context, this.file).intent;
+      const version = EffectiveVersions.read(context)?.Profiles[this.file];
+      const region = version !== undefined ? EffectiveVersions.regionPlan(context, version) : null;
+      const viewIntent = draft === null ? undefined : JSON.parse(JSON.stringify(draft)) as EditIntent;
+      if (viewIntent !== undefined) { viewIntent.disabled = false; }
+      const view = await ConfigEditor.list(context, original, overlay, ticket.activeVersion, undefined, viewIntent, region ?? undefined);
       if (!this.current(epoch)) { return; }
-      this.ticket = ticket; this.original = original; this.localOverlay = overlay; this.snapshot = view;
-      this.intent = ProfileStore.readEditDraft(context, this.file).intent ?? {
-        schemaVersion: 1, revision: ticket.draftRevision || 'new-draft', sourceRevision: view.sourceRevision, operations: [] };
-      this.targets = ['DIRECT', 'REJECT']; this.providers = []; this.choices = []; this.choiceSection = '';
-      this.list(); this.message = '';
+      this.ticket = ticket; this.original = original; this.localOverlay = overlay; this.region = region; this.snapshot = view;
+      this.intent = draft ?? { schemaVersion: 1, revision: ticket.draftRevision || 'new-draft', sourceRevision: view.sourceRevision, operations: [] };
+      this.targets = ['DIRECT', 'REJECT'].concat(view.sections.find((part: EditableSection) => part.section === 'proxy-groups')?.items.map((item: EditableItem) => item.name ?? '').filter((name: string) => name !== '') ?? []);
+      this.providers = view.sections.find((part: EditableSection) => part.section === 'rule-providers')?.items.map((item: EditableItem) => item.name ?? '').filter((name: string) => name !== '') ?? [];
+      this.choiceSection = ''; this.list(); this.message = '';
     } catch (_) { if (this.current(epoch)) { this.message = '无法打开编辑，请重试'; } }
     finally { if (this.current(epoch)) { this.busy = false; } }
   }
-  private openAdded(op: EditOperation): void {
-    if (this.busy || op.value === undefined) { return; }
-    this.selected = { item: { id: op.id, revision: '' }, value: JSON.parse(JSON.stringify(op.value)) as Object, name: op.name };
-    this.isNew = true; this.insertionBefore = op.before ?? '';
+  private viewIntent(): EditIntent | undefined {
+    if (this.intent === null) { return undefined; }
+    const view = JSON.parse(JSON.stringify(this.intent)) as EditIntent;
+    view.disabled = false;
+    return view;
   }
-  private removeAdded(id: string): void {
-    if (this.busy || this.intent === null) { return; }
-    this.undo = JSON.parse(JSON.stringify(this.intent)) as EditIntent;
-    const next = JSON.parse(JSON.stringify(this.intent)) as EditIntent;
-    next.operations = next.operations.filter((op: EditOperation) => op.id !== id);
-    this.preview(next);
+  private async refreshList(context: common.UIAbilityContext, epoch: number): Promise<void> {
+    if (this.ticket === null) { return; }
+    const snapshot = await ConfigEditor.list(context, this.original, this.localOverlay, this.ticket.activeVersion,
+      undefined, this.viewIntent(), this.region ?? undefined);
+    if (!this.current(epoch)) { return; }
+    this.snapshot = snapshot;
+    const groups = snapshot.sections.find((part: EditableSection) => part.section === 'proxy-groups')?.items ?? [];
+    const providers = snapshot.sections.find((part: EditableSection) => part.section === 'rule-providers')?.items ?? [];
+    this.targets = ['DIRECT', 'REJECT'].concat(groups.map((item: EditableItem) => item.name ?? '').filter((name: string) => name !== ''));
+    this.providers = providers.map((item: EditableItem) => item.name ?? '').filter((name: string) => name !== '');
+    this.list();
   }
+
   private async open(item: EditableItem): Promise<void> {
     if (this.busy || !this.active || this.ticket === null) { return; }
     const epoch = ++this.epoch; this.busy = true;
     try {
       const value = await ConfigEditor.target(getContext(this) as common.UIAbilityContext,
-        this.original, this.localOverlay, this.ticket.activeVersion, this.section, item.id);
+        this.original, this.localOverlay, this.ticket.activeVersion, this.section, item.id, undefined, this.viewIntent(), this.region ?? undefined);
       if (!this.current(epoch)) { return; }
-      const update = this.intent?.operations.find((op: EditOperation) => op.kind === 'update' && op.target === item.id);
-      if (update?.value !== undefined) { value.value = update.value; }
-      if (update?.patch !== undefined) {
-        const original = value.value as Record<string, Object>;
-        const mapping: Record<string, Object> = {};
-        for (const key of Object.keys(original)) { if (!(update.remove ?? []).includes(key)) { mapping[key] = original[key]; } }
-        for (const key of Object.keys(update.patch)) { mapping[key] = update.patch[key]; }
-        value.value = mapping;
-      }
-      if (this.section === 'rule-providers') {
-        const context = getContext(this) as common.UIAbilityContext;
-        const version = EffectiveVersions.read(context)?.Profiles[this.file];
-        const published = version !== undefined ? EffectiveVersions.editIntent(context, version) : null;
-        this.liveProviderName = published?.operations.find((op: EditOperation) => op.kind === 'rename' && op.target === item.id)?.name ?? value.name ?? '';
-      }
-      value.name = this.intent?.operations.find((op: EditOperation) => op.kind === 'rename' && op.target === item.id)?.name ?? value.name;
+      this.liveProviderName = value.name ?? '';
       this.selected = value; this.isNew = false; this.providerState = ''; this.providerError = ''; this.showProviderError = false;
     } catch (_) { if (this.current(epoch)) { this.message = '配置已变化，请重新打开'; } }
     finally { if (this.current(epoch)) { this.busy = false; } }
@@ -136,7 +124,7 @@ export struct RuleDnsEditorPage {
     const epoch = ++this.epoch; const section = this.choiceSection; this.busy = true;
     try {
       const value = await ConfigEditor.target(getContext(this) as common.UIAbilityContext,
-        this.original, this.localOverlay, this.ticket.activeVersion, section, item.id);
+        this.original, this.localOverlay, this.ticket.activeVersion, section, item.id, undefined, this.viewIntent(), this.region ?? undefined);
       if (!this.current(epoch)) { return; }
       const name = value.name ?? '';
       if (name !== '') {
@@ -159,7 +147,7 @@ export struct RuleDnsEditorPage {
     const context = getContext(this) as common.UIAbilityContext;
     const version = EffectiveVersions.read(context)?.Profiles[this.file];
     const published = version !== undefined ? EffectiveVersions.editIntent(context, version) : null;
-    if (update && this.intentIdentity(this.intent) !== this.intentIdentity(published)) { this.message = '请先应用修改'; return; }
+    if (this.intentIdentity(this.intent) !== this.intentIdentity(published)) { this.message = '请先应用修改'; return; }
     const epoch = ++this.epoch; const name = this.liveProviderName; const ticket = this.ticket; this.busy = true;
     try {
       const observation = update ? await RuleProviderStatus.refresh(name) : await RuleProviderStatus.read(name);
@@ -174,13 +162,13 @@ export struct RuleDnsEditorPage {
   }
   private renameProvider(): void {
     if (this.busy || this.selected === null || this.rename.trim() === '' || /[,\r\n\u0000]/.test(this.rename)) { return; }
-    this.edit({ id: `rename-${this.selected.item.id}`, kind: 'rename', section: 'rule-providers',
+    this.edit({ id: `rename-${util.generateRandomUUID(true)}`, kind: 'rename', section: 'rule-providers',
       target: this.selected.item.id, expected: this.selected.item.revision, name: this.rename.trim() });
   }
   private add(): void {
     if (this.busy || this.section === 'dns') { return; }
     const empty: Record<string, Object> = {};
-    this.selected = { item: { id: '', revision: '' }, value: this.section === 'rules' ? '' : empty };
+    this.selected = { item: { id: '', revision: '' }, missingFieldRevision: this.snapshot?.missingFieldRevision ?? '', value: this.section === 'rules' ? '' : empty };
     this.isNew = true; this.insertionBefore = this.items[0]?.id ?? '';
   }
   private async preview(next: EditIntent | null): Promise<void> {
@@ -195,7 +183,9 @@ export struct RuleDnsEditorPage {
       this.intent = ProfileStore.readEditDraft(context, this.file).intent;
       const result = await ProfileTransactions.previewEditDraft(context, this.ticket);
       if (!this.current(epoch)) { return; }
-      this.previewReady = true; this.list();
+      await this.refreshList(context, epoch);
+      if (!this.current(epoch)) { return; }
+      this.previewReady = true;
       const sections = result.changes.map((change) => change.section).filter((name: string) => ['rules', 'rule-providers', 'dns', 'hosts'].includes(name));
       const labels = sections.map((name: string) => name === 'rules' ? '规则' : name === 'rule-providers' ? '规则源' : name === 'dns' ? 'DNS' : 'hosts');
       this.message = labels.length > 0 ? `${labels.join(' / ')} 已校验` : result.changes.length > 0 ? '变更已校验' : '没有变更';
@@ -232,23 +222,15 @@ export struct RuleDnsEditorPage {
     } catch (error) { if (this.current(epoch)) { this.previewReady = false; this.message = (error as Error).message; } }
     finally { if (this.current(epoch)) { this.busy = false; } }
   }
-  private moveAdded(from: number, to: number): void {
-    if (this.busy || this.intent === null || this.section !== 'rules' || from === to) { return; }
-    try {
-      this.undo = JSON.parse(JSON.stringify(this.intent)) as EditIntent;
-      this.preview(RuleDnsDraft.moveAdded(this.intent, this.section, from, to));
-    } catch (error) { this.message = (error as Error).message; }
-  }
   private move(from: number, to: number): void {
     if (this.busy || this.section !== 'rules' || from === to || from < 0 || to < 0 ||
       from >= this.items.length || to >= this.items.length) { return; }
     const item = this.items[from];
     const final = this.items.find((entry: EditableItem) => entry.type === 'MATCH')?.id ?? '';
-    if (final === '' && this.items.some((entry: EditableItem) => entry.type === undefined)) { this.message = '无法读取规则类型，请重试'; return; }
     if (item.type === 'MATCH' || item.id === final || (final !== '' && to >= this.items.findIndex((entry: EditableItem) => entry.id === final))) { this.message = '最终规则保持在末尾'; return; }
     const revised = this.items.slice(); revised.splice(from, 1); revised.splice(to, 0, item);
     const before = revised[to + 1]?.id ?? '';
-    this.edit(RuleDnsForms.moveRule(`move-${item.id}`, item, before, final));
+    this.edit(RuleDnsForms.moveRule(`move-${util.generateRandomUUID(true)}`, item, before, final));
     this.items = revised;
   }
   private preset(recommended: boolean): void {
@@ -305,20 +287,12 @@ export struct RuleDnsEditorPage {
           Button('hosts').onClick(() => { this.section = 'hosts'; this.list(); })
         }.enabled(!this.busy)
         List({ space: 8 }) {
-          ForEach(this.additions, (operation: EditOperation, index: number) => {
-            ListItem() {
-              Row() {
-                Button(`新增 ${index + 1}`).layoutWeight(1).onClick(() => this.openAdded(operation))
-                Button('删除').onClick(() => this.removeAdded(operation.id))
-              }.enabled(!this.busy)
-            }
-          }, (operation: EditOperation) => operation.id).onMove((from: number, to: number) => this.moveAdded(from, to))
           ForEach(this.items, (item: EditableItem, index: number) => {
             ListItem() {
               Row() {
-                Button(`${item.type ?? this.section} ${index + 1}`).layoutWeight(1).onClick(() => this.open(item))
+                Button(item.name ?? `${item.type ?? this.section} ${index + 1}`).layoutWeight(1).onClick(() => this.open(item))
                 if (this.section !== 'dns') {
-                  Button('删除').onClick(() => this.edit(RuleDnsForms.deleteItem(`delete-${item.id}`, this.section, item)))
+                  Button('删除').onClick(() => this.edit(RuleDnsForms.deleteItem(`delete-${util.generateRandomUUID(true)}`, this.section, item)))
                 }
               }.enabled(!this.busy)
             }

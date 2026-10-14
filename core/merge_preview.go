@@ -138,15 +138,10 @@ func previewRegion(home, original, overlay string, plan configpipeline.RegionPla
 	return previewLayeredRegion(home, original, "", overlay, plan)
 }
 
-func previewLayeredRegion(home, original, global, overlay string, plan configpipeline.RegionPlan, intents ...*configpipeline.EditIntent) (configpipeline.RegionPreview, error) {
+func previewLayeredRegion(home, original, global, overlay string, plan configpipeline.RegionPlan) (configpipeline.RegionPreview, error) {
 	root, err := configpipeline.LayeredMergeSource([]byte(original), []byte(global), []byte(overlay))
 	if err != nil {
 		return configpipeline.RegionPreview{}, err
-	}
-	if len(intents) > 0 {
-		if err := configpipeline.ApplyEditIntent(context.Background(), root, intents[0]); err != nil {
-			return configpipeline.RegionPreview{}, err
-		}
 	}
 	providers, err := regionProviderNames(home, root)
 	if err != nil {

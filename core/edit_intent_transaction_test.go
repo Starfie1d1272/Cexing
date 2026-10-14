@@ -60,8 +60,12 @@ rules: ["MATCH,Main"]
 		t.Fatal("unrelated source update must rebase", err)
 	}
 	action.Original = strings.Replace(original, "port: 1080", "port: 2080", 1)
-	if rejected, failure := executeVersionAction(home, action); failure == nil && (rejected.EditError == nil || rejected.EditError.Code != "conflict") {
+	conflict, err := executeVersionAction(home, action)
+	if err == nil && (conflict.Error == "" || conflict.EditError == nil || conflict.EditError.Code != "conflict") {
 		t.Fatal("same-field update conflict accepted")
+	}
+	if conflict.Version != nil {
+		t.Fatal("conflict returned a candidate")
 	}
 	state, err := executeVersionAction(home, versionAction{Op: "read"})
 	if err != nil || state.State.Current.ID != staged.Version.ID {
