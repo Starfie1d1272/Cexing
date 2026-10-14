@@ -11,6 +11,8 @@ import sys
 import tempfile
 import zipfile
 
+from abi_contract import PROTOTYPES, check_header, check_source
+
 hap, report = map(pathlib.Path, sys.argv[1:3])
 (report / 'build-identity.json').unlink(missing_ok=True)
 root = pathlib.Path.cwd()
@@ -41,13 +43,11 @@ def elf(data, file):
     return {line.split()[-1].split('@')[0] for line in symbols.splitlines()
             if re.match(r'\s*\d+:', line) and ' UND ' not in line and re.search(r'\bGLOBAL\b', line)}
 header = (root / 'cexing/entry/libs/arm64-v8a/libmihomo.h').read_text()
-for declaration in [
-    'extern char* mihomoInit(char* homeDir);',
-    'extern char* mihomoStartTun(int fd, char* configJson, char* overridesJson);',
-    'extern void mihomoStop(void);',
-    'extern void mihomoFree(char* p);'
-]:
-    require(declaration in header, 'generated C ABI prototype: ' + declaration.split('(')[0])
+try:
+    check_source(root)
+    check_header(header)
+except ValueError as error:
+    require(False, str(error))
 source = metadata(root / 'cexing/entry/libs/arm64-v8a/libmihomo.so')
 # Compare all embedded dependency versions AND sums with the selected module graph.
 stream = subprocess.check_output(['go', 'list', '-m', '-json', 'all'], cwd='core', text=True)
@@ -105,7 +105,7 @@ with zipfile.ZipFile(hap) as archive, tempfile.TemporaryDirectory() as directory
             subprocess.check_call([str(sdk / 'native/llvm/bin/llvm-strip'), '--strip-all', '-o', str(stripped_native), str(native)])
             require(stripped_native.read_bytes() == data, 'packaged native library differs from fresh CMake output: ' + name)
         if name == 'libmihomo.so':
-            require({'mihomoInit', 'mihomoStartTun', 'mihomoStop', 'mihomoFree'} <= symbols, 'four C ABI exports')
+            require(set(PROTOTYPES) <= symbols, 'seven production C ABI exports')
             packaged = metadata(file)
             require(packaged == source, 'packaged Go identity differs from fresh core')
             # Hvigor strips the native library. Compare the complete ELF after the same strip operation.

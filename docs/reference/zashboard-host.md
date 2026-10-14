@@ -4,7 +4,7 @@
 
 ## 会话与授权
 
-- VPN Extension 在初始化内核前调用 `ZashboardAssets.prepare(context)`。失败返回可恢复错误，不能阻止认证 API/VPN 启动；`external-ui` 仍由安全线固定为私有 ui 根，禁止联网下载。页面不调用 VPN start/stop。
+- VPN Extension 在初始化内核前调用 `ZashboardAssets.prepare(context)`。失败返回可恢复错误，不能阻止认证 API/VPN 启动；持久化投影的 external-ui 固定为 ui，运行态 ExternalUI 清空以禁用上游下载器；宿主 SetUIPath 只指向验证后的私有根，禁止联网下载。页面不调用 VPN start/stop。
 - `CoreApi.getControllerSession()` 读取受认证 `/ohos/session` 的非敏感代次，`getControllerUiStatus()` 区分静态资源可用性。静态 `/ui/` 的 200 不能建立面板授权。页面只接受当前 `ZASHBOARD_VERSION`，旧版回退资源可保留给宿主，但不接收本版凭据注入。
 - `javaScriptOnDocumentStart` 在前端 JS 之前运行；脚本规则限固定 Controller origin，脚本另行检查 top、准确版本路径和无 query。密钥只放入一次性、非枚举 bootstrap；前端模块立即删除该入口并清空 bootstrap 对象，将密钥保留在闭包。没有原生 JS bridge、URL/query/hash 凭据、后端密码编辑器或持久化后端列表。
 - 前端 REST 仅对受控相对路径添加 Bearer，固定 base origin；浏览器 WS 按锁定 Controller 的 token 查询契约握手，每次重连从内存读取。定时器和 socket 由宿主适配器持有，撤销后关闭已有 WS、取消重试并中止 HTTP。原生 `StreamWatcher` 仍使用 Authorization header。后端展示对象 password 恒为空，不包含真实凭据。
@@ -27,18 +27,18 @@
 
 关闭、隐藏导航目的地或重新打开时停止页面会话观察、撤销前端资源并释放 Web 组件；不停止 VPN 或后台任务。异步探活按页面代次过滤，关闭后的迟到结果不能重新授权。每三秒串行探测，失联立即撤销，恢复后重新验证资源并创建新 WebView；Controller 换代也重建页面。页面错误和渲染进程退出可手动重开，提示不打印原始 URL/错误。
 
-连接页的代理管理入口使用 Zashboard；未注册或可达的临时 ProxyPage 已移除，不维护第二套管理界面。此源码清理不代表 ArkWeb 真机验收完成。不能把 Chromium、SDK 编译或 host mock 当作手机验收；当前证据见 [测试版接入证据](https://github.com/Starfie1d1272/Cexing/blob/df757138/docs/evidence/2026-10-12-zashboard-session.md)。
+生产导航使用 Zashboard，已移除没有导航调用的旧原生代理页；面板错误恢复直接由 ZashboardPage 和原生连接/诊断入口承担。不能把 Chromium、SDK 编译或 host mock 当作手机验收；当前证据见 [测试版接入证据](https://github.com/Starfie1d1272/Cexing/blob/df757138/docs/evidence/2026-10-12-zashboard-session.md)。
 
 ## 资源事务
 
 从锁定源码和 pnpm lock 构建本地 Fira Sans 字体版，携带许可、图标、PWA 资源和逐文件 SHA-256 清单。资源以内容清单摘要命名私有版本目录；进程内串行，并持有文件独占锁防止跨进程并发铺盘。先写服务目录以外的 staging、逐文件验证，再 rename 到 ui/versions，最后原子替换 ui/index.html。损坏或缺失保留上个校验通过的版本并返回可恢复错误。路径必须为受限相对路径，无绝对路径、空段、点段、反斜线或编码转义；磁盘内容禁止 symlink。
 
-`external-ui` 路径只来自宿主，不能接受 WebView 或用户提供的路径。已有版本在每次使用前复验。完整文件集合校验防止额外文件混入。旧版本不自动删除，以免旧 WebView 的资源目录消失。安全线 PR #9 已将危险静态资源降级为 404，保留认证 API/VPN；该依赖的并发重载 race 问题仍须独立解决。凭据失败仍须拒绝匿名运行。实际核查与安全降级约束见 [合流证据](https://github.com/Starfie1d1272/Cexing/blob/df757138/docs/evidence/2026-10-12-zashboard-security-convergence.md)。
+`external-ui` 路径只来自宿主，不能接受 WebView 或用户提供的路径。已有版本在每次使用前复验。完整文件集合校验防止额外文件混入。旧版本不自动删除，以免旧 WebView 的资源目录消失。安全线 PR #9 已将危险静态资源降级为 404，保留认证 API/VPN；重载、停止与旧会话资源回收受宿主 Controller 生命周期保护，相关行为由真实 REST/WS 回归验证。凭据失败仍须拒绝匿名运行。实际核查与安全降级约束见 [合流证据](https://github.com/Starfie1d1272/Cexing/blob/df757138/docs/evidence/2026-10-12-zashboard-security-convergence.md)。
 
 同一版本的现有目录损坏时，prepare 重新从固定入包资源在服务根外构建并完整校验。只有新副本可用后才把坏目录 rename 到私有 zashboard-quarantine 目录，再发布新目录；发布失败恢复原目录并尝试旧版本。隔离副本不自动删除。平台不支持非空目录交换，因此修复同一路径的两次 rename 之间可能短暂 404，不会暴露半成品；版本选择入口仍为单文件原子替换。此修复不负责安全线的 Controller/VPN 降级。
 
 ## Smart 和缓存验收
 
-固定上游 `src/api/clash.ts` 使用 `GET /group/weights`，响应包含 `message` 与 `weights: Record<string, NodeRank[]>`，节点字段 `Name`、`Rank`、`Weight`；清理权重使用无请求体 `POST /cache/smart/flush`。这仅核实前端调用，不证明基线 Mihomo 支持 Smart；本线不换核。
+固定上游 `src/api/clash.ts` 使用 `GET /group/weights`，响应包含 `message` 与 `weights: Record<string, NodeRank[]>`，节点字段 `Name`、`Rank`、`Weight`；清理权重使用无请求体 `POST /cache/smart/flush`。当前锁定 Smart fork 提供相同接口，前后端均通过真实核心 API fixture；仅有接口响应仍不证明模型参与预测，需另核模型/真实转发证据。
 
 打包检查须核实清单每个资源在 HAP 中且摘要一致。页面采用禁用 HTTP 缓存并显式阻止 service worker 注册的宿主构建，版本切换使用重新创建 WebView；PWA 文件仍入包。真机仍须验证旧缓存迁移、关闭/重开、离线 REST/WS、无凭据拒绝、正确凭据成功和资源失败不影响 VPN。
