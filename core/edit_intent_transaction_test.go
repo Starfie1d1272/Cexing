@@ -61,3 +61,20 @@ rules: ["MATCH,Main"]
 	}
 	action.Original = strings.Replace(original, "port: 1080", "port: 2080", 1)
 	if rejected, failure := executeVersionAction(home, action); failure == nil && (rejected.EditError == nil || rejected.EditError.Code != "conflict") {
+		t.Fatal("same-field update conflict accepted")
+	}
+	state, err := executeVersionAction(home, versionAction{Op: "read"})
+	if err != nil || state.State.Current.ID != staged.Version.ID {
+		t.Fatal("failed compile changed pointer", err)
+	}
+	action.Op = "edit-check"
+	wire, _ := json.Marshal(action)
+	var envelope map[string]json.RawMessage
+	_ = json.Unmarshal(wire, &envelope)
+	envelope["editIntent"] = json.RawMessage(`{"schemaVersion":1,"revision":"r","sourceRevision":"s","operations":[],"unknown":true}`)
+	wire, _ = json.Marshal(envelope)
+	var rejected versionResponse
+	if err := json.Unmarshal([]byte(coreVersionAction(home, string(wire))), &rejected); err != nil || rejected.Error == "" || rejected.EditError == nil {
+		t.Fatal("unknown field accepted at the strict worker boundary", err)
+	}
+}
