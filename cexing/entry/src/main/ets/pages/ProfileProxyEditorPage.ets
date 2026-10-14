@@ -64,7 +64,16 @@ export struct ProfileProxyEditorPage {
   private async load(): Promise<void> {
     if (this.model === null) { return; }
     const epoch = ++this.epoch; this.busy = true;
-    try { if (await this.model.load() && this.current(epoch)) { this.sync(); this.error = ''; } }
+    try {
+      if (await this.model.load() && this.current(epoch)) {
+        const snapshot = this.model.snapshot;
+        const direct = snapshot?.sections.find((part) => part.section === 'proxies')?.items.length ?? 0;
+        const sources = snapshot?.sections.find((part) => part.section === 'proxy-providers')?.items.length ?? 0;
+        const added = this.model.workingIntent().operations.some((op: EditOperation) => op.kind === 'add' && op.section === 'proxies');
+        if (this.section === 'proxies' && direct === 0 && sources > 0 && !added) { this.section = 'proxy-providers'; }
+        this.sync(); this.error = '';
+      }
+    }
     catch (_) { if (this.current(epoch)) { this.error = '配置读取失败，请重试'; } }
     finally { if (this.current(epoch)) { this.busy = false; } }
   }
