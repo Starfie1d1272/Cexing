@@ -29,6 +29,7 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   const toasts = [];
   let scanCallback, scanCalls = 0;
   let readYaml = async () => 'proxies: []';
+  let profileSession = 'synthetic-session';
   let importedWrites = 0, uncertainProfile = false, recoveryCalls = 0;
   let reconnectProfile = async (_context, current) => { recoveryCalls++; return current(); };
   let autoRetry = async () => {};
@@ -43,7 +44,7 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   const controller = { status: status.Connected, onChanged(fn) { listeners.add(fn); }, offChanged(fn) { listeners.delete(fn); },
     getLastStopCompleted: () => lastStopCompleted, needsStop: () => lastStopCompleted === false,
     consumeLastStartError: () => { const value = pendingFailure; pendingFailure = ''; return value; },
-    getLastStartFailure: () => null, stop: () => { stop++; return stopResult(); },
+    trafficSession: () => profileSession, getLastStartFailure: () => null, stop: () => { stop++; return stopResult(); },
     start: () => { start++; emit(status.Connecting); return true; } };
   const common = {
     '@kit.AbilityKit': {}, '@kit.ScanKit': { scanCore: { ScanType: { QR_CODE: 1 } }, scanBarcode: {
@@ -427,6 +428,10 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   assert.equal(recoveryCalls, 0, 'cancelled recovery confirmation stays cancelled');
   recovery.confirmRecovery(); const oldRecovery = dialog;
   recovery.aboutToDisappear(); oldRecovery.secondaryButton.action(); assert.equal(recoveryCalls, 0);
+  const sessionRecovery = activationPage().page;
+  sessionRecovery.confirmRecovery(); const staleSessionDialog = dialog;
+  profileSession = 'new-session'; staleSessionDialog.secondaryButton.action();
+  assert.equal(recoveryCalls, 0, 'old recovery confirmation cannot stop a new session');
   const freshRecovery = activationPage().page;
   let finishRecovery;
   reconnectProfile = (_context, current) => { recoveryCalls++; return new Promise(resolve => {
@@ -438,6 +443,7 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   freshRecovery.aboutToDisappear(); finishRecovery(); await Promise.resolve(); await Promise.resolve();
   assert.equal(freshRecovery.tabJump, -1, 'late recovery cannot navigate');
   uncertainProfile = false;
+  active = profiles[0].file;
   const retryPage = activationPage().page;
   let finishRetry, retries = 0;
   autoRetry = () => { retries++; return new Promise(resolve => { finishRetry = resolve; }); };

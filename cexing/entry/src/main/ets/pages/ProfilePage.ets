@@ -410,29 +410,29 @@ export struct ProfilePage {
     } finally { this.activating = false; }
   }
 
-  private recoveryPageCurrent(page: number, request: number, tab: number, paths: string[]): boolean {
-    return this.activationPageCurrent(request, page, tab, paths);
-  }
-
   private confirmRecovery(): void {
     if (this.recovering) { return; }
     const page = this.pageGeneration;
     const request = ++this.activationRequest;
     const tab = this.currentVisibleTab;
     const paths = this.navStack.getAllPathName();
+    const context = getContext(this) as common.UIAbilityContext;
+    const session = VpnController.trafficSession();
+    const file = ProfileStore.getActiveFile(context);
     let consumed = false;
     AlertDialog.show({ title: '重新连接？', message: '当前连接会暂时中断。',
       primaryButton: { value: '取消', action: () => { consumed = true; } },
       secondaryButton: { value: '重新连接', action: () => {
-        if (consumed || !this.recoveryPageCurrent(page, request, tab, paths)) { return; }
+        if (consumed || !this.activationPageCurrent(request, page, tab, paths) ||
+          VpnController.trafficSession() !== session || ProfileStore.getActiveFile(context) !== file) { return; }
         consumed = true;
         this.recoverProfile(page, request, tab, paths);
       } } });
   }
 
   private async recoverProfile(page: number, request: number, tab: number, paths: string[]): Promise<void> {
-    if (this.recovering || !this.recoveryPageCurrent(page, request, tab, paths)) { return; }
-    const current = (): boolean => this.recoveryPageCurrent(page, request, tab, paths);
+    if (this.recovering || !this.activationPageCurrent(request, page, tab, paths)) { return; }
+    const current = (): boolean => this.activationPageCurrent(request, page, tab, paths);
     this.recovering = true;
     try {
       const context = getContext(this) as common.UIAbilityContext;
@@ -455,7 +455,8 @@ export struct ProfilePage {
     try {
       const before = ProfileStore.updateState(context, p.file);
       await AutoUpdater.retry(context);
-      if (!this.pageVisible || page !== this.pageGeneration || !this.samePath(paths)) { return; }
+      if (!this.pageVisible || page !== this.pageGeneration || !this.samePath(paths) ||
+        ProfileStore.getActiveFile(context) !== p.file) { return; }
       this.changed();
       const after = ProfileStore.updateState(context, p.file);
       if (after.id === before.id && after.succeededAt > before.succeededAt && after.failedAt === 0) {
