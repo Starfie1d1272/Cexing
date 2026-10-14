@@ -347,17 +347,38 @@ func jsonNode(data json.RawMessage) (*yaml.Node, error) {
 // ApplyEditIntent mutates Compile's private post-Merge view. Undo means removing
 // an operation or disabling the intent and recompiling the latest input.
 func ApplyEditIntent(ctx context.Context, root *yaml.Node, intent *EditIntent) error {
+	return applyBoundEditIntent(ctx, root, intent, nil)
+}
+func applyBoundEditIntent(ctx context.Context, root *yaml.Node, intent *EditIntent, bindings map[string]*yaml.Node) error {
 	if err := CheckEditIntent(intent); err != nil {
 		return err
 	}
-	if intent == nil || intent.Disabled {
+	if intent == nil || intent.Disabled || len(intent.Operations) == 0 {
 		return nil
+	}
+	baselines := map[*yaml.Node]*yaml.Node{}
+	// Snapshot every original target before any reference rewrite touches it.
+	for _, section := range editableSections {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		nodes, _, err := editNodes(root, section)
+		if err != nil {
+			return intentError("invalid_source", -1)
+		}
+		for _, node := range nodes {
+			base, err := normalize(node, map[*yaml.Node]bool{})
+			if err != nil {
+				return intentError("invalid_source", -1)
+			}
+			baselines[node] = base
+		}
 	}
 	for i, op := range intent.Operations {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		if err := applyEditOperation(root, op); err != nil {
+		if err := applyEditOperation(root, op, baselines, bindings); err != nil {
 			var typed *IntentError
 			if errors.As(err, &typed) {
 				return intentError(typed.Code, i)
@@ -367,7 +388,7 @@ func ApplyEditIntent(ctx context.Context, root *yaml.Node, intent *EditIntent) e
 	}
 	return nil
 }
-func applyEditOperation(root *yaml.Node, op EditOperation) error {
+func applyEditOperation(root *yaml.Node, op EditOperation, baselines map[*yaml.Node]*yaml.Node, bindings map[string]*yaml.Node) error {
 	fail := func(code string) error { return intentError(code, -1) }
 	nodes, names, err := editNodes(root, op.Section)
 	if err != nil {
@@ -375,7 +396,7 @@ func applyEditOperation(root *yaml.Node, op EditOperation) error {
 	}
 	position := -1
 	for i, name := range names {
-		if targetID(op.Section, name) == op.Target {
+		if boundID(bindings, nodes[i], targetID(op.Section, name)) == op.Target {
 			position = i
 			break
 		}
@@ -420,7 +441,7 @@ func applyEditOperation(root *yaml.Node, op EditOperation) error {
 			set(container, op.Name, value)
 			return nil
 		}
-		at, err := editAnchor(op.Section, names, op.Before)
+		at, err := boundEditAnchor(op.Section, nodes, names, op.Before, bindings)
 		if err != nil {
 			return err
 		}
@@ -443,13 +464,24 @@ func applyEditOperation(root *yaml.Node, op EditOperation) error {
 		return fail("missing_target")
 	}
 	node := nodes[position]
+	baseline := baselines[node]
+	if baseline == nil {
+		baseline, err = normalize(node, map[*yaml.Node]bool{})
+		if err != nil {
+			return fail("invalid_source")
+		}
+		baselines[node] = baseline
+	}
+	matchesRevision := func(expected string) bool {
+		return expected != "" && (fingerprint(node) == expected || fingerprint(baseline) == expected)
+	}
 	if op.Section == "dns" && container == nil {
 		set(root, "dns", node)
 	}
 	switch op.Kind {
 	case "update":
 		if node.Kind != yaml.MappingNode {
-			if op.Expected == "" || fingerprint(node) != op.Expected {
+			if !matchesRevision(op.Expected) {
 				return fail("conflict")
 			}
 			value, err := jsonNode(op.Value)
@@ -459,6 +491,8 @@ func applyEditOperation(root *yaml.Node, op EditOperation) error {
 			if op.Section == "rules" && value.Tag != "!!str" {
 				return fail("invalid_value")
 			}
+			baselines[value] = baseline
+			rebind(bindings, node, value)
 			if container.Kind == yaml.MappingNode {
 				set(container, names[position], value)
 			} else {
@@ -481,7 +515,7 @@ func applyEditOperation(root *yaml.Node, op EditOperation) error {
 			}
 			seen[key] = true
 			expected, ok := op.Preconditions[key]
-			if !ok || fieldFingerprint(op.Section, key, field(node, key)) != expected {
+			if !ok || (fieldFingerprint(op.Section, key, field(node, key)) != expected && fieldFingerprint(op.Section, key, field(baseline, key)) != expected) {
 				return fail("conflict")
 			}
 		}
@@ -492,12 +526,13 @@ func applyEditOperation(root *yaml.Node, op EditOperation) error {
 			set(node, key, nil)
 		}
 	case "delete":
-		if op.Expected == "" || fingerprint(node) != op.Expected {
+		if !matchesRevision(op.Expected) {
 			return fail("conflict")
 		}
 		if op.Section == "dns" {
 			return fail("protected_field")
 		}
+		rebind(bindings, node, nil)
 		if container.Kind == yaml.MappingNode {
 			set(container, names[position], nil)
 		} else {
@@ -510,7 +545,7 @@ func applyEditOperation(root *yaml.Node, op EditOperation) error {
 		if op.Before == op.Target {
 			return nil
 		}
-		at, err := editAnchor(op.Section, names, op.Before)
+		at, err := boundEditAnchor(op.Section, nodes, names, op.Before, bindings)
 		if err != nil {
 			return err
 		}
@@ -525,7 +560,7 @@ func applyEditOperation(root *yaml.Node, op EditOperation) error {
 		if op.Section == "rules" || op.Section == "dns" || op.Section == "hosts" || op.Name == "" || strings.ContainsAny(op.Name, ",\r\n") {
 			return fail("invalid_operation")
 		}
-		if op.Expected == "" || fingerprint(node) != op.Expected {
+		if !matchesRevision(op.Expected) {
 			return fail("conflict")
 		}
 		for _, name := range names {
@@ -544,17 +579,6 @@ func applyEditOperation(root *yaml.Node, op EditOperation) error {
 		return fail("invalid_operation")
 	}
 	return nil
-}
-func editAnchor(section string, names []string, before string) (int, error) {
-	if before == "" {
-		return len(names), nil
-	}
-	for i, name := range names {
-		if targetID(section, name) == before {
-			return i, nil
-		}
-	}
-	return 0, intentError("missing_anchor", -1)
 }
 func renameReferences(root *yaml.Node, section, old, name string) {
 	for _, key := range []string{"proxies", "proxy-groups", "listeners"} {
@@ -627,77 +651,102 @@ func replaceRuleToken(raw string, index int, old, name string) string {
 // Editable and EditTarget project saved/draft intent for the host editor using
 // the same template/region/edit order as Compile, but no full validation or I/O.
 func (c Compiler) Editable(ctx context.Context, r Request) (EditableSnapshot, error) {
-	root, err := c.editSource(ctx, r)
+	root, session, err := c.boundEditSource(ctx, r)
 	if err != nil {
 		return EditableSnapshot{}, err
 	}
-	return snapshotEditable(root)
+	out, err := snapshotEditable(root)
+	aliasSnapshot(root, &out, sessionTargets(session))
+	return out, err
 }
 func (c Compiler) EditTarget(ctx context.Context, r Request, section, id string) (EditTarget, error) {
-	root, err := c.editSource(ctx, r)
+	if !editSectionAllowed(section) {
+		return EditTarget{}, intentError("protected_section", -1)
+	}
+	root, session, err := c.boundEditSource(ctx, r)
 	if err != nil {
 		return EditTarget{}, err
 	}
-	return editTargetFromRoot(root, section, id)
+	bindings := sessionTargets(session)
+	nodes, names, err := editNodes(root, section)
+	if err != nil {
+		return EditTarget{}, intentError("invalid_source", -1)
+	}
+	if len(nodes) > MaxEditableItems {
+		return EditTarget{}, intentError("limit", -1)
+	}
+	for i, node := range nodes {
+		if boundID(bindings, node, targetID(section, names[i])) == id {
+			out, err := editTargetFromRoot(root, section, targetID(section, names[i]))
+			out.Item.ID = id
+			return out, err
+		}
+	}
+	return EditTarget{}, intentError("missing_target", -1)
 }
 func (c Compiler) editSource(ctx context.Context, r Request) (*yaml.Node, error) {
+	root, _, err := c.boundEditSource(ctx, r)
+	return root, err
+}
+func (c Compiler) boundEditSource(ctx context.Context, r Request) (*yaml.Node, *TemplateSession, error) {
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if len(r.Original) > MaxEditableSourceBytes {
-		return nil, intentError("limit", -1)
+		return nil, nil, intentError("limit", -1)
 	}
 	for _, layer := range r.Overlays {
 		if len(layer) > MaxEditableSourceBytes {
-			return nil, intentError("limit", -1)
+			return nil, nil, intentError("limit", -1)
 		}
 	}
 	root, err := parse(r.Original)
 	if err != nil {
-		return nil, intentError("invalid_source", -1)
+		return nil, nil, intentError("invalid_source", -1)
 	}
 	if err := rejectRuntimeCredential(root); err != nil {
-		return nil, intentError("invalid_source", -1)
+		return nil, nil, intentError("invalid_source", -1)
 	}
 	for _, layer := range r.Overlays {
 		patch, err := parse(layer)
 		if err != nil {
-			return nil, intentError("invalid_source", -1)
+			return nil, nil, intentError("invalid_source", -1)
 		}
 		if err := rejectRuntimeCredential(patch); err != nil {
-			return nil, intentError("invalid_source", -1)
+			return nil, nil, intentError("invalid_source", -1)
 		}
 		merge(root, patch)
 	}
 	if r.Region != nil && !r.Region.Disabled && (r.Intent == nil || r.Intent.Disabled || r.Intent.Template == nil) {
 		if err := ApplyRegion(ctx, root, *r.Region); err != nil {
-			return nil, intentError("region_failed", -1)
+			return nil, nil, intentError("region_failed", -1)
 		}
 	}
-	if err := applyIntentTemplate(ctx, root, r.Intent, c.Template); err != nil {
-		return nil, err
+	session, err := c.prepareIntentTemplate(ctx, root, r.Intent)
+	if err != nil {
+		return nil, nil, err
 	}
 	if err := supportedTags(root, false, map[*yaml.Node]bool{}); err != nil {
-		return nil, intentError("invalid_source", -1)
+		return nil, nil, intentError("invalid_source", -1)
 	}
 	if err := rejectRuntimeCredential(root); err != nil {
-		return nil, intentError("invalid_source", -1)
+		return nil, nil, intentError("invalid_source", -1)
 	}
+	// Validate callback output without replacing nodes and orphaning bindings.
 	encoded, err := yaml.Marshal(root)
 	if err != nil {
-		return nil, intentError("invalid_source", -1)
+		return nil, nil, intentError("invalid_source", -1)
 	}
-	root, err = parse(encoded)
-	if err != nil {
-		return nil, intentError("invalid_source", -1)
+	if _, err := parse(encoded); err != nil {
+		return nil, nil, intentError("invalid_source", -1)
 	}
-	if err := ApplyEditIntent(ctx, root, r.Intent); err != nil {
-		return nil, err
+	if err := applyBoundEditIntent(ctx, root, r.Intent, sessionTargets(session)); err != nil {
+		return nil, nil, err
 	}
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return root, nil
+	return root, session, nil
 }
 
 // EditorProviderRef describes local declarations only. These states never claim
@@ -735,7 +784,7 @@ func providerEditorRef(root *yaml.Node, section, name string) EditorProviderRef 
 // Names are needed for selecting targets; passwords/addresses/URLs/raw rules and
 // arbitrary YAML values remain available only through explicit EditTarget.
 func (c Compiler) EditorList(ctx context.Context, r Request) (EditableSnapshot, error) {
-	root, err := c.editSource(ctx, r)
+	root, session, err := c.boundEditSource(ctx, r)
 	if err != nil {
 		return EditableSnapshot{}, err
 	}
@@ -743,6 +792,7 @@ func (c Compiler) EditorList(ctx context.Context, r Request) (EditableSnapshot, 
 	if err != nil {
 		return EditableSnapshot{}, err
 	}
+	aliasSnapshot(root, &out, sessionTargets(session))
 	for si := range out.Sections {
 		section := out.Sections[si].Section
 		nodes, names, err := editNodes(root, section)

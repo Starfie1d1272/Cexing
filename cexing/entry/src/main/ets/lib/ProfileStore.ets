@@ -71,6 +71,14 @@ export namespace ProfileStore {
       draft.intent === undefined || (draft.intent !== null && draft.intent.revision !== draft.revision)) {
       throw new Error('编辑草稿损坏');
     }
+    const version = EffectiveVersions.read(context)?.Profiles[file];
+    const applied = version !== undefined ? EffectiveVersions.editIntent(context, version) : null;
+    if (applied !== null && applied.revision === draft.revision) {
+      // The compiler may enrich the applied intent with template Base/Mine.
+      // An applied draft is now the successful provenance; an unpublished UUID
+      // keeps its own content and is never silently rebased here.
+      return { revision: draft.revision, intent: applied };
+    }
     return draft;
   }
 
