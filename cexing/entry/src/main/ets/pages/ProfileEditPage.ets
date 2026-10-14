@@ -189,8 +189,8 @@ export struct ProfileEditPage {
 
   private async previewMerge(): Promise<void> {
     if (this.mergeBusy) { return; }
-    if (this.mergeLoadFailed) { this.toast('现有 Merge 草稿读取失败，未覆盖'); return; }
-    if (this.dirty) { this.toast('请先保存原始配置，再预览 Merge'); return; }
+    if (this.mergeLoadFailed) { this.toast('覆写草稿读取失败，请重试'); return; }
+    if (this.dirty) { this.toast('请先保存原始配置，再预览覆写'); return; }
     this.mergeBusy = true;
     this.mergeSummary = '';
     try {
@@ -199,37 +199,41 @@ export struct ProfileEditPage {
       this.mergeSummary = result.changes.map((change: MergeChange) =>
         `${change.section}: ${change.before} → ${change.after}`).join(' · ');
       if (this.mergeSummary.length === 0) { this.mergeSummary = '配置内容无统计差异'; }
-      this.toast('Merge 草稿已保存');
+      this.toast('草稿已保存');
     } catch (e) {
-      this.toast(`Merge 预览失败: ${(e as Error).message ?? '请检查内容'}`);
+      this.toast(`覆写预览失败: ${(e as Error).message ?? '请检查内容'}`);
     } finally { this.mergeBusy = false; }
   }
 
   private async applyMerge(): Promise<void> {
     if (this.mergeBusy || this.mergeLoadFailed) { return; }
-    if (this.dirty) { this.toast('请先保存原始配置，再应用 Merge'); return; }
+    if (this.dirty) { this.toast('请先保存原始配置，再应用覆写'); return; }
     this.mergeBusy = true;
     try {
       const context = getContext(this) as common.UIAbilityContext;
       const result = await ProfileTransactions.applyMerge(context, this.file, this.mergeText);
-      this.toast(result === 'applied' ? 'Merge 已保存并应用' : 'Merge 已保存，下次连接时生效');
+      this.toast(result === 'applied' ? '本订阅覆写已应用' : '本订阅覆写已保存，下次连接时生效');
       this.profileRevision++;
     } catch (e) {
-      this.toast(`应用 Merge 失败: ${(e as Error).message ?? '请检查内容'}`);
+      this.toast(`应用覆写失败: ${(e as Error).message ?? '请检查内容'}`);
     } finally { this.mergeBusy = false; }
   }
 
   @Builder
   MergeSheet() {
     Column({ space: 12 }) {
-      Text('本订阅覆写（Merge）').fontSize(17).fontWeight(FontWeight.Medium).fontColor(UI.ink)
-      Text('仅作用于当前订阅，不影响其他订阅。采用 Clash Verge 2.5.8 合并规则。预览只保存草稿；点击应用才生效。清空后应用可停用覆写。')
-        .fontSize(13).fontColor(UI.muted)
+      Text('本订阅覆写').fontSize(17).fontWeight(FontWeight.Medium).fontColor(UI.ink)
+      Text('为当前订阅设置专用配置，优先于全局覆写。')
+        .fontSize(13).fontColor(UI.muted).width('100%')
+      Text('预览保存草稿并查看变化，应用后生效。清空内容并应用可停用。')
+        .fontSize(13).fontColor(UI.muted).width('100%')
+      Text('填写规则或策略组列表时，会替换订阅中的对应列表。')
+        .fontSize(13).fontColor(UI.muted).width('100%')
       if (this.mergeLoadFailed) {
-        Text('现有 Merge 草稿读取失败，已阻止覆盖').fontSize(13).fontColor(UI.error)
+        Text('覆写草稿读取失败，请关闭后重试').fontSize(13).fontColor(UI.error)
       }
-      TextArea({ text: $$this.mergeText })
-        .width('100%').height(250).fontSize(14).fontFamily('HarmonyOS Sans Mono')
+      TextArea({ text: $$this.mergeText, placeholder: '输入 YAML 覆写配置' })
+        .width('100%').layoutWeight(1).fontSize(14).fontFamily('HarmonyOS Sans Mono')
         .enabled(!this.mergeBusy && !this.mergeLoadFailed)
         .backgroundColor(UI.paper).borderRadius(12).padding(12)
       if (this.mergeSummary.length > 0) {
@@ -238,32 +242,15 @@ export struct ProfileEditPage {
       Row({ space: 12 }) {
         Button('关闭').height(44).layoutWeight(1).backgroundColor(UI.soft).fontColor(UI.ink)
           .onClick(() => { this.showMergeSheet = false; })
-        Button(this.mergeBusy ? '预览中' : '校验并保存草稿')
+        Button(this.mergeBusy ? '预览中' : '预览')
           .height(44).layoutWeight(1).backgroundColor(UI.action).fontColor(UI.onAccent)
           .enabled(!this.mergeBusy && !this.mergeLoadFailed).onClick(() => { this.previewMerge(); })
       }.width('100%')
-      Button(this.mergeBusy ? '处理中' : '应用 Merge')
+      Button(this.mergeBusy ? '处理中' : '应用本订阅覆写')
         .height(44).width('100%').backgroundColor(UI.action).fontColor(UI.onAccent)
         .enabled(!this.mergeBusy && !this.mergeLoadFailed)
         .onClick(() => { this.applyMerge(); })
-    }.padding(20).backgroundColor(UI.surface).borderRadius(24)
-  }
-
-  @Builder
-  HeaderButton(label: string, symbol: Resource, color: ResourceColor, enabled: boolean, onTap: () => void) {
-    SymbolGlyph(symbol)
-      .fontSize(22)
-      .fontColor([color])
-      .width(48).height(48)
-      .accessibilityText(label)
-      .enabled(enabled)
-      .stateStyles({
-        pressed: { .opacity(0.6) },
-        normal: { .opacity(1.0) }
-      })
-      .onClick(() => {
-        onTap();
-      })
+    }.width('100%').height('100%').padding(20).backgroundColor(UI.surface)
   }
 
   @Builder
@@ -304,34 +291,25 @@ export struct ProfileEditPage {
 
   build() {
     Column({ space: 8 }) {
-      Row() {
-        Column({ space: 2 }) {
-          Text(`编辑中：${this.file}`)
-            .fontSize(13)
-            .fontColor(UI.muted)
-            .maxLines(1)
-            .textOverflow({ overflow: TextOverflow.Ellipsis })
-          if (this.dirty) {
-            Text(this.draftPending ? '未保存 · 正在保留草稿' :
-              (this.draftPersisted ? '未保存 · 草稿已保留，返回后可继续编辑' : '未保存 · 草稿保留失败，请先保存配置'))
-              .fontSize(13)
-              .fontColor(UI.accentText)
-          }
+      Column({ space: 6 }) {
+        Text(this.file)
+          .fontSize(14).fontWeight(FontWeight.Medium).fontColor(UI.ink)
+          .maxLines(1).textOverflow({ overflow: TextOverflow.Ellipsis })
+          .width('100%')
+        if (this.dirty) {
+          Text(this.draftPending ? '未保存 · 正在保留草稿' :
+            (this.draftPersisted ? '未保存 · 草稿已保留' : '草稿保留失败，请先保存配置'))
+            .fontSize(13).fontColor(UI.accentText).width('100%')
         }
-        .alignItems(HorizontalAlign.Start)
-        .layoutWeight(1)
+      }.width('100%').alignItems(HorizontalAlign.Start).margin({ top: 8 })
+      Row({ space: 12 }) {
         Button('本订阅覆写')
-          .fontSize(13).height(40).backgroundColor(UI.soft).fontColor(UI.ink)
+          .fontSize(14).height(40).layoutWeight(1).backgroundColor(UI.soft).fontColor(UI.ink)
           .enabled(!this.loadFailed).onClick(() => { this.showMergeSheet = true; })
-        this.HeaderButton('另存为', $r('sys.symbol.doc_filled_on_doc'), UI.muted, !this.loadFailed, () => {
-          this.showSaveAsSheet = true;
-        })
-        this.HeaderButton('保存', $r('sys.symbol.checkmark'), UI.accent, !this.loadFailed && !this.saving, () => {
-          this.save();
-        })
-      }
-      .width('100%')
-      .margin({ top: 8 })
+        Button('另存为')
+          .fontSize(14).height(40).layoutWeight(1).backgroundColor(UI.soft).fontColor(UI.ink)
+          .enabled(!this.loadFailed).onClick(() => { this.showSaveAsSheet = true; })
+      }.width('100%')
 
       if (this.loadFailed) {
         Column({ space: 8 }) {
@@ -362,16 +340,17 @@ export struct ProfileEditPage {
         }, (revision: number) => revision.toString())
       }
 
-      if (this.dirty) {
-        Button('放弃草稿').height(44).backgroundColor(UI.soft).fontColor(UI.error)
-          .enabled(!this.saving)
-          .onClick(() => this.discardDraft())
-      }
-      Text('保存会校验配置；运行中成功热加载后才覆盖原文件')
-        .fontSize(13)
-        .fontColor(UI.muted)
-        .width('100%')
-        .margin({ bottom: 8 })
+      Text('保存前校验配置，连接中同步应用。')
+        .fontSize(13).fontColor(UI.muted).width('100%')
+      Row({ space: 12 }) {
+        if (this.dirty) {
+          Button('放弃草稿').height(48).layoutWeight(1).backgroundColor(UI.soft).fontColor(UI.error)
+            .enabled(!this.saving).onClick(() => this.discardDraft())
+        }
+        Button(this.saving ? '保存中' : '保存配置')
+          .height(48).layoutWeight(2).backgroundColor(UI.action).fontColor(UI.onAccent)
+          .enabled(!this.loadFailed && !this.saving).onClick(() => { this.save(); })
+      }.width('100%').margin({ bottom: 8 })
     }
     .width('100%')
     .height('100%')
