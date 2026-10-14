@@ -1,3 +1,4 @@
+import { EditorDraftHosts } from './EditorDraftHosts';
 import { common } from '@kit.AbilityKit';
 import { ConfigEditor, EditIntent, EditorDraftHost, EditorDraftSession, EditorDraftPreview } from './ConfigEditor';
 import { EffectiveVersions, RegionPlan } from './EffectiveVersions';
@@ -20,7 +21,8 @@ function summary(changes: MergeChange[]): string {
 /** Production adapter over the one shared EditorDraftHost. No file writes or
  * publish/activation implementation belongs here. profileId is fixed at entry. */
 export function createTemplateWizardHost(context: common.Context, profileId: string,
-  editor: EditorDraftHost): TemplateWizardHost {
+  suppliedEditor?: EditorDraftHost): TemplateWizardHost {
+  const editor = suppliedEditor ?? EditorDraftHosts.create(context, profileId);
   let session: EditorDraftSession | null = null;
   let receipt: EditorDraftPreview | null = null;
   let planned: string = '';
