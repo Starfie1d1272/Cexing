@@ -6,7 +6,7 @@ const { load } = require('./test-vpn-recovery.cjs');
 function recoveryFixture(options = {}) {
   let marker = true, prepared = 0, current = true;
   const controller = load({ autoBind: true, ...options, onClear: () => { marker = false; } });
-  const modules = { './VpnController': controller, './AppRuntime': { AppRuntime: { cancelRestore() {} } },
+  const modules = { './Settings': { Settings: { isLanPersistenceUncertain: () => false, idle: async () => {} } }, './VpnController': controller, './AppRuntime': { AppRuntime: { cancelRestore() {} } },
     './ProfileStore': { ProfileStore: { isApplyUncertain: () => marker } },
     './ProfileTransactions': { ProfileTransactions: { isBusy: () => false,
       ensureActiveSmartPolicy: async () => { assert.equal(marker, false, 'persistent uncertainty must be cleared by confirmed stop'); prepared++; } } } };

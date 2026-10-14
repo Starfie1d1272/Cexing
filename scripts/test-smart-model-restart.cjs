@@ -37,6 +37,7 @@ function fixture(options = {}) {
     getApplicationContext: () => application,
     restartApp: () => { throw Error('must not restart only the UI process'); } };
   const modules = {
+    './Settings': { Settings: { load: () => ({ ...settings }), save: async (_, value, keys) => { calls.push('save'); calls.push('flush'); if (options.saveFailure) throw Error('store error'); for (const key of keys) settings[key] = value[key]; } } },
     './AppRuntime': { AppRuntime: { cancelRestore: () => calls.push('cancel') } },
     '@kit.ArkData': { preferences: { getPreferencesSync: (_ctx, spec) => {
       assert.equal(spec.name, 'clashoh_settings');
