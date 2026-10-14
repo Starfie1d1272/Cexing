@@ -36,7 +36,7 @@ Merge 入口固定采用 `clash-verge-merge-2.5.8`，依据 [上游固定 merge.
 | Google自动 / Google | fallback：日本 → 新加坡 → 美国；外层 select：自动 → 日本 → 新加坡 → 美国 |
 | AI普通服务 | select：日本 → 新加坡 → 美国 → 全网；默认日本，全网只能人工选择 |
 
-Gateway 区域组是 smart，Client 是 url-test；两份 OpenClash 源码均显式 uselightgbm=false、collectdata=false。这些字段是策略选择，不是模型参与证据。手机第五目标默认采用 Client url-test；smart 是显式可选能力，必须匹配固定内核与能力证据，不能将 smart 降级为 url-test 后仍标为相同策略，也不能把 false 自动改 true。基线 Mihomo v1.19.32 的组解析器没有 smart 分支，请求该类型必须返回 CAPABILITY_UNAVAILABLE。候选 Smart 内核的预测/模型验收另循 [集成契约](../integrations.md)。
+Gateway 区域组是 smart，Client 是 url-test；两份 OpenClash 源码均显式 uselightgbm=false、collectdata=false。这些字段是策略选择，不是模型参与证据。Canonical v3 的第五目标夹具采用 Client url-test；本节描述迁移语义，不替代生产 Smart 设置/转换规则。smart 是显式可选能力，必须匹配固定内核与能力证据，不能将 smart 降级为 url-test 后仍标为相同策略，也不能把 false 自动改 true。早期纯 Mihomo v1.19.32 的能力夹具没有 smart 分支，因此其显式缺能力用例仍返回 CAPABILITY_UNAVAILABLE；它不是当前生产核心能力声明。生产已锁定 Smart fork，由实际 Validator 检查 smart；预测/模型证据另循 [集成契约](../integrations.md)。
 
 过滤保持版本化：Canonical Client 的 HK 名称可匹配香港池，Gateway 源码缺少 HK 分支，是真实差异；不要悄悄写成一致。手机预设选择 Client 过滤语义。自定义正则必须经目标内核规则语法校验，不能把 JS RegExp 成功等同于 Mihomo 正则成功。名称过滤不是节点所在地真实性证明。
 

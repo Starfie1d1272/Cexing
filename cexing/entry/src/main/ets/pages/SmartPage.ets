@@ -14,7 +14,7 @@ const MODEL_BYTES = 9345218;
 export struct SmartPage {
   @Consume('nav') navStack: NavPathStack;
   @State private detailsOpen: boolean = false;
-  @State private usage: string = '连接后查看当前配置';
+  @State private usage: string = '连接后查看智能选择';
   @State private nextStep: string = '先连接 VPN，再查看 Smart 策略组。';
   @State private predictionNote: string = '';
   @Prop @Watch('onVisible') visible: boolean = false;
@@ -68,7 +68,7 @@ export struct SmartPage {
     if (!this.current(generation)) { return; }
     this.ready = status !== null;
     if (status === null) {
-      this.usage = VpnController.status === VpnStatus.Connected ? '暂时无法读取 Smart 状态' : '连接后查看当前配置';
+      this.usage = VpnController.status === VpnStatus.Connected ? '暂时无法读取状态' : '连接后查看智能选择';
       this.groupSummary = '等待读取运行配置';
       this.nextStep = VpnController.status === VpnStatus.Connected ? '请稍后重试；仍无法读取时可检查本机服务。' : '先连接 VPN，再查看 Smart 策略组。';
       this.predictionNote = '';
@@ -77,10 +77,10 @@ export struct SmartPage {
     } else {
       this.restartRequired = this.restartRequired || status.model.restartRequired;
       const names = Object.keys(status.groups);
-      this.usage = names.length === 0 ? '当前运行配置没有 Smart 组' : `当前运行配置有 ${names.length} 个 Smart 组`;
+      this.usage = names.length === 0 ? '当前配置未使用智能选择' : '智能选择已启用';
       this.nextStep = names.length === 0 ?
         '自动转换适用于 URL Test 和负载均衡组。仅有手动选择组的订阅，可在订阅详情预览地区策略。' :
-        '在控制面板查看策略组入口和当前选项；需要手动选择时切换到 Smart 入口，再访问网站并观察预测次数。';
+        '可在控制面板查看 Smart 策略组与当前选项。';
       this.groupSummary = names.length === 0 ? '请按订阅的组类型选择策略' :
         names.map((name: string) => `${name} · ${status.groups[name].useLightGBM ? '已请求模型' : '统计策略'}`).join('\n');
       const state = status.model.state;
@@ -181,24 +181,16 @@ export struct SmartPage {
       Column({ space: 20 }) {
         Column({ space: 12 }) {
           Text(this.usage).fontSize(20).fontWeight(600).fontColor(UI.ink)
-          Text(this.groupSummary).fontSize(15).fontColor(UI.ink)
-          Text(this.nextStep).fontSize(14).fontColor(UI.muted)
           Button('打开控制面板').width('100%').height(48).backgroundColor(UI.soft).fontColor(UI.accentText)
             .enabled(this.ready).onClick(() => { this.navStack.pushPath({ name: 'zashboard' }); })
         }.padding(20).width('100%').borderRadius(24).backgroundColor(UI.surface)
           .alignItems(HorizontalAlign.Start)
         Row({ space: 12 }) {
-          Column({ space: 4 }) {
-            Text('自动转换为 Smart').fontSize(17).fontWeight(600).fontColor(UI.ink)
-            Text('全局默认：将 URL Test 和负载均衡组转换为 Smart；原始订阅保持不变。开关应用到当前配置，并在切换、更新和重新连接时继续生效。')
-              .fontSize(13).fontColor(UI.muted)
-          }.layoutWeight(1).alignItems(HorizontalAlign.Start)
+          Text('自动启用智能选择').fontSize(17).fontWeight(600).fontColor(UI.ink).layoutWeight(1)
           Toggle({ type: ToggleType.Switch, isOn: this.autoConvert })
-            .selectedColor(UI.accent).enabled(!this.busy)
+            .selectedColor(UI.accent).enabled(!this.busy).accessibilityText('自动启用智能选择')
             .onChange((on: boolean) => { this.changeAutoConvert(on); })
         }.padding(20).width('100%').borderRadius(24).backgroundColor(UI.surface)
-        Text('地区策略在订阅详情中单独设置，仅作用于对应订阅；已有 Smart 组保留原有设置。')
-          .fontSize(14).fontColor(UI.muted)
         if (this.message !== '') {
           Text(this.message).fontSize(14).fontColor(UI.muted)
         }
@@ -206,9 +198,17 @@ export struct SmartPage {
           Button('重启应用使模型生效').width('100%').height(56).enabled(!this.busy)
             .backgroundColor(UI.action).fontColor(UI.onAccent).onClick(() => this.confirmRestart())
         }
-        Button(this.detailsOpen ? '收起模型详情' : '查看模型详情').width('100%').height(48)
+        Button(this.detailsOpen ? '收起详情' : '详情').width('100%').height(48)
           .backgroundColor(UI.soft).fontColor(UI.accentText).onClick(() => { this.detailsOpen = !this.detailsOpen; })
         if (this.detailsOpen) {
+        Column({ space: 12 }) {
+          Text('当前配置').fontSize(13).fontColor(UI.muted)
+          Text(this.groupSummary).fontSize(15).fontColor(UI.ink)
+          Text(this.nextStep).fontSize(14).fontColor(UI.muted)
+          Text('地区策略在订阅详情中设置。')
+            .fontSize(14).fontColor(UI.muted)
+        }.padding(20).width('100%').borderRadius(24).backgroundColor(UI.surface)
+          .alignItems(HorizontalAlign.Start)
         Column({ space: 12 }) {
           Text('离线模型').fontSize(13).fontColor(UI.muted)
           Text(this.modelSummary).fontSize(20).fontWeight(600, { enableVariableFontWeight: true }).fontColor(UI.ink)

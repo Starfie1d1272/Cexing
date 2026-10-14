@@ -14,7 +14,6 @@ import (
 	"fmt"
 	"net/netip"
 	"os"
-	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -40,20 +39,12 @@ const (
 )
 
 var (
-	runLock          sync.Mutex
-	initialized      bool
-	tunListener      *sing_tun.Listener
-	logFile          *os.File
-	logFileMu        sync.Mutex // 保护 logFile/logFileBytes（写日志与关闭开关并发）
-	logFileBytes     int64
-	logToFileEnabled = true // 设置页「记录内核日志到文件」；false 时只进系统 hilog
-	homeDir          string
-	logSub           <-chan log.Event
+	runLock     sync.Mutex
+	initialized bool
+	tunListener *sing_tun.Listener
+	homeDir     string
+	logSub      <-chan log.Event
 )
-
-// logFileMaxBytes - mihomo.log 轮转上限：超过 2MB 转存 mihomo.log.old（最多保留
-// 2 份共 ≤4MB），避免内核日志无限增长吃光应用沙箱存储。
-const logFileMaxBytes = 2 * 1024 * 1024
 
 // sanitizeConfigJson - 清洗 ArkTS 侧传入的配置文本（防御性，双端修复）：
 //  1. 去 UTF-8 BOM
@@ -138,13 +129,11 @@ func coreInit(home string) (result error) {
 		return fmt.Errorf("mihomoInit: mkdir home: %w", err)
 	}
 	// The log relay survives coreStop. Switch its destination under the same lock
-	// used by writeLogLine, and release any file from the previous core session.
+	// used by writeLogLine; no file descriptor is retained across writes.
 	logFileMu.Lock()
-	if logFile != nil {
-		_ = logFile.Close()
-		logFile = nil
-		logFileBytes = 0
-	}
+	logRetryAfter = time.Time{}
+	logSessionActive = true
+	logNeedsMaintenance = true
 	homeDir = home
 	diagnosticKernelHome.Store(home)
 	_, _ = getDiagnosticStore(home, "kernel")
@@ -175,60 +164,12 @@ func coreInit(home string) (result error) {
 func startLogRelay() {
 	go func() {
 		for e := range logSub {
-			line := fmt.Sprintf("[%s] %s", e.LogLevel.String(), redactControllerSecret(e.Payload))
+			line := fmt.Sprintf("[%s] %s", e.LogLevel.String(), redactOrdinaryLog(e.Payload))
 			hilogPrint(int(e.LogLevel), "mihomo", line)
 			kernelDiagnosticLog(e.Type(), e.Payload)
 			writeLogLine(line)
 		}
 	}()
-}
-
-// writeLogLine - 追加一行到 mihomo.log；达到上限时轮转（rename 到 .old 覆盖旧份），
-// 开关关闭时跳过写盘。锁内完成状态读写，与 applyOverrides 的关闭路径并发安全。
-func writeLogLine(line string) {
-	logFileMu.Lock()
-	defer logFileMu.Unlock()
-
-	if !logToFileEnabled {
-		return
-	}
-	path := filepath.Join(homeDir, "mihomo.log")
-	if logFile == nil {
-		f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
-		if err != nil {
-			return
-		}
-		logFile = f
-		if st, err := f.Stat(); err == nil {
-			logFileBytes = st.Size()
-		}
-	}
-	if logFileBytes > logFileMaxBytes {
-		_ = logFile.Close()
-		logFile = nil
-		logFileBytes = 0
-		_ = os.Rename(path, path+".old")
-		f, err := os.OpenFile(path, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o644)
-		if err != nil {
-			return
-		}
-		logFile = f
-	}
-	n, _ := logFile.WriteString(line + "\n")
-	logFileBytes += int64(n)
-}
-
-// setLogToFile - 设置页开关的运行时生效入口（startTun 应用 overrides 时调用）：
-// 关闭时立即释放文件句柄，后续日志只进 hilog。
-func setLogToFile(enabled bool) {
-	logFileMu.Lock()
-	defer logFileMu.Unlock()
-	logToFileEnabled = enabled
-	if !enabled && logFile != nil {
-		_ = logFile.Close()
-		logFile = nil
-		logFileBytes = 0
-	}
 }
 
 func coreStartTun(fd int, configJson string, overridesJson string) (result error) {
@@ -385,6 +326,11 @@ func coreStop() {
 	tunIPv6Snapshot.Store(nil)
 	kernelDiagnostic("core_stop", "completed", nil, nil)
 	log.Infoln("[OHOS] mihomo core stopped")
+	// Quiesce only the ordinary file sink; the relay/hilog and diagnostic store
+	// survive stop. Queued events must not recreate files in an ended session.
+	logFileMu.Lock()
+	logSessionActive = false
+	logFileMu.Unlock()
 }
 
 // parseTunPrefix - 兼容 "172.19.0.1/30" 与裸地址 "172.19.0.1"（ohos 补 /30，参照 FlClash）

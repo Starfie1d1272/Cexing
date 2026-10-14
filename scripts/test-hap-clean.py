@@ -34,7 +34,7 @@ export PATH="$REPO_ROOT/tools:$PATH"
     for name in ['test-smart.sh', 'build-core.sh', 'prepare-geodata.sh']:
         (scripts / name).write_text(':\n')
     for name in ['prepare-smart-model.py', 'zashboard-assets.py', 'ci/check-toolchain.py',
-                 '../tests/smart/hap_gate.py', '../tests/smart/source_gate.py']:
+                 'ci/test-private-stderr.py', '../tests/smart/hap_gate.py', '../tests/smart/source_gate.py']:
         (scripts / name).write_text('')
     (ci / 'toolchain.json').write_text('{"pnpm": "synthetic"}')
     (ci / 'hvigor-wrapper').mkdir()

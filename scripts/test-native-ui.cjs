@@ -38,10 +38,11 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
     getLastStopCompleted: () => lastStopCompleted, needsStop: () => lastStopCompleted === false,
     consumeLastStartError: () => { const value = pendingFailure; pendingFailure = ''; return value; },
     getLastStartFailure: () => null, stop: () => { stop++; return stopResult(); },
-    start: () => { start++; emit(status.Connecting); } };
+    start: () => { start++; emit(status.Connecting); return true; } };
   const common = {
     '@kit.AbilityKit': {}, '@kit.CoreFileKit': {}, '@kit.ShareKit': {}, '@kit.ArkData': {},
     '../lib/DiagnosticExportSnapshots': {},
+    '../lib/AppRuntime': { AppRuntime: { cancelRestore: () => cancelRestore++ } },
     '../lib/DiagnosticsBundleView': { DiagnosticsBundleView: { result: r => r.reason === 'page_check_timeout' ? '检查超时' : r.stage === 'controller_authorization' ? '连接认证失败，请断开后重新连接' : '本机服务可达', title: () => '本机服务' } },
     '@kit.ArkUI': { promptAction: { showToast(value) { toasts.push(value.message); } } },
     '@kit.BasicServicesKit': {}, '../lib/ConnectionFailure': { ConnectionFailures: {} },
@@ -255,6 +256,7 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
     '../lib/ProfileTransactions': { ProfileTransactions: {
       remove: async () => { deleted++; }, activate: (...args) => activateResult(...args),
       setRegionPlan: (...args) => regionResult(...args),
+      ensureActiveSmartPolicy: () => smartPrepare(),
       update: async () => 'applied', rename: () => 'fixture.yaml'
     } },
     '../lib/ProfileStore': { ProfileStore: { list: () => profiles, getMeta: () => ({}),
@@ -329,6 +331,49 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   await waitForActivation(); finishActivation('saved'); await completedDetail;
   assert.equal(detail.pops(), 1, 'current detail pops exactly once after definite success');
   assert.equal(detail.page.tabJump, 0, 'current detail returns to Connect');
+  function readyPage() {
+    const page = activationPage().page;
+    page.importedFile = 'candidate.yaml'; page.showSheet = true; page.sheetMode = 4;
+    return page;
+  }
+  lastStopCompleted = true; controller.status = status.Disconnected;
+  let firstActivations = 0;
+  activateResult = async () => { firstActivations++; active = 'candidate.yaml'; return 'saved'; };
+  smartPrepare = async () => {};
+  const first = readyPage(), startsBeforeImport = start;
+  await first.activateAndConnect();
+  assert.equal(start, startsBeforeImport + 1); assert.equal(first.tabJump, 0);
+  assert.equal(first.showSheet, false, 'successful authorization request returns to connection status');
+  controller.status = status.Disconnected;
+  activateResult = () => { firstActivations++; return new Promise(resolve => { finishActivation = resolve; }); };
+  const repeat = readyPage(), activationCount = firstActivations;
+  const connecting = repeat.activateAndConnect(); await repeat.activateAndConnect();
+  assert.equal(firstActivations, activationCount + 1, 'repeated taps share one activation');
+  repeat.showSheet = false; finishActivation('saved'); await connecting;
+  assert.equal(start, startsBeforeImport + 1, 'cancelled import sheet cannot start VPN later');
+  const leaveImport = readyPage(); const hiddenConnect = leaveImport.activateAndConnect();
+  leaveImport.aboutToDisappear(); finishActivation('saved'); await hiddenConnect;
+  assert.equal(start, startsBeforeImport + 1, 'old page result cannot start VPN');
+  const tabImport = readyPage(); const oldTabConnect = tabImport.activateAndConnect();
+  tabImport.currentVisibleTab = 2; tabImport.onTabVisible();
+  tabImport.currentVisibleTab = 1; tabImport.onTabVisible();
+  finishActivation('saved'); await oldTabConnect;
+  assert.equal(start, startsBeforeImport + 1, 'returning to tab cannot revive a connection request');
+  activateResult = async () => { throw Error('PROVIDER_UNRESOLVED private-token'); };
+  const rejected = readyPage(); await rejected.activateAndConnect();
+  assert.equal(rejected.showSheet, true); assert.match(rejected.importError, /来源尚未就绪/);
+  assert.ok(!rejected.importError.includes('private-token'));
+  activateResult = async () => { active = 'candidate.yaml'; return 'saved'; };
+  smartPrepare = async () => { throw Error('配置资源缺失'); };
+  const resources = readyPage(); await resources.activateAndConnect();
+  assert.match(resources.importError, /资源未准备好/); assert.equal(resources.showSheet, true);
+  assert.equal(start, startsBeforeImport + 1);
+  smartPrepare = async () => {};
+  lastStopCompleted = false;
+  const unknownImport = readyPage(); await unknownImport.activateAndConnect();
+  assert.match(unknownImport.importError, /重试断开/);
+  lastStopCompleted = true;
+  console.log('PASS: first import connect, repeated taps, cancel/leave/tab stale results, provider/resource failures and unknown-stop gate');
   function regionPage() {
     const page = activationPage().page;
     page.importedFile = 'candidate.yaml'; page.regionFromImport = true;

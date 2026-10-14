@@ -40,7 +40,46 @@ interface TemplateDataExt extends Record<string, Object> {
   progressValue: number;
 }
 
+// Backend guarantees are observations of the owned system task, never VPN health.
+export type BackgroundTaskState = 'unknown' | 'disabled' | 'requesting' | 'active' | 'failed' | 'revoked' | 'user-stopped';
+export type BackgroundNotificationState = 'unknown' | 'ready' | 'failed';
+export interface BackgroundState {
+  task: BackgroundTaskState;
+  notification: BackgroundNotificationState;
+  suspended: boolean;
+}
+
 export namespace LiveViewKeeper {
+  let taskState: BackgroundTaskState = 'unknown';
+  let notificationState: BackgroundNotificationState = 'unknown';
+  let suspended: boolean = false;
+  const observers: ((state: BackgroundState) => void)[] = [];
+
+  export function state(): BackgroundState {
+    return { task: taskState, notification: notificationState, suspended: suspended };
+  }
+
+  export function onChanged(listener: (state: BackgroundState) => void): () => void {
+    observers.push(listener);
+    return (): void => {
+      const index = observers.indexOf(listener);
+      if (index >= 0) { observers.splice(index, 1); }
+    };
+  }
+
+  function report(task: BackgroundTaskState, notification: BackgroundNotificationState = 'unknown', isSuspended: boolean = false): void {
+    if (taskState === task && notificationState === notification && suspended === isSuspended) { return; }
+    taskState = task; notificationState = notification; suspended = isSuspended;
+    for (const listener of observers.slice()) {
+      try { listener(state()); } catch (_) { Logger.warn(TAG, 'background observer failed'); }
+    }
+  }
+
+  export function needsAttention(value: BackgroundState): boolean {
+    return value.task === 'failed' || value.task === 'revoked' || value.suspended ||
+      (value.task === 'active' && value.notification === 'failed');
+  }
+
   let running: boolean = false;
   /** start() 进行中门闩：防止 onCoreUp 与 ensure() 并发触发重复申请任务 */
   let starting: boolean = false;
@@ -97,25 +136,43 @@ export namespace LiveViewKeeper {
     rebindContext(context);
     lifecycleGeneration++;
     cancelReapply();
+    const intent = lifecycleGeneration;
     const result = lifecycleQueue.then(() => {
       const ctx = lastContext;
-      return ctx === null ? Promise.resolve(false) : startTask(ctx);
+      return ctx === null || intent !== lifecycleGeneration ? Promise.resolve(false) : startTask(ctx, intent);
     });
     lifecycleQueue = result.then(() => {}, () => {});
     return result;
   }
 
-  async function startTask(context: common.UIAbilityContext): Promise<boolean> {
+  /** Explicit retry may restore a user-dismissed task; foreground ensure never does. */
+  export async function retry(context: common.UIAbilityContext): Promise<boolean> {
+    if (starting || VpnController.status !== VpnStatus.Connected || !Settings.load(context).keepAlive) { return false; }
+    if (running && !suspended) {
+      await publishLiveView(workGeneration);
+      return notificationState === 'ready';
+    }
+    if (running) { await stop(context); }
+    if (VpnController.status !== VpnStatus.Connected || !Settings.load(context).keepAlive) { return false; }
+    userStopped = false;
+    const acquired = await start(context);
+    return acquired && taskState === 'active' && notificationState === 'ready' && !suspended;
+  }
+
+  async function startTask(context: common.UIAbilityContext, intent: number): Promise<boolean> {
+    if (!Settings.load(context).keepAlive) {
+      report('disabled');
+      return false;
+    }
     if (running) {
       return true;
     }
     if (starting) {
       return true;
     }
-    if (!Settings.load(context).keepAlive) {
-      return false;
-    }
     starting = true;
+    userStopped = false;
+    report('requesting');
     const generation = ++workGeneration;
     try {
       const agent = await wantAgent.getWantAgent({
@@ -138,11 +195,17 @@ export namespace LiveViewKeeper {
       if (generation !== workGeneration) {
         return false; // 已取得任务身份，排队的 stop 负责释放。
       }
+      if (!Settings.load(ctx).keepAlive || VpnController.status !== VpnStatus.Connected) {
+        await reset(true);
+        if (intent === lifecycleGeneration) { report(!Settings.load(ctx).keepAlive ? 'disabled' : 'unknown'); }
+        return false;
+      }
       if (connectedAt === 0) {
         connectedAt = Date.now();
       }
       running = true;
       registerEvents();
+      report('active');
       Logger.info(TAG, 'task started notificationId=' + notificationId + ' continuousTaskId=' + continuousTaskId);
       await refreshMeta(generation);
       await publishLiveView(generation);
@@ -163,6 +226,7 @@ export namespace LiveViewKeeper {
     } catch (e) {
       Logger.error(TAG, 'start failed: ' + errMsg(e));
       await reset(true);
+      if (intent === lifecycleGeneration) { report('failed'); }
       return false;
     } finally {
       starting = false;
@@ -195,7 +259,11 @@ export namespace LiveViewKeeper {
     lifecycleGeneration++;
     workGeneration++;
     cancelReapply();
-    return enqueue(() => reset(true));
+    const intent = lifecycleGeneration;
+    return enqueue(async () => {
+      await reset(true);
+      if (intent === lifecycleGeneration) { report(Settings.load(context).keepAlive ? 'unknown' : 'disabled'); }
+    });
   }
 
   export function isRunning(): boolean {
@@ -279,10 +347,14 @@ export namespace LiveViewKeeper {
   }
 
   function onSuspend(info: backgroundTaskManager.ContinuousTaskSuspendInfo): void {
+    if (!running || continuousTaskId < 0 || info.continuousTaskId !== continuousTaskId) { return; }
+    report('unknown', notificationState, true);
     Logger.info(TAG, 'task suspended id=' + info.continuousTaskId);
   }
 
   function onActive(info: backgroundTaskManager.ContinuousTaskActiveInfo): void {
+    if (!running || continuousTaskId < 0 || info.id !== continuousTaskId) { return; }
+    report('active', notificationState);
     Logger.info(TAG, 'task active id=' + info.id);
   }
 
@@ -303,7 +375,7 @@ export namespace LiveViewKeeper {
    * - 其他系统原因且内核仍活（GET /version 通）：30s 后重申请，每小时最多 3 次，超出等前台 ensure。
    */
   async function handleCancel(info: backgroundTaskManager.ContinuousTaskCancelInfo): Promise<void> {
-    if (!running || (continuousTaskId >= 0 && info.id !== continuousTaskId)) {
+    if (!running || continuousTaskId < 0 || info.id !== continuousTaskId) {
       return;
     }
     const generation = lifecycleGeneration;
@@ -318,10 +390,12 @@ export namespace LiveViewKeeper {
     if (userCancel) {
       Logger.info(TAG, 'task canceled by user reason=' + reason + ' detailed=' + detailed);
       userStopped = true;
+      report('user-stopped');
       await reset(false);
       return;
     }
     Logger.warn(TAG, 'task canceled reason=' + reason + ' detailed=' + detailed);
+    report('revoked');
     await reset(false);
     if (lastContext === null) {
       return;
@@ -559,7 +633,9 @@ export namespace LiveViewKeeper {
       });
       notificationQueue = publish.catch(() => {});
       await publish;
+      if (isCurrent(generation)) { report(taskState, 'ready', suspended); }
     } catch (e) {
+      if (isCurrent(generation)) { report(taskState, 'failed', suspended); }
       Logger.warn(TAG, 'publish failed: ' + errMsg(e));
     }
   }

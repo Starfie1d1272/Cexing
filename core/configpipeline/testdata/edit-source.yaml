@@ -1,0 +1,16 @@
+proxies:
+  - {name: node-a, type: direct, udp: true, x-advanced: {future: preserved}}
+  - {name: node-b, type: direct}
+proxy-groups:
+  - {name: manual, type: select, proxies: [node-a, node-b]}
+  - {name: automatic, type: url-test, proxies: [node-a, node-b], tolerance: 30}
+  - {name: balanced, type: load-balance, proxies: [node-a, node-b], strategy: round-robin}
+rules:
+  - DOMAIN,public.test,manual
+  - MATCH,manual
+dns:
+  enable: true
+  nameserver: [https://resolver.test/dns-query]
+  x-advanced: {keep: true}
+hosts: {private.test: 192.0.2.1}
+x-top-level: {preserved: true}
