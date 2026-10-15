@@ -1,3 +1,4 @@
+import { CoreValidator } from '../lib/CoreValidator';
 import { ProfileApplyFeedback, ProfileApplyFailureKind } from '../lib/ProfileApplyFeedback';
 import { ProfileApplyRecovery } from '../lib/ProfileApplyRecovery';
 import { ProfileImportInput } from '../lib/ProfileImportInput';
@@ -177,9 +178,7 @@ export struct ProfileProxyEditorPage {
     this.names = names; this.providers = providers;
     this.previewReady = model.preview !== null;
     this.renameReferences = this.previewReady && operations.some((op: EditOperation) => op.kind === 'rename');
-    const sectionNames: Record<string, string> = { 'proxies': 'proxy_editor_nodes', 'proxy-groups': 'proxy_editor_groups', 'proxy-providers': 'proxy_editor_sources' };
-    this.previewText = model.preview?.changes.map((change) => this.t('proxy_editor_change_count',
-      this.t(sectionNames[change.section] ?? 'proxy_editor_config'), change.before, change.after)).join(' · ') ?? '';
+    this.previewText = model.preview === null ? '' : CoreValidator.describeMergePreview(model.preview);
     if (this.previewReady) {
       const smart = model.smartChanges.filter((change) => change.override || change.before !== change.after)
         .map((change) => this.t('proxy_editor_smart_type_change', change.before, change.after));

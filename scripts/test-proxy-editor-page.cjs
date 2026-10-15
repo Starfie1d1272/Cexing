@@ -40,7 +40,7 @@ const editBus = { current: '' };
 const editExports = { exports: {} };
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('cexing/entry/src/main/ets/lib/ProxyIntentEdits.ets', 'utf8')).outputText, editExports);
 const sandbox = { exports: {}, $r: id => ({ id }), getContext: () => resourceContext(), AlertDialog: { show: value => { dialog = value; } },
-  require: name => name.includes('ProfileApplyFeedback') ? feedbackBox.exports :
+  require: name => name === '../lib/CoreValidator' ? require('./ci/semantic-fixture.cjs') : name.includes('ProfileApplyFeedback') ? feedbackBox.exports :
     name.includes('ProfileApplyRecovery') ? { ProfileApplyRecovery: { reconnect: async (_ctx, current) => { recoveryCalls++; assert.equal(current(), true); return recoveryResult; } } } :
     name.includes('ProfileImportInput') ? { ProfileImportInput: { hasPending: () => sharePending } } : name.includes('ProfileProxyEditorModel') ? { ProfileProxyEditorModel: Model } :
     name === '@kit.ArkUI' ? { promptAction: { showToast() {}, showDialog(value) { smartDialog = value; smartDialogCount++; return new Promise(resolve => { smartAnswer = resolve; }); } } } : name === '@kit.ArkTS' ? { util: { generateRandomUUID: () => `add-action-${++actionIds}` } } : name.includes('ProxyIntentEdits') ? editExports.exports : name.includes('ProfileEditPage') ? { ProfileEditBus: editBus } : name.includes('ProxyEditorText') ? textBox.exports : name.includes('ConfigEditor') ? editorExports.exports : name.includes('ProxyProviderStatus') ?
@@ -176,6 +176,18 @@ const Page = sandbox.exports.ProfileProxyEditorPage; sandbox.exports.ProfileProx
   unknownApply = true; const reopenedFailure = new Page(); reopenedFailure.visible = true; reopenedFailure.aboutToAppear(); finishLoad(); await new Promise(setImmediate);
   assert.equal(reopenedFailure.applyFailure, 'unconfirmed', 'reopening cannot hide the persistent unknown fence'); unknownApply = false;
   const smartPage = new Page(); smartPage.visible = true; smartPage.aboutToAppear(); finishLoad(); await new Promise(setImmediate);
+  for (const [changes, expected] of [
+    [[{ section: 'proxies', before: 1, after: 1, modified: 1, kind: 'modified', contentChanged: true }], /节点：修改 1 项/],
+    [[{ section: 'proxy-groups', before: 2, after: 2, membersChanged: 1 }], /策略组：成员已调整/],
+    [[{ section: 'proxy-groups', before: 2, after: 2, typesChanged: 1 }], /策略组：类型已调整/],
+    [[{ section: 'private.invalid/?token=synthetic', before: 1, after: 1, fields: [{ field: 'password', before: 1, after: 1 }], contentChanged: true }], /其他配置：内容已调整/]
+  ]) {
+    smartPage.model.preview = { changes, platformChanges: [{ section: 'tun', before: 1, after: 1, kind: 'protected' }] };
+    smartPage.sync(); assert.match(smartPage.previewText, expected); assert.match(smartPage.previewText, /1 项使用设备约束/);
+    assert.ok(!smartPage.previewText.includes('1 → 1')); assert.ok(!smartPage.previewText.includes('private.invalid'));
+    assert.ok(!smartPage.previewText.includes('password')); assert.ok(!smartPage.previewText.includes('synthetic'));
+  }
+  smartPage.model.preview = null; smartPage.sync(); assert.equal(smartPage.previewText, '', 'a missing receipt clears old semantic evidence');
   const group = { id: 'group', label: 'Synthetic group', type: 'url-test', section: 'proxy-groups' };
   let smartIntent = { schemaVersion: 1, operations: [], smartGroups: {} }, smartSaves = 0;
   smartPage.model.workingIntent = () => structuredClone(smartIntent);
