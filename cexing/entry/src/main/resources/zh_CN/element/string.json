@@ -2141,50 +2141,6 @@
       "value": "编辑原始配置"
     },
     {
-      "name": "proxy_editor_disable_node",
-      "value": "停用"
-    },
-    {
-      "name": "proxy_editor_enable_node",
-      "value": "启用"
-    },
-    {
-      "name": "proxy_editor_disable_node_risk",
-      "value": "停用后，所有使用此节点的连接将被拒绝。"
-    },
-    {
-      "name": "proxy_editor_disable_node_named",
-      "value": "停用 %s"
-    },
-    {
-      "name": "proxy_editor_enable_node_named",
-      "value": "启用 %s"
-    },
-    {
-      "name": "proxy_editor_node_state_failed",
-      "value": "无法修改节点状态，请重新读取"
-    },
-    {
-      "name": "profile_update_expired",
-      "value": "更新已失效，请返回重试"
-    },
-    {
-      "name": "profile_update_back",
-      "value": "返回"
-    },
-    {
-      "name": "profile_update_title",
-      "value": "更新订阅"
-    },
-    {
-      "name": "profile_update_done",
-      "value": "订阅已更新"
-    },
-    {
-      "name": "profile_update_close_editor",
-      "value": "请关闭编辑后重新更新"
-    },
-    {
       "name": "apply_feedback_unconfirmed",
       "value": "应用未确认，请重连恢复"
     },
@@ -2227,6 +2183,50 @@
     {
       "name": "apply_feedback_region_failed",
       "value": "地区策略未完成，请重试"
+    },
+    {
+      "name": "proxy_editor_disable_node",
+      "value": "停用"
+    },
+    {
+      "name": "proxy_editor_enable_node",
+      "value": "启用"
+    },
+    {
+      "name": "proxy_editor_disable_node_risk",
+      "value": "停用后，所有使用此节点的连接将被拒绝。"
+    },
+    {
+      "name": "proxy_editor_disable_node_named",
+      "value": "停用 %s"
+    },
+    {
+      "name": "proxy_editor_enable_node_named",
+      "value": "启用 %s"
+    },
+    {
+      "name": "proxy_editor_node_state_failed",
+      "value": "无法修改节点状态，请重新读取"
+    },
+    {
+      "name": "profile_update_expired",
+      "value": "更新已失效，请返回重试"
+    },
+    {
+      "name": "profile_update_back",
+      "value": "返回"
+    },
+    {
+      "name": "profile_update_title",
+      "value": "更新订阅"
+    },
+    {
+      "name": "profile_update_done",
+      "value": "订阅已更新"
+    },
+    {
+      "name": "profile_update_close_editor",
+      "value": "请关闭编辑后重新更新"
     }
   ]
 }

@@ -2141,50 +2141,6 @@
       "value": "Edit original configuration"
     },
     {
-      "name": "proxy_editor_disable_node",
-      "value": "Disable"
-    },
-    {
-      "name": "proxy_editor_enable_node",
-      "value": "Enable"
-    },
-    {
-      "name": "proxy_editor_disable_node_risk",
-      "value": "Connections using this node will be rejected."
-    },
-    {
-      "name": "proxy_editor_disable_node_named",
-      "value": "Disable %s"
-    },
-    {
-      "name": "proxy_editor_enable_node_named",
-      "value": "Enable %s"
-    },
-    {
-      "name": "proxy_editor_node_state_failed",
-      "value": "Cannot change node state. Reload and retry."
-    },
-    {
-      "name": "profile_update_expired",
-      "value": "The update changed. Return and download it again."
-    },
-    {
-      "name": "profile_update_back",
-      "value": "Back"
-    },
-    {
-      "name": "profile_update_title",
-      "value": "Update subscription"
-    },
-    {
-      "name": "profile_update_done",
-      "value": "Subscription updated"
-    },
-    {
-      "name": "profile_update_close_editor",
-      "value": "Close the editor, then retry the update."
-    },
-    {
       "name": "apply_feedback_unconfirmed",
       "value": "Apply status is unconfirmed. Reconnect to recover."
     },
@@ -2227,6 +2183,50 @@
     {
       "name": "apply_feedback_region_failed",
       "value": "The region change did not finish. Retry."
+    },
+    {
+      "name": "proxy_editor_disable_node",
+      "value": "Disable"
+    },
+    {
+      "name": "proxy_editor_enable_node",
+      "value": "Enable"
+    },
+    {
+      "name": "proxy_editor_disable_node_risk",
+      "value": "Connections using this node will be rejected."
+    },
+    {
+      "name": "proxy_editor_disable_node_named",
+      "value": "Disable %s"
+    },
+    {
+      "name": "proxy_editor_enable_node_named",
+      "value": "Enable %s"
+    },
+    {
+      "name": "proxy_editor_node_state_failed",
+      "value": "Cannot change node state. Reload and retry."
+    },
+    {
+      "name": "profile_update_expired",
+      "value": "The update changed. Return and download it again."
+    },
+    {
+      "name": "profile_update_back",
+      "value": "Back"
+    },
+    {
+      "name": "profile_update_title",
+      "value": "Update subscription"
+    },
+    {
+      "name": "profile_update_done",
+      "value": "Subscription updated"
+    },
+    {
+      "name": "profile_update_close_editor",
+      "value": "Close the editor, then retry the update."
     }
   ]
 }
