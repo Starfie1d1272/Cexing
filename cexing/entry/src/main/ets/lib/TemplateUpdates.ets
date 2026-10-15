@@ -1,6 +1,7 @@
 import { common } from '@kit.AbilityKit';
 import core from 'libentry.so';
 import { TemplatePreview } from './TemplateWizardModel';
+import { ProfileApplyFeedback, ProfileApplyFailureKind } from './ProfileApplyFeedback';
 
 // Private compiler snapshots only, never log/support-export these values.
 export interface TemplateEntity { id: string; section: string; value: Object; }
@@ -40,6 +41,7 @@ export interface TemplateUpdateHost {
 }
 
 export class TemplateUpdateModel {
+  applyFailure: ProfileApplyFailureKind | '' = '';
   preview: TemplateUpdatePreview | null = null;
   busy: boolean = false;
   error: string = '';
@@ -51,10 +53,15 @@ export class TemplateUpdateModel {
   private changed: () => void;
   constructor(host: TemplateUpdateHost, changed: () => void) { this.host = host; this.changed = changed; }
   close(): void { this.open = false; this.generation++; this.host.reset?.(); }
+  needsRepair(): boolean { return this.applyFailure !== '' && this.applyFailure !== 'failed'; }
+  setApplyFailure(kind: ProfileApplyFailureKind | ''): void {
+    this.generation++; this.busy = false; this.applyFailure = kind; this.preview = null;
+    this.error = ''; this.result = ''; this.emit();
+  }
   private current(generation: number): boolean { return this.open && this.generation === generation; }
   private emit(): void { if (this.open) { this.changed(); } }
   async refresh(): Promise<void> {
-    if (!this.open || this.busy) { return; }
+    if (!this.open || this.busy || this.needsRepair()) { return; }
     const generation = ++this.generation;
     this.busy = true; this.error = ''; this.result = ''; this.preview = null; this.emit();
     try {
@@ -75,17 +82,21 @@ export class TemplateUpdateModel {
     this.decisions[id] = choice;
     await this.refresh();
   }
-  async reset(): Promise<void> { if (this.busy || !this.open) { return; } this.decisions = {}; this.host.reset?.(); await this.refresh(); }
+  async reset(): Promise<void> { if (this.busy || !this.open || this.needsRepair()) { return; } this.decisions = {}; this.host.reset?.(); await this.refresh(); }
   async apply(): Promise<void> {
     const preview = this.preview;
-    if (!this.open || this.busy || preview === null || !preview.ready || preview.conflicts.length > 0 || preview.candidate === undefined || preview.validation === undefined) { return; }
+    if (!this.open || this.busy || this.needsRepair() || preview === null || !preview.ready || preview.conflicts.length > 0 || preview.candidate === undefined || preview.validation === undefined) { return; }
     const generation = ++this.generation;
     this.busy = true; this.error = ''; this.emit();
     try {
       const result = await this.host.apply(preview);
       if (this.current(generation)) { this.result = result; this.preview = null; }
-    } catch (_) {
-      if (this.current(generation)) { this.error = '应用失败，请重新预览'; this.preview = null; }
+    } catch (error) {
+      if (this.current(generation)) {
+        this.applyFailure = ProfileApplyFeedback.classify((error as Error)?.message ?? '');
+        this.error = this.applyFailure === 'failed' ? '应用失败，请重新预览' : '';
+        this.preview = null;
+      }
     } finally { if (this.current(generation)) { this.busy = false; this.emit(); } }
   }
 }
