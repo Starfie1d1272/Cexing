@@ -2,6 +2,7 @@
 # 构建 HAP(未签名) — 用法: bash scripts/build-hap.sh [release]
 set -e
 source "$(dirname "$0")/env.sh"
+python3 "$REPO_ROOT/scripts/update-routing-rules.py" --verify --prepare-notices
 bash "$REPO_ROOT/scripts/ci/prepare-zashboard.sh"
 python3 "$REPO_ROOT/scripts/prepare-smart-model.py" --verify
 [ -f "$PROJECT_ROOT/entry/src/main/resources/rawfile/geodata/geoip.metadb" ] || {

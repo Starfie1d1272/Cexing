@@ -22,6 +22,7 @@ SMART_OUTPUT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)/cexing/entry/libs/arm64-v8a"
 # Clear before environment/toolchain preflight, so an early failure cannot retain success.
 rm -f "$SMART_OUTPUT_DIR/smart-build.json" "$SMART_OUTPUT_DIR/smart-build.pending.json"
 source "$SCRIPT_DIR/env.sh"
+python3 "$REPO_ROOT/scripts/update-routing-rules.py" --verify --prepare-notices
 
 CORE_DIR="$REPO_ROOT/core"               # <仓库根>/core，Go 内核封装 module
 OUT_DIR="$PROJECT_ROOT/entry/libs/arm64-v8a"

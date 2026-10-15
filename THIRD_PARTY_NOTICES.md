@@ -6,6 +6,7 @@
 |---|---|---|
 | [ClashOH / tom-cat-mao](https://github.com/tom-cat-mao/clash-OpenHarmony) | ArkTS 工程、VPN/NAPI/Go 底座、构建脚本 | GPL-3.0；在原工程上精简宿主、解耦运行时，保留历史与适用声明 |
 | [MetaCubeX/mihomo](https://github.com/MetaCubeX/mihomo) | Go 依赖与数据面 | GPL-3.0；模块图及其传递依赖声明须随发行核查 |
+| [v2fly/domain-list-community](https://github.com/v2fly/domain-list-community) | 离线 AI、影音服务与国内域名分类，完整递归展开 | MIT；[固定来源与摘要](third_party/routing-rules/source.json)、[原始声明](third_party/routing-rules/LICENSE)。由更新脚本转换为 Mihomo classical inline 规则，不是服务可用性或地域授权清单 |
 | [MetaCubeX/meta-rules-dat](https://github.com/MetaCubeX/meta-rules-dat) | 构建时准备的 GeoIP 快照 | 根项目 GPL-3.0；分发前核查数据源 notices，二进制不入源码仓库 |
 | [vernesong/mihomo](https://github.com/vernesong/mihomo) | 固定 Smart 测试版内核及官方 LightGBM 模型 | 项目 GPL-3.0；上游标签的许可声明、固定模型身份、对应源码与训练来源边界见 [Smart notices](core/patches/NOTICE.md)；完整 GPL 正文随包，发行仍须核查对应源码提供义务 |
 | [DB-IP City Lite](https://db-ip.com/db/download/ip-to-city-lite) | 用户主动下载的 2026-10 城市库；公网 IP 仅在本机查询 | CC BY 4.0；保留 DB-IP.com 来源链接及许可，数据不随默认 HAP 内置，固定身份见 [城市库来源](third_party/city-geoip/source.json) |

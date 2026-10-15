@@ -124,6 +124,9 @@ with zipfile.ZipFile(hap) as archive, tempfile.TemporaryDirectory() as directory
     digest = sha(archive.read('resources/rawfile/geodata/geoip.metadb'))
     require(digest == geodata['expectedSha256'] == geodata['downloadedSha256'], 'GeoIP upstream/actual/package identity')
     require(bool(archive.read('resources/rawfile/override.yaml')), 'nonempty default configuration')
+    for notice in ['LICENSE', 'source.json']:
+        require(archive.read('resources/rawfile/routing-rules/' + notice) ==
+                (root / 'third_party/routing-rules' / notice).read_bytes(), 'bundled routing rule notice: ' + notice)
     model_pin = json.loads((root / 'third_party/smart-model/source.json').read_text())
     model_path = 'resources/rawfile/smart/Model.bin'
     notice_path = 'resources/rawfile/smart/LICENSE'

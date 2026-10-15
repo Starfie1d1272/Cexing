@@ -5,6 +5,7 @@ cexing/entry/src/main/resources/rawfile/geodata/
 cexing/entry/src/main/resources/rawfile/zashboard/
 cexing/entry/src/main/resources/rawfile/zashboard-staging/
 cexing/entry/src/main/resources/rawfile/smart/
+cexing/entry/src/main/resources/rawfile/routing-rules/
 core/third_party/
 
 # 私有配置（含节点凭据，永不入库）

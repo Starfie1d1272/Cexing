@@ -11,6 +11,7 @@ rm -rf cexing/dist/ci
 rm -f cexing/entry/build/default/outputs/default/entry-default-unsigned.hap
 source scripts/env.sh
 python3 scripts/ci/check-toolchain.py
+python3 scripts/update-routing-rules.py --verify
 node scripts/ci/source-check.cjs
 python3 scripts/ci/test-private-stderr.py
 if [ -f third_party/zashboard/source.json ]; then
