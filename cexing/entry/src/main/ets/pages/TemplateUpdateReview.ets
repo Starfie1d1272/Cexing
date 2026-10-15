@@ -28,11 +28,12 @@ export struct TemplateUpdateReview {
   @State private conflicts: TemplateConflict[] = [];
   @State private ready: boolean = false;
   @State private busy: boolean = false;
+  @State private confirmingDiscard: boolean = false;
   @State private summary: string = '';
   @State private message: string = '';
   private model: TemplateUpdateModel | null = null;
   aboutToAppear(): void {
-    this.visible = true; this.recoveryGeneration++; this.recovering = false; this.recoveryMessage = '';
+    this.visible = true; this.recoveryGeneration++; this.confirmingDiscard = false; this.recovering = false; this.recoveryMessage = '';
     const source = this.source ?? (this.profileId.length > 0 ?
       createTemplateUpdateSource(getContext(this) as common.UIAbilityContext, this.profileId) : undefined);
     const host = this.host ?? (source !== undefined && this.profileId.length > 0 ?
@@ -79,6 +80,33 @@ export struct TemplateUpdateReview {
   private repairSelection(): void {
     if (this.visible && !this.recovering && this.applyFailure === 'selection-required') { this.navStack.pushPath({ name: 'zashboard' }); }
   }
+  private discardDraft(): void {
+    const host = this.activeHost;
+    if (!this.visible || this.busy || this.recovering || this.confirmingDiscard || this.model?.needsRepair() ||
+      host === null || host.discard === undefined) { return; }
+    const revision = host.discardRevision?.() ?? '';
+    if (revision.length === 0) { return; }
+    const epoch = this.recoveryGeneration;
+    const current = (): boolean => this.visible && epoch === this.recoveryGeneration && this.activeHost === host;
+    this.confirmingDiscard = true; let used = false;
+    const cancel = (): void => { used = true; if (current()) { this.confirmingDiscard = false; } };
+    AlertDialog.show({ title: UiText.get($r('app.string.rule_discard_confirm_title')),
+      message: UiText.get($r('app.string.rule_discard_confirm_body')), cancel: cancel,
+      primaryButton: { value: UiText.get($r('app.string.proxy_editor_cancel')), action: cancel },
+      secondaryButton: { value: UiText.get($r('app.string.rule_discard')), action: async () => {
+        if (used || !current()) { return; }
+        if (this.busy || this.recovering || host.discardRevision?.() !== revision) {
+          used = true; this.confirmingDiscard = false; return;
+        }
+        used = true; this.busy = true; this.confirmingDiscard = false;
+        try {
+          await host.discard?.(revision);
+          if (current()) { this.close(); }
+        } catch (_) {
+          if (current()) { this.message = '无法比较，请重新预览'; this.ready = false; }
+        } finally { if (current()) { this.busy = false; } }
+      } } });
+  }
   private displayMessage(message: string): string {
     if (message === '') { return ''; }
     if (message === '应用未确认，请返回连接页断开后重连恢复') { return UiText.get($r('app.string.apply_feedback_unconfirmed')); }
@@ -110,9 +138,9 @@ export struct TemplateUpdateReview {
           Text(UiText.get($r('app.string.template_conflict_new'), this.activeHost?.detail?.(conflict).template ?? UiText.get($r('app.string.template_personal')))).fontSize(14).fontColor(UI.muted)
           Row({ space: 8 }) {
             Button(UiText.get($r('app.string.template_keep_mine'))).layoutWeight(1).backgroundColor(UI.soft).fontColor(UI.ink)
-              .enabled(!this.busy).onClick(() => this.model?.choose(conflict.id, 'mine'))
+              .enabled(!this.busy && !this.confirmingDiscard).onClick(() => this.model?.choose(conflict.id, 'mine'))
             Button(UiText.get($r('app.string.template_use_new'))).layoutWeight(1).backgroundColor(UI.soft).fontColor(UI.ink)
-              .enabled(!this.busy).onClick(() => this.model?.choose(conflict.id, 'template'))
+              .enabled(!this.busy && !this.confirmingDiscard).onClick(() => this.model?.choose(conflict.id, 'template'))
           }.width('100%')
         }.width('100%')
       }, (conflict: TemplateConflict) => conflict.id)
@@ -124,9 +152,14 @@ export struct TemplateUpdateReview {
       Row({ space: 8 }) {
         Button(UiText.get($r('app.string.template_back'))).layoutWeight(1).backgroundColor(UI.soft).fontColor(UI.ink).onClick(() => this.close())
         if (!this.model?.needsRepair()) { Button(UiText.get($r('app.string.template_repreview'))).layoutWeight(1).backgroundColor(UI.soft).fontColor(UI.ink)
-          .enabled(!this.busy).onClick(() => this.model?.reset())
+          .enabled(!this.busy && !this.confirmingDiscard).onClick(() => this.model?.reset())
         }
       }.width('100%')
+      if (!this.model?.needsRepair() && this.activeHost?.discard !== undefined) {
+        Button(UiText.get($r('app.string.rule_discard'))).width('100%').constraintSize({ minHeight: 48 })
+          .backgroundColor(UI.soft).fontColor(UI.ink).enabled(!this.busy && !this.recovering && !this.confirmingDiscard)
+          .onClick(() => this.discardDraft())
+      }
       if (this.needsRecovery()) {
         Button(UiText.get($r('app.string.apply_feedback_reconnect'))).width('100%').constraintSize({ minHeight: 48 })
           .enabled(!this.recovering).onClick(() => this.recoverApply())
@@ -135,7 +168,7 @@ export struct TemplateUpdateReview {
           .enabled(!this.recovering).onClick(() => this.repairSelection())
       }
       if (!this.model?.needsRepair()) { Button(this.busy ? UiText.get($r('app.string.template_working')) : UiText.get($r('app.string.template_apply_update'))).width('100%').constraintSize({ minHeight: 48 })
-        .backgroundColor(UI.action).fontColor(UI.onAccent).enabled(!this.busy && this.ready)
+        .backgroundColor(UI.action).fontColor(UI.onAccent).enabled(!this.busy && !this.confirmingDiscard && this.ready)
         .onClick(() => this.model?.apply())
       }
     }.width('100%').height('100%').padding(20).backgroundColor(UI.surface)

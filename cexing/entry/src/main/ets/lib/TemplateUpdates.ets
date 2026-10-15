@@ -33,6 +33,8 @@ export namespace TemplateUpdates {
 
 export interface TemplateUpdateHost {
   reset?: () => void;
+  discardRevision?: () => string;
+  discard?: (revision: string) => Promise<void>;
   // Captures Base/Mine/Next and the existing source/draft/active ticket once.
   preview: (decisions: Record<string, string>) => Promise<TemplateUpdatePreview>;
   // Compile a delta over the latest template through the common EditIntent;
