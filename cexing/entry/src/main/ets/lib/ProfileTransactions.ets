@@ -8,7 +8,7 @@ import { ProfileStore, ProfileMetaExt } from './ProfileStore';
 import { VpnController, VpnStatus } from './VpnController';
 import { CoreValidator } from './CoreValidator';
 import { MergePreview } from './CoreValidator';
-import { EffectiveVersions, EffectiveState, RegionPlan, RegionPreview } from './EffectiveVersions';
+import { EffectiveVersions, EffectiveState, RegionPlan, RegionPreview, ProfileStorageReport } from './EffectiveVersions';
 import { ProfileRegionChoices } from './ProfileRegionChoices';
 import { Settings } from './Settings';
 
@@ -68,6 +68,12 @@ export namespace ProfileTransactions {
     if (uncertain) { throw new Error('应用未确认，请重连恢复'); }
     busy = true;
     releaseConfiguration = VpnController.holdConfiguration();
+  }
+
+  export async function refreshStorage(context: common.Context): Promise<ProfileStorageReport> {
+    enter(context);
+    try { return await EffectiveVersions.collect(context, EffectiveVersions.read(context)?.Current?.ID ?? ''); }
+    finally { leave(); }
   }
 
   function markUnknown(context: common.Context): void {
@@ -196,6 +202,13 @@ export namespace ProfileTransactions {
           throw new Error((e as Error).message);
         }
       }
+      if (guard !== undefined) {
+        try { await guard(true); } catch (_) { markUnknown(context); throw new Error('应用未确认，请重连恢复'); }
+      }
+      if (!(await sameSession()) || !current(true)) { markUnknown(context); throw new Error('应用未确认，请重连恢复'); }
+      // Publication is already durable; GC cannot turn success into a false
+      // rollback. Its bounded status is available only in advanced storage UI.
+      try { await EffectiveVersions.collect(context, select ? staged.version.ID : expected); } catch (_) {}
       if (guard !== undefined) {
         try { await guard(true); } catch (_) { markUnknown(context); throw new Error('应用未确认，请重连恢复'); }
       }
@@ -438,6 +451,7 @@ export namespace ProfileTransactions {
         }
         throw new Error((e as Error).message);
       }
+      try { await EffectiveVersions.collect(context, EffectiveVersions.read(context)?.Current?.ID ?? ''); } catch (_) {}
     }
     finally { leave(); }
   }

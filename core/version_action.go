@@ -35,6 +35,7 @@ type versionAction struct {
 }
 
 type versionResponse struct {
+	Storage       *storageReport                     `json:"storage,omitempty"`
 	Identity      string                             `json:"identity,omitempty"`
 	Digest        string                             `json:"digest,omitempty"`
 	SmartPreview  *[]configpipeline.SmartGroupChange `json:"smartPreview,omitempty"`
@@ -115,6 +116,9 @@ func executeVersionAction(home string, action versionAction) (versionResponse, e
 		return editFailure(err)
 	}
 	switch action.Op {
+	case "gc":
+		report := collectProfileVersions(ctx, store, prior)
+		return versionResponse{Storage: &report}, nil
 	case "editor-identity":
 		identity, e := editorIdentity(home, action, global)
 		if e != nil {

@@ -57,7 +57,7 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
       if (value) externalActive = value; return value; },
       release: value => { if (value && externalActive === value) externalActive = null; },
       hasPending: () => externalPending !== null,
-      parseText: value => value.startsWith('https://') ? { kind: 'url', value } : null } }, '@kit.CoreFileKit': {}, '@kit.ShareKit': {}, '@kit.ArkData': {},
+      parseText: value => value.startsWith('https://') ? { kind: 'url', value } : null } }, '../lib/ConnectionFailure': { ConnectionFailures: {} }, '@kit.CoreFileKit': {}, '@kit.ShareKit': {}, '@kit.ArkData': {},
     '../lib/DiagnosticExportSnapshots': {},
     '../lib/ProfileRecovery': { ProfileRecovery: { reconnect: (...args) => reconnectProfile(...args) } },
     '../lib/AutoUpdater': { AutoUpdater: { retry: (...args) => autoRetry(...args) } },
@@ -270,7 +270,7 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   const profiles = [{ file: 'fixture.yaml', name: 'Fixture', active: true },
     { file: 'candidate.yaml', name: 'Candidate', active: false }];
   const Profile = load('ProfilePage', { ...common,
-    '@kit.CoreFileKit': {}, '@kit.ArkTS': {}, '@kit.BasicServicesKit': {}, './ProfileEditPage': {}, './ProfileTemplatePage': { ProfileTemplateBus: { file: '' } }, './ProfileUpdatePage': { ProfileUpdateBus: { request: null } }, './ProfileProxyEditorPage': { ProfileProxyEditorBus: { file: '' } }, './RuleDnsEditorPage': { RuleDnsEditorBus: { file: '', section: '' } },
+    '../lib/ConnectionFailure': { ConnectionFailures: {} }, '@kit.CoreFileKit': {}, '@kit.ArkTS': {}, '@kit.BasicServicesKit': {}, './ProfileEditPage': {}, './ProfileTemplatePage': { ProfileTemplateBus: { file: '' } }, './ProfileUpdatePage': { ProfileUpdateBus: { request: null } }, './ProfileProxyEditorPage': { ProfileProxyEditorBus: { file: '' } }, './RuleDnsEditorPage': { RuleDnsEditorBus: { file: '', section: '' } },
     '../lib/CoreApi': { CoreApi: {} },
     '../lib/EffectiveVersions': { EffectiveVersions: { read: () => null } },
     '../lib/ProfileTransactions': { ProfileTransactions: { onIdle: () => () => {}, isBusy: () => false,
@@ -518,7 +518,7 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   assert.equal(leftRegion.tabJump, -1, 'late create and enable cannot navigate after leaving');
   let regionLists = 0, committedRegionEnabled = true;
   const PartialDisable = load('ProfilePage', { ...common,
-    '@kit.CoreFileKit': {}, '@kit.ArkTS': {}, '@kit.BasicServicesKit': {}, './ProfileEditPage': {}, './ProfileTemplatePage': { ProfileTemplateBus: { file: '' } }, './ProfileUpdatePage': { ProfileUpdateBus: { request: null } }, './ProfileProxyEditorPage': { ProfileProxyEditorBus: { file: '' } }, './RuleDnsEditorPage': { RuleDnsEditorBus: { file: '', section: '' } },
+    '../lib/ConnectionFailure': { ConnectionFailures: {} }, '@kit.CoreFileKit': {}, '@kit.ArkTS': {}, '@kit.BasicServicesKit': {}, './ProfileEditPage': {}, './ProfileTemplatePage': { ProfileTemplateBus: { file: '' } }, './ProfileUpdatePage': { ProfileUpdateBus: { request: null } }, './ProfileProxyEditorPage': { ProfileProxyEditorBus: { file: '' } }, './RuleDnsEditorPage': { RuleDnsEditorBus: { file: '', section: '' } },
     '../lib/CoreApi': { CoreApi: {} },
     '../lib/EffectiveVersions': { EffectiveVersions: {
       read: () => ({ Profiles: { 'candidate.yaml': {} } }),
