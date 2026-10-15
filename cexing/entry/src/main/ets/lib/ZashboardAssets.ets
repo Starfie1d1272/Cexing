@@ -19,6 +19,17 @@ export class ZashboardAssets {
   private static queue: Promise<void> = Promise.resolve();
   private static transactionId: number = 0;
 
+  // Read only: viewing status must neither install nor change the selection.
+  static async inspect(context: common.Context): Promise<string> {
+    try {
+      const root = `${context.filesDir}/ui`;
+      const selected = ZashboardAssets.selection(root);
+      if (selected.current === '') { return 'missing'; }
+      await ZashboardAssets.validateVersion(root, selected.current);
+      return 'ready';
+    } catch (_) { return 'invalid'; }
+  }
+
   static safePath(path: string): boolean {
     return typeof path === 'string' && path.length > 0 && path.length < 240 &&
       /^[A-Za-z0-9_./-]+$/.test(path) && path.split('/').every((part: string) =>
@@ -183,7 +194,6 @@ export class ZashboardAssets {
 
   private static async validateVersion(root: string, version: string): Promise<void> {
     if (!/^[a-f0-9]{64}$/.test(version)) { throw new Error('Invalid version'); }
-    ZashboardAssets.mkdir(`${root}/versions`);
     const directory = `${root}/versions/${version}`;
     const stat = fileIo.lstatSync(directory);
     if (stat.isSymbolicLink() || !stat.isDirectory()) { throw new Error('Invalid version directory'); }

@@ -1,6 +1,6 @@
 /* Offline validation on the existing C++ single worker; never applies config. */
 import { common } from '@kit.AbilityKit';
-import { fileIo } from '@kit.CoreFileKit';
+import { GeoDataAssets } from './GeoDataAssets';
 import core from 'libentry.so';
 import { Settings } from './Settings';
 
@@ -70,13 +70,9 @@ export namespace CoreValidator {
   }
 
   async function ensureGeoData(context: common.Context): Promise<void> {
-    const path = `${context.filesDir}/geoip.metadb`;
-    if (fileIo.accessSync(path) && fileIo.statSync(path).size > 0) { return; }
-    const bytes = await context.resourceManager.getRawFileContent('geodata/geoip.metadb');
-    const temp = `${path}.validate-pending`;
-    const file = fileIo.openSync(temp, fileIo.OpenMode.WRITE_ONLY | fileIo.OpenMode.CREATE | fileIo.OpenMode.TRUNC);
-    try { fileIo.writeSync(file.fd, bytes.buffer); } finally { fileIo.closeSync(file); }
-    fileIo.moveFileSync(temp, path);
+    if (await GeoDataAssets.inspect(context) !== 'ready') {
+      await GeoDataAssets.restore(context, { cancelled: false });
+    }
   }
 
   export async function validate(context: common.Context, content: string): Promise<string> {

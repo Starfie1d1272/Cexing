@@ -1,3 +1,4 @@
+import { UiText } from '../lib/UiText';
 import { SettingsReconnectButton } from './SettingsReconnectButton';
 import { NativeTheme as UI } from './NativeTheme';
 /*
@@ -37,7 +38,7 @@ export struct OverridePage {
       this.readSettings(); this.ready = true;
     }).catch(() => {
       if (this.pageActive && generation === this.saveGeneration) {
-        promptAction.showToast({ message: '设置读取失败，请重试' });
+        promptAction.showToast({ message: UiText.get($r('app.string.network_read_failed')) });
       }
     });
   }
@@ -59,18 +60,18 @@ export struct OverridePage {
     const s = Settings.load(context);
     const port = Number(this.mixedPort);
     if (!Number.isInteger(port) || port < 1 || port > 65535) {
-      this.portError = '端口须为 1–65535';
+      this.portError = UiText.get($r('app.string.core_port_invalid'));
       return;
     }
     this.portError = '';
     s.mixedPort = port;
     s.logLevel = this.logLevel;
     try { await Settings.save(context, s, ['mixedPort', 'logLevel']); }
-    catch (_) { if (!this.pageActive || generation !== this.saveGeneration) { return; } this.portError = '保存失败，请重试'; return; }
+    catch (_) { if (!this.pageActive || generation !== this.saveGeneration) { return; } this.portError = UiText.get($r('app.string.network_save_failed')); return; }
     if (!this.pageActive || generation !== this.saveGeneration || this.mixedPort !== String(port) || this.logLevel !== s.logLevel) { return; }
     this.dirty = false;
     if (lanGeneration === this.lanDialogGeneration) { this.allowLan = Settings.load(context).allowLan; this.lanError = ''; }
-    promptAction.showToast({ message: '已保存，下次启动 VPN 生效', duration: 1500 });
+    promptAction.showToast({ message: UiText.get($r('app.string.network_saved')), duration: 1500 });
   }
 
   aboutToDisappear(): void {
@@ -86,12 +87,12 @@ export struct OverridePage {
       if (!this.pageActive || generation !== this.lanDialogGeneration) { return; }
       this.allowLan = enabled;
       this.lanError = '';
-      promptAction.showToast({ message: '已保存，下次启动 VPN 生效', duration: 1500 });
+      promptAction.showToast({ message: UiText.get($r('app.string.network_saved')), duration: 1500 });
     } catch (_) {
       if (!this.pageActive || generation !== this.lanDialogGeneration) { return; }
       this.allowLan = Settings.load(context).allowLan;
-      this.lanError = enabled ? '开启保存失败，请重试' :
-        '撤销保存失败，原授权仍可能有效，请再次关闭重试；当前共享不会自动停止';
+      this.lanError = enabled ? UiText.get($r('app.string.core_enable_failed')) :
+        UiText.get($r('app.string.core_revoke_failed'));
       promptAction.showToast({ message: this.lanError, duration: 4000 });
     }
   }
@@ -106,13 +107,13 @@ export struct OverridePage {
     }
     this.allowLan = true;
     AlertDialog.show({
-      title: '允许同网设备使用代理？',
-      message: '开启后，同一局域网设备可能无需认证即可使用手机代理，消耗手机网络和代理流量。请仅在可信网络主动共享。此操作不会开放局域网 DNS；下次启动 VPN 生效。',
+      title: UiText.get($r('app.string.core_lan_title')),
+      message: UiText.get($r('app.string.core_lan_risk')),
       cancel: () => { this.lanDialogGeneration++; this.allowLan = false; },
-      primaryButton: { value: '取消', action: () => {
+      primaryButton: { value: UiText.get($r('app.string.network_cancel')), action: () => {
         this.lanDialogGeneration++; this.allowLan = false;
       } },
-      secondaryButton: { value: '确认开启', action: () => {
+      secondaryButton: { value: UiText.get($r('app.string.core_confirm_enable')), action: () => {
         if (generation === this.lanDialogGeneration) {
           this.lanDialogGeneration++;
           this.saveAllowLan(true);
@@ -127,14 +128,14 @@ export struct OverridePage {
         Column({ space: 16 }) {
           Column({ space: 0 }) {
             Row() {
-              Text('混合代理端口')
+              Text(UiText.get($r('app.string.core_port')))
                 .fontSize(15)
                 .fontWeight(FontWeight.Medium)
                 .fontColor(UI.ink)
                 .layoutWeight(1)
-              TextInput({ text: this.mixedPort })
+              TextInput({ text: this.mixedPort }).accessibilityText(UiText.get($r('app.string.core_port')))
                 .width(110)
-                .height(48)
+                .constraintSize({ minHeight: 48 })
                 .textAlign(TextAlign.End)
                 .onChange((v: string) => {
                   this.mixedPort = v; this.dirty = true;
@@ -147,12 +148,12 @@ export struct OverridePage {
             Divider().color(UI.line).margin({ left: 14 })
 
             Row() {
-              Text('允许局域网连接')
+              Text(UiText.get($r('app.string.core_allow_lan')))
                 .fontSize(15)
                 .fontWeight(FontWeight.Medium)
                 .fontColor(UI.ink)
                 .layoutWeight(1)
-              Toggle({ type: ToggleType.Switch, isOn: this.allowLan })
+              Toggle({ type: ToggleType.Switch, isOn: this.allowLan }).accessibilityText(UiText.get($r('app.string.core_allow_lan'))).accessibilityChecked(this.allowLan)
                 .selectedColor(UI.accent)
                 .onChange((v: boolean) => {
                   this.changeAllowLan(v);
@@ -164,14 +165,14 @@ export struct OverridePage {
             Divider().color(UI.line).margin({ left: 14 })
 
             Column({ space: 8 }) {
-              Text('日志等级')
+              Text(UiText.get($r('app.string.core_log_level')))
                 .fontSize(15)
                 .fontWeight(FontWeight.Medium)
                 .fontColor(UI.ink)
                 .width('100%')
-              Select(LOG_OPTIONS)
+              Select(LOG_OPTIONS).accessibilityText(UiText.get($r('app.string.core_log_level')))
                 .selected(LOG_LEVELS.indexOf(this.logLevel)).value(this.logLevel)
-                .font({ size: 14 }).height(48).width('100%')
+                .font({ size: 14 }).constraintSize({ minHeight: 48 }).width('100%')
                 .onSelect((index: number) => { this.logLevel = LOG_LEVELS[index]; this.dirty = true; })
             }
             .alignItems(HorizontalAlign.Start)
@@ -191,7 +192,7 @@ export struct OverridePage {
         }.width('100%')
       }.layoutWeight(1).width('100%').scrollBar(BarState.Off)
       SettingsReconnectButton({ canApply: !this.dirty })
-      Button('保存').width('100%').height(56).backgroundColor(UI.action).fontColor(UI.onAccent).onClick(() => this.persist())
+      Button(UiText.get($r('app.string.core_save'))).width('100%').constraintSize({ minHeight: 56 }).backgroundColor(UI.action).fontColor(UI.onAccent).onClick(() => this.persist())
     }
     .width('100%')
     .height('100%')
