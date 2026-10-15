@@ -20,6 +20,7 @@ let save = async (_context, expected, intent, guard, source) => {
 let preview = async () => ({ digest: 'synthetic-digest', changes: [] });
 let apply = async () => 'saved';
 const modules = {
+  './EditOperationScope': require('./ci/edit-operation-scope.cjs'),
   './EditorDraftHosts': { EditorDraftHosts: { create: () => {
     let captured;
     return { load: async () => { captured = {...ticket}; return { revision: 'host-private-revision' }; },
@@ -176,5 +177,18 @@ const Model = sandbox.exports.ProfileProxyEditorModel;
   const cancelledSave = paired.save(paired.workingIntent()); paired.cancel();
   const rejection = assert.rejects(cancelledSave, /取消/); await finishSave().catch(() => {}); await rejection;
   assert.equal(ticket.draftRevision, intactRevision, 'page cancellation fences the actual save guard');
+  publishedIntent = { template: { templateId: 'original' }, operations: [
+    { id: 'sleep-provider-add', templateId: 'region', section: 'proxy-providers', kind: 'add', name: 'sleep-provider' },
+    { id: 'sleep-provider-rename', templateId: 'region', section: 'proxy-providers', target: 'source-id', kind: 'rename', name: 'sleep-rename' },
+    { id: 'sleep-provider-delete', templateId: 'region', section: 'proxy-providers', target: 'source-id', kind: 'delete' }
+  ] };
+  assert.equal(paired.publishedProviderName({ item: { id: 'source-id' }, name: 'original-name' }), 'original-name');
+  assert.equal(paired.publishedProviderName({ item: { id: 'sleep-provider-add' } }, true), '');
+  paired.intent = { schemaVersion: 1, template: { templateId: 'original' }, operations: [
+    { id: 'sleep-node', templateId: 'region', kind: 'add', section: 'proxies', name: 'node' },
+    { id: 'sleep-name', templateId: 'region', kind: 'rename', section: 'proxies', target: 'node', name: 'sleep-renamed' }
+  ] };
+  await assert.rejects(paired.nodeTarget('sleep-node', true), /NODE_OPERATION_CHANGED/);
+  assert.equal((await paired.presentTarget('proxies', { item: { id: 'node' }, name: 'node' })).name, 'node');
   console.log('PASS: captured read/draft tickets, private-target cancellation, single-flight saving, stale apply rejection, inert failed preview and late completion');
 })().catch(error => { console.error(error); process.exitCode = 1; });

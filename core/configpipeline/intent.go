@@ -23,15 +23,17 @@ const MaxEditableItems = 16384
 // EditIntent is private per-profile provenance. Field preconditions permit
 // rebasing onto newer subscriptions without freezing unrelated source fields.
 type EditIntent struct {
-	SchemaVersion  int             `json:"schemaVersion"`
-	Revision       string          `json:"revision"`
-	SourceRevision string          `json:"sourceRevision"`
-	Disabled       bool            `json:"disabled,omitempty"`
-	Operations     []EditOperation `json:"operations"`
-	SmartGroups    map[string]bool `json:"smartGroups,omitempty"`
-	Template       *TemplatePlan   `json:"template,omitempty"`
+	SchemaVersion    int                     `json:"schemaVersion"`
+	Revision         string                  `json:"revision"`
+	SourceRevision   string                  `json:"sourceRevision"`
+	Disabled         bool                    `json:"disabled,omitempty"`
+	Operations       []EditOperation         `json:"operations"`
+	SmartGroups      map[string]bool         `json:"smartGroups,omitempty"`
+	Template         *TemplatePlan           `json:"template,omitempty"`
+	TemplateArchives map[string]TemplatePlan `json:"templateArchives,omitempty"`
 }
 type EditOperation struct {
+	TemplateID    string            `json:"templateId,omitempty"`
 	ID            string            `json:"id"`
 	Kind          string            `json:"kind"` // add, update, delete, move, rename
 	Section       string            `json:"section"`
@@ -314,7 +316,7 @@ func CheckEditIntent(intent *EditIntent) error {
 		return nil
 	}
 	data, err := json.Marshal(intent)
-	if err != nil || len(data) > MaxIntentBytes || len(intent.Operations) > MaxIntentOperations || len(intent.SmartGroups) > 512 {
+	if err != nil || len(data) > MaxIntentBytes || len(intent.Operations) > MaxIntentOperations || len(intent.SmartGroups) > 512 || len(intent.TemplateArchives) > 3 {
 		return intentError("limit", -1)
 	}
 	if intent.SchemaVersion != 1 || intent.Revision == "" || intent.SourceRevision == "" || intent.Operations == nil {
@@ -325,10 +327,20 @@ func CheckEditIntent(intent *EditIntent) error {
 			return intentError("invalid_template", -1)
 		}
 	}
+	for id, plan := range intent.TemplateArchives {
+		if !validTemplateOwner(id) || plan.TemplateID != id || plan.Validate() != nil {
+			return intentError("invalid_template", -1)
+		}
+	}
 	ids := map[string]bool{}
 	for i, op := range intent.Operations {
-		if op.ID == "" || ids[op.ID] {
+		if op.ID == "" || ids[op.ID] || (op.TemplateID != "" && !validTemplateOwner(op.TemplateID)) {
 			return intentError("invalid_operation", i)
+		}
+		if op.TemplateID != "" && (intent.Template == nil || intent.Template.TemplateID != op.TemplateID) {
+			if _, exists := intent.TemplateArchives[op.TemplateID]; !exists {
+				return intentError("invalid_template", i)
+			}
 		}
 		ids[op.ID] = true
 		if !editSectionAllowed(op.Section) {
@@ -392,6 +404,9 @@ func applyEditIntentPhase(ctx context.Context, root *yaml.Node, intent *EditInte
 		aliases = state.aliases
 	}
 	for i, op := range intent.Operations {
+		if !activeTemplateOperation(intent, op) {
+			continue
+		}
 		resource := op.Section == "proxy-providers" || op.Section == "rule-providers"
 		if (phase == 1 && !resource) || (phase == 2 && resource) {
 			continue

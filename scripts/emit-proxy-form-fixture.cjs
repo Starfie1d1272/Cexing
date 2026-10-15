@@ -4,6 +4,7 @@ const ts = require('./ci/transpile-arkts.cjs');
 const input = JSON.parse(fs.readFileSync(0, 'utf8'));
 function load(file) {
   const sandbox = { exports: {}, require: name => {
+    if (name === './EditOperationScope') return require('./ci/edit-operation-scope.cjs');
     if (name !== '@kit.ArkTS') throw Error('unexpected fixture dependency');
     return { util: { Base64Helper: class { decodeSync(value) { return Uint8Array.from(Buffer.from(value, 'base64')); } },
       TextDecoder: { create: (_encoding, options) => ({ decodeToString: value => new TextDecoder('utf-8', options).decode(value) }) } } };

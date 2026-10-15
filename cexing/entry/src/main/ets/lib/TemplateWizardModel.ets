@@ -18,13 +18,14 @@ export interface TemplatePreview {
 }
 export interface TemplateWizardHost {
   load: () => Promise<TemplateInputs>;
-  preview: (plan: TemplatePlan) => Promise<TemplatePreview>;
+  preview: (plan: TemplatePlan, pauseDependents?: boolean) => Promise<TemplatePreview>;
   // Verify revision AND digest against the latest original, both Merge layers,
   // settings and provider snapshot inside the existing transaction gate.
   apply: (plan: TemplatePlan, preview: TemplatePreview, confirmed?: boolean) => Promise<string>;
 }
 
 export interface TemplateWizardView {
+  dependencies?: number;
   applyFailure?: ProfileApplyFailureKind | '';
   templateId: string;
   target: string;
@@ -40,6 +41,7 @@ export interface TemplateWizardView {
 }
 
 export class TemplateWizardModel {
+  dependencies: number = 0;
   applyFailure: ProfileApplyFailureKind | '' = '';
   inputs: TemplateInputs = { groups: [], selectors: [], current: { templateId: 'original', version: 1 } };
   templateId: string = 'original';
@@ -57,7 +59,7 @@ export class TemplateWizardModel {
   constructor(host: TemplateWizardHost, changed: () => void) { this.host = host; this.changed = changed; }
 
   snapshot(): TemplateWizardView {
-    return { applyFailure: this.applyFailure, templateId: this.templateId, target: this.target, busy: this.busy,
+    return { dependencies: this.dependencies, applyFailure: this.applyFailure, templateId: this.templateId, target: this.target, busy: this.busy,
       ready: this.ready, error: this.error, result: this.result,
       summary: this.preview?.summary ?? '', hasPreview: this.preview !== null,
       groups: this.inputs.groups, selectors: this.inputs.selectors, labels: this.inputs.labels };
@@ -93,6 +95,7 @@ export class TemplateWizardModel {
     if (!this.open || !this.ready || this.busy || this.needsRepair()) { return; }
     if (!['original', 'region', 'ai', 'automatic'].includes(templateId)) { return; }
     this.epoch++;
+    this.dependencies = 0;
     this.templateId = templateId;
     this.target = target;
     this.preview = null;
@@ -114,7 +117,7 @@ export class TemplateWizardModel {
       replaceRules: this.templateId === 'automatic' };
   }
 
-  async inspect(): Promise<void> {
+  async inspect(pauseDependents: boolean = false): Promise<void> {
     if (!this.open || !this.ready || this.busy || this.needsRepair()) { return; }
     if (this.templateId !== 'original' && this.target === '') { this.error = '请选择出口'; this.emit(); return; }
     const epoch = ++this.epoch;
@@ -124,10 +127,17 @@ export class TemplateWizardModel {
     this.result = '';
     this.emit();
     try {
-      const preview = await this.host.preview(this.plan());
+      this.dependencies = 0;
+      const preview = await this.host.preview(this.plan(), pauseDependents);
       if (!this.current(epoch)) { return; }
       this.preview = preview;
-    } catch (_) { if (this.current(epoch)) { this.error = '方案未通过校验，请检查出口和订阅资源'; } }
+    } catch (error) {
+      if (this.current(epoch)) {
+        const match = /^TEMPLATE_DEPENDENCIES:([1-9][0-9]{0,2})$/.exec((error as Error).message ?? '');
+        if (match !== null && Number(match[1]) <= 512) { this.dependencies = Number(match[1]); this.error = ''; }
+        else { this.error = '方案未通过校验，请检查出口和订阅资源'; }
+      }
+    }
     finally { if (this.current(epoch)) { this.busy = false; this.emit(); } }
   }
 

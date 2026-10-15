@@ -51,18 +51,22 @@ export function createTemplateWizardHost(context: common.Context, profileId: str
       return { groups: groups.map(item => item.sourceName ?? ''), labels: labels,
         selectors: groups.filter(item => item.type === 'select').map(item => item.sourceName ?? ''), current: current };
     },
-    preview: async (plan: TemplatePlan): Promise<TemplatePreview> => {
+    preview: async (plan: TemplatePlan, pauseDependents?: boolean): Promise<TemplatePreview> => {
       const epoch = ++generation; receipt = null;
       const captured = session ?? await loadSession();
       if (epoch !== generation) { throw new Error('TEMPLATE_CANCELLED'); }
-      const intent = cloneIntent(captured);
+      let intent = cloneIntent(captured);
       const saved = published();
       const overrides: Record<string, boolean> = intent.smartGroups ?? {};
       inactiveEdits = saved?.disabled === true &&
         (intent.operations.length > 0 || Object.keys(overrides).length > 0) && plan.templateId !== 'original';
-      intent.template = ConfigEditor.templatePlan(plan.templateId, plan.version, plan.targetGroup,
+      const nextPlan = ConfigEditor.templatePlan(plan.templateId, plan.version, plan.targetGroup,
         plan.region !== undefined ? JSON.parse(JSON.stringify(plan.region)) as RegionPlan : undefined, plan.replaceRules);
-      if (plan.templateId !== 'original') { intent.disabled = false; }
+      const switched = await ConfigEditor.switchTemplate(context, intent, nextPlan, pauseDependents === true);
+      if (epoch !== generation) { throw new Error('TEMPLATE_CANCELLED'); }
+      if (switched.dependentCount > 0) { throw new Error(`TEMPLATE_DEPENDENCIES:${switched.dependentCount}`); }
+      if (switched.intent === undefined) { throw new Error('TEMPLATE_SWITCH_INVALID'); }
+      intent = switched.intent;
       // This is an inert draft. Declining the eventual confirmation never
       // enables either template or personal changes in the running version.
       const next = await editor.save(intent, captured.revision);

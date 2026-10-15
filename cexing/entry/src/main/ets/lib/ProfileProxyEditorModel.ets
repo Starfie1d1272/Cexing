@@ -1,3 +1,4 @@
+import { isEditOperationActive } from './EditOperationScope';
 import { common } from '@kit.AbilityKit';
 import { ConfigEditor, EditableSnapshot, EditIntent, EditTarget, SmartGroupChange, EditorDraftHost, EditorDraftPreview } from './ConfigEditor';
 import { ProfileStore } from './ProfileStore';
@@ -40,13 +41,13 @@ export class ProfileProxyEditorModel {
     let name = target.name ?? '';
     if (addition) {
       if (intent === null || intent.disabled === true) { return ''; }
-      const added = intent.operations.find((operation) => operation.kind === 'add' &&
+      const added = intent.operations.find((operation) => isEditOperationActive(intent, operation) && operation.kind === 'add' &&
         operation.section === 'proxy-providers' && operation.id === target.item.id);
       return added?.name ?? '';
     }
     if (intent === null || intent.disabled === true) { return name; }
     for (const op of intent.operations) {
-      if (op.section !== 'proxy-providers' || op.target !== target.item.id) { continue; }
+      if (!isEditOperationActive(intent, op) || op.section !== 'proxy-providers' || op.target !== target.item.id) { continue; }
       if (op.kind === 'delete') { return ''; }
       if (op.kind === 'rename') { name = op.name ?? name; }
     }
@@ -129,11 +130,11 @@ export class ProfileProxyEditorModel {
     const request = ++this.generation; const ticket = this.ticket;
     this.check(ticket);
     const intent = this.workingIntent(); intent.disabled = false;
-    const added = intent.operations.find((op) => op.id === id && op.kind === 'add' && op.section === 'proxies');
+    const added = intent.operations.find((op) => isEditOperationActive(intent, op) && op.id === id && op.kind === 'add' && op.section === 'proxies');
     if (added === undefined) { throw new Error('NODE_OPERATION_CHANGED'); }
     // Obtain the compiler identity/revision at the disable insertion point.
     // Never guess an ID from a display name or hash private values in the UI.
-    intent.operations = intent.operations.filter((op) => op.kind !== 'disable' && op.kind !== 'rename');
+    intent.operations = intent.operations.filter((op) => !isEditOperationActive(intent, op) || (op.kind !== 'disable' && op.kind !== 'rename'));
     const snapshot = await ConfigEditor.list(this.context, this.original, this.overlay,
       ticket.activeVersion, undefined, intent, this.region);
     if (request !== this.generation) { return null; }
@@ -156,7 +157,7 @@ export class ProfileProxyEditorModel {
     const intent = this.workingIntent(); intent.disabled = false;
     let name = baseline.name ?? '';
     for (const operation of intent.operations) {
-      if (operation.section === section && operation.target === baseline.item.id && operation.kind === 'rename') {
+      if (isEditOperationActive(intent, operation) && operation.section === section && operation.target === baseline.item.id && operation.kind === 'rename') {
         name = operation.name ?? name;
       }
     }

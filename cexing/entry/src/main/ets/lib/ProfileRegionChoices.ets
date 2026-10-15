@@ -1,6 +1,7 @@
 /* Selection effects for the shared publisher; no separate lifecycle or publisher. */
 import { common } from '@kit.AbilityKit';
 import { ConfigEditor, EditIntent } from './ConfigEditor';
+import { isEditOperationActive } from './EditOperationScope';
 import { EffectiveVersions, EffectiveVersion, RegionPlan } from './EffectiveVersions';
 import { ProfileStore } from './ProfileStore';
 import { CoreApi } from './CoreApi';
@@ -23,7 +24,7 @@ export namespace ProfileRegionChoices {
     const names: Record<string, string> = {};
     if (version === undefined) { return names; }
     const intent = EffectiveVersions.editIntent(context, version);
-    if (intent === null || intent.disabled === true || !intent.operations.some(op =>
+    if (intent === null || intent.disabled === true || !intent.operations.some(op => isEditOperationActive(intent, op) &&
       (op.section === 'proxy-groups' || op.section === 'proxies') && op.kind === 'rename')) { return names; }
     const expected = EffectiveVersions.read(context)?.Current?.ID ?? '';
     const view = await ConfigEditor.list(context, EffectiveVersions.original(context, version),

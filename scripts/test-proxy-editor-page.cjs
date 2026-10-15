@@ -37,10 +37,10 @@ const feedbackBox = { exports: {}, require: name => name === './ProfileStore' ? 
   name === './EffectiveVersions' ? { EffectiveVersions: { read: () => null } } : {} };
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('cexing/entry/src/main/ets/lib/ProfileApplyFeedback.ets', 'utf8')).outputText, feedbackBox);
 const editBus = { current: '' };
-const editExports = { exports: {} };
+const editExports = { exports: {}, require: () => require('./ci/edit-operation-scope.cjs') };
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('cexing/entry/src/main/ets/lib/ProxyIntentEdits.ets', 'utf8')).outputText, editExports);
 const sandbox = { exports: {}, $r: id => ({ id }), getContext: () => resourceContext(), AlertDialog: { show: value => { dialog = value; } },
-  require: name => name === '../lib/CoreValidator' ? require('./ci/semantic-fixture.cjs') : name.includes('ProfileApplyFeedback') ? feedbackBox.exports :
+  require: name => name.endsWith('/EditOperationScope') ? require('./ci/edit-operation-scope.cjs') : name === '../lib/CoreValidator' ? require('./ci/semantic-fixture.cjs') : name.includes('ProfileApplyFeedback') ? feedbackBox.exports :
     name.includes('ProfileApplyRecovery') ? { ProfileApplyRecovery: { reconnect: async (_ctx, current) => { recoveryCalls++; assert.equal(current(), true); return recoveryResult; } } } :
     name.includes('ProfileImportInput') ? { ProfileImportInput: { hasPending: () => sharePending } } : name.includes('ProfileProxyEditorModel') ? { ProfileProxyEditorModel: Model } :
     name === '@kit.ArkUI' ? { promptAction: { showToast() {}, showDialog(value) { smartDialog = value; smartDialogCount++; return new Promise(resolve => { smartAnswer = resolve; }); } } } : name === '@kit.ArkTS' ? { util: { generateRandomUUID: () => `add-action-${++actionIds}` } } : name.includes('ProxyIntentEdits') ? editExports.exports : name.includes('ProfileEditPage') ? { ProfileEditBus: editBus } : name.includes('ProxyEditorText') ? textBox.exports : name.includes('ConfigEditor') ? editorExports.exports : name.includes('ProxyProviderStatus') ?
@@ -200,5 +200,25 @@ const Page = sandbox.exports.ProfileProxyEditorPage; sandbox.exports.ProfileProx
   assert.match(smartPage.previewText, /url-test → url-test/, 'explicit original type choice displays actual compiler before/after');
   const staleSmart = smartPage.smart(group); await new Promise(setImmediate); smartPage.visible = false; smartPage.visibilityChanged(); smartAnswer({ index: 1 }); await staleSmart;
   assert.equal(smartSaves, 2, 'late Smart dialog does not persist into a hidden page');
+  const scopedPage = new Page(); scopedPage.visible = true; scopedPage.aboutToAppear(); finishLoad(); await new Promise(setImmediate);
+  let scopedIntent = { schemaVersion: 1, revision: 'scoped', sourceRevision: 'source', template: { templateId: 'original' }, operations: [
+    { id: 'sleep-add', templateId: 'region', kind: 'add', section: 'proxies', name: 'hidden-node', value: { name: 'hidden-node', type: 'ss' } },
+    { id: 'sleep-rename', templateId: 'region', kind: 'rename', section: 'proxies', target: 'node', name: 'hidden-name' },
+    { id: 'sleep-delete', templateId: 'region', kind: 'delete', section: 'proxies', target: 'node' },
+    { id: 'sleep-disable', templateId: 'region', kind: 'disable', section: 'proxies', target: 'node' },
+    { id: 'live-add', templateId: 'original', kind: 'add', section: 'proxies', name: 'live-node', value: { name: 'live-node', type: 'ss' } }
+  ] };
+  const sleepingOps = structuredClone(scopedIntent.operations.slice(0, 4));
+  scopedPage.model.workingIntent = () => structuredClone(scopedIntent);
+  scopedPage.model.save = async next => { scopedIntent = structuredClone(next); return true; };
+  scopedPage.sync();
+  assert.equal(scopedPage.rows.length, 2); assert.equal(scopedPage.rows[0].label, 'known-node');
+  assert.equal(scopedPage.rows[0].disabled, false); assert.ok(!scopedPage.names.includes('hidden-node'));
+  await scopedPage.open(scopedPage.rows.find(row => row.id === 'live-add'));
+  await scopedPage.saveForm({ section: 'proxies', name: 'edited-live', value: { name: 'edited-live', type: 'ss' } });
+  assert.equal(scopedIntent.operations.find(op => op.id === 'live-add').templateId, 'original');
+  scopedPage.sourceKey = 'all'; await scopedPage.moveRow(1, 0);
+  assert.deepEqual(scopedIntent.operations.filter(op => op.templateId === 'region'), sleepingOps);
+  assert.ok(scopedIntent.operations.every(Boolean), 'hidden additions cannot consume active reorder slots');
   console.log('PASS: real native proxy editor load/target/save lifecycle, repeat actions, hidden private values and stale delete confirmation');
 })().catch(error => { console.error(error); process.exitCode = 1; });

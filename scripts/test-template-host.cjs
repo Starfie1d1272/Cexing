@@ -3,7 +3,7 @@ const assert = require('node:assert/strict'), fs = require('node:fs'), vm = requ
 const ts = require('./ci/transpile-arkts.cjs');
 let published = { schemaVersion: 1, revision: 'published', sourceRevision: 'source', disabled: true,
  operations: [{ id: 'personal', kind: 'delete', section: 'rules', target: 'synthetic-target', expected: 'synthetic-revision' }] };
-let draft = structuredClone(published), revision = 0, receipt, calls = [], committed = 0;
+let draft = structuredClone(published), revision = 0, receipt, calls = [], committed = 0, dependencies = 0;
 const item = { id: 'synthetic-group', name: 'Renamed Pick', sourceName: 'Pick', type: 'select', revision: 'synthetic' };
 const session = () => ({ profileId: 'one.yaml', revision: `ticket-${revision}`, intent: structuredClone(draft),
  snapshot: { sourceRevision: 'source', missingFieldRevision: 'missing', sections: [{ section: 'proxy-groups', items: [item, { id: 'personal', name: 'Personal only', type: 'select' }] }] } });
@@ -14,7 +14,8 @@ const editor = {
   receipt = { revision: expected, digest: `digest-${revision}`, changes: { digest: `digest-${revision}`, changes: [{ section: 'rules', before: 1, after: 9 }] } }; return receipt; },
  apply: async checked => { assert.equal(checked, receipt); assert.equal(checked.revision, `ticket-${revision}`); calls.push('apply'); committed++; published = structuredClone(draft); return 'applied'; }
 };
-const modules = { './CoreValidator': require('./ci/semantic-fixture.cjs'), './EditorDraftHosts': { EditorDraftHosts: { create: () => editor } }, './ConfigEditor': { ConfigEditor: { templatePlan: (templateId, version, targetGroup, region, replaceRules) => ({templateId, version, targetGroup, region, replaceRules}) } }, './EffectiveVersions': { EffectiveVersions: { read: () => ({ Profiles: { 'one.yaml': { ID: 'version-one' } } }),
+const modules = { './CoreValidator': require('./ci/semantic-fixture.cjs'), './EditorDraftHosts': { EditorDraftHosts: { create: () => editor } }, './ConfigEditor': { ConfigEditor: { switchTemplate: async (_ctx,intent,next,pause) => dependencies > 0 && !pause ? {dependentCount:dependencies} : ({intent:{...structuredClone(intent),template:next,disabled:next.templateId==='original'?intent.disabled:false},dependentCount:0}),
+  templatePlan: (templateId, version, targetGroup, region, replaceRules) => ({templateId, version, targetGroup, region, replaceRules}) } }, './EffectiveVersions': { EffectiveVersions: { read: () => ({ Profiles: { 'one.yaml': { ID: 'version-one' } } }),
  editIntent: () => structuredClone(published), regionPlan: () => null } } };
 const sandbox = { exports: {}, ...uiFixture.globals, require: name => { if (name.endsWith('/UiText')) return uiFixture.module; assert.ok(name in modules, name); return modules[name]; } };
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('cexing/entry/src/main/ets/lib/TemplateHost.ets', 'utf8')).outputText, sandbox);
@@ -31,6 +32,12 @@ vm.runInNewContext(ts.transpileModule(fs.readFileSync('cexing/entry/src/main/ets
  await assert.rejects(host.apply(plan, preview, true), /PREVIEW_STALE/);
  await host.load(); const checked = await host.preview({ templateId: 'original', version: 1 });
  revision++; await assert.rejects(host.apply({ templateId: 'original', version: 1 }, checked, true)); assert.equal(committed, 1);
+ await host.load(); dependencies = 2;
+ const untouched = JSON.stringify(draft), writes = calls.length;
+ await assert.rejects(host.preview({ templateId: 'original', version: 1 }), /TEMPLATE_DEPENDENCIES:2/);
+ assert.equal(JSON.stringify(draft), untouched); assert.equal(calls.length, writes);
+ await host.preview({ templateId: 'original', version: 1 }, true);
+ assert.equal(calls.length, writes + 2); dependencies = 0;
  const wrong = sandbox.exports.createTemplateWizardHost({}, 'two.yaml', editor);
  await assert.rejects(wrong.load(), /PROFILE_CHANGED/);
  console.log('PASS: actual template host keeps personal intent, binds save/preview/apply receipt and refuses inactive/stale/wrong-profile application');

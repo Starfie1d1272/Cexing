@@ -1,3 +1,4 @@
+import { isEditOperationActive } from '../lib/EditOperationScope';
 import { CoreValidator } from '../lib/CoreValidator';
 import { ProfileApplyFeedback, ProfileApplyFailureKind } from '../lib/ProfileApplyFeedback';
 import { ProfileApplyRecovery } from '../lib/ProfileApplyRecovery';
@@ -99,7 +100,8 @@ export struct ProfileProxyEditorPage {
         const snapshot = this.model.snapshot;
         const direct = snapshot?.sections.find((part) => part.section === 'proxies')?.items.length ?? 0;
         const sources = snapshot?.sections.find((part) => part.section === 'proxy-providers')?.items.length ?? 0;
-        const added = this.model.workingIntent().operations.some((op: EditOperation) => op.kind === 'add' && op.section === 'proxies');
+        const intent = this.model.workingIntent();
+        const added = intent.operations.some((op: EditOperation) => isEditOperationActive(intent, op) && op.kind === 'add' && op.section === 'proxies');
         if (this.section === 'proxies' && direct === 0 && sources > 0 && !added) { this.section = 'proxy-providers'; }
         this.sync(); this.applyFailure = ProfileApplyFeedback.recovery(getContext(this) as common.UIAbilityContext);
         this.error = this.applyFailure === '' ? '' : this.t(ProfileApplyFeedback.key(this.applyFailure));
@@ -113,7 +115,7 @@ export struct ProfileProxyEditorPage {
     const model = this.model;
     if (model?.snapshot === null || model === null) { return; }
     const intent = model.workingIntent();
-    const operations = intent.operations;
+    const operations = intent.operations.filter((op: EditOperation) => isEditOperationActive(intent, op));
     this.disabled = intent.disabled === true;
     this.missingRevision = model.snapshot.missingFieldRevision;
     let rows: ProxyEditorRow[] = [];
@@ -211,8 +213,9 @@ export struct ProfileProxyEditorPage {
     if (!this.isProviderSource()) { return; }
     const id = choice.key.slice(choice.key.indexOf(':') + 1);
     const source = choice.key.startsWith('provider:') ? this.model.snapshot?.sections.find((part) => part.section === 'proxy-providers')?.items.find((item) => item.id === id) : undefined;
-    const added = this.model.workingIntent().operations.find((operation: EditOperation) =>
-      operation.kind === 'add' && operation.section === 'proxy-providers' && operation.id === id);
+    const intent = this.model.workingIntent();
+    const added = intent.operations.find((operation: EditOperation) =>
+      isEditOperationActive(intent, operation) && operation.kind === 'add' && operation.section === 'proxy-providers' && operation.id === id);
     if (source === undefined && added === undefined) { return; }
     const value: Record<string, Object> = {};
     const item: EditableItem = source ?? { id: id, revision: '' };
@@ -245,7 +248,7 @@ export struct ProfileProxyEditorPage {
     try {
       const intent = this.model.workingIntent(); this.newAction = '';
       if (row.added) {
-        const operation = intent.operations.find((op: EditOperation) => op.id === row.id);
+        const operation = intent.operations.find((op: EditOperation) => isEditOperationActive(intent, op) && op.id === row.id);
         if (operation?.value === undefined) { return; }
         this.selectedAdd = row.id; this.originalTarget = null;
         this.formTarget = { item: { id: row.id, revision: '' }, missingFieldRevision: this.missingRevision, name: operation.name, value: operation.value };
@@ -326,8 +329,8 @@ export struct ProfileProxyEditorPage {
     if (this.model === null || this.busy) { return; }
     let next = this.model.workingIntent();
     if (this.selectedAdd !== '') {
-      next.operations = next.operations.map((op: EditOperation) => op.id === this.selectedAdd ?
-        { id: op.id, kind: 'add', section: op.section, name: draft.name, value: draft.value, before: op.before } : op);
+      next.operations = next.operations.map((op: EditOperation) => isEditOperationActive(next, op) && op.id === this.selectedAdd ?
+        { id: op.id, kind: 'add', section: op.section, name: draft.name, value: draft.value, before: op.before, templateId: op.templateId } : op);
     } else {
       if (this.originalTarget === null && this.newAction === '') { this.newAction = util.generateRandomUUID(true); }
       next = ProxyIntentEdits.mapping(next, this.originalTarget, draft,
@@ -406,7 +409,7 @@ export struct ProfileProxyEditorPage {
     for (let index = 0; index < revised.length; index++) {
       const row = revised[index];
       if (!row.added) { continue; }
-      const source = next.operations.find((op: EditOperation) => op.id === row.id);
+      const source = next.operations.find((op: EditOperation) => isEditOperationActive(next, op) && op.id === row.id);
       if (source !== undefined) {
         const operation = JSON.parse(JSON.stringify(source)) as EditOperation;
         operation.before = revised.slice(index + 1).find((entry: ProxyEditorRow) => !entry.added)?.id ?? '';
@@ -415,7 +418,7 @@ export struct ProfileProxyEditorPage {
     }
     let additionIndex = 0;
     next.operations = next.operations.map((op: EditOperation) =>
-      op.section === this.section && op.kind === 'add' ? additions[additionIndex++] : op);
+      isEditOperationActive(next, op) && op.section === this.section && op.kind === 'add' ? additions[additionIndex++] : op);
     await this.save(next);
   }
 

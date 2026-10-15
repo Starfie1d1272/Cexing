@@ -99,7 +99,7 @@ vm.runInNewContext(ts.transpileModule(pageSource).outputText, sandbox);
 })().catch(error => { console.error(error); process.exitCode = 1; });
 const editExports = {};
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('cexing/entry/src/main/ets/lib/ProxyIntentEdits.ets', 'utf8')).outputText,
-  { exports: editExports });
+  { exports: editExports, require: () => require('./ci/edit-operation-scope.cjs') });
 const edits = editExports.ProxyIntentEdits;
 const intent = { schemaVersion: 1, revision: 'draft-1', sourceRevision: 'source-1', operations: [] };
 node.item.fields = { port: 'original-port', uuid: 'original-uuid' };

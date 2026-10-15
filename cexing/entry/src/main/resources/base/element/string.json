@@ -1698,7 +1698,7 @@
     },
     {
       "name": "template_original",
-      "value": "Keep subscription unchanged"
+      "value": "No template"
     },
     {
       "name": "template_region",
@@ -3931,6 +3931,18 @@
     {
       "name": "proxy_form_type",
       "value": "Type"
+    },
+    {
+      "name": "template_dependents",
+      "value": "%d changes use this template"
+    },
+    {
+      "name": "template_edit_dependents",
+      "value": "Back to edit"
+    },
+    {
+      "name": "template_pause_dependents",
+      "value": "Pause together"
     }
   ]
 }

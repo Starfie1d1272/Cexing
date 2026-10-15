@@ -1698,7 +1698,7 @@
     },
     {
       "name": "template_original",
-      "value": "保持订阅原样"
+      "value": "不使用模板"
     },
     {
       "name": "template_region",
@@ -3931,6 +3931,18 @@
     {
       "name": "proxy_form_type",
       "value": "类型"
+    },
+    {
+      "name": "template_dependents",
+      "value": "有 %d 项修改使用此模板"
+    },
+    {
+      "name": "template_edit_dependents",
+      "value": "返回编辑"
+    },
+    {
+      "name": "template_pause_dependents",
+      "value": "一并停用"
     }
   ]
 }

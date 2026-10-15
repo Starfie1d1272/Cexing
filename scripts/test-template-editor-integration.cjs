@@ -21,6 +21,7 @@ const modules = { './CoreValidator': require('./ci/semantic-fixture.cjs'),
  './EffectiveVersions': { EffectiveVersions: { read: () => ({ Profiles: { 'one.yaml': { ID: version } } }),
   globalContent: () => '', regionPlan: () => null, editIntent: () => structuredClone(published) } },
  './ConfigEditor': { ConfigEditor: {
+  switchTemplate: async (_ctx,intent,next) => ({intent:{...structuredClone(intent),template:next,disabled:next.templateId==='original'?intent.disabled:false},dependentCount:0}),
   templatePlan: (templateId, version, targetGroup, region, replaceRules) => ({ templateId, version, targetGroup, region, replaceRules }),
   list: async () => ({ sourceRevision: 'source', missingFieldRevision: 'missing', sections: [
    { section: 'proxy-groups', items: [{ id: 'group', name: 'Pick', sourceName: 'Pick', type: 'select', revision: 'group-rev' }] }

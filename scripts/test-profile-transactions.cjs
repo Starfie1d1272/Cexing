@@ -141,7 +141,7 @@ const context = { exports: {}, require: name => {
 } };
 const effectContext={exports:{}};
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('cexing/entry/src/main/ets/lib/TemplateRegionEffects.ets','utf8')).outputText,effectContext);
-const regionContext={exports:{},require:name=>name.endsWith('TemplateRegionEffects')?effectContext.exports:context.require(name)};
+const regionContext={exports:{},require:name=>name.endsWith('EditOperationScope')?require('./ci/edit-operation-scope.cjs'):name.endsWith('TemplateRegionEffects')?effectContext.exports:context.require(name)};
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('cexing/entry/src/main/ets/lib/ProfileRegionChoices.ets','utf8')).outputText,regionContext);
 regionModule=regionContext.exports;
 vm.runInNewContext(js, context);
