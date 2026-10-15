@@ -41,22 +41,28 @@ function compile(file, modules, extras = {}, page = false) {
   assert.equal(requests.length, 2); assert.equal(destroyed, 2);
 
   let status = { groups: { original: { useLightGBM: true } }, model: { state: 'loaded', predictions: 0, restartRequired: false }, message: 'loaded' };
-  let selectResolve, uploaded = 0, closed = 0, offset = 0, throwRead = false;
+  let selectResolve, uploaded = 0, closed = 0, offset = 0, throwRead = false, holdUpload = false, uploadResolve;
   const timers = new Map(); let timerID = 0;
-  const { SmartPage } = compile('pages/SmartPage.ets', {
-    '@kit.AbilityKit': {}, './NativeTheme': {}, '../lib/SmartModelRestart': { SmartModelRestart: {} },
-    '../lib/Settings': { Settings: { load: () => ({ smartAutoConvert: true }) } },
-    '../lib/ProfileTransactions': { ProfileTransactions: { setSmartAutoConvert: async () => 'applied' } },
-    '../lib/VpnController': { VpnStatus: { Connected: 2 }, VpnController: { status: 2 } },
-    '../lib/CoreApi': { CoreApi: { getSmartStatus: async () => status,
-      importSmartModel: async body => { assert.equal(body.byteLength, 9345218); uploaded++; return { installed: true, restartRequired: true }; } } },
-    '@kit.CoreFileKit': { picker: { DocumentViewPicker: class { select() { return new Promise(resolve => selectResolve = resolve); } },
-      DocumentSelectMode: { FILE: 1 } }, fileIo: { OpenMode: { READ_ONLY: 1 }, openSync: () => { offset = 0; return { fd: 1 }; },
-      statSync: () => ({ size: 9345218 }), closeSync: () => closed++, readSync: (_fd, chunk) => {
+  const fileKit = { picker: { DocumentViewPicker: class { select() { return new Promise(resolve => selectResolve = resolve); } },
+      DocumentSelectMode: { FILE: 1 } }, fileIo: { OpenMode: { READ_ONLY: 1 }, open: async () => { offset = 0; return { fd: 1 }; },
+      stat: async () => ({ size: 9345218 }), close: async () => closed++, read: async (_fd, chunk, options) => {
         if (throwRead) throw Error('unreadable');
-        const n = Math.min(17001, chunk.byteLength, 9345218 - offset); offset += n; return n;
-      } } }
-  }, { setTimeout: fn => { timers.set(++timerID, fn); return timerID; }, clearTimeout: id => timers.delete(id) }, true);
+        const n = Math.min(17001, chunk.byteLength, 9345218 - options.offset); offset = options.offset + n; return n;
+      } } };
+  const reader = compile('lib/BoundedFileReader.ets', { '@kit.CoreFileKit': fileKit, '@kit.ArkTS': {} });
+  let statusListener, dialog;
+  const controller = { status: 2, onChanged(fn) { statusListener = fn; }, offChanged() { statusListener = undefined; } };
+  const transactions = { setSmartAutoConvert: async () => 'applied' };
+  const { SmartPage } = compile('pages/SmartPage.ets', {
+    '@kit.AbilityKit': {}, './NativeTheme': {}, '../lib/SmartModelRestart': { SmartModelRestart: { restart: async () => { controller.status = 0; statusListener(0); throw Error('应用重启失败'); } } },
+    '../lib/Settings': { Settings: { load: () => ({ smartAutoConvert: true }) } },
+    '../lib/ProfileTransactions': { ProfileTransactions: transactions },
+    '../lib/BoundedFileReader': reader,
+    '../lib/VpnController': { VpnStatus: { Connected: 2 }, VpnController: controller },
+    '../lib/CoreApi': { CoreApi: { getSmartStatus: async () => status,
+      importSmartModel: async body => { assert.equal(body.byteLength, 9345218); uploaded++; return holdUpload ? new Promise(resolve => uploadResolve = resolve) : { installed: true, restartRequired: true }; } } },
+    '@kit.CoreFileKit': fileKit
+  }, { AlertDialog: { show: options => { dialog = options; } }, setTimeout: fn => { timers.set(++timerID, fn); return timerID; }, clearTimeout: id => timers.delete(id) }, true);
   let routes = ['smart'];
   const page = new SmartPage(); page.navStack = { getAllPathName: () => routes };
   page.visible = true; page.aboutToAppear();
@@ -88,6 +94,17 @@ function compile(file, modules, extras = {}, page = false) {
   selectResolve(['synthetic.bin']); await pending;
   assert.equal(uploaded, 2, 'a recreated page cannot accept an older picker');
   await new Promise(setImmediate);
+  holdUpload = true; const oldUpload = page.importModel(); selectResolve(['synthetic.bin']); await new Promise(setImmediate);
+  routes = ['smart', 'zashboard']; page.visible = false; page.onVisible();
+  routes = ['smart']; page.visible = true; page.onVisible(); await new Promise(setImmediate);
+  let convertResolve; transactions.setSmartAutoConvert = () => new Promise(resolve => convertResolve = resolve);
+  const convert = page.changeAutoConvert(false);
+  uploadResolve({ installed: true, restartRequired: false }); await oldUpload;
+  assert.equal(page.busy, true, 'Old upload completion cannot clear a newer toggle operation');
+  convertResolve('applied'); await convert; assert.equal(page.busy, false);
+  page.confirmRestart(); dialog.secondaryButton.action(); await new Promise(setImmediate);
+  assert.equal(page.message, '应用重启失败', 'Intentional VPN stop during restart does not hide a real restart failure');
+  assert.equal(page.busy, false);
   status = null; await page.refresh(page.generation);
   assert.equal(page.ready, false); assert.equal(page.modelSummary, '尚未检查');
   page.aboutToDisappear();
