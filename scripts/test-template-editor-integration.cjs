@@ -9,7 +9,7 @@ let published = { schemaVersion: 1, revision: 'published', sourceRevision: 'sour
 let draft = { revision: 'published', intent: structuredClone(published) };
 const ticket = () => ({ file: 'one.yaml', profileIdentity: 'source', profileVersion: version,
  activeVersion: version, activeFile: 'one.yaml', draftRevision: draft.revision });
-const modules = {
+const modules = { './CoreValidator': require('./ci/semantic-fixture.cjs'),
  '@kit.ArkTS': { util: { generateRandomUUID: () => `session-${++serial}` } },
  'libentry.so': { versionAction: async (_root, input) => {
   const value = JSON.parse(input); assert.equal(value.op, 'editor-identity');

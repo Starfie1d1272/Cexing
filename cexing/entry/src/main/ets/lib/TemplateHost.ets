@@ -1,28 +1,15 @@
-import { UiText } from './UiText';
 import { EditorDraftHosts } from './EditorDraftHosts';
 import { common } from '@kit.AbilityKit';
 import { ConfigEditor, EditIntent, EditorDraftHost, EditorDraftSession, EditorDraftPreview } from './ConfigEditor';
 import { EffectiveVersions, RegionPlan } from './EffectiveVersions';
 import { TemplatePlan, TemplateInputs, TemplatePreview, TemplateWizardHost } from './TemplateWizardModel';
-import { MergeChange } from './CoreValidator';
+import { CoreValidator } from './CoreValidator';
 
 function cloneIntent(session: EditorDraftSession): EditIntent {
   return session.intent !== null ? JSON.parse(JSON.stringify(session.intent)) as EditIntent : {
     schemaVersion: 1, revision: session.revision, sourceRevision: session.snapshot.sourceRevision, operations: []
   };
 }
-function summary(changes: MergeChange[]): string {
-  const labels: Record<string, string> = { 'proxies': UiText.get($r('app.string.template_nodes')), 'proxy-groups': UiText.get($r('app.string.template_groups')), 'rules': UiText.get($r('app.string.template_rules')),
-    'proxy-providers': UiText.get($r('app.string.template_proxy_sources')), 'rule-providers': UiText.get($r('app.string.template_rule_sources')), 'dns': 'DNS', 'hosts': UiText.get($r('app.string.template_hosts')) };
-  const parts = changes.filter((change: MergeChange) => labels[change.section] !== undefined).map((change: MergeChange) =>
-    change.before === change.after ? UiText.get($r('app.string.template_section_adjusted'), labels[change.section]) :
-      `${labels[change.section]} ${change.before} → ${change.after}`);
-  if (changes.some((change: MergeChange) => labels[change.section] === undefined)) {
-    parts.push(UiText.get($r('app.string.template_other_changes')));
-  }
-  return parts.join(' · ') || UiText.get($r('app.string.template_no_changes'));
-}
-
 /** Production adapter over the one shared EditorDraftHost. No file writes or
  * publish/activation implementation belongs here. profileId is fixed at entry. */
 export function createTemplateWizardHost(context: common.Context, profileId: string,
@@ -86,7 +73,7 @@ export function createTemplateWizardHost(context: common.Context, profileId: str
       if (preview.digest.length === 0 || preview.changes.digest !== preview.digest) { throw new Error('TEMPLATE_PREVIEW_INVALID'); }
       receipt = preview; planned = JSON.stringify(plan);
       return { revision: preview.revision, digest: preview.digest,
-        summary: summary(preview.changes.changes), inactiveEdits: inactiveEdits };
+        summary: CoreValidator.describeMergePreview(preview.changes), inactiveEdits: inactiveEdits };
     },
     apply: async (plan: TemplatePlan, preview: TemplatePreview, confirmed?: boolean): Promise<string> => {
       const checked = receipt;

@@ -1,10 +1,16 @@
 // Registered page -> actual default Source/Host/receipt flow. Platform and
 // worker responses are synthetic; real compiler/publication lives in Go tests.
 const assert = require('node:assert/strict'), fs = require('node:fs'), vm = require('node:vm');
+<<<<<<< HEAD
 const uiFixture = require('./ci/ui-fixtures.cjs');
 let recoverCalls = 0, recoverResult = async current => current();
 const ts = require('./ci/transpile-arkts.cjs'), { resourceContext } = require('./ci/mock-profile-resources.cjs');
 let serial = 0, version = 'v1', writes = 0, applies = 0, reads = 0, encodes = 0, successfulOriginal = 'synthetic';
+=======
+const ts = require('./ci/transpile-arkts.cjs');
+const uiFixture = require('./ci/ui-fixtures.cjs');
+let serial = 0, version = 'v1', writes = 0, applies = 0, reads = 0, encodes = 0;
+>>>>>>> 77b1551f52487d507d9ffe4ae311e93549672668
 const snapshot = { templateId: 'ai', version: 1, entries: [] };
 let published = { schemaVersion: 1, revision: 'published', sourceRevision: 'source', operations: [],
   template: { templateId: 'ai', version: 1, targetGroup: 'Pick', baseline: snapshot, mine: snapshot } };
@@ -16,8 +22,13 @@ const modules = {
   './UiText': uiFixture.module,
   '@kit.ArkTS': { util: { generateRandomUUID: () => `session-${++serial}` } },
   './Settings': { Settings: { load: () => ({}), idle: async () => {} } },
+<<<<<<< HEAD
   './CoreValidator': { CoreValidator: { prepareResources: async () => {} } },
   './ProfileStore': { ProfileStore: { prepareContent: value => value, getProfileContent: () => successfulOriginal, getEnabledMerge: () => '', readEditDraft: () => draft, readEditDraftSource: async () => undefined } },
+=======
+  './CoreValidator': { CoreValidator: { ...require('./ci/semantic-fixture.cjs').CoreValidator, prepareResources: async () => {} } },
+  './ProfileStore': { ProfileStore: { prepareContent: value => value, getProfileContent: () => 'synthetic', getEnabledMerge: () => '', readEditDraft: () => draft } },
+>>>>>>> 77b1551f52487d507d9ffe4ae311e93549672668
   './EffectiveVersions': { EffectiveVersions: { read: () => ({ Profiles: { 'one.yaml': { ID: version } } }),
     globalContent: () => '', regionPlan: () => null, editIntent: () => structuredClone(published) } },
   './ConfigEditor': { ConfigEditor: { list: async () => ({ sourceRevision: 'source', sections: [
@@ -46,7 +57,12 @@ function load(name, page = false) {
   let source = fs.readFileSync(`cexing/entry/src/main/ets/${page ? 'pages' : 'lib'}/${name}.ets`, 'utf8');
   if (page) { const marker = source.includes('  @Builder') ? '  @Builder' : '  build()'; source = source.slice(0, source.indexOf(marker)) + '\n}';
     source = source.split('\n').map(line => line.trimStart().startsWith('@') ? line.replace(/@\w+(?:\([^\n)]*\))?\s*/g, '') : line).join('\n').replace('export struct ', 'export class '); }
+<<<<<<< HEAD
   const sandbox = { exports: {}, getContext: () => ({ ...resourceContext(), filesDir: '/synthetic' }), require: path => {
+=======
+  const sandbox = { exports: {}, ...uiFixture.globals, getContext: () => ({ filesDir: '/synthetic' }), require: path => {
+    if (path.endsWith('/UiText')) return uiFixture.module;
+>>>>>>> 77b1551f52487d507d9ffe4ae311e93549672668
     if (modules[path]) return modules[path];
     const library = path.replace('../lib/', './'); if (modules[library]) return modules[library];
     if (path === '@kit.ArkUI') return { promptAction: { showToast: value => assert.ok(['订阅已更新', '正在连接', '恢复未完成，请重试'].includes(value.message), value.message) } };

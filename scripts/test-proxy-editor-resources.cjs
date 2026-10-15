@@ -14,6 +14,7 @@ const box = { exports: {} }; vm.runInNewContext(ts.transpileModule(source).outpu
 const text = box.exports.ProxyEditorText;
 assert.equal(text.text(resourceContext(), 'proxy_editor_loaded_count', 12), '已加载 12 个节点');
 assert.equal(text.text(resourceContext('base'), 'proxy_editor_loaded_count', 1), 'Loaded nodes: 1');
+assert.equal(text.text(resourceContext('base'), 'proxy_editor_smart_type_change', 'url-test', 'smart'), 'Smart: url-test → smart');
 assert.equal(text.text(resourceContext(), 'proxy_editor_change_count', '节点', 1, 2), '节点 1 → 2');
 assert.match(text.failure(resourceContext('base'), '端口应为 1–65535'), /65535/);
 assert.ok(!text.failure(resourceContext(), 'private-token-not-for-display').includes('private-token'));

@@ -1,3 +1,5 @@
+import { UiText } from '../lib/UiText';
+import { RuleDnsText } from '../lib/RuleDnsText';
 import { util } from '@kit.ArkTS';
 import { NativeTheme as UI } from './NativeTheme';
 import { EditOperation, EditTarget, EditableItem } from '../lib/ConfigEditor';
@@ -14,7 +16,7 @@ export struct RuleDnsEditForm {
   @Prop positions: EditableItem[] = [];
   @Prop insertionBefore: string = '';
   @State ruleBefore: string = '';
-  onOperation: (operation: EditOperation) => void = (_: EditOperation): void => { throw new Error('编辑尚未接通'); };
+  onOperation: (operation: EditOperation) => void = (_: EditOperation): void => { throw new Error(UiText.get($r('app.string.rule_unwired'))); };
   onClose: () => void = (): void => {};
   @State kind: string = 'DOMAIN-SUFFIX';
   @State condition: string = '';
@@ -74,7 +76,7 @@ export struct RuleDnsEditForm {
         operation = this.isNew ? RuleDnsForms.addRule(id, fields, this.matchId) : RuleDnsForms.updateRule(id, this.selected, fields);
         if (this.isNew && fields.type !== 'MATCH') { operation.before = this.ruleBefore; }
       } else if (this.section === 'rule-providers') {
-        if (this.providerType === 'http' && this.interval.trim() === '') { throw new Error('请输入更新间隔'); }
+        if (this.providerType === 'http' && this.interval.trim() === '') { throw new Error(UiText.get($r('app.string.rule_interval_required'))); }
         const fields: ProviderFields = { name: this.name.trim(), type: this.providerType, behavior: this.behavior,
           format: this.format, location: this.location.trim(), interval: Number(this.interval) };
         const value = RuleDnsForms.providerValue(fields);
@@ -88,34 +90,34 @@ export struct RuleDnsEditForm {
       } else {
         const value = RuleDnsForms.hostValue(this.hosts);
         if (this.isNew) {
-          if (!this.name.trim() || /[,\r\n\u0000]/.test(this.name)) { throw new Error('请输入 hosts 名称'); }
+          if (!this.name.trim() || /[,\r\n\u0000]/.test(this.name)) { throw new Error(UiText.get($r('app.string.rule_hosts_required'))); }
           operation = { id, kind: 'add', section: 'hosts', name: this.name.trim(), value };
         } else { operation = { id, kind: 'update', section: 'hosts', target: this.selected.item.id,
           expected: this.selected.item.revision, value }; }
       }
       this.onOperation(operation);
-    } catch (error) { this.error = (error as Error).message; }
+    } catch (error) { this.error = RuleDnsText.failure(error, $r('app.string.rule_validation_failed')); }
   }
 
   private optionLabel(label: string, value: string): string {
-    if (label === '目标') { return value === 'DIRECT' ? '直连' : value === 'REJECT' ? '拒绝' : value; }
-    if (label === '规则源') { return value; }
+    if (label === UiText.get($r('app.string.rule_target'))) { return value === 'DIRECT' ? UiText.get($r('app.string.rule_direct')) : value === 'REJECT' ? UiText.get($r('app.string.rule_reject')) : value; }
+    if (label === UiText.get($r('app.string.rule_providers'))) { return value; }
     switch (value) {
-      case 'DOMAIN': return '完整域名';
-      case 'DOMAIN-SUFFIX': return '域名后缀';
-      case 'DOMAIN-KEYWORD': return '域名关键字';
-      case 'IP-CIDR': return 'IPv4 地址段';
-      case 'IP-CIDR6': return 'IPv6 地址段';
-      case 'RULE-SET': return '规则源';
-      case 'MATCH': return '最终规则';
-      case 'http': return '远程';
-      case 'file': return '本地';
-      case 'domain': return '域名';
-      case 'ipcidr': return 'IP 地址段';
-      case 'classical': return '综合规则';
-      case 'text': return '文本';
+      case 'DOMAIN': return UiText.get($r('app.string.rule_domain'));
+      case 'DOMAIN-SUFFIX': return UiText.get($r('app.string.rule_suffix'));
+      case 'DOMAIN-KEYWORD': return UiText.get($r('app.string.rule_keyword'));
+      case 'IP-CIDR': return UiText.get($r('app.string.rule_ipv4'));
+      case 'IP-CIDR6': return UiText.get($r('app.string.rule_ipv6'));
+      case 'RULE-SET': return UiText.get($r('app.string.rule_providers'));
+      case 'MATCH': return UiText.get($r('app.string.rule_final'));
+      case 'http': return UiText.get($r('app.string.rule_remote'));
+      case 'file': return UiText.get($r('app.string.rule_local'));
+      case 'domain': return UiText.get($r('app.string.rule_domain_type'));
+      case 'ipcidr': return UiText.get($r('app.string.rule_ip_range'));
+      case 'classical': return UiText.get($r('app.string.rule_classical'));
+      case 'text': return UiText.get($r('app.string.rule_text'));
       case 'fake-ip': return 'Fake IP';
-      case 'redir-host': return '真实 IP';
+      case 'redir-host': return UiText.get($r('app.string.rule_real_ip'));
       default: return value;
     }
   }
@@ -123,7 +125,7 @@ export struct RuleDnsEditForm {
   choose(label: string, values: string[], current: string, changed: (value: string) => void) {
     Row({ space: 12 }) {
       Text(label).fontColor(UI.ink).layoutWeight(1)
-      Select(values.map((value: string): SelectOption => ({ value: this.optionLabel(label, value) }))).value(this.optionLabel(label, current))
+      Select(values.map((value: string): SelectOption => ({ value: this.optionLabel(label, value) }))).value(this.optionLabel(label, current)).accessibilityText(label)
         .selected(values.indexOf(current)).onSelect((index: number) => changed(values[index]))
     }.width('100%')
   }
@@ -133,60 +135,60 @@ export struct RuleDnsEditForm {
       Column({ space: 16 }) {
         if (this.advanced) {
           TextArea({ text: this.advancedText }).onChange((value: string) => { this.advancedText = value; })
-            .height(280).fontSize(15).accessibilityText('高级字段')
+            .height(280).fontSize(15).accessibilityText(UiText.get($r('app.string.rule_advanced_fields')))
         } else if (this.section === 'rules') {
-          this.choose('类型', !this.isNew && RuleDnsForms.parseRule(this.selected.value)?.type === 'MATCH' ? ['MATCH'] : COMMON_RULE_TYPES, this.kind, (value: string) => { this.kind = value; this.noResolve = false; })
+          this.choose(UiText.get($r('app.string.rule_type')), !this.isNew && RuleDnsForms.parseRule(this.selected.value)?.type === 'MATCH' ? ['MATCH'] : COMMON_RULE_TYPES, this.kind, (value: string) => { this.kind = value; this.noResolve = false; })
           if (this.kind !== 'MATCH') {
             if (this.kind === 'RULE-SET') {
-              this.choose('规则源', this.providers, this.condition, (value: string) => { this.condition = value; })
+              this.choose(UiText.get($r('app.string.rule_providers')), this.providers, this.condition, (value: string) => { this.condition = value; })
             } else {
-              TextInput({ placeholder: '匹配条件', text: this.condition }).onChange((value: string) => { this.condition = value; })
+              TextInput({ placeholder: UiText.get($r('app.string.rule_condition')), text: this.condition }).onChange((value: string) => { this.condition = value; })
             }
           }
           if (this.isNew && this.kind !== 'MATCH' && this.positions.length > 0) {
-            Select(this.positions.map((_item: EditableItem, index: number): SelectOption => ({ value: `规则 ${index + 1} 之前` })))
+            Select(this.positions.map((_item: EditableItem, index: number): SelectOption => ({ value: UiText.get($r('app.string.rule_before'), index + 1) })))
               .selected(this.positions.findIndex((item: EditableItem) => item.id === this.ruleBefore))
-              .onSelect((index: number) => { this.ruleBefore = this.positions[index].id; }).accessibilityText('插入位置')
+              .onSelect((index: number) => { this.ruleBefore = this.positions[index].id; }).accessibilityText(UiText.get($r('app.string.rule_position')))
           }
-          this.choose('目标', this.targets, this.destination, (value: string) => { this.destination = value; })
+          this.choose(UiText.get($r('app.string.rule_target')), this.targets, this.destination, (value: string) => { this.destination = value; })
           if (['IP-CIDR', 'IP-CIDR6', 'GEOIP'].includes(this.kind)) {
             Row() {
-              Text('不解析域名').layoutWeight(1)
-              Toggle({ type: ToggleType.Switch, isOn: this.noResolve }).onChange((value: boolean) => { this.noResolve = value; })
+              Text(UiText.get($r('app.string.rule_no_resolve'))).layoutWeight(1)
+              Toggle({ type: ToggleType.Switch, isOn: this.noResolve }).accessibilityText(UiText.get($r('app.string.rule_no_resolve'))).accessibilityChecked(this.noResolve).onChange((value: boolean) => { this.noResolve = value; })
             }
           }
         } else if (this.section === 'rule-providers') {
-          if (this.isNew) { TextInput({ placeholder: '名称', text: this.name }).onChange((value: string) => { this.name = value; }) }
-          this.choose('来源', ['http', 'file'], this.providerType, (value: string) => { this.providerType = value; })
-          this.choose('内容', ['domain', 'ipcidr', 'classical'], this.behavior, (value: string) => { this.behavior = value; })
-          this.choose('格式', ['yaml', 'text', 'mrs'], this.format, (value: string) => { this.format = value; })
-          TextInput({ placeholder: this.providerType === 'http' ? '资源地址' : '相对路径', text: this.location })
+          if (this.isNew) { TextInput({ placeholder: UiText.get($r('app.string.rule_name')), text: this.name }).onChange((value: string) => { this.name = value; }) }
+          this.choose(UiText.get($r('app.string.rule_source')), ['http', 'file'], this.providerType, (value: string) => { this.providerType = value; })
+          this.choose(UiText.get($r('app.string.rule_content')), ['domain', 'ipcidr', 'classical'], this.behavior, (value: string) => { this.behavior = value; })
+          this.choose(UiText.get($r('app.string.rule_format')), ['yaml', 'text', 'mrs'], this.format, (value: string) => { this.format = value; })
+          TextInput({ placeholder: this.providerType === 'http' ? UiText.get($r('app.string.rule_address')) : UiText.get($r('app.string.rule_relative_path')), text: this.location })
             .onChange((value: string) => { this.location = value; })
           if (this.providerType === 'http') {
-            TextInput({ placeholder: '更新间隔（秒）', text: this.interval }).type(InputType.Number)
+            TextInput({ placeholder: UiText.get($r('app.string.rule_interval')), text: this.interval }).type(InputType.Number)
               .onChange((value: string) => { this.interval = value; })
           }
         } else if (this.section === 'dns') {
           Row() {
             Text('DNS').layoutWeight(1)
-            Toggle({ type: ToggleType.Switch, isOn: this.dnsEnabled }).onChange((value: boolean) => { this.dnsEnabled = value; })
+            Toggle({ type: ToggleType.Switch, isOn: this.dnsEnabled }).accessibilityText('DNS').accessibilityChecked(this.dnsEnabled).onChange((value: boolean) => { this.dnsEnabled = value; })
           }
-          this.choose('解析模式', ['fake-ip', 'redir-host'], this.mode, (value: string) => { this.mode = value; })
-          TextArea({ placeholder: 'DNS 服务器，每行一个', text: this.nameservers }).height(120)
+          this.choose(UiText.get($r('app.string.rule_dns_mode')), ['fake-ip', 'redir-host'], this.mode, (value: string) => { this.mode = value; })
+          TextArea({ placeholder: UiText.get($r('app.string.rule_nameservers')), text: this.nameservers }).height(120)
             .onChange((value: string) => { this.nameservers = value; })
-          TextArea({ placeholder: '引导 DNS，每行一个', text: this.bootstrap }).height(100)
+          TextArea({ placeholder: UiText.get($r('app.string.rule_bootstrap')), text: this.bootstrap }).height(100)
             .onChange((value: string) => { this.bootstrap = value; })
         } else if (this.section === 'hosts') {
-          if (this.isNew) { TextInput({ placeholder: '名称', text: this.name }).onChange((value: string) => { this.name = value; }) }
-          TextArea({ placeholder: '地址，每行一个', text: this.hosts }).height(120).onChange((value: string) => { this.hosts = value; })
+          if (this.isNew) { TextInput({ placeholder: UiText.get($r('app.string.rule_name')), text: this.name }).onChange((value: string) => { this.name = value; }) }
+          TextArea({ placeholder: UiText.get($r('app.string.rule_hosts_values')), text: this.hosts }).height(120).onChange((value: string) => { this.hosts = value; })
         }
         if (!this.advanced && !this.isNew && this.section !== 'hosts') {
-          Button('高级编辑').onClick(() => { this.advanced = true; })
+          Button(UiText.get($r('app.string.rule_advanced'))).onClick(() => { this.advanced = true; })
         }
         if (this.error !== '') { Text(this.error).fontSize(14).fontColor(UI.error) }
         Row({ space: 12 }) {
-          Button('取消').onClick(() => this.onClose())
-          Button('预览').onClick(() => this.submit())
+          Button(UiText.get($r('app.string.rule_cancel'))).onClick(() => this.onClose())
+          Button(UiText.get($r('app.string.rule_preview'))).onClick(() => this.submit())
         }
       }.width('100%').padding(20)
     }.width('100%').backgroundColor(UI.paper)

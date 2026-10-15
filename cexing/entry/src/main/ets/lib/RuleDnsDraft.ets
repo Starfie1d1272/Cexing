@@ -35,7 +35,16 @@ export class RuleDnsDraft {
       const retained: Record<string, Object> = {};
       for (const key of Object.keys(patch)) { if (!remove.includes(key)) { retained[key] = patch[key]; } }
       next.operations[index] = { id: operation.id, kind: 'update', section: operation.section, target: operation.target, patch: retained, preconditions: conditions, remove };
-    } else if (index >= 0) { next.operations[index] = operation; }
+    } else if (index >= 0) {
+      // A projected scalar revision belongs to the intermediate draft. When
+      // replacing its operation, retain the original source guard.
+      const old = next.operations[index];
+      if (old.kind === 'update' && operation.kind === 'update' && old.expected !== undefined) {
+        operation = JSON.parse(JSON.stringify(operation)) as EditOperation;
+        operation.expected = old.expected;
+      }
+      next.operations[index] = operation;
+    }
     else { next.operations.push(operation); }
     return next;
   }

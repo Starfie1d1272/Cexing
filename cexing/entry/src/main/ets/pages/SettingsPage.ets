@@ -1,6 +1,8 @@
 import { LocalBackupActions } from './LocalBackupActions';
 import { ProfileStorageDetails } from './ProfileStorageDetails';
 import { UiText } from '../lib/UiText';
+import { ProfileStore } from '../lib/ProfileStore';
+import { RuleDnsEditorBus } from './RuleDnsEditorPage';
 import { SettingsReconnectButton } from './SettingsReconnectButton';
 import { NativeTheme as UI } from './NativeTheme';
 /*
@@ -55,6 +57,7 @@ export struct SettingsPage {
     {
       title: UiText.get($r('app.string.settings_system_connection')),
       rows: [
+        { title: 'DNS', sub: '', hasToggle: false, dest: '', action: 'dns', toggleKey: '' },
         { title: UiText.get($r('app.string.nav_network')), sub: UiText.get($r('app.string.settings_network_hint')), hasToggle: false, dest: 'network', action: '', toggleKey: '' },
         { title: 'Smart', sub: UiText.get($r('app.string.settings_smart_hint')), hasToggle: false, dest: 'smart', action: '', toggleKey: '' },
 
@@ -86,6 +89,8 @@ export struct SettingsPage {
   private feedbackGeneration: number = 0;
   private pageActive: boolean = false;
   @State ready: boolean = false;
+  @State readFailure: string = '';
+  @State readRestartNeeded: boolean = false;
 
   aboutToDisappear(): void {
     this.pageActive = false;
@@ -101,16 +106,22 @@ export struct SettingsPage {
     this.pageActive = this.currentVisibleTab === 2 && this.rootVisible;
     this.feedbackGeneration++;
     const generation = this.feedbackGeneration;
-    this.ready = false;
-    this.readSettings();
+    this.ready = false; this.readFailure = ''; this.readRestartNeeded = false;
+    try { this.readSettings(); }
+    catch (error) { this.reportReadFailure(error, generation); return; }
     Settings.idle().then(() => {
       if (!this.pageActive || generation !== this.feedbackGeneration) { return; }
       this.readSettings(); this.ready = true;
-    }).catch(() => {
-      if (this.pageActive && generation === this.feedbackGeneration) {
-        promptAction.showToast({ message: UiText.get($r('app.string.failure_settings_read')) });
-      }
-    });
+    }).catch((error: Error) => { this.reportReadFailure(error, generation); });
+  }
+
+  private reportReadFailure(error: Object, generation: number): void {
+    if (!this.pageActive || generation !== this.feedbackGeneration) { return; }
+    this.ready = false;
+    this.readRestartNeeded = error !== null && error !== undefined &&
+      (error as Error).message === '备份恢复未确认，请重新打开应用后重试';
+    this.readFailure = this.readRestartNeeded ? UiText.get($r('app.string.failure_recovery_restart')) :
+      UiText.get($r('app.string.failure_settings_read'));
   }
 
   private readSettings(): void {
@@ -258,7 +269,41 @@ export struct SettingsPage {
     }
   }
 
+  private openDns(): void {
+    if (!this.pageActive || !this.ready) { return; }
+    const generation = ++this.feedbackGeneration;
+    const context = getContext(this) as common.UIAbilityContext;
+    try {
+      const profiles = ProfileStore.list(context);
+      const active = ProfileStore.getActiveFile(context);
+      const current = (): boolean => this.pageActive && this.currentVisibleTab === 2 && this.rootVisible &&
+        generation === this.feedbackGeneration && this.navStack.getAllPathName().length === 0;
+      const open = (file: string): void => {
+        if (!current()) { return; }
+        if (!ProfileStore.list(context).some((profile) => profile.file === file)) {
+          promptAction.showToast({ message: UiText.get($r('app.string.settings_dns_read_failed')) }); return;
+        }
+        RuleDnsEditorBus.file = file;
+        RuleDnsEditorBus.section = 'dns';
+        this.navStack.pushPath({ name: 'ruleDnsEditor' });
+      };
+      if (profiles.some((profile) => profile.file === active)) { open(active); }
+      else if (profiles.length === 1) { open(profiles[0].file); }
+      else if (profiles.length === 0) {
+        promptAction.showToast({ message: UiText.get($r('app.string.settings_dns_import_first')) });
+      } else {
+        ActionSheet.show({ title: UiText.get($r('app.string.settings_dns_choose')), message: '',
+          cancel: () => { if (current()) { this.feedbackGeneration++; } },
+          sheets: profiles.map((profile): SheetInfo => ({ title: profile.name, action: () => {
+            try { open(profile.file); }
+            catch (_) { if (current()) { promptAction.showToast({ message: UiText.get($r('app.string.settings_dns_read_failed')) }); } }
+          } })) });
+      }
+    } catch (_) { promptAction.showToast({ message: UiText.get($r('app.string.settings_dns_read_failed')) }); }
+  }
+
   private onRowTap(row: SettingRow): void {
+    if (row.action === 'dns') { this.openDns(); return; }
     if (row.dest.length > 0) {
       this.navStack.pushPath({ name: row.dest });
       return;
@@ -351,7 +396,7 @@ export struct SettingsPage {
 
   build() {
     Column({ space: 12 }) {
-      SettingsReconnectButton()
+      SettingsReconnectButton().enabled(this.ready)
       Row() {
         Text(UiText.get($r('app.string.action_settings')))
           .fontSize(26)
@@ -363,6 +408,14 @@ export struct SettingsPage {
       .alignItems(VerticalAlign.Center)
       .margin({ top: 8, bottom: 4 })
 
+      if (this.readFailure !== '') {
+        Column({ space: 8 }) {
+          Text(this.readFailure).fontSize(14).fontColor(UI.error).width('100%')
+          if (!this.readRestartNeeded) {
+            Button($r('app.string.action_retry')).constraintSize({ minHeight: 44 }).onClick(() => this.aboutToAppear())
+          }
+        }.width('100%')
+      }
       List({ space: 12 }) {
         ForEach(this.groups, (group: SettingGroup) => {
           ListItem() {
@@ -382,11 +435,11 @@ export struct SettingsPage {
       .width('100%')
       .layoutWeight(1)
       .scrollBar(BarState.Off)
-      .contentEndOffset(16)
+      .contentEndOffset(16).enabled(this.ready)
     }
     .width('100%')
     .height('100%')
     .padding({ left: 24, right: 24 })
-    .enabled(this.ready).backgroundColor(UI.paper).constraintSize({ maxWidth: 760 }).alignSelf(ItemAlign.Center)
+    .backgroundColor(UI.paper).constraintSize({ maxWidth: 760 }).alignSelf(ItemAlign.Center)
   }
 }

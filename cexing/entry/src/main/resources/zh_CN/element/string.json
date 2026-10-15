@@ -994,7 +994,7 @@
     },
     {
       "name": "editor_preview_failed",
-      "value": "覆写预览失败"
+      "value": "覆写预览失败，请检查内容后重试"
     },
     {
       "name": "editor_global_applied",
@@ -1653,6 +1653,149 @@
       "value": "连接"
     },
     {
+<<<<<<< HEAD
+=======
+      "name": "merge_nodes",
+      "value": "节点"
+    },
+    {
+      "name": "merge_node_sources",
+      "value": "节点源"
+    },
+    {
+      "name": "merge_groups",
+      "value": "策略组"
+    },
+    {
+      "name": "merge_rules",
+      "value": "规则"
+    },
+    {
+      "name": "merge_rule_sources",
+      "value": "规则源"
+    },
+    {
+      "name": "merge_listeners",
+      "value": "监听"
+    },
+    {
+      "name": "merge_mode",
+      "value": "模式"
+    },
+    {
+      "name": "merge_controller",
+      "value": "控制接口"
+    },
+    {
+      "name": "merge_panel",
+      "value": "面板"
+    },
+    {
+      "name": "merge_lan",
+      "value": "局域网代理"
+    },
+    {
+      "name": "merge_bind",
+      "value": "代理监听"
+    },
+    {
+      "name": "merge_ports",
+      "value": "代理端口"
+    },
+    {
+      "name": "merge_other",
+      "value": "其他配置"
+    },
+    {
+      "name": "merge_protected",
+      "value": "%s：使用设备约束"
+    },
+    {
+      "name": "merge_cleared",
+      "value": "%s：已清空"
+    },
+    {
+      "name": "merge_types_members",
+      "value": "%s：类型和成员已调整"
+    },
+    {
+      "name": "merge_types",
+      "value": "%s：类型已调整"
+    },
+    {
+      "name": "merge_members",
+      "value": "%s：成员已调整"
+    },
+    {
+      "name": "merge_reordered",
+      "value": "%s：顺序已调整"
+    },
+    {
+      "name": "merge_modified",
+      "value": "%s：修改 %d 项"
+    },
+    {
+      "name": "merge_added_count",
+      "value": "%s：新增 %d 项"
+    },
+    {
+      "name": "merge_removed_count",
+      "value": "%s：移除 %d 项"
+    },
+    {
+      "name": "merge_added",
+      "value": "%s：已添加"
+    },
+    {
+      "name": "merge_removed",
+      "value": "%s：已移除"
+    },
+    {
+      "name": "merge_content",
+      "value": "%s：内容已调整"
+    },
+    {
+      "name": "merge_device_count",
+      "value": "%d 项使用设备约束"
+    },
+    {
+      "name": "merge_no_changes",
+      "value": "无需更改"
+    },
+    {
+      "name": "merge_repair_resources",
+      "value": "资源未就绪，请断开 VPN 并在设置中修复资源后重试"
+    },
+    {
+      "name": "merge_update_package",
+      "value": "资源包无法使用，请更新应用后重试"
+    },
+    {
+      "name": "merge_update_source",
+      "value": "订阅来源未就绪，请更新订阅后重新预览"
+    },
+    {
+      "name": "merge_repreview",
+      "value": "预览已变化，请重新预览后再应用"
+    },
+    {
+      "name": "merge_reread",
+      "value": "配置无法读取，请返回订阅页重新导入后重试"
+    },
+    {
+      "name": "merge_wait",
+      "value": "已有配置操作正在进行，请稍后重试"
+    },
+    {
+      "name": "merge_disconnect",
+      "value": "请先在连接页断开 VPN 后重试"
+    },
+    {
+      "name": "failure_recovery_restart",
+      "value": "备份恢复未确认，请重新打开应用后重试"
+    },
+    {
+>>>>>>> 77b1551f52487d507d9ffe4ae311e93549672668
       "name": "template_replace_reenable",
       "value": "将替换订阅规则，并启用已停用的个人修改。"
     },
@@ -2597,6 +2740,7 @@
       "value": "无法修改节点状态，请重新读取"
     },
     {
+<<<<<<< HEAD
       "name": "profile_update_expired",
       "value": "更新已失效，请返回重试"
     },
@@ -3203,6 +3347,402 @@
     {
       "name": "profile_not_updated",
       "value": "尚未更新"
+=======
+      "name": "settings_dns_read_failed",
+      "value": "订阅读取失败，请重试"
+    },
+    {
+      "name": "settings_dns_import_first",
+      "value": "请先在订阅页导入订阅"
+    },
+    {
+      "name": "settings_dns_choose",
+      "value": "选择订阅"
+    },
+    {
+      "name": "rule_unwired",
+      "value": "编辑尚未接通"
+    },
+    {
+      "name": "rule_interval_required",
+      "value": "请输入更新间隔"
+    },
+    {
+      "name": "rule_hosts_required",
+      "value": "请输入 hosts 名称"
+    },
+    {
+      "name": "rule_target",
+      "value": "目标"
+    },
+    {
+      "name": "rule_direct",
+      "value": "直连"
+    },
+    {
+      "name": "rule_reject",
+      "value": "拒绝"
+    },
+    {
+      "name": "rule_providers",
+      "value": "规则源"
+    },
+    {
+      "name": "rule_domain",
+      "value": "完整域名"
+    },
+    {
+      "name": "rule_suffix",
+      "value": "域名后缀"
+    },
+    {
+      "name": "rule_keyword",
+      "value": "域名关键字"
+    },
+    {
+      "name": "rule_ipv4",
+      "value": "IPv4 地址段"
+    },
+    {
+      "name": "rule_ipv6",
+      "value": "IPv6 地址段"
+    },
+    {
+      "name": "rule_final",
+      "value": "最终规则"
+    },
+    {
+      "name": "rule_remote",
+      "value": "远程"
+    },
+    {
+      "name": "rule_local",
+      "value": "本地"
+    },
+    {
+      "name": "rule_domain_type",
+      "value": "域名"
+    },
+    {
+      "name": "rule_ip_range",
+      "value": "IP 地址段"
+    },
+    {
+      "name": "rule_classical",
+      "value": "综合规则"
+    },
+    {
+      "name": "rule_text",
+      "value": "文本"
+    },
+    {
+      "name": "rule_real_ip",
+      "value": "真实 IP"
+    },
+    {
+      "name": "rule_advanced_fields",
+      "value": "高级字段"
+    },
+    {
+      "name": "rule_type",
+      "value": "类型"
+    },
+    {
+      "name": "rule_condition",
+      "value": "匹配条件"
+    },
+    {
+      "name": "rule_position",
+      "value": "插入位置"
+    },
+    {
+      "name": "rule_no_resolve",
+      "value": "不解析域名"
+    },
+    {
+      "name": "rule_name",
+      "value": "名称"
+    },
+    {
+      "name": "rule_source",
+      "value": "来源"
+    },
+    {
+      "name": "rule_content",
+      "value": "内容"
+    },
+    {
+      "name": "rule_format",
+      "value": "格式"
+    },
+    {
+      "name": "rule_address",
+      "value": "资源地址"
+    },
+    {
+      "name": "rule_relative_path",
+      "value": "相对路径"
+    },
+    {
+      "name": "rule_interval",
+      "value": "更新间隔（秒）"
+    },
+    {
+      "name": "rule_dns_mode",
+      "value": "解析模式"
+    },
+    {
+      "name": "rule_nameservers",
+      "value": "DNS 服务器，每行一个"
+    },
+    {
+      "name": "rule_bootstrap",
+      "value": "引导 DNS，每行一个"
+    },
+    {
+      "name": "rule_hosts_values",
+      "value": "地址，每行一个"
+    },
+    {
+      "name": "rule_advanced",
+      "value": "高级编辑"
+    },
+    {
+      "name": "rule_cancel",
+      "value": "取消"
+    },
+    {
+      "name": "rule_preview",
+      "value": "预览"
+    },
+    {
+      "name": "rule_open_failed",
+      "value": "无法打开编辑，请重试"
+    },
+    {
+      "name": "rule_changed",
+      "value": "配置已变化，请重新打开"
+    },
+    {
+      "name": "rule_not_running",
+      "value": "此订阅尚未运行"
+    },
+    {
+      "name": "rule_apply_first",
+      "value": "请先应用修改"
+    },
+    {
+      "name": "rule_runtime_changed",
+      "value": "运行配置已变化，请重试"
+    },
+    {
+      "name": "rule_runtime_unknown",
+      "value": "运行状态未确认"
+    },
+    {
+      "name": "rule_update_failed",
+      "value": "更新失败，可重试"
+    },
+    {
+      "name": "rule_runtime_failed",
+      "value": "暂无法读取运行状态"
+    },
+    {
+      "name": "rule_validation_failed",
+      "value": "变更未通过校验，可修改或撤销"
+    },
+    {
+      "name": "rule_draft_discarded",
+      "value": "已撤销草稿"
+    },
+    {
+      "name": "rule_final_unreadable",
+      "value": "无法读取最终规则，请重试"
+    },
+    {
+      "name": "rule_final_exists",
+      "value": "已有最终规则，请编辑它"
+    },
+    {
+      "name": "rule_applied",
+      "value": "已应用"
+    },
+    {
+      "name": "rule_saved",
+      "value": "已保存"
+    },
+    {
+      "name": "rule_final_order",
+      "value": "最终规则保持在末尾"
+    },
+    {
+      "name": "rule_view_status",
+      "value": "查看状态"
+    },
+    {
+      "name": "rule_update",
+      "value": "更新"
+    },
+    {
+      "name": "rule_error_details",
+      "value": "错误详情"
+    },
+    {
+      "name": "rule_new_name",
+      "value": "新名称"
+    },
+    {
+      "name": "rule_rename",
+      "value": "重命名"
+    },
+    {
+      "name": "rule_default",
+      "value": "默认"
+    },
+    {
+      "name": "rule_recommended",
+      "value": "推荐"
+    },
+    {
+      "name": "rule_rules",
+      "value": "规则"
+    },
+    {
+      "name": "rule_delete",
+      "value": "删除"
+    },
+    {
+      "name": "rule_add",
+      "value": "新增"
+    },
+    {
+      "name": "rule_apply",
+      "value": "应用"
+    },
+    {
+      "name": "rule_undo",
+      "value": "撤销"
+    },
+    {
+      "name": "rule_discard",
+      "value": "撤销草稿"
+    },
+    {
+      "name": "rule_enable",
+      "value": "启用修改"
+    },
+    {
+      "name": "rule_disable",
+      "value": "停用修改"
+    },
+    {
+      "name": "rule_retry",
+      "value": "重试"
+    },
+    {
+      "name": "rule_before",
+      "value": "规则 %d 之前"
+    },
+    {
+      "name": "rule_count",
+      "value": "%d 条规则"
+    },
+    {
+      "name": "rule_references",
+      "value": " · 关联 %d 条规则"
+    },
+    {
+      "name": "rule_fill_required",
+      "value": "请填写规则与目标"
+    },
+    {
+      "name": "rule_no_resolve_unsupported",
+      "value": "此规则不支持 no-resolve"
+    },
+    {
+      "name": "rule_final_required",
+      "value": "最终规则必须在末尾"
+    },
+    {
+      "name": "rule_order_unchanged",
+      "value": "规则位置未变化"
+    },
+    {
+      "name": "rule_dns_listener",
+      "value": "DNS 监听由系统管理"
+    },
+    {
+      "name": "rule_field_unread",
+      "value": "字段版本未读取，请重新打开"
+    },
+    {
+      "name": "rule_provider_type_invalid",
+      "value": "请检查规则源类型"
+    },
+    {
+      "name": "rule_interval_invalid",
+      "value": "更新间隔应为 0–604800 秒"
+    },
+    {
+      "name": "rule_http_required",
+      "value": "请输入 HTTP 或 HTTPS 地址"
+    },
+    {
+      "name": "rule_path_required",
+      "value": "请输入私有目录内的相对路径"
+    },
+    {
+      "name": "rule_dns_invalid",
+      "value": "请检查 DNS 服务器"
+    },
+    {
+      "name": "rule_dns_delete",
+      "value": "DNS 不能整段删除"
+    },
+    {
+      "name": "rule_single_required",
+      "value": "请输入单条规则"
+    },
+    {
+      "name": "rule_hosts_address",
+      "value": "请输入 hosts 地址"
+    },
+    {
+      "name": "rule_json_object",
+      "value": "高级字段必须是 JSON 对象"
+    },
+    {
+      "name": "rule_apply_unknown",
+      "value": "应用未确认，请重连恢复"
+    },
+    {
+      "name": "rule_busy",
+      "value": "已有配置操作正在进行，请稍后重试"
+    },
+    {
+      "name": "rule_expanded",
+      "value": "已展开"
+    },
+    {
+      "name": "rule_collapsed",
+      "value": "已收起"
+    },
+    {
+      "name": "rule_remove_named",
+      "value": "删除 %s"
+    },
+    {
+      "name": "proxy_editor_smart_type_change",
+      "value": "Smart：%s → %s"
+    },
+    {
+      "name": "merge_committed_recovery",
+      "value": "配置已保存。请到连接页断开后重新连接，恢复地区选择。"
+    },
+    {
+      "name": "merge_open_connection",
+      "value": "前往连接页恢复"
+>>>>>>> 77b1551f52487d507d9ffe4ae311e93549672668
     }
   ]
 }

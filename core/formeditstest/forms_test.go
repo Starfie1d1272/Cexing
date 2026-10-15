@@ -50,6 +50,9 @@ x-top-level: {keep: true}
 		}
 	}
 	input, _ := json.Marshal(map[string]any{"sourceRevision": snapshot.SourceRevision, "rule": rules[1], "before": rules[0].ID, "match": rules[2].ID, "dns": dns})
+	if rules[0].Type != "DOMAIN-SUFFIX" || rules[1].Type != "DOMAIN" || rules[2].Type != "MATCH" {
+		t.Fatal("production rule summary cannot support page order guards")
+	}
 	cmd := exec.Command("node", "../../scripts/emit-rule-dns-fixture.cjs")
 	cmd.Stdin = bytes.NewReader(input)
 	output, err := cmd.CombinedOutput()
@@ -133,6 +136,33 @@ x-top-level: {keep: true}
 			t.Fatal("added drag displaced MATCH")
 		}
 	}
+	withoutMatch := bytes.Replace(source, []byte(", 'MATCH,manual'"), nil, 1)
+	matchView, err := configpipeline.ReadEditable(withoutMatch, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	matchInput, _ := json.Marshal(map[string]any{"variant": "match", "sourceRevision": matchView.SourceRevision})
+	matchCmd := exec.Command("node", "../../scripts/emit-rule-dns-fixture.cjs")
+	matchCmd.Stdin = bytes.NewReader(matchInput)
+	matchOutput, err := matchCmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("MATCH emission: %v %s", err, matchOutput)
+	}
+	matchIntent, err := configpipeline.DecodeEditIntent(matchOutput)
+	if err != nil {
+		t.Fatal(err)
+	}
+	matchResult, err := compiler.Compile(context.Background(), configpipeline.Request{Original: withoutMatch, Intent: matchIntent})
+	if err != nil {
+		t.Fatal(err)
+	}
+	matchParsed, err := config.Parse(matchResult.YAML)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(matchParsed.Rules) != 3 || matchParsed.Rules[2].RuleType() != C.MATCH {
+		t.Fatal("new MATCH did not reach parser at final position")
+	}
 	intent.Disabled = true
 	undone, err := compiler.Compile(context.Background(), configpipeline.Request{Original: source, Intent: intent})
 	if err != nil {
@@ -140,5 +170,45 @@ x-top-level: {keep: true}
 	}
 	if strings.Contains(string(undone.YAML), "dns.alidns.com") {
 		t.Fatal("preset disable failed")
+	}
+}
+
+func TestRepeatedHostFormEditKeepsSourceGuard(t *testing.T) {
+	source := []byte("proxies: [{name: node, type: direct}]\nrules: ['MATCH,node']\nhosts: {public.test: 192.0.2.1}\n")
+	snapshot, err := configpipeline.ReadEditable(source, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var target configpipeline.EditTarget
+	for _, section := range snapshot.Sections {
+		if section.Section == "hosts" {
+			target, err = configpipeline.ReadEditTarget(source, nil, nil, "hosts", section.Items[0].ID)
+		}
+	}
+	if err != nil || target.Item.ID == "" {
+		t.Fatal("host target", err)
+	}
+	input, _ := json.Marshal(map[string]any{"variant": "hosts", "sourceRevision": snapshot.SourceRevision, "host": target})
+	cmd := exec.Command("node", "../../scripts/emit-rule-dns-fixture.cjs")
+	cmd.Stdin = bytes.NewReader(input)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("form emission: %v %s", err, output)
+	}
+	intent, err := configpipeline.DecodeEditIntent(output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	compiler := configpipeline.Compiler{Platform: func(context.Context, *yaml.Node) error { return nil }, Validate: func(_ context.Context, data []byte) error { _, err := config.Parse(data); return err }}
+	generated, err := compiler.Compile(context.Background(), configpipeline.Request{Original: source, Intent: intent})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(generated.YAML), "192.0.2.3") {
+		t.Fatal("final host value absent")
+	}
+	changed := []byte("proxies: [{name: node, type: direct}]\nrules: ['MATCH,node']\nhosts: {public.test: 192.0.2.9}\n")
+	if _, err = compiler.Compile(context.Background(), configpipeline.Request{Original: changed, Intent: intent}); err == nil {
+		t.Fatal("real upstream host change accepted")
 	}
 }
