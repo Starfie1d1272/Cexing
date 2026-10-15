@@ -368,6 +368,12 @@ const tx = context.exports.ProfileTransactions;
   controller.VpnController.status=2;currentProxyChoice='Original';
   await tx.applyPendingRegionSelection({});assert.equal(currentProxyChoice,'Cexing Smart Main');
   // Same-selector rebase preserves a later manual choice and consumed pending.
+  const beforeMissingChoice=state.Current.ID;
+  runtimeChoices.set(beforeMissingChoice,{pending:'',previous:undefined});
+  editDraft={revision:'missing-choice',intent:{schemaVersion:1,revision:'missing-choice',sourceRevision:'s',operations:[],template:{templateId:'original',version:1}}};
+  await assert.rejects(tx.applyEditDraft({},tx.editTicket({},'old.yaml')),/请先在代理面板选择可用节点/);
+  assert.equal(state.Current.ID,beforeMissingChoice,'unrestorable manual choice is refused before publication');
+  runtimeChoices.set(beforeMissingChoice,{pending:'',previous:{selector:'Main',name:'Original',observed:'Original'}});
   currentProxyChoice='Manual';await tx.update({},'old.yaml');assert.equal(currentProxyChoice,'Manual');
   assert.equal(regionChoices.get(state.Current.ID).pending,'');
   // Removing a template uses the same restoration path as a legacy region plan.

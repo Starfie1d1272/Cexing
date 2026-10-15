@@ -38,8 +38,15 @@ export namespace ProfileRegionChoices {
     after: string, live: boolean): Promise<RegionChoiceTransition> {
     const before = version !== undefined ? selector(EffectiveVersions.editIntent(context, version),
       EffectiveVersions.regionPlan(context, version)) : '';
-    return prepareRegionChoice(before, after, read(context, file, version, before),
-      live ? await CoreApi.getProxies() ?? {} : {});
+    try {
+      return prepareRegionChoice(before, after, read(context, file, version, before),
+        live ? await CoreApi.getProxies() ?? {} : {});
+    } catch (error) {
+      if ((error as Error).message === 'REGION_PREVIOUS_UNAVAILABLE') {
+        throw new Error('请先在代理面板选择可用节点，再关闭或切换地区策略');
+      }
+      throw error as Error;
+    }
   }
 
   function port(context: common.Context, file: string, version: EffectiveVersion,
