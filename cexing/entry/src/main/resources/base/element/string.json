@@ -14,23 +14,1643 @@
     },
     {
       "name": "pasteboard_reason",
-      "value": "用于从剪贴板导入订阅配置"
+      "value": "Import subscription configuration from the clipboard"
     },
     {
       "name": "shortcut_connect",
-      "value": "连接 VPN"
+      "value": "Connect VPN"
     },
     {
       "name": "shortcut_disconnect",
-      "value": "断开连接"
+      "value": "Disconnect"
     },
     {
       "name": "connection_card_name",
-      "value": "策星连接"
+      "value": "Cexing connection"
     },
     {
       "name": "connection_card_description",
-      "value": "查看连接状态，一键连接或断开"
+      "value": "View connection status and connect or disconnect"
+    },
+    {
+      "name": "action_retry",
+      "value": "Retry"
+    },
+    {
+      "name": "action_retrying",
+      "value": "Retrying…"
+    },
+    {
+      "name": "action_cancel",
+      "value": "Cancel"
+    },
+    {
+      "name": "action_settings",
+      "value": "Settings"
+    },
+    {
+      "name": "action_reconnect",
+      "value": "Reconnect"
+    },
+    {
+      "name": "action_connect_vpn",
+      "value": "Connect VPN"
+    },
+    {
+      "name": "action_disconnect",
+      "value": "Disconnect"
+    },
+    {
+      "name": "action_cancel_connect",
+      "value": "Cancel connection"
+    },
+    {
+      "name": "action_retry_disconnect",
+      "value": "Retry disconnect"
+    },
+    {
+      "name": "action_add_profile",
+      "value": "Add subscription"
+    },
+    {
+      "name": "action_manage",
+      "value": "Manage"
+    },
+    {
+      "name": "nav_connection",
+      "value": "Connection"
+    },
+    {
+      "name": "nav_profiles",
+      "value": "Subscriptions"
+    },
+    {
+      "name": "nav_traffic",
+      "value": "Traffic"
+    },
+    {
+      "name": "nav_diagnostics",
+      "value": "Diagnostics"
+    },
+    {
+      "name": "nav_resources",
+      "value": "Resources"
+    },
+    {
+      "name": "nav_panel",
+      "value": "Dashboard"
+    },
+    {
+      "name": "nav_network",
+      "value": "Network settings"
+    },
+    {
+      "name": "nav_core",
+      "value": "Core settings"
+    },
+    {
+      "name": "nav_profile_details",
+      "value": "Subscription details"
+    },
+    {
+      "name": "nav_original",
+      "value": "Original configuration"
+    },
+    {
+      "name": "state_connected",
+      "value": "Connected"
+    },
+    {
+      "name": "state_connecting",
+      "value": "Connecting"
+    },
+    {
+      "name": "state_disconnecting",
+      "value": "Disconnecting"
+    },
+    {
+      "name": "state_disconnected",
+      "value": "Disconnected"
+    },
+    {
+      "name": "state_connect_failed",
+      "value": "Connection failed"
+    },
+    {
+      "name": "state_stop_unknown",
+      "value": "Disconnect unconfirmed"
+    },
+    {
+      "name": "state_not_imported",
+      "value": "Not imported"
+    },
+    {
+      "name": "state_selected",
+      "value": "Selected"
+    },
+    {
+      "name": "state_ready_connect",
+      "value": "Ready to connect"
+    },
+    {
+      "name": "state_system_connecting",
+      "value": "Establishing system connection"
+    },
+    {
+      "name": "state_system_disconnecting",
+      "value": "Ending system session"
+    },
+    {
+      "name": "state_connected_actions",
+      "value": "View traffic or check the connection"
+    },
+    {
+      "name": "state_retry_diagnostics",
+      "value": "Retry or open diagnostics"
+    },
+    {
+      "name": "state_stop_diagnostics",
+      "value": "Retry disconnect or open diagnostics"
+    },
+    {
+      "name": "failure_stop_unknown",
+      "value": "Disconnect unconfirmed. Check system VPN status and retry"
+    },
+    {
+      "name": "failure_prepare_config",
+      "value": "Configuration could not be prepared. Check it and retry"
+    },
+    {
+      "name": "failure_state_unknown",
+      "value": "Connection state is unconfirmed. Retry disconnect first"
+    },
+    {
+      "name": "failure_mode_change",
+      "value": "Mode change failed"
+    },
+    {
+      "name": "failure_mode_save",
+      "value": "Mode changed but could not be saved. Retry"
+    },
+    {
+      "name": "failure_config_read",
+      "value": "Configuration could not be read. Check it and retry"
+    },
+    {
+      "name": "failure_connect_not_started",
+      "value": "Connection did not start. Retry"
+    },
+    {
+      "name": "failure_save",
+      "value": "Could not save. Retry"
+    },
+    {
+      "name": "failure_settings_read",
+      "value": "Could not read settings. Retry"
+    },
+    {
+      "name": "mode_rule",
+      "value": "Rule"
+    },
+    {
+      "name": "mode_global",
+      "value": "Global"
+    },
+    {
+      "name": "mode_direct",
+      "value": "Direct"
+    },
+    {
+      "name": "home_connection_state",
+      "value": "Connection status"
+    },
+    {
+      "name": "home_upload",
+      "value": "↑ Upload"
+    },
+    {
+      "name": "home_download",
+      "value": "↓ Download"
+    },
+    {
+      "name": "home_view_traffic",
+      "value": "View traffic"
+    },
+    {
+      "name": "home_current_profile",
+      "value": "Current subscription"
+    },
+    {
+      "name": "home_check_connection",
+      "value": "Check connection"
+    },
+    {
+      "name": "home_check_description",
+      "value": "Check connection status and local service"
+    },
+    {
+      "name": "home_import_profile",
+      "value": "Import subscription"
+    },
+    {
+      "name": "settings_running",
+      "value": "Running"
+    },
+    {
+      "name": "settings_auto_restore",
+      "value": "Restore when opening the app"
+    },
+    {
+      "name": "settings_background",
+      "value": "Background operation"
+    },
+    {
+      "name": "settings_background_hint",
+      "value": "Keep the session after leaving the page"
+    },
+    {
+      "name": "settings_system_connection",
+      "value": "System and connection"
+    },
+    {
+      "name": "settings_network_hint",
+      "value": "App routing · IPv6"
+    },
+    {
+      "name": "settings_smart_hint",
+      "value": "Statistical strategy · Offline model"
+    },
+    {
+      "name": "settings_advanced",
+      "value": "Advanced"
+    },
+    {
+      "name": "settings_auto_update",
+      "value": "Update subscriptions automatically"
+    },
+    {
+      "name": "settings_update_hint",
+      "value": "Check while VPN is running"
+    },
+    {
+      "name": "settings_interval",
+      "value": "Update interval"
+    },
+    {
+      "name": "settings_log_file",
+      "value": "Record kernel logs"
+    },
+    {
+      "name": "settings_next_start",
+      "value": "Applies on next start"
+    },
+    {
+      "name": "settings_background_enabled",
+      "value": "Background operation enabled"
+    },
+    {
+      "name": "settings_background_denied",
+      "value": "Could not enable background operation"
+    },
+    {
+      "name": "settings_enabled",
+      "value": "Enabled"
+    },
+    {
+      "name": "settings_interval_hint",
+      "value": "Subscription update check interval"
+    },
+    {
+      "name": "settings_saved_next",
+      "value": "Saved. Applies on next connection"
+    },
+    {
+      "name": "settings_reconnect_title",
+      "value": "Reconnect to apply settings?"
+    },
+    {
+      "name": "settings_reconnect_warning",
+      "value": "VPN will briefly disconnect."
+    },
+    {
+      "name": "settings_reconnecting",
+      "value": "Reconnecting"
+    },
+    {
+      "name": "settings_reconnect_apply",
+      "value": "Reconnect to apply"
+    },
+    {
+      "name": "background_acquired",
+      "value": "Background task granted"
+    },
+    {
+      "name": "background_disabled",
+      "value": "Background operation disabled"
+    },
+    {
+      "name": "background_requesting",
+      "value": "Requesting background task"
+    },
+    {
+      "name": "background_failed",
+      "value": "Background task request failed"
+    },
+    {
+      "name": "background_revoked",
+      "value": "System revoked background task"
+    },
+    {
+      "name": "background_user_stopped",
+      "value": "Background task stopped by user"
+    },
+    {
+      "name": "background_suspended",
+      "value": "Background task suspended"
+    },
+    {
+      "name": "background_unknown",
+      "value": "Background task unconfirmed"
+    },
+    {
+      "name": "background_notification_ready",
+      "value": "Live view published"
+    },
+    {
+      "name": "background_notification_failed",
+      "value": "Could not publish live view"
+    },
+    {
+      "name": "background_notification_unknown",
+      "value": "Live view unconfirmed"
+    },
+    {
+      "name": "background_limited",
+      "value": "Background operation limited"
+    },
+    {
+      "name": "background_still_limited",
+      "value": "Background operation still limited"
+    },
+    {
+      "name": "failure_start_detail",
+      "value": "Start failed: %s"
+    },
+    {
+      "name": "home_traffic_description",
+      "value": "Traffic. Upload %s. Download %s"
+    },
+    {
+      "name": "settings_hours",
+      "value": "%d hours"
+    },
+    {
+      "name": "a11y_loading_settings",
+      "value": "Loading settings"
+    },
+    {
+      "name": "a11y_unsaved_settings",
+      "value": "Save settings first"
+    },
+    {
+      "name": "a11y_current_profile",
+      "value": "Current subscription: %s"
+    },
+    {
+      "name": "smart_after_connect",
+      "value": "Connect to view smart selection"
+    },
+    {
+      "name": "smart_connect_first",
+      "value": "Connect VPN first to view Smart groups."
+    },
+    {
+      "name": "state_not_checked",
+      "value": "Not checked"
+    },
+    {
+      "name": "smart_no_evidence",
+      "value": "No prediction evidence yet"
+    },
+    {
+      "name": "state_unavailable",
+      "value": "Status temporarily unavailable"
+    },
+    {
+      "name": "smart_wait_config",
+      "value": "Waiting for runtime configuration"
+    },
+    {
+      "name": "smart_retry_status",
+      "value": "Retry shortly; check the local service if it remains unavailable."
+    },
+    {
+      "name": "smart_wait_predictions",
+      "value": "Waiting for prediction count"
+    },
+    {
+      "name": "smart_not_used",
+      "value": "Smart selection is not used in this configuration"
+    },
+    {
+      "name": "smart_enabled",
+      "value": "Smart selection enabled"
+    },
+    {
+      "name": "smart_profile_strategy",
+      "value": "Set strategies in subscription details."
+    },
+    {
+      "name": "smart_panel_strategy",
+      "value": "View Smart groups and options in the dashboard."
+    },
+    {
+      "name": "smart_choose_strategy",
+      "value": "Choose a strategy for the subscription's group types"
+    },
+    {
+      "name": "smart_model_strategy",
+      "value": "Model strategy"
+    },
+    {
+      "name": "smart_statistics",
+      "value": "Statistical strategy"
+    },
+    {
+      "name": "smart_model_loaded",
+      "value": "Model loaded"
+    },
+    {
+      "name": "smart_model_missing",
+      "value": "Model missing; using statistical strategy"
+    },
+    {
+      "name": "smart_model_invalid",
+      "value": "Model invalid; using statistical strategy"
+    },
+    {
+      "name": "smart_model_loading",
+      "value": "Loading model"
+    },
+    {
+      "name": "smart_model_not_requested",
+      "value": "Model loading not requested"
+    },
+    {
+      "name": "smart_predictions_zero",
+      "value": "0 valid predictions in this process"
+    },
+    {
+      "name": "smart_prediction_evidence",
+      "value": "Valid predictions recorded across all Smart groups in this process; not attributed to a website visit."
+    },
+    {
+      "name": "smart_prediction_none",
+      "value": "No valid predictions recorded. A loaded model still needs eligible samples from an active Smart group."
+    },
+    {
+      "name": "smart_applied",
+      "value": "Applied to the runtime configuration"
+    },
+    {
+      "name": "smart_saved_next",
+      "value": "Saved. Applies on next connection"
+    },
+    {
+      "name": "smart_import_failed",
+      "value": "Import failed. Check the official Model.bin version, checksum and VPN connection"
+    },
+    {
+      "name": "smart_installed_restart",
+      "value": "Model verified and installed. Restart the app to apply"
+    },
+    {
+      "name": "smart_installed",
+      "value": "Model verified and installed. View its strategy status in Smart groups"
+    },
+    {
+      "name": "smart_restart_title",
+      "value": "Restart the app to apply the model?"
+    },
+    {
+      "name": "smart_restart_warning",
+      "value": "VPN will disconnect and the app will restart. Reconnect after opening it."
+    },
+    {
+      "name": "smart_restart",
+      "value": "Restart app"
+    },
+    {
+      "name": "action_open_panel",
+      "value": "Open dashboard"
+    },
+    {
+      "name": "smart_auto_enable",
+      "value": "Enable smart selection automatically"
+    },
+    {
+      "name": "smart_restart_apply",
+      "value": "Restart app to apply model"
+    },
+    {
+      "name": "action_collapse_details",
+      "value": "Hide details"
+    },
+    {
+      "name": "action_details",
+      "value": "Details"
+    },
+    {
+      "name": "smart_current_config",
+      "value": "Current configuration"
+    },
+    {
+      "name": "smart_region_details",
+      "value": "Set region strategies in subscription details."
+    },
+    {
+      "name": "resource_model",
+      "value": "Offline model"
+    },
+    {
+      "name": "smart_bundled_model",
+      "value": "The official model is bundled. Loading and prediction evidence are shown separately; statistical strategy is used when unavailable."
+    },
+    {
+      "name": "smart_official_model",
+      "value": "View official model source"
+    },
+    {
+      "name": "smart_manual_hint",
+      "value": "Import official Model.bin only for manual recovery; the file will be verified."
+    },
+    {
+      "name": "action_working",
+      "value": "Working…"
+    },
+    {
+      "name": "smart_import_recovery",
+      "value": "Import model for recovery"
+    },
+    {
+      "name": "strategy_unavailable",
+      "value": "Strategies temporarily unavailable"
+    },
+    {
+      "name": "strategy_changed",
+      "value": "Strategies changed. Choose again"
+    },
+    {
+      "name": "strategy_updated",
+      "value": "Display strategy updated"
+    },
+    {
+      "name": "strategy_save_failed",
+      "value": "Could not save display strategy. Retry"
+    },
+    {
+      "name": "strategy_display",
+      "value": "Live view display strategy"
+    },
+    {
+      "name": "strategy_auto",
+      "value": "Automatic"
+    },
+    {
+      "name": "action_saving",
+      "value": "Saving…"
+    },
+    {
+      "name": "action_apply",
+      "value": "Apply"
+    },
+    {
+      "name": "resource_read_failed",
+      "value": "Could not inspect resources. Retry"
+    },
+    {
+      "name": "resource_restored",
+      "value": "Restored"
+    },
+    {
+      "name": "resource_ready",
+      "value": "Ready"
+    },
+    {
+      "name": "resource_missing",
+      "value": "Not installed"
+    },
+    {
+      "name": "resource_invalid",
+      "value": "Recovery needed"
+    },
+    {
+      "name": "action_restore",
+      "value": "Restore"
+    },
+    {
+      "name": "resource_geodata",
+      "value": "Network data"
+    },
+    {
+      "name": "a11y_restore_stopped",
+      "value": "Disconnect and confirm shutdown first"
+    },
+    {
+      "name": "a11y_expanded",
+      "value": "Expanded"
+    },
+    {
+      "name": "a11y_collapsed",
+      "value": "Collapsed"
+    },
+    {
+      "name": "smart_group",
+      "value": "%s · %s"
+    },
+    {
+      "name": "smart_predictions",
+      "value": "%d valid predictions in this process (all Smart groups)"
+    },
+    {
+      "name": "smart_source_fallback",
+      "value": "Open %s in your browser"
+    },
+    {
+      "name": "resource_restore_name",
+      "value": "Restore %s"
+    },
+    {
+      "name": "diag_not_checked",
+      "value": "Local service not checked"
+    },
+    {
+      "name": "diag_checking",
+      "value": "Checking…"
+    },
+    {
+      "name": "diag_evidence_failed",
+      "value": "Check evidence could not be saved. Retry export"
+    },
+    {
+      "name": "diag_proxy_unavailable",
+      "value": "Test proxies unavailable. Connect and retry"
+    },
+    {
+      "name": "diag_preparing_export",
+      "value": "Preparing support bundle…"
+    },
+    {
+      "name": "diag_bundle_name",
+      "value": "Cexing support bundle"
+    },
+    {
+      "name": "diag_share_open",
+      "value": "Share sheet opened. Review contents and choose an app"
+    },
+    {
+      "name": "diag_picker_type",
+      "value": "Support bundle|.json"
+    },
+    {
+      "name": "diag_save_cancelled",
+      "value": "Save cancelled. Bundle retained in the app"
+    },
+    {
+      "name": "diag_saved",
+      "value": "Support bundle saved. Review evidence scope before submitting"
+    },
+    {
+      "name": "diag_files_pending",
+      "value": "Existing diagnostic files are pending or retained. Complete save/share or retry later"
+    },
+    {
+      "name": "diag_export_failed",
+      "value": "Bundle save/share incomplete. Retry; historical evidence is retained"
+    },
+    {
+      "name": "diag_reachable",
+      "value": "Local service reachable"
+    },
+    {
+      "name": "diag_timeout",
+      "value": "Check timed out"
+    },
+    {
+      "name": "diag_summary_copied",
+      "value": "Redacted summary copied"
+    },
+    {
+      "name": "diag_copy_failed",
+      "value": "Copy failed. Retry"
+    },
+    {
+      "name": "diag_feedback_failed",
+      "value": "Could not open feedback. Use the GitHub repository issue page"
+    },
+    {
+      "name": "diag_connection_check",
+      "value": "Connection checks"
+    },
+    {
+      "name": "diag_local_service",
+      "value": "Local service"
+    },
+    {
+      "name": "diag_retry_timeout",
+      "value": "Retry the check. If it still times out, disconnect and reconnect."
+    },
+    {
+      "name": "diag_collapse",
+      "value": "Hide technical details"
+    },
+    {
+      "name": "diag_details",
+      "value": "Technical details"
+    },
+    {
+      "name": "diag_check_scope",
+      "value": "These checks cover the local API, configured DNS and selected proxy. Website access and system tunnel forwarding require separate confirmation."
+    },
+    {
+      "name": "diag_check_dns",
+      "value": "Check DNS"
+    },
+    {
+      "name": "diag_read_proxies",
+      "value": "Read test proxy list"
+    },
+    {
+      "name": "diag_choose_proxy",
+      "value": "Choose test proxy"
+    },
+    {
+      "name": "diag_check_proxy",
+      "value": "Check proxy connection"
+    },
+    {
+      "name": "diag_check_delay",
+      "value": "Check proxy latency"
+    },
+    {
+      "name": "diag_bandwidth_not_run",
+      "value": "Bandwidth testing is not performed here."
+    },
+    {
+      "name": "diag_visit_site",
+      "value": "After the local service responds, open a website to confirm access. Use dashboard logs if access fails."
+    },
+    {
+      "name": "diag_kernel_ready",
+      "value": "Kernel reported ready"
+    },
+    {
+      "name": "diag_kernel_waiting",
+      "value": "Waiting for kernel readiness"
+    },
+    {
+      "name": "diag_share",
+      "value": "Share support bundle file"
+    },
+    {
+      "name": "diag_copy_summary",
+      "value": "Copy redacted summary"
+    },
+    {
+      "name": "diag_feedback",
+      "value": "Open GitHub feedback template"
+    },
+    {
+      "name": "diag_check_service",
+      "value": "Check local service"
+    },
+    {
+      "name": "diag_save_bundle",
+      "value": "Save support bundle"
+    },
+    {
+      "name": "diag_evidence_scope",
+      "value": "Evidence scope in this bundle"
+    },
+    {
+      "name": "diag_title_connection",
+      "value": "Proxy connection"
+    },
+    {
+      "name": "diag_title_delay",
+      "value": "Proxy latency"
+    },
+    {
+      "name": "diag_title_bandwidth",
+      "value": "Bandwidth test"
+    },
+    {
+      "name": "diag_credentials_failed",
+      "value": "Connection information unavailable. Reconnect"
+    },
+    {
+      "name": "diag_auth_failed",
+      "value": "Connection authentication failed. Disconnect and reconnect"
+    },
+    {
+      "name": "diag_connect_first",
+      "value": "Not run. Connect VPN first"
+    },
+    {
+      "name": "diag_proxy_first",
+      "value": "Not run. Choose a test proxy first"
+    },
+    {
+      "name": "diag_bandwidth_disabled",
+      "value": "Bandwidth testing is not performed here"
+    },
+    {
+      "name": "diag_skipped",
+      "value": "Check not run. Reason recorded in the bundle"
+    },
+    {
+      "name": "diag_unknown",
+      "value": "Check result unconfirmed. Save a support bundle"
+    },
+    {
+      "name": "diag_fact_host",
+      "value": "App"
+    },
+    {
+      "name": "diag_fact_kernel",
+      "value": "Kernel"
+    },
+    {
+      "name": "diag_fact_current",
+      "value": "Current session"
+    },
+    {
+      "name": "diag_fact_previous",
+      "value": "Previous session"
+    },
+    {
+      "name": "diag_fact_older",
+      "value": "Older session"
+    },
+    {
+      "name": "diag_fact_no_evidence",
+      "value": "No retained evidence"
+    },
+    {
+      "name": "diag_fact_missing",
+      "value": "No evidence retained for this session; first use or rotation possible"
+    },
+    {
+      "name": "diag_fact_invalid",
+      "value": "Evidence file damaged or over limit"
+    },
+    {
+      "name": "diag_fact_unreadable",
+      "value": "Evidence unavailable"
+    },
+    {
+      "name": "diag_fact_environment",
+      "value": "App environment snapshot incomplete"
+    },
+    {
+      "name": "diag_fact_version",
+      "value": "Effective configuration version unconfirmed"
+    },
+    {
+      "name": "diag_fact_retention",
+      "value": "Each source retains current and two prior process sessions; older evidence may be rotated."
+    },
+    {
+      "name": "diag_fact_bandwidth",
+      "value": "Bandwidth testing must be started separately; this page only performs low-traffic checks."
+    },
+    {
+      "name": "diag_last_failure",
+      "value": "Last startup failure: %s"
+    },
+    {
+      "name": "diag_checked_at",
+      "value": "Checked at: %s"
+    },
+    {
+      "name": "diag_passed",
+      "value": "%s check passed"
+    },
+    {
+      "name": "diag_error_code",
+      "value": " (error code %s)"
+    },
+    {
+      "name": "diag_failed",
+      "value": "Check failed%s. Save a support bundle"
+    },
+    {
+      "name": "diag_fact_label",
+      "value": "%s · %s"
+    },
+    {
+      "name": "diag_fact_line",
+      "value": "%s: %s"
+    },
+    {
+      "name": "diag_fact_count",
+      "value": "%s: %d records"
+    },
+    {
+      "name": "diag_fact_losses",
+      "value": "%s: %d dropped, %d export omissions, %d write failures, %d unpersisted, %d rate-limited"
+    },
+    {
+      "name": "diag_fact_checks",
+      "value": "%s: %d check records retained"
+    },
+    {
+      "name": "diag_fact_no_checks",
+      "value": "%s: no retained results; cannot infer whether the check ran"
+    },
+    {
+      "name": "diag_connecting",
+      "value": "Connecting"
+    },
+    {
+      "name": "diag_disconnecting",
+      "value": "Disconnecting"
+    },
+    {
+      "name": "nav_profile_merge",
+      "value": "Subscription overrides"
+    },
+    {
+      "name": "nav_generated",
+      "value": "Generated configuration"
+    },
+    {
+      "name": "editor_draft_failed",
+      "value": "Could not save the draft. Your text remains in the editor."
+    },
+    {
+      "name": "editor_no_diff",
+      "value": "No counted configuration changes"
+    },
+    {
+      "name": "editor_preview_failed",
+      "value": "Cannot preview overrides. Check the content."
+    },
+    {
+      "name": "editor_global_applied",
+      "value": "Global overrides applied"
+    },
+    {
+      "name": "editor_global_saved",
+      "value": "Global overrides saved for next start"
+    },
+    {
+      "name": "editor_other_profiles",
+      "value": "Other subscriptions will be checked and updated when enabled or refreshed."
+    },
+    {
+      "name": "editor_apply_failed",
+      "value": "Apply incomplete. Try again."
+    },
+    {
+      "name": "editor_unknown",
+      "value": "Result unconfirmed. Disconnect on the connection page before retrying."
+    },
+    {
+      "name": "editor_global",
+      "value": "Global overrides"
+    },
+    {
+      "name": "editor_enabled",
+      "value": "Enabled"
+    },
+    {
+      "name": "editor_disabled",
+      "value": "Disabled"
+    },
+    {
+      "name": "editor_global_scope",
+      "value": "Set common configuration for all subscriptions. Subscription overrides take precedence."
+    },
+    {
+      "name": "editor_global_help",
+      "value": "Preview changes for the current subscription. Apply to activate, or clear and apply to disable."
+    },
+    {
+      "name": "editor_list_help",
+      "value": "Rule and proxy group lists replace the corresponding subscription lists."
+    },
+    {
+      "name": "editor_read_blocked",
+      "value": "Cannot read existing overrides or draft. Overwrite is blocked."
+    },
+    {
+      "name": "editor_yaml_placeholder",
+      "value": "Enter YAML overrides"
+    },
+    {
+      "name": "editor_close",
+      "value": "Close"
+    },
+    {
+      "name": "editor_save_draft",
+      "value": "Save draft"
+    },
+    {
+      "name": "editor_draft_saved",
+      "value": "Draft saved"
+    },
+    {
+      "name": "editor_preview",
+      "value": "Preview"
+    },
+    {
+      "name": "editor_working",
+      "value": "Working"
+    },
+    {
+      "name": "editor_apply_global",
+      "value": "Apply global overrides"
+    },
+    {
+      "name": "editor_help",
+      "value": "Editing help"
+    },
+    {
+      "name": "editor_got_it",
+      "value": "Got it"
+    },
+    {
+      "name": "network_all",
+      "value": "All apps"
+    },
+    {
+      "name": "network_only",
+      "value": "Selected apps only"
+    },
+    {
+      "name": "network_except",
+      "value": "Except selected apps"
+    },
+    {
+      "name": "network_read_failed",
+      "value": "Cannot read settings. Try again."
+    },
+    {
+      "name": "network_save_failed",
+      "value": "Could not save. Try again."
+    },
+    {
+      "name": "network_saved",
+      "value": "Saved for next VPN start"
+    },
+    {
+      "name": "network_invalid_package",
+      "value": "Enter a valid package name for another app"
+    },
+    {
+      "name": "network_added",
+      "value": "App added"
+    },
+    {
+      "name": "network_add_package",
+      "value": "Add app package"
+    },
+    {
+      "name": "network_package_placeholder",
+      "value": "For example, com.example.app"
+    },
+    {
+      "name": "network_cancel",
+      "value": "Cancel"
+    },
+    {
+      "name": "network_add",
+      "value": "Add"
+    },
+    {
+      "name": "network_routes",
+      "value": "System route exceptions"
+    },
+    {
+      "name": "network_route_help",
+      "value": "These addresses use the current network directly. Matching traffic bypasses VPN."
+    },
+    {
+      "name": "network_route_defaults",
+      "value": "Default exceptions are restored on each connection."
+    },
+    {
+      "name": "network_done",
+      "value": "Done"
+    },
+    {
+      "name": "network_next_start",
+      "value": "Applies on next start"
+    },
+    {
+      "name": "network_per_app",
+      "value": "Per-app routing"
+    },
+    {
+      "name": "network_add_required",
+      "value": "Add the apps to connect"
+    },
+    {
+      "name": "network_add_short",
+      "value": "Add package"
+    },
+    {
+      "name": "network_package_help",
+      "value": "Enter app package names. This app always connects directly."
+    },
+    {
+      "name": "network_remove_app",
+      "value": "Remove %s"
+    },
+    {
+      "name": "network_mode",
+      "value": "Routing mode"
+    },
+    {
+      "name": "core_port_invalid",
+      "value": "Port must be between 1 and 65535"
+    },
+    {
+      "name": "core_enable_failed",
+      "value": "Could not save activation. Try again."
+    },
+    {
+      "name": "core_revoke_failed",
+      "value": "Could not save revocation. Previous permission may remain. Turn it off again; current sharing will not stop automatically."
+    },
+    {
+      "name": "core_lan_title",
+      "value": "Allow devices on this network to use the proxy?"
+    },
+    {
+      "name": "core_lan_risk",
+      "value": "Devices on this LAN may use your phone's proxy without authentication, consuming network and proxy data. Share only on trusted networks. This does not expose LAN DNS and applies on next VPN start."
+    },
+    {
+      "name": "core_confirm_enable",
+      "value": "Enable"
+    },
+    {
+      "name": "core_port",
+      "value": "Mixed proxy port"
+    },
+    {
+      "name": "core_allow_lan",
+      "value": "Allow LAN connections"
+    },
+    {
+      "name": "core_log_level",
+      "value": "Log level"
+    },
+    {
+      "name": "core_save",
+      "value": "Save"
+    },
+    {
+      "name": "original_read_failed",
+      "value": "Cannot read this configuration. Saving is unavailable."
+    },
+    {
+      "name": "original_missing",
+      "value": "Configuration not found"
+    },
+    {
+      "name": "original_applied",
+      "value": "Saved and applied"
+    },
+    {
+      "name": "original_saved",
+      "value": "Saved. Applies when enabled or started."
+    },
+    {
+      "name": "original_save_failed",
+      "value": "Save incomplete. Check the content and try again."
+    },
+    {
+      "name": "original_saved_unreadable",
+      "value": "Cannot read the saved configuration"
+    },
+    {
+      "name": "original_draft_delete_failed",
+      "value": "Could not delete the draft"
+    },
+    {
+      "name": "original_draft_failed",
+      "value": "Could not save the draft. Save the configuration first."
+    },
+    {
+      "name": "original_name_required",
+      "value": "Enter a name"
+    },
+    {
+      "name": "original_saved_as",
+      "value": "Saved as %s"
+    },
+    {
+      "name": "original_save_as_failed",
+      "value": "Could not save a copy. Try again."
+    },
+    {
+      "name": "original_merge_draft_failed",
+      "value": "Could not save the override draft. Try again."
+    },
+    {
+      "name": "original_merge_read_failed",
+      "value": "Cannot read the override draft. Try again."
+    },
+    {
+      "name": "original_save_before_preview",
+      "value": "Save the original configuration before previewing overrides"
+    },
+    {
+      "name": "original_save_before_apply",
+      "value": "Save the original configuration before applying overrides"
+    },
+    {
+      "name": "original_merge_applied",
+      "value": "Subscription overrides applied"
+    },
+    {
+      "name": "original_merge_saved",
+      "value": "Subscription overrides saved for next connection"
+    },
+    {
+      "name": "original_merge",
+      "value": "Subscription overrides"
+    },
+    {
+      "name": "original_scope",
+      "value": "This subscription only"
+    },
+    {
+      "name": "original_merge_help",
+      "value": "Takes precedence over global overrides. Preview saves a draft; apply activates it. Clear and apply to disable. Rule and proxy group lists replace the corresponding subscription lists."
+    },
+    {
+      "name": "original_merge_blocked",
+      "value": "Cannot read the override draft. Close and try again."
+    },
+    {
+      "name": "original_unsaved",
+      "value": "Original configuration has unsaved changes"
+    },
+    {
+      "name": "original_continue",
+      "value": "Continue editing original"
+    },
+    {
+      "name": "original_previewing",
+      "value": "Previewing"
+    },
+    {
+      "name": "original_apply_merge",
+      "value": "Apply subscription overrides"
+    },
+    {
+      "name": "original_save_copy_title",
+      "value": "Save as a new configuration"
+    },
+    {
+      "name": "original_new_name",
+      "value": "New configuration name (.yaml added automatically)"
+    },
+    {
+      "name": "original_save_copy",
+      "value": "Save copy"
+    },
+    {
+      "name": "original_draft_pending",
+      "value": "Unsaved · Saving draft"
+    },
+    {
+      "name": "original_draft_kept",
+      "value": "Unsaved · Draft retained"
+    },
+    {
+      "name": "original_save_as",
+      "value": "Save as"
+    },
+    {
+      "name": "original_read_error",
+      "value": "Cannot read configuration"
+    },
+    {
+      "name": "original_file_retry",
+      "value": "The file may have been deleted. Return to subscriptions and try again."
+    },
+    {
+      "name": "original_save_help",
+      "value": "Configuration is checked before saving and applied when connected."
+    },
+    {
+      "name": "original_discard",
+      "value": "Discard draft"
+    },
+    {
+      "name": "original_saving",
+      "value": "Saving"
+    },
+    {
+      "name": "original_save",
+      "value": "Save configuration"
+    },
+    {
+      "name": "original_content",
+      "value": "Configuration content"
+    },
+    {
+      "name": "generated_missing",
+      "value": "Enable a subscription to generate configuration"
+    },
+    {
+      "name": "generated_read_failed",
+      "value": "Cannot read generated configuration. Try again."
+    },
+    {
+      "name": "generated_readonly",
+      "value": "Saved generated configuration · Read-only"
+    },
+    {
+      "name": "traffic_up_rate",
+      "value": "↑ Upload"
+    },
+    {
+      "name": "traffic_down_rate",
+      "value": "↓ Download"
+    },
+    {
+      "name": "traffic_partial",
+      "value": "Partial records"
+    },
+    {
+      "name": "traffic_up",
+      "value": "Upload"
+    },
+    {
+      "name": "traffic_down",
+      "value": "Download"
+    },
+    {
+      "name": "traffic_total",
+      "value": "Total"
+    },
+    {
+      "name": "traffic_five_ago",
+      "value": "5 minutes ago"
+    },
+    {
+      "name": "traffic_half_ago",
+      "value": "2.5 minutes ago"
+    },
+    {
+      "name": "traffic_now",
+      "value": "Now"
+    },
+    {
+      "name": "traffic_chart",
+      "value": "Upload and download rates over the last five minutes"
+    },
+    {
+      "name": "traffic_session",
+      "value": "Session"
+    },
+    {
+      "name": "traffic_today",
+      "value": "Today"
+    },
+    {
+      "name": "traffic_month",
+      "value": "Month"
+    },
+    {
+      "name": "traffic_unsaved",
+      "value": "Records not saved"
+    },
+    {
+      "name": "panel_preparing",
+      "value": "Preparing control panel…"
+    },
+    {
+      "name": "panel_open",
+      "value": "Open control panel"
+    },
+    {
+      "name": "panel_reopen",
+      "value": "Reopen"
+    },
+    {
+      "name": "panel_leave_help",
+      "value": "Returning to the connection page keeps VPN connected."
+    },
+    {
+      "name": "panel_cache_failed",
+      "value": "Cannot clear cache. Reopen the panel."
+    },
+    {
+      "name": "panel_exited",
+      "value": "Control panel exited. Reopen it."
+    },
+    {
+      "name": "panel_load_failed",
+      "value": "Panel loading failed. Reopen it. VPN remains running."
+    },
+    {
+      "name": "panel_service_failed",
+      "value": "Service unavailable. Reopen the panel."
+    },
+    {
+      "name": "panel_unavailable",
+      "value": "Control panel unavailable. Retrying…"
+    },
+    {
+      "name": "editor_enable_first",
+      "value": "Enable a subscription before previewing or applying global overrides"
+    },
+    {
+      "name": "original_draft_keep_failed",
+      "value": "Could not retain the draft. Save the configuration first."
+    },
+    {
+      "name": "live_connected_title",
+      "value": "Cexing · Proxy connected"
+    },
+    {
+      "name": "live_main_title",
+      "value": "Cexing system proxy"
+    },
+    {
+      "name": "live_idle",
+      "value": "Connected · No active traffic"
+    },
+    {
+      "name": "live_rule_mode",
+      "value": "Rule mode"
+    },
+    {
+      "name": "live_global_mode",
+      "value": "Global mode"
+    },
+    {
+      "name": "live_direct_mode",
+      "value": "Direct mode"
+    },
+    {
+      "name": "live_connecting_title",
+      "value": "Cexing · Connecting…"
+    },
+    {
+      "name": "live_connecting",
+      "value": "Cexing is connecting"
+    },
+    {
+      "name": "live_tunnel_start",
+      "value": "Creating VPN tunnel…"
+    },
+    {
+      "name": "live_disconnecting_title",
+      "value": "Cexing · Disconnecting…"
+    },
+    {
+      "name": "live_disconnecting",
+      "value": "Cexing is disconnecting"
+    },
+    {
+      "name": "live_tunnel_stop",
+      "value": "Releasing tunnel…"
+    },
+    {
+      "name": "live_strategy",
+      "value": "Display policy %s"
+    },
+    {
+      "name": "live_traffic",
+      "value": "↓ %s · ↑ %s · Uptime %s"
+    },
+    {
+      "name": "live_probe",
+      "value": " · Probe %d ms"
+    },
+    {
+      "name": "failure_phase_start",
+      "value": "Start"
+    },
+    {
+      "name": "failure_phase_authorization",
+      "value": "System permission"
+    },
+    {
+      "name": "failure_phase_service",
+      "value": "Service connection"
+    },
+    {
+      "name": "failure_phase_vpn",
+      "value": "System tunnel"
+    },
+    {
+      "name": "failure_phase_protect",
+      "value": "Process network protection"
+    },
+    {
+      "name": "failure_phase_assets",
+      "value": "Resource preparation"
+    },
+    {
+      "name": "failure_phase_core_init",
+      "value": "Core initialization"
+    },
+    {
+      "name": "failure_phase_config",
+      "value": "Configuration parsing"
+    },
+    {
+      "name": "failure_phase_core_start",
+      "value": "Core start"
+    },
+    {
+      "name": "failure_phase_readiness",
+      "value": "Startup verification"
+    },
+    {
+      "name": "failure_unknown",
+      "value": "Unknown error"
+    },
+    {
+      "name": "failure_permission",
+      "value": "Permission denied"
+    },
+    {
+      "name": "failure_configuration",
+      "value": "Configuration error"
+    },
+    {
+      "name": "failure_dns",
+      "value": "Resolution error"
+    },
+    {
+      "name": "failure_tls",
+      "value": "Secure connection error"
+    },
+    {
+      "name": "failure_timeout",
+      "value": "Timed out"
+    },
+    {
+      "name": "failure_network",
+      "value": "Network connection error"
+    },
+    {
+      "name": "failure_label",
+      "value": "%s: %s%s"
+    },
+    {
+      "name": "card_title",
+      "value": "Cexing VPN"
+    },
+    {
+      "name": "card_brand",
+      "value": "Cexing"
+    },
+    {
+      "name": "card_previous",
+      "value": "Previous status"
+    },
+    {
+      "name": "card_connected",
+      "value": "Connected"
+    },
+    {
+      "name": "card_connecting",
+      "value": "Connecting"
+    },
+    {
+      "name": "card_disconnecting",
+      "value": "Disconnecting"
+    },
+    {
+      "name": "card_disconnected",
+      "value": "Disconnected"
+    },
+    {
+      "name": "card_stop_unknown",
+      "value": "State unconfirmed"
+    },
+    {
+      "name": "card_stopping",
+      "value": "Disconnecting"
+    },
+    {
+      "name": "card_stop",
+      "value": "Disconnect"
+    },
+    {
+      "name": "card_start",
+      "value": "Connect"
     },
     {
       "name": "proxy_editor_keep_type",
@@ -519,6 +2139,50 @@
     {
       "name": "proxy_form_open_original",
       "value": "Edit original configuration"
+    },
+    {
+      "name": "apply_feedback_unconfirmed",
+      "value": "Apply status is unconfirmed. Reconnect to recover."
+    },
+    {
+      "name": "apply_feedback_committed",
+      "value": "Configuration saved. Reconnect to restore the region selection."
+    },
+    {
+      "name": "apply_feedback_selection",
+      "value": "Choose an available node in the proxy panel, then retry."
+    },
+    {
+      "name": "apply_feedback_failed",
+      "value": "The operation did not finish. Preview again."
+    },
+    {
+      "name": "apply_feedback_reconnect",
+      "value": "Reconnect"
+    },
+    {
+      "name": "apply_feedback_panel",
+      "value": "Open proxy panel"
+    },
+    {
+      "name": "apply_feedback_reconnect_title",
+      "value": "Reconnect?"
+    },
+    {
+      "name": "apply_feedback_reconnect_body",
+      "value": "The current connection will be interrupted briefly."
+    },
+    {
+      "name": "apply_feedback_starting",
+      "value": "Connecting"
+    },
+    {
+      "name": "apply_feedback_recovery_failed",
+      "value": "Recovery did not finish. Check the connection and retry."
+    },
+    {
+      "name": "apply_feedback_region_failed",
+      "value": "The region change did not finish. Retry."
     },
     {
       "name": "proxy_editor_disable_node",

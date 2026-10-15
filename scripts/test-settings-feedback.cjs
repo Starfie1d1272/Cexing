@@ -1,3 +1,4 @@
+const uiFixture = require('./ci/ui-fixtures.cjs');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
@@ -17,8 +18,9 @@ const modules = {
   '../lib/LiveViewKeeper': { LiveViewKeeper: { start: () => new Promise(resolve => { finishStart = resolve; }), stop: async () => {} } },
   '@kit.ArkUI': { promptAction: { showToast: value => toasts.push(value.message) } }
 };
-const sandbox = { exports: {}, require: key => modules[key] ?? {}, getContext: () => ({}),
+const sandbox = { exports: {}, require: key => key.endsWith('/UiText') ? uiFixture.module : modules[key] ?? {}, getContext: () => ({}),
   ActionSheet: { show: value => { sheet = value; } } };
+Object.assign(sandbox, uiFixture.globals);
 vm.runInNewContext(ts.transpileModule(methods).outputText, sandbox);
 (async () => {
   const page = new sandbox.exports.SettingsPage(); page.aboutToAppear(); await new Promise(resolve => setImmediate(resolve));

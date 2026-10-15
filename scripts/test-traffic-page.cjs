@@ -1,3 +1,4 @@
+const uiFixture = require('./ci/ui-fixtures.cjs');
 // Execute actual page lifecycle/chart logic; official HAP compile owns builders.
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -22,6 +23,7 @@ const modules = {
 };
 const sandbox = { exports: {}, require: key => { assert.ok(key in modules, key); return modules[key]; },
   Date: { now: () => now }, setInterval: fn => { tick = fn; return 1; }, clearInterval: () => { tick = null; } };
+Object.assign(sandbox, uiFixture.globals); modules['../lib/UiText'] = uiFixture.module;
 vm.runInNewContext(ts.transpileModule(source).outputText, sandbox);
 const page = new sandbox.exports.TrafficPage(); page.aboutToAppear();
 assert.equal(listeners.size, 1); assert.ok(stream);

@@ -1,3 +1,4 @@
+import { UiText } from '../lib/UiText';
 import { CoreApi, TrafficMsg, formatRate } from '../lib/CoreApi';
 import { TrafficStats, TrafficView, TrafficPoint } from '../lib/TrafficStats';
 import { TrafficBucket } from '../lib/TrafficLedger';
@@ -75,7 +76,7 @@ export struct TrafficPage {
   @Builder
   Rate(upload: boolean) {
     Column({ space: 8 }) {
-      Text(upload ? '↑ 上传' : '↓ 下载').fontSize(13).fontColor(upload ? UI.accentText : UI.muted)
+      Text(upload ? UiText.get($r('app.string.traffic_up_rate')) : UiText.get($r('app.string.traffic_down_rate'))).fontSize(13).fontColor(upload ? UI.accentText : UI.muted)
       Text(upload ? this.up : this.down).fontSize(24).fontWeight(FontWeight.Medium).fontColor(UI.ink).fontFeature('tnum')
     }.alignItems(HorizontalAlign.Start).layoutWeight(1)
   }
@@ -87,19 +88,19 @@ export struct TrafficPage {
     Column({ space: 16 }) {
       Row() {
         Text(label).fontSize(16).fontWeight(FontWeight.Medium).fontColor(UI.ink).layoutWeight(1)
-        if (this.bucket(index).partial) { Text('部分记录').fontSize(12).fontColor(UI.muted) }
+        if (this.bucket(index).partial) { Text(UiText.get($r('app.string.traffic_partial'))).fontSize(12).fontColor(UI.muted) }
       }.width('100%')
       Row() {
         Column({ space: 7 }) {
-          Text('上传').fontSize(12).fontColor(UI.muted)
+          Text(UiText.get($r('app.string.traffic_up'))).fontSize(12).fontColor(UI.muted)
           Text(this.snapshot.ready && (index !== 0 || this.snapshot.currentReady) ? bytes(this.bucket(index).up) : '—').fontSize(17).minFontSize(12).maxFontSize(17).maxLines(1).fontColor(UI.ink).fontFeature('tnum')
         }.alignItems(HorizontalAlign.Start).layoutWeight(1)
         Column({ space: 7 }) {
-          Text('下载').fontSize(12).fontColor(UI.muted)
+          Text(UiText.get($r('app.string.traffic_down'))).fontSize(12).fontColor(UI.muted)
           Text(this.snapshot.ready && (index !== 0 || this.snapshot.currentReady) ? bytes(this.bucket(index).down) : '—').fontSize(17).minFontSize(12).maxFontSize(17).maxLines(1).fontColor(UI.ink).fontFeature('tnum')
         }.alignItems(HorizontalAlign.Start).layoutWeight(1)
         Column({ space: 7 }) {
-          Text('合计').fontSize(12).fontColor(UI.muted)
+          Text(UiText.get($r('app.string.traffic_total'))).fontSize(12).fontColor(UI.muted)
           Text(this.snapshot.ready && (index !== 0 || this.snapshot.currentReady) ? bytes(this.bucket(index).up + this.bucket(index).down) : '—').fontSize(17).minFontSize(12).maxFontSize(17).maxLines(1).fontWeight(FontWeight.Medium)
             .fontColor(UI.ink).fontFeature('tnum')
         }.alignItems(HorizontalAlign.Start).layoutWeight(1)
@@ -117,11 +118,11 @@ export struct TrafficPage {
                 Text(this.chartUnit).fontSize(10).fontColor(UI.muted).layoutWeight(1)
                 Row({ space: 4 }) {
                   Circle().width(6).height(6).fill(UI.accentText)
-                  Text('上传').fontSize(11).fontColor(UI.muted)
+                  Text(UiText.get($r('app.string.traffic_up'))).fontSize(11).fontColor(UI.muted)
                 }
                 Row({ space: 4 }) {
                   Circle().width(6).height(6).fill(UI.muted)
-                  Text('下载').fontSize(11).fontColor(UI.muted)
+                  Text(UiText.get($r('app.string.traffic_down'))).fontSize(11).fontColor(UI.muted)
                 }
               }.width('100%')
               Row({ space: 6 }) {
@@ -142,18 +143,18 @@ export struct TrafficPage {
               }.width('100%')
               Row() {
                 Blank().width(34)
-                Text('5 分钟前').layoutWeight(1).fontSize(10).fontColor(UI.muted)
-                Text('2.5 分钟前').layoutWeight(1).textAlign(TextAlign.Center).fontSize(10).fontColor(UI.muted)
-                Text('现在').layoutWeight(1).textAlign(TextAlign.End).fontSize(10).fontColor(UI.muted)
+                Text(UiText.get($r('app.string.traffic_five_ago'))).layoutWeight(1).fontSize(10).fontColor(UI.muted)
+                Text(UiText.get($r('app.string.traffic_half_ago'))).layoutWeight(1).textAlign(TextAlign.Center).fontSize(10).fontColor(UI.muted)
+                Text(UiText.get($r('app.string.traffic_now'))).layoutWeight(1).textAlign(TextAlign.End).fontSize(10).fontColor(UI.muted)
               }.width('100%')
-            }.width('100%').accessibilityGroup(true).accessibilityText('最近五分钟上传与下载速率')
+            }.width('100%').accessibilityGroup(true).accessibilityText(UiText.get($r('app.string.traffic_chart')))
           }
         }.width('100%').padding(20).borderRadius(24).backgroundColor(UI.surface)
-        this.Period(0, '本次')
-        this.Period(1, '今日')
-        this.Period(2, '本月')
+        this.Period(0, UiText.get($r('app.string.traffic_session')))
+        this.Period(1, UiText.get($r('app.string.traffic_today')))
+        this.Period(2, UiText.get($r('app.string.traffic_month')))
         if (!this.snapshot.saved) {
-          Text('记录未保存').fontSize(12).fontColor(UI.muted).width('100%').padding({ bottom: 16 })
+          Text(UiText.get($r('app.string.traffic_unsaved'))).fontSize(12).fontColor(UI.muted).width('100%').padding({ bottom: 16 })
         }
       }.width('100%').constraintSize({ maxWidth: 640 }).padding(24)
     }.width('100%').height('100%').align(Alignment.Top).backgroundColor(UI.paper).scrollBar(BarState.Off)

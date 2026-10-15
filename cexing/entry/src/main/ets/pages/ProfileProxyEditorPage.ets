@@ -1,3 +1,6 @@
+import { ProfileApplyFeedback, ProfileApplyFailureKind } from '../lib/ProfileApplyFeedback';
+import { ProfileApplyRecovery } from '../lib/ProfileApplyRecovery';
+import { ProfileImportInput } from '../lib/ProfileImportInput';
 import { ProxyEditorText } from '../lib/ProxyEditorText';
 import { common } from '@kit.AbilityKit';
 import { util } from '@kit.ArkTS';
@@ -35,6 +38,7 @@ export struct ProfileProxyEditorPage {
   @Prop @Watch('visibilityChanged') visible: boolean = false;
   @Consume('profileRevision') profileRevision: number;
   @Consume('nav') navStack: NavPathStack;
+  @Consume('tabJump') tabJump: number;
   @State section: string = 'proxies';
   @State rows: ProxyEditorRow[] = [];
   @State query: string = '';
@@ -47,6 +51,7 @@ export struct ProfileProxyEditorPage {
   @State visibleCount: number = 100;
   @State busy: boolean = false;
   @State error: string = '';
+  @State private applyFailure: ProfileApplyFailureKind | '' = '';
   @State formOpen: boolean = false;
   @State formTarget: EditTarget | null = null;
   @State names: string[] = [];
@@ -95,7 +100,8 @@ export struct ProfileProxyEditorPage {
         const sources = snapshot?.sections.find((part) => part.section === 'proxy-providers')?.items.length ?? 0;
         const added = this.model.workingIntent().operations.some((op: EditOperation) => op.kind === 'add' && op.section === 'proxies');
         if (this.section === 'proxies' && direct === 0 && sources > 0 && !added) { this.section = 'proxy-providers'; }
-        this.sync(); this.error = '';
+        this.sync(); this.applyFailure = ProfileApplyFeedback.recovery(getContext(this) as common.UIAbilityContext);
+        this.error = this.applyFailure === '' ? '' : this.t(ProfileApplyFeedback.key(this.applyFailure));
       }
     }
     catch (_) { if (this.current(epoch)) { this.error = this.t('proxy_editor_load_failed'); } }
@@ -300,12 +306,12 @@ export struct ProfileProxyEditorPage {
   }
 
   private async save(next: EditIntent): Promise<void> {
-    if (this.busy || this.model === null) { return; }
+    if (this.busy || this.model === null || this.needsRecovery()) { return; }
     const epoch = ++this.epoch; this.busy = true; this.previewReady = false;
     try {
       const ready = await this.model.save(next);
       if (!this.current(epoch)) { return; }
-      this.sync(); this.formOpen = false;
+      this.sync(); this.formOpen = false; this.applyFailure = '';
       this.error = ready ? '' : this.t('proxy_editor_preview_failed');
     } catch (error) {
       if (this.current(epoch)) { this.sync(); this.error = this.previewFailure(next, error as Error); }
@@ -460,7 +466,7 @@ export struct ProfileProxyEditorPage {
   }
 
   private async inspect(): Promise<void> {
-    if (this.busy || this.model === null) { return; }
+    if (this.busy || this.model === null || this.needsRecovery()) { return; }
     const epoch = ++this.epoch; this.busy = true;
     try { await this.model.previewSaved(); if (this.current(epoch)) { this.sync(); this.error = ''; } }
     catch (_) { if (this.current(epoch)) { this.previewReady = false; this.error = this.t('proxy_editor_preview_invalid'); } }
@@ -468,7 +474,7 @@ export struct ProfileProxyEditorPage {
   }
 
   private async apply(): Promise<void> {
-    if (this.busy || this.model === null) { return; }
+    if (this.busy || this.model === null || this.needsRecovery()) { return; }
     const epoch = ++this.epoch; this.busy = true;
     try {
       const result = await this.model.apply();
@@ -477,8 +483,38 @@ export struct ProfileProxyEditorPage {
       promptAction.showToast({ message: result === 'applied' ? this.t('proxy_editor_applied') : this.t('proxy_editor_saved'), duration: 1800 });
       this.previewReady = false;
       this.load();
-    } catch (_) { if (this.current(epoch)) { this.error = this.t('proxy_editor_apply_failed'); } }
+    } catch (error) { if (this.current(epoch)) {
+      this.previewReady = false; this.profileRevision++;
+      const kind = ProfileApplyFeedback.classify((error as Error).message);
+      this.applyFailure = ProfileApplyFeedback.recovery(getContext(this) as common.UIAbilityContext) === 'unconfirmed' ? 'unconfirmed' : kind;
+      this.error = this.t(ProfileApplyFeedback.key(this.applyFailure));
+    } }
     finally { if (this.current(epoch)) { this.busy = false; } }
+  }
+
+  private needsRecovery(): boolean {
+    return this.applyFailure === 'unconfirmed' || this.applyFailure === 'committed-pending';
+  }
+
+  private async recoverApply(): Promise<void> {
+    if (this.busy || !this.active || !this.needsRecovery()) { return; }
+    const epoch = ++this.epoch; this.busy = true;
+    try {
+      const accepted = await ProfileApplyRecovery.reconnect(getContext(this) as common.UIAbilityContext, () => this.current(epoch));
+      if (!this.current(epoch) || accepted === null) { return; }
+      if (accepted) {
+        this.applyFailure = ''; this.error = ''; this.profileRevision++;
+        promptAction.showToast({ message: this.t('apply_feedback_starting'), duration: 1800 });
+        if (!ProfileImportInput.hasPending()) { this.tabJump = 0; }
+        this.navStack.clear();
+      } else { this.error = this.t('apply_feedback_recovery_failed'); }
+    } catch (_) { if (this.current(epoch)) { this.error = this.t('apply_feedback_recovery_failed'); } }
+    finally { if (this.current(epoch)) { this.busy = false; } }
+  }
+
+  private repairSelection(): void {
+    if (!this.active || this.busy || this.applyFailure !== 'selection-required') { return; }
+    this.navStack.pushPath({ name: 'zashboard' });
   }
 
   build() {
@@ -534,19 +570,19 @@ export struct ProfileProxyEditorPage {
                 }
                 if (this.moveHandler() !== undefined) { Text('≡').accessibilityLevel('no').fontSize(20).fontColor(UI.muted) }
                 Button($r('app.string.proxy_editor_delete')).constraintSize({ minHeight: 44 }).accessibilityText(this.t('proxy_editor_delete_named', row.label)).onClick(() => { this.remove(row); })
-              }.enabled(!this.busy)
+              }.enabled(!this.busy && !this.needsRecovery())
             }
           }, (row: ProxyEditorRow) => row.id).onMove(this.moveHandler())
         }.width('100%').layoutWeight(1).onReachEnd(() => { this.moreRows(); })
         }
-        Button($r('app.string.proxy_editor_add')).constraintSize({ minHeight: 44 }).width('100%').constraintSize({ minHeight: 48 }).enabled(!this.busy).onClick(() => { this.add(); })
+        Button($r('app.string.proxy_editor_add')).constraintSize({ minHeight: 44 }).width('100%').constraintSize({ minHeight: 48 }).enabled(!this.busy && !this.needsRecovery()).onClick(() => { this.add(); })
         Row({ space: 8 }) {
-          Button($r('app.string.proxy_editor_undo')).constraintSize({ minHeight: 44 }).enabled(!this.busy && (this.model?.canUndo() ?? false)).onClick(() => { this.undo(); })
-          Button(this.disabled ? this.t('proxy_editor_enable_edits') : this.t('proxy_editor_disable_edits')).constraintSize({ minHeight: 44 }).enabled(!this.busy).onClick(() => {
+          Button($r('app.string.proxy_editor_undo')).constraintSize({ minHeight: 44 }).enabled(!this.busy && !this.needsRecovery() && (this.model?.canUndo() ?? false)).onClick(() => { this.undo(); })
+          Button(this.disabled ? this.t('proxy_editor_enable_edits') : this.t('proxy_editor_disable_edits')).constraintSize({ minHeight: 44 }).enabled(!this.busy && !this.needsRecovery()).onClick(() => {
             if (this.model !== null) { const next = this.model.workingIntent(); next.disabled = !next.disabled; this.save(next); }
           })
-          if (!this.previewReady) { Button($r('app.string.proxy_editor_preview')).constraintSize({ minHeight: 44 }).enabled(!this.busy).onClick(() => { this.inspect(); }) }
-          if (this.previewReady) { Button($r('app.string.proxy_editor_apply')).constraintSize({ minHeight: 44 }).enabled(!this.busy).onClick(() => { this.apply(); }) }
+          if (!this.previewReady && !this.needsRecovery()) { Button($r('app.string.proxy_editor_preview')).constraintSize({ minHeight: 44 }).enabled(!this.busy).onClick(() => { this.inspect(); }) }
+          if (this.previewReady && !this.needsRecovery()) { Button($r('app.string.proxy_editor_apply')).constraintSize({ minHeight: 44 }).enabled(!this.busy).onClick(() => { this.apply(); }) }
         }
         if (this.renameReferences) { Text($r('app.string.proxy_editor_rename_refs')).fontSize(13).fontColor(UI.muted).width('100%') }
         if (this.previewText !== '') { Text(this.previewText).fontSize(13).fontColor(UI.muted) }
@@ -555,6 +591,13 @@ export struct ProfileProxyEditorPage {
       if (this.busy) { LoadingProgress().accessibilityText($r('app.string.proxy_editor_busy')).width(28).height(28) }
       if (this.error !== '') {
         Text(this.error).fontSize(14).fontColor(UI.error).width('100%')
+        if (this.needsRecovery()) {
+          Button($r('app.string.apply_feedback_reconnect')).constraintSize({ minHeight: 44 }).enabled(!this.busy)
+            .onClick(() => { this.recoverApply(); })
+        } else if (this.applyFailure === 'selection-required') {
+          Button($r('app.string.apply_feedback_panel')).constraintSize({ minHeight: 44 }).enabled(!this.busy)
+            .onClick(() => { this.repairSelection(); })
+        }
         Button($r('app.string.proxy_editor_reload')).constraintSize({ minHeight: 44 }).enabled(!this.busy).onClick(() => { this.load(); })
       }
     }.width('100%').height('100%').padding(16).backgroundColor(UI.paper)

@@ -1,3 +1,4 @@
+import { UiText } from '../lib/UiText';
 import { common } from '@kit.AbilityKit';
 import { CoreApi } from '../lib/CoreApi';
 import { LiveViewStrategy } from '../lib/LiveViewStrategy';
@@ -37,11 +38,11 @@ export struct LiveViewStrategyPicker {
     try {
       const proxies = await CoreApi.getProxies();
       if (!this.current(generation)) { return; }
-      if (proxies === null) { this.message = '暂时无法读取策略'; return; }
+      if (proxies === null) { this.message = UiText.get($r('app.string.strategy_unavailable')); return; }
       this.groups = LiveViewStrategy.groups(proxies);
       this.draft = Settings.load(getContext(this) as common.UIAbilityContext).mainGroup;
     } catch (_) {
-      if (this.current(generation)) { this.message = '暂时无法读取策略'; }
+      if (this.current(generation)) { this.message = UiText.get($r('app.string.strategy_unavailable')); }
     } finally { if (this.current(generation)) { this.busy = false; } }
   }
 
@@ -54,7 +55,7 @@ export struct LiveViewStrategyPicker {
       const proxies = await CoreApi.getProxies();
       if (!this.current(generation)) { return; }
       if (proxies === null || (chosen.length > 0 && !LiveViewStrategy.groups(proxies).includes(chosen))) {
-        this.message = '策略已变化，请重新选择'; return;
+        this.message = UiText.get($r('app.string.strategy_changed')); return;
       }
       const context = getContext(this) as common.UIAbilityContext;
       const settings = Settings.load(context);
@@ -62,9 +63,9 @@ export struct LiveViewStrategyPicker {
       // Uses the durable, failure-reporting Settings.save contract from #126.
       await Settings.save(context, settings, ['mainGroup']);
       await LiveViewKeeper.refreshDisplayGroup();
-      if (this.current(generation)) { this.editing = false; this.message = '已更新显示策略'; }
+      if (this.current(generation)) { this.editing = false; this.message = UiText.get($r('app.string.strategy_updated')); }
     } catch (_) {
-      if (this.current(generation)) { this.message = '显示策略保存失败，请重试'; }
+      if (this.current(generation)) { this.message = UiText.get($r('app.string.strategy_save_failed')); }
     } finally {
       if (this.active && generation === this.generation) { this.busy = false; this.saving = false; }
     }
@@ -76,22 +77,22 @@ export struct LiveViewStrategyPicker {
 
   build() {
     Column({ space: 8 }) {
-      Button('实况窗显示策略').constraintSize({ minHeight: 44 }).width('100%')
+      Button(UiText.get($r('app.string.strategy_display'))).constraintSize({ minHeight: 44 }).width('100%')
         .enabled(!this.busy && this.status === VpnStatus.Connected)
         .backgroundColor(UI.soft).fontColor(UI.accentText).onClick(() => this.open())
       if (this.editing) {
         if (this.groups.length > 0) {
-          Select(([{ value: '自动' }] as SelectOption[]).concat(this.groups.map((name: string): SelectOption => ({ value: name }))))
-            .selected(this.selectedIndex()).value(this.draft.length > 0 ? this.draft : '自动')
-            .enabled(!this.busy).accessibilityText('实况窗显示策略')
+          Select(([{ value: UiText.get($r('app.string.strategy_auto')) }] as SelectOption[]).concat(this.groups.map((name: string): SelectOption => ({ value: name }))))
+            .selected(this.selectedIndex()).value(this.draft.length > 0 ? this.draft : UiText.get($r('app.string.strategy_auto')))
+            .enabled(!this.busy).accessibilityText(UiText.get($r('app.string.strategy_display')))
             .onSelect((index: number) => {
               if (index >= 0 && index <= this.groups.length) { this.draft = index === 0 ? '' : this.groups[index - 1]; }
             })
         }
         Row({ space: 12 }) {
-          Button('取消').constraintSize({ minHeight: 44 }).layoutWeight(1).enabled(!this.saving)
+          Button(UiText.get($r('app.string.action_cancel'))).constraintSize({ minHeight: 44 }).layoutWeight(1).enabled(!this.saving)
             .backgroundColor(UI.soft).fontColor(UI.ink).onClick(() => this.cancel())
-          Button(this.saving ? '保存中…' : '应用').constraintSize({ minHeight: 44 }).layoutWeight(1)
+          Button(this.saving ? UiText.get($r('app.string.action_saving')) : UiText.get($r('app.string.action_apply'))).constraintSize({ minHeight: 44 }).layoutWeight(1)
             .enabled(!this.busy).backgroundColor(UI.action).fontColor(UI.onAccent).onClick(() => this.apply())
         }.width('100%')
       }

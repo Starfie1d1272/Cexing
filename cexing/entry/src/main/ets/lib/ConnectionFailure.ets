@@ -1,3 +1,4 @@
+import { UiText } from './UiText';
 // Only these bounded fields may cross the VPN process boundary or enter a shareable summary.
 export interface ConnectionFailure {
   phase: string;
@@ -56,29 +57,29 @@ export namespace ConnectionFailures {
   }
 
   export function label(failure: ConnectionFailure): string {
-    let phase = '启动';
+    let phase = UiText.get($r('app.string.failure_phase_start'));
     switch (failure.phase) {
-      case 'authorization': phase = '系统授权'; break;
-      case 'service': phase = '服务连接'; break;
-      case 'vpn': phase = '系统隧道'; break;
-      case 'protect': phase = '进程网络保护'; break;
-      case 'assets': phase = '资源准备'; break;
-      case 'core-init': phase = '内核初始化'; break;
-      case 'config': phase = '配置解析'; break;
-      case 'core-start': phase = '内核启动'; break;
-      case 'readiness': phase = '启动状态确认'; break;
+      case 'authorization': phase = UiText.get($r('app.string.failure_phase_authorization')); break;
+      case 'service': phase = UiText.get($r('app.string.failure_phase_service')); break;
+      case 'vpn': phase = UiText.get($r('app.string.failure_phase_vpn')); break;
+      case 'protect': phase = UiText.get($r('app.string.failure_phase_protect')); break;
+      case 'assets': phase = UiText.get($r('app.string.failure_phase_assets')); break;
+      case 'core-init': phase = UiText.get($r('app.string.failure_phase_core_init')); break;
+      case 'config': phase = UiText.get($r('app.string.failure_phase_config')); break;
+      case 'core-start': phase = UiText.get($r('app.string.failure_phase_core_start')); break;
+      case 'readiness': phase = UiText.get($r('app.string.failure_phase_readiness')); break;
     }
-    let category = '未知错误';
+    let category = UiText.get($r('app.string.failure_unknown'));
     switch (failure.category) {
-      case 'permission': category = '权限被拒绝'; break;
-      case 'configuration': category = '配置错误'; break;
-      case 'dns': category = '解析错误'; break;
-      case 'tls': category = '安全连接错误'; break;
-      case 'timeout': category = '超时'; break;
-      case 'network': category = '网络连接错误'; break;
+      case 'permission': category = UiText.get($r('app.string.failure_permission')); break;
+      case 'configuration': category = UiText.get($r('app.string.failure_configuration')); break;
+      case 'dns': category = UiText.get($r('app.string.failure_dns')); break;
+      case 'tls': category = UiText.get($r('app.string.failure_tls')); break;
+      case 'timeout': category = UiText.get($r('app.string.failure_timeout')); break;
+      case 'network': category = UiText.get($r('app.string.failure_network')); break;
     }
     const code = failure.code === 0 ? '' : ` (${failure.code})`;
-    return `${phase}：${category}${code}`;
+    return UiText.get($r('app.string.failure_label'), phase, category, code);
   }
 
   export function summary(status: string, control: string, failure: ConnectionFailure | null,

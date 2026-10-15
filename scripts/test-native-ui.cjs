@@ -1,3 +1,5 @@
+const uiFixture = require('./ci/ui-fixtures.cjs');
+const { resourceContext } = require('./ci/mock-profile-resources.cjs');
 // Behavioral regression against actual page logic using the official SDK compiler.
 // UI builders are excluded; HAP compilation validates ArkUI syntax. No rendering/device claim.
 const assert = require('node:assert/strict');
@@ -16,8 +18,12 @@ function load(name, modules, extra = {}) {
   const code = ts.transpileModule(source, { compilerOptions: {
     module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020
   } }).outputText;
-  const sandbox = { exports: {}, getContext: () => ({}), Date, Promise,
-    require: key => { assert.ok(key in modules, `Missing mock ${key}`); return modules[key]; }, ...extra };
+  const sandbox = { exports: {}, getContext: () => resourceContext(), Date, Promise,
+    require: key => { if (key.endsWith('/ProfileApplyFeedback')) {
+      const box = { exports: {}, require: dependency => modules['../lib/' + dependency.split('/').pop()] || {} };
+      vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(pages, '../lib/ProfileApplyFeedback.ets'), 'utf8')).outputText, box); return box.exports;
+    } if (key.endsWith('/UiText')) return uiFixture.module; assert.ok(key in modules, `Missing mock ${key}`); return modules[key]; }, ...extra };
+  Object.assign(sandbox, uiFixture.globals);
   vm.runInNewContext(code, sandbox);
   const component = sandbox.exports[name];
   component.moduleExports = sandbox.exports;
@@ -515,6 +521,7 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   leftRegion.aboutToDisappear(); finishRegion('saved'); await pendingRegion;
   assert.equal(leftRegion.tabJump, -1, 'late create and enable cannot navigate after leaving');
   let regionLists = 0, committedRegionEnabled = true;
+  let regionFailureMessage = '地区策略已关闭，但原选项未恢复';
   const PartialDisable = load('ProfilePage', { ...common,
     '@kit.CoreFileKit': {}, '@kit.ArkTS': {}, '@kit.BasicServicesKit': {}, './ProfileEditPage': {}, './ProfileTemplatePage': { ProfileTemplateBus: { file: '' } }, './ProfileProxyEditorPage': { ProfileProxyEditorBus: { file: '' } }, './RuleDnsEditorPage': { RuleDnsEditorBus: { file: '', section: '' } },
     '../lib/CoreApi': { CoreApi: {} },
@@ -525,7 +532,7 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
     '../lib/ProfileTransactions': { ProfileTransactions: { onIdle: () => () => {}, isBusy: () => false,
       setRegionPlan: async () => {
         committedRegionEnabled = false;
-        throw Error('地区策略已关闭，但原选项未恢复');
+        throw Error(regionFailureMessage);
       }
     } },
     '../lib/ProfileStore': { ProfileStore: {
@@ -548,7 +555,14 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   assert.match(fs.readFileSync(path.join(pages, 'ProfilePage.ets'), 'utf8'),
     /this\.ProfileDetail\(p\)\s*\}, \(p: ProfileMeta\) => this\.detailKey\(p\)\)/,
     'detail ForEach must use the revision-aware key');
-  assert.ok(toasts.includes('地区策略已关闭，但原选项未恢复'));
+  assert.ok(toasts.includes('配置已保存，地区选择待重连恢复'), 'committed restore failures retain the necessary recovery direction');
+  regionFailureMessage = 'private: synthetic-token';
+  await partialDisable.toggleRegion('candidate.yaml');
+  assert.equal(toasts.at(-1), '地区策略未完成，请重试');
+  partialDisable.importedFile = 'candidate.yaml'; partialDisable.regionMode = 'region'; partialDisable.regionPreview = { eligible: true, nodes: {} };
+  await partialDisable.saveRegion(false); assert.equal(partialDisable.importError, '地区策略未完成，请重试');
+  assert.ok(!partialDisable.importError.includes('synthetic-token'));
+
   active = 'fixture.yaml';
   controller.status = status.Connected; profile.confirmDelete(profiles[0]); dialog.secondaryButton.action();
   assert.equal(deleted, 0, 'running active profile must be protected');

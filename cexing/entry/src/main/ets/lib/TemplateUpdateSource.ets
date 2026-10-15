@@ -6,6 +6,7 @@ import { TemplateConflict, TemplateSnapshot, TemplateUpdateRequest } from './Tem
 import { EffectiveVersions } from './EffectiveVersions';
 import { ProfileStore } from './ProfileStore';
 import { Settings } from './Settings';
+import { EditorSourceCandidate } from './EditorDraftHosts';
 import { CoreValidator } from './CoreValidator';
 
 interface SourceInput {
@@ -18,7 +19,8 @@ interface SourceReply { request?: TemplateUpdateRequest; stamp?: string; intent?
 /** Actual private worker source. Successful provenance supplies Base; the worker
  * captures Mine through common aliases and regenerates Next from latest inputs.
  * No endpoint fetch, file publication, cached body or editable YAML on the page. */
-export function createTemplateUpdateSource(context: common.Context, profileId: string): TemplateUpdateSource {
+export function createTemplateUpdateSource(context: common.Context, profileId: string, sourceOverride?: EditorSourceCandidate): TemplateUpdateSource {
+  const candidateOriginal = sourceOverride?.original;
   let captured: SourceInput | null = null;
   let revision = '';
   let stamp = '';
@@ -49,7 +51,7 @@ export function createTemplateUpdateSource(context: common.Context, profileId: s
         throw new Error('TEMPLATE_UPDATE_SESSION');
       }
       const version = EffectiveVersions.read(context)?.Profiles[profileId];
-      const original = ProfileStore.getProfileContent(context, profileId);
+      const original = candidateOriginal ?? ProfileStore.getProfileContent(context, profileId);
       if (version === undefined || original === null) { throw new Error('TEMPLATE_UPDATE_SOURCE_CHANGED'); }
       const input: SourceInput = { profileId: profileId, profileVersion: version.ID,
         original: ProfileStore.prepareContent(original), globalMerge: EffectiveVersions.globalContent(context),

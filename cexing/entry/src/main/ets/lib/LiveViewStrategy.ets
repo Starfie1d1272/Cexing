@@ -1,3 +1,4 @@
+import { UiText } from './UiText';
 import { ProxyInfo } from './CoreApi';
 
 export namespace LiveViewStrategy {
@@ -14,7 +15,7 @@ export namespace LiveViewStrategy {
   }
 
   export function mode(value: string): string {
-    return value === 'rule' ? '规则模式' : (value === 'global' ? '全局模式' :
-      (value === 'direct' ? '直连模式' : ''));
+    return value === 'rule' ? UiText.get($r('app.string.live_rule_mode')) : (value === 'global' ? UiText.get($r('app.string.live_global_mode')) :
+      (value === 'direct' ? UiText.get($r('app.string.live_direct_mode')) : ''));
   }
 }
