@@ -75,7 +75,7 @@ export class RoutingModel {
     const catalog = this.catalogue; if (catalog === undefined) { return []; }
     return Object.keys(catalog.nodes).filter(name => {
       const region = plan.assignments?.[name] ?? catalog.nodes[name]; const scope = outlet.scope;
-      if (scope.providers.length > 0 && !scope.providers.some(provider => catalog.providerNodes[provider]?.includes(name))) { return false; }
+      if (scope.providers.length > 0 && !scope.providers.some(provider => catalog.providerNodes?.[provider]?.includes(name))) { return false; }
       return !(region === '未知' && scope.unknown === 'exclude') && !scope.excludeRegions.includes(region) &&
         !scope.excludeNodes.includes(name) && (scope.regions.length === 0 || scope.regions.includes(region)) &&
         (scope.nodes.length === 0 || scope.nodes.includes(name));

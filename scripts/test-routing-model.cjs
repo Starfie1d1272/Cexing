@@ -21,6 +21,7 @@ const { RoutingModel } = box.exports;
  ai.scope.regions=['日本','美国']; assert.equal(model.selectedNodes(ai,view.plan.routing).length,2);
  ai.scope.providers=['public']; assert.deepEqual(Array.from(model.selectedNodes(ai,view.plan.routing)),['US provider']);
  const custom=structuredClone(view.plan.routing);custom.outlets[1].algorithm='fallback';custom.outlets[1].scope.regions=['日本'];model.updateRouting(custom);model.subscription();model.manage();assert.equal(view.plan.routing.outlets[1].algorithm,'fallback');assert.equal(view.plan.routing.outlets[1].scope.regions[0],'日本','mode round-trip preserves personalized scope');model.recommend();
+ const pendingOutlet=structuredClone(view.plan.routing.outlets[0]);pendingOutlet.scope.providers=['removed'];const priorProviders=catalogue.providerNodes;catalogue.providerNodes=null;assert.equal(model.selectedNodes(pendingOutlet,view.plan.routing).length,0,'missing provider metadata stays an empty pending scope');catalogue.providerNodes=priorProviders;
  await model.inspect(); assert.equal(applications,0,'preview cannot publish'); await model.apply(); assert.equal(applications,1);
  assert.equal(view.changed,false); model.subscription(); assert.equal(view.changed,true); await model.inspect();await model.apply();assert.equal(published.templateId,'original');
  assert.equal(await model.inspect(false,true),false);assert.match(view.message,/没有可转换/);await model.apply();assert.equal(applications,2,'empty Smart preview cannot report applied');
