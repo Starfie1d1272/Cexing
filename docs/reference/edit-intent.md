@@ -98,3 +98,13 @@ Go-only `Compiler.EditorResourceSource` 仅复用既有 editSource/boundEditSour
 共同 publisher 调用 `TemplateRegionEffects.prepareRegionChoice`，把初始 `RegionChoice` 与编译结果写入同一 source.json；`FileStore.StageWithRegionChoice` 只扩展持久化，不改变 compiler 转换。GC 和备份严格来源读取均识别、校验这个可选字段，不增加版本引用。
 
 成功提交后调用 committed，重连调用 resume。消费状态沿用 `.region-select.json` 并绑定 versionId，旧 pending/previous 仅在来源缺少新字段时迁移。同 selector 的更新保留已消费请求；移除/换组先恢复原手动选项，离线不推断未观察的 reload fallback，后来的手动选择优先。控制面读写受原事务门禁、active version、epoch 和 session 约束；失败不撤销已提交事实。无可恢复选项时在发布前拒绝，并提供手动选择的修复操作。
+
+### 候选草稿的关闭与恢复
+
+候选 Original、metadata、已解决 intent 与同一个草稿 revision 必须成对保存；页面关闭不调用 undo，也不通过重新下载恢复。普通 `EditorDraftHosts.create(context,file).load()` 自动恢复已有候选，`TemplateUpdateSource` 无显式 override 时使用同一持久来源。相同 override 可继续，其他候选不能覆盖尚未处理的草稿。显式 undo 才清候选，成功 apply 的已消费 revision 只投影成功 provenance。
+
+私有 `.intent.json` 保持旧 JSON 草稿可读。带候选的记录使用 `CED2`、8 位十六进制 UTF-8 头长及换行作为 13 字节前缀，随后是 JSON 头与原文 UTF-8 正文；头含 revision/intent、metadata、稳定来源身份、成功 profile version 和原文摘要。版本号只用于 CAS，不读取旧目录、不增加 GC 根。头部有界读取供同步 ticket 使用，正文按现有 15 MiB 字节限异步读取、分批严格解码；metadata/intent 仍受原边界约束。
+
+事务通过 `ProfileStore.saveEditDraftAtomic` 异步短写循环、fsync、关闭、再次核对 guard/revision 后原子替换同一个文件。失败或迟到保存保留旧记录；冷进程直接读取该完整文件，未完成临时文件不参与恢复。成功来源或字节已变时拒绝沿用旧绑定，保留草稿供冲突处理。`readEditDraftSource(context,file,revision,current?)` 提供有界异步候选读取，页面不得把只含绑定的同步头当作候选正文。
+
+已消费草稿会压缩为小标记；读取该标记始终投影当前成功意图。提交后压缩失败不否认已提交事实，但下一次发布前必须先完成压缩，避免恢复旧版本后旧候选重新出现。模板比较对恢复的已解决候选在其配对原文上重建 authoring Base/Mine，不把新的前置条件重投到旧成功 Original；仍使用共同编译器和收据流程。地区 authoring 资源解析与身份缓存读取不递归获取同一运行锁，身份同时绑定实际投影和资源字节。
