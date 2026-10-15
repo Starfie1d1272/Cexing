@@ -994,7 +994,7 @@
     },
     {
       "name": "editor_preview_failed",
-      "value": "覆写预览失败"
+      "value": "覆写预览失败，请检查内容后重试"
     },
     {
       "name": "editor_global_applied",

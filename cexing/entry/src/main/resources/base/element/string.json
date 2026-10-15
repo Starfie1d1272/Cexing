@@ -994,7 +994,7 @@
     },
     {
       "name": "editor_preview_failed",
-      "value": "Cannot preview overrides. Check the content."
+      "value": "Cannot preview overrides. Check the content and try again."
     },
     {
       "name": "editor_global_applied",
