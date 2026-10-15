@@ -86,3 +86,15 @@ Go-only `Compiler.EditorResourceSource` 仅复用既有 editSource/boundEditSour
 显式 `editor-list` / `edit-target` 的组 `sourceName` 是双层 Merge 后、模板与个人操作前的源组名；个人改名只改变 name。模板选择使用 sourceName，界面标签使用 name。个人新增或模板生成组不提供 sourceName；默认摘要不增加私有名称。
 
 单节点停用使用 `kind: disable, section: proxies, target, expected`。共同编译器严格验证原节点 revision，生成保留同名的 reject adapter；组成员、规则、dialer-proxy 等引用全部保持。它既不删除其他对象/引用，也不自动换成 DIRECT 或其他出口。显式编辑视图标记 disabled；撤销移除该操作后从最新原文重建，未知字段和凭据只保留在原文/私有来源中。UI 应显示“停用后拒绝连接”这一必要决策，并将启用实现为移除此操作；delete 仍是删除，非法引用继续拒绝完整编译。
+
+## 下载原文候选
+
+`EditorDraftHosts.create(context, file, sourceOverride?)` 接受导出的 `EditorSourceCandidate { original: string; metadata: ProfileMetaExt }`。工厂复制候选，后续调用方修改无效。下载或冲突页面不得先写成功 Original；同一候选交给 `createTemplateUpdateSource(context, file, sourceOverride?)`，由共同 host 完成 save、完整 preview 和 receipt apply。
+
+候选可能与旧个人操作的 precondition 冲突。未解决时 load/target 读取成功原文的编辑视图，身份同时绑定该 authoring 投影和纯候选资源；save 解决后切换候选投影。preview/apply 始终校验真实候选，metadata 也进入身份比较。原成功 Original、profile/current/draft、设置、Merge 和 provider 的 CAS 持续有效；提交后只允许 Original 精确等于本候选。Original、metadata 与成功 intent 在同次 stage/verify/apply/commit 发布；未应用草稿不改变启动来源。
+
+## 地区选择与同次发布
+
+共同 publisher 调用 `TemplateRegionEffects.prepareRegionChoice`，把初始 `RegionChoice` 与编译结果写入同一 source.json；`FileStore.StageWithRegionChoice` 只扩展持久化，不改变 compiler 转换。GC 和备份严格来源读取均识别、校验这个可选字段，不增加版本引用。
+
+成功提交后调用 committed，重连调用 resume。消费状态沿用 `.region-select.json` 并绑定 versionId，旧 pending/previous 仅在来源缺少新字段时迁移。同 selector 的更新保留已消费请求；移除/换组先恢复原手动选项，离线不推断未观察的 reload fallback，后来的手动选择优先。控制面读写受原事务门禁、active version、epoch 和 session 约束；失败不撤销已提交事实。无可恢复选项时在发布前拒绝，并提供手动选择的修复操作。
