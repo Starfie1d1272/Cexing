@@ -88,7 +88,6 @@ export struct TrafficPage {
     Column({ space: 16 }) {
       Row() {
         Text(label).fontSize(16).fontWeight(FontWeight.Medium).fontColor(UI.ink).layoutWeight(1)
-        if (this.bucket(index).partial) { Text(UiText.get($r('app.string.traffic_partial'))).fontSize(12).fontColor(UI.muted) }
       }.width('100%')
       Row() {
         Column({ space: 7 }) {

@@ -298,7 +298,7 @@ export struct DiagnosticsPage {
       Button(UiText.get($r('app.string.diag_save_bundle'))).width('100%').constraintSize({ minHeight: 48 }).enabled(!this.busy)
         .backgroundColor(UI.soft).fontColor(UI.accentText).onClick(() => this.exportSupport(false))
       if (this.exportMessage !== '') { Text(this.exportMessage).fontSize(14).fontColor(UI.muted).width('100%') }
-      if (this.bundleFacts.length > 0) {
+      if (this.detailsOpen && this.bundleFacts.length > 0) {
         Text(UiText.get($r('app.string.diag_evidence_scope'))).fontSize(16).fontColor(UI.ink).width('100%')
         ForEach(this.bundleFacts, (fact: string) => { Text(fact).fontSize(13).fontColor(UI.muted).width('100%') })
       }
