@@ -259,8 +259,8 @@ func PreviewRouting(root *yaml.Node, resolved map[string][]string, assignments m
 			}
 			code = v
 		}
-		if old, ok := p.Nodes[name]; ok && old != code {
-			return routingFailure()
+		if _, ok := p.Nodes[name]; ok {
+			return errors.New("ROUTING_NODE_AMBIGUOUS")
 		}
 		p.Nodes[name] = code
 		return nil
@@ -275,7 +275,7 @@ func PreviewRouting(root *yaml.Node, resolved map[string][]string, assignments m
 			if name == nil || kind == nil {
 				return p, routingFailure()
 			}
-			if kind.Value == "direct" || kind.Value == "reject" {
+			if kind.Value == "direct" || kind.Value == "reject" || kind.Value == "dns" {
 				continue
 			}
 			p.DirectNodes = append(p.DirectNodes, name.Value)

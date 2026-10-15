@@ -131,3 +131,17 @@ rules: ["MATCH,Main"]
 		t.Fatal("missing provider cache accepted")
 	}
 }
+
+func TestRoutingProviderScopeExcludesBuiltinDirectAndDNS(t *testing.T) {
+	home := t.TempDir()
+	root, err := configpipeline.LayeredMergeSource([]byte(`proxy-providers:
+  local: {type: inline, payload: [{name: JP proxy, type: socks5, server: node.example.test, port: 1080}, {name: HK direct, type: direct}, {name: JP dns, type: dns}]}
+`), nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	names, err := regionProviderNames(home, root, true)
+	if err != nil || strings.Join(names["local"], ",") != "JP proxy" {
+		t.Fatal("routing included non-proxy provider entries", err)
+	}
+}

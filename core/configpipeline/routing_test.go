@@ -180,3 +180,12 @@ func TestRoutingOptionsPreserveUnknownAndRejectBypass(t *testing.T) {
 		t.Fatal("invalid sample rate")
 	}
 }
+
+func TestRoutingRejectsAmbiguousProviderIdentity(t *testing.T) {
+	root := routingRoot(t)
+	providers := &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map", Content: []*yaml.Node{scalar("provider"), {Kind: yaml.MappingNode, Tag: "!!map"}}}
+	set(root, "proxy-providers", providers)
+	if _, err := PreviewRouting(root, map[string][]string{"provider": {"JP Beta"}}, nil); err == nil {
+		t.Fatal("duplicate leaf names silently collapsed")
+	}
+}

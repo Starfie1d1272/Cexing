@@ -197,7 +197,7 @@ func executeVersionAction(home string, action versionAction) (versionResponse, e
 		if err = configpipeline.ApplyProviderResourceEdits(ctx, root, action.EditIntent); err != nil {
 			return editFailure(err)
 		}
-		resolved, err := regionProviderNames(home, root)
+		resolved, err := regionProviderNames(home, root, true)
 		if err != nil {
 			resolved = nil
 		}

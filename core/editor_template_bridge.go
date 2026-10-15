@@ -14,7 +14,7 @@ import (
 func editorTemplate(home string) configpipeline.TemplateTransform {
 	return func(ctx context.Context, root *yaml.Node, plan configpipeline.TemplatePlan) error {
 		if plan.Routing != nil {
-			resolved, err := regionProviderNames(home, root)
+			resolved, err := regionProviderNames(home, root, true)
 			if err != nil {
 				return err
 			}
@@ -66,7 +66,7 @@ func templateServicePlan(p configpipeline.TemplatePlan) profiletemplates.Plan {
 func editorTemplatePrepare(home string) configpipeline.TemplatePrepare {
 	return func(ctx context.Context, root *yaml.Node, plan configpipeline.TemplatePlan) (*configpipeline.TemplateSession, error) {
 		if plan.Routing != nil {
-			resolved, err := regionProviderNames(home, root)
+			resolved, err := regionProviderNames(home, root, true)
 			if err != nil {
 				return nil, err
 			}

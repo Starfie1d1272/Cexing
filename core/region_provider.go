@@ -13,7 +13,7 @@ import (
 // regionProviderNames reads the same validated app-private cache as the normal
 // offline candidate check. It never calls a provider Initial/Read method or
 // fetches an HTTP URL. Missing cache is a pending preview, not an empty group.
-func regionProviderNames(home string, root *yaml.Node) (map[string][]string, error) {
+func regionProviderNames(home string, root *yaml.Node, proxyOnly ...bool) (map[string][]string, error) {
 	content, err := yaml.Marshal(root)
 	if err != nil {
 		return nil, err
@@ -70,6 +70,9 @@ func regionProviderNames(home string, root *yaml.Node) (map[string][]string, err
 			}
 			items = payload.Proxies
 		}
+		if len(proxyOnly) > 0 && proxyOnly[0] {
+			result[name] = []string{}
+		}
 		seen := map[string]bool{}
 		for _, item := range items {
 			proxy, ok := item.(map[string]any)
@@ -81,6 +84,13 @@ func regionProviderNames(home string, root *yaml.Node) (map[string][]string, err
 				return nil, errors.New("invalid provider node name")
 			}
 			seen[node] = true
+			if len(proxyOnly) > 0 && proxyOnly[0] {
+				if kind, ok := proxy["type"].(string); !ok {
+					return nil, errors.New("invalid provider node type")
+				} else if kind == "direct" || kind == "reject" || kind == "dns" {
+					continue
+				}
+			}
 			result[name] = append(result[name], node)
 		}
 		sort.Strings(result[name])
