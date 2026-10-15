@@ -339,6 +339,7 @@ func CheckEditIntent(intent *EditIntent) error {
 		default:
 			return intentError("invalid_operation", i)
 		}
+
 	}
 	return nil
 }
@@ -365,7 +366,7 @@ func applyBoundEditIntent(ctx context.Context, root *yaml.Node, intent *EditInte
 }
 
 // phase 0: normal batch; 1: provider resources; 2: remaining personal edits.
-func applyEditIntentPhase(ctx context.Context, root *yaml.Node, intent *EditIntent, bindings map[string]*yaml.Node, disabled map[*yaml.Node]bool, baselines map[*yaml.Node]*yaml.Node, phase int) error {
+func applyEditIntentPhase(ctx context.Context, root *yaml.Node, intent *EditIntent, bindings map[string]*yaml.Node, disabled map[*yaml.Node]bool, state *editPhaseState, phase int) error {
 	if err := CheckEditIntent(intent); err != nil {
 		return err
 	}
@@ -378,12 +379,17 @@ func applyEditIntentPhase(ctx context.Context, root *yaml.Node, intent *EditInte
 			sections[TemplateTarget(intent.Template.TemplateID, e.ID)] = e.Section
 		}
 	}
-	if baselines == nil {
-		var err error
-		baselines, err = snapshotEditBaselines(ctx, root)
+	if state == nil {
+		base, err := snapshotEditBaselines(ctx, root)
 		if err != nil {
 			return err
 		}
+		state = &editPhaseState{baselines: base}
+	}
+	baselines := state.baselines
+	var aliases map[string]*yaml.Node
+	if phase == 2 {
+		aliases = state.aliases
 	}
 	for i, op := range intent.Operations {
 		resource := op.Section == "proxy-providers" || op.Section == "rule-providers"
@@ -393,17 +399,48 @@ func applyEditIntentPhase(ctx context.Context, root *yaml.Node, intent *EditInte
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		if err := applyEditOperation(root, op, baselines, bindings, sections, disabled); err != nil {
+		oldName := ""
+		if phase == 1 && resource && op.Kind == "rename" {
+			nodes, names, _ := editNodes(root, op.Section)
+			for j, n := range nodes {
+				if boundID(bindings, n, targetID(op.Section, names[j])) == op.Target {
+					oldName = names[j]
+					break
+				}
+			}
+		}
+		var before []*yaml.Node
+		var touched *yaml.Node
+		if phase == 2 && (op.Kind == "add" || op.Kind == "update") {
+			var names []string
+			before, names, _ = editNodes(root, op.Section)
+			before = append([]*yaml.Node(nil), before...)
+			for j, n := range before {
+				if boundID(bindings, n, targetID(op.Section, names[j])) == op.Target || aliases[op.Target] == n {
+					touched = n
+					break
+				}
+			}
+		}
+		if err := applyEditOperation(root, op, baselines, bindings, sections, disabled, aliases); err != nil {
 			var typed *IntentError
 			if errors.As(err, &typed) {
 				return intentError(typed.Code, i)
 			}
 			return intentError("invalid_operation", i)
 		}
+		if oldName != "" {
+			state.renames = append(state.renames, resourceRename{index: i, section: op.Section, old: oldName, next: op.Name})
+		}
+		if phase == 2 && (op.Kind == "add" || op.Kind == "update") {
+			if err := projectDeferredReferences(root, op, i, before, touched, state); err != nil {
+				return intentError("invalid_operation", i)
+			}
+		}
 	}
 	return nil
 }
-func applyEditOperation(root *yaml.Node, op EditOperation, baselines map[*yaml.Node]*yaml.Node, bindings map[string]*yaml.Node, sections map[string]string, disabled map[*yaml.Node]bool) error {
+func applyEditOperation(root *yaml.Node, op EditOperation, baselines map[*yaml.Node]*yaml.Node, bindings map[string]*yaml.Node, sections map[string]string, disabled map[*yaml.Node]bool, aliases map[string]*yaml.Node) error {
 	fail := func(code string) error { return intentError(code, -1) }
 	nodes, names, err := editNodes(root, op.Section)
 	if err != nil {
@@ -411,7 +448,7 @@ func applyEditOperation(root *yaml.Node, op EditOperation, baselines map[*yaml.N
 	}
 	position := -1
 	for i, name := range names {
-		if boundID(bindings, nodes[i], targetID(op.Section, name)) == op.Target {
+		if boundID(bindings, nodes[i], targetID(op.Section, name)) == op.Target || aliases[op.Target] == nodes[i] {
 			position = i
 			break
 		}
@@ -465,7 +502,7 @@ func applyEditOperation(root *yaml.Node, op EditOperation, baselines map[*yaml.N
 			}
 			return nil
 		}
-		at, err := boundEditAnchor(op.Section, nodes, names, op.Before, bindings)
+		at, err := boundEditAnchor(op.Section, nodes, names, op.Before, bindings, aliases)
 		if err != nil {
 			return err
 		}
@@ -539,6 +576,7 @@ func applyEditOperation(root *yaml.Node, op EditOperation, baselines map[*yaml.N
 			}
 			baselines[value] = baseline
 			rebind(bindings, node, value)
+			rebind(aliases, node, value)
 			if container.Kind == yaml.MappingNode {
 				set(container, names[position], value)
 			} else {
@@ -579,6 +617,7 @@ func applyEditOperation(root *yaml.Node, op EditOperation, baselines map[*yaml.N
 			return fail("protected_field")
 		}
 		rebind(bindings, node, nil)
+		rebind(aliases, node, nil)
 		if container.Kind == yaml.MappingNode {
 			set(container, names[position], nil)
 		} else {
@@ -591,7 +630,7 @@ func applyEditOperation(root *yaml.Node, op EditOperation, baselines map[*yaml.N
 		if op.Before == op.Target {
 			return nil
 		}
-		at, err := boundEditAnchor(op.Section, nodes, names, op.Before, bindings)
+		at, err := boundEditAnchor(op.Section, nodes, names, op.Before, bindings, aliases)
 		if err != nil {
 			return err
 		}

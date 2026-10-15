@@ -97,3 +97,5 @@ Go-only `Compiler.EditorResourceSource` 仅复用既有 editSource/boundEditSour
 成功提交后调用 committed，重连调用 resume。消费状态沿用 `.region-select.json` 并绑定 versionId，旧 pending/previous 仅在来源缺少新字段时迁移。同 selector 的更新保留已消费请求；移除/换组先恢复原手动选项，离线不推断未观察的 reload fallback，后来的手动选择优先。控制面读写受原事务门禁、active version、epoch 和 session 约束；失败不撤销已提交事实。无可恢复选项时在发布前拒绝，并提供手动选择的修复操作。
 
 地区生成需要 provider 成员时，编译器先在双层 Merge 的私有 root 上执行同一 intent 中的 provider 声明操作，再解析本地有效缓存并生成地区实体，最后执行其余个人操作。provider 操作不会在第二阶段重放；所有原始目标 guard 在第一阶段前保存，跨 provider rename 引用改写仍按原始基线严格核对。宿主缓存投影使用 `ApplyProviderResourceEdits`，不提前执行尚未生成的组/规则编辑；最终输出继续走原有完整验证和发布事务。
+
+分阶段执行保留原始操作序号及节点身份。延后执行的新增/更新只承接原顺序中晚于该写入的 provider 改名；mapping 只转换此次 patch 写入的引用字段，不重新改写整棵 root。改名之后才写入的旧名不会被“修复”，仍由完整引用校验拒绝。规则因资源改名改变文本时，原始目标/锚点 alias 跟随原节点，替换/删除同步迁移或清空；所有投影均作用于私有 root，不改持久 intent。

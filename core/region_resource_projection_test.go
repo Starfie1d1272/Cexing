@@ -31,9 +31,10 @@ func TestRegionResourceProjectionUsesEffectiveProviderAndDefersGeneratedEdits(t 
 		t.Fatal(err)
 	}
 	for name, content := range map[string]string{
-		"geoip.metadb":       "synthetic",
-		"providers/old.yaml": "proxies: [{name: HK-old, type: direct}, {name: JP-old, type: direct}]\n",
-		"providers/new.yaml": "proxies: [{name: SG-new, type: direct}, {name: US-new, type: direct}]\n",
+		"geoip.metadb":         "synthetic",
+		"providers/old.yaml":   "proxies: [{name: HK-old, type: direct}, {name: JP-old, type: direct}]\n",
+		"providers/rules.yaml": "payload: [synthetic.example]\n",
+		"providers/new.yaml":   "proxies: [{name: SG-new, type: direct}, {name: US-new, type: direct}]\n",
 	} {
 		if err := os.WriteFile(filepath.Join(home, name), []byte(content), 0600); err != nil {
 			t.Fatal(err)
@@ -59,10 +60,13 @@ func TestRegionResourceProjectionUsesEffectiveProviderAndDefersGeneratedEdits(t 
 		return response
 	}
 	for _, scenario := range []struct {
-		name                              string
-		path, rename, generated, template bool
+		name                                                                   string
+		path, rename, generated, template, addBefore, updateBefore, writeAfter bool
 	}{
 		{name: "path", path: true}, {name: "rename", rename: true},
+		{name: "add-before-rename", rename: true, addBefore: true},
+		{name: "update-before-rename", rename: true, updateBefore: true},
+		{name: "old-reference-after-rename", rename: true, writeAfter: true},
 		{name: "path-rename-generated", path: true, rename: true, generated: true},
 		{name: "template-path-rename-generated", path: true, rename: true, generated: true, template: true},
 	} {
@@ -75,8 +79,37 @@ func TestRegionResourceProjectionUsesEffectiveProviderAndDefersGeneratedEdits(t 
 			if scenario.path {
 				intent.Operations = append(intent.Operations, configpipeline.EditOperation{ID: "provider-path", Kind: "update", Section: "proxy-providers", Target: provider.Item.ID, Preconditions: map[string]string{"path": provider.Item.Fields["path"]}, Patch: json.RawMessage(`{"path":"providers/new.yaml"}`)})
 			}
+			if scenario.addBefore {
+				intent.Operations = append(intent.Operations, configpipeline.EditOperation{ID: "add-before-rename", Kind: "add", Section: "proxy-groups", Value: json.RawMessage(`{"name":"Added","type":"select","use":["feed"]}`)})
+			}
+			if scenario.updateBefore {
+				main, err := configpipeline.ReadEditTarget([]byte(source), nil, nil, "proxy-groups", original.Sections[2].Items[0].ID)
+				if err != nil {
+					t.Fatal(err)
+				}
+				intent.Operations = append(intent.Operations, configpipeline.EditOperation{ID: "update-before", Kind: "update", Section: "proxy-groups", Target: main.Item.ID, Preconditions: map[string]string{"use": main.Item.Fields["use"]}, Patch: json.RawMessage(`{"use":["feed"]}`)})
+			}
 			if scenario.rename {
 				intent.Operations = append(intent.Operations, configpipeline.EditOperation{ID: "provider-rename", Kind: "rename", Section: "proxy-providers", Target: provider.Item.ID, Expected: provider.Item.Revision, Name: "renamed"})
+			}
+			if scenario.writeAfter {
+				intent.Operations = append(intent.Operations, configpipeline.EditOperation{ID: "invalid-after", Kind: "add", Section: "proxy-groups", Value: json.RawMessage(`{"name":"Invalid","type":"select","use":["feed"]}`)})
+				for _, region := range []*configpipeline.RegionPlan{nil, plan} {
+					a := versionAction{Op: "stage", ProfileID: "invalid-after.yaml", Original: source, Metadata: `{}`, RegionPlan: region, EditIntent: intent}
+					data, _ := json.Marshal(a)
+					var rejected versionResponse
+					if json.Unmarshal([]byte(coreVersionAction(home, string(data))), &rejected) != nil || rejected.Error == "" {
+						t.Fatal("old reference written after rename silently repaired")
+					}
+				}
+				return
+			}
+			if scenario.addBefore {
+				// Positive control: the original unphased intent order is valid.
+				control := call(versionAction{Op: "stage", ProfileID: "unphased-control.yaml", Original: source, EditIntent: intent, Metadata: `{}`})
+				if control.Version == nil {
+					t.Fatal("original order rejected")
+				}
 			}
 			action := versionAction{Op: "editor-list", Original: source, EditIntent: intent, RegionPlan: plan}
 			if _, err := editorReadRequest(home, action, ""); err != nil {
@@ -184,4 +217,47 @@ func TestRegionResourceProjectionUsesEffectiveProviderAndDefersGeneratedEdits(t 
 			}
 		})
 	}
+	t.Run("rule-provider-reference-order", func(t *testing.T) {
+		ruleSource := strings.Replace(source, "rules: ['MATCH,Main']", "rules: ['RULE-SET,rulefeed,Main', 'MATCH,Main']", 1) + "rule-providers: {rulefeed: {type: file, behavior: domain, path: providers/rules.yaml}}\n"
+		view, err := configpipeline.ReadEditable([]byte(ruleSource), nil, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		rule, err := configpipeline.ReadEditTarget([]byte(ruleSource), nil, nil, "rules", view.Sections[3].Items[0].ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		provider, err := configpipeline.ReadEditTarget([]byte(ruleSource), nil, nil, "rule-providers", view.Sections[4].Items[0].ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		withAdded := strings.Replace(ruleSource, "'MATCH,Main'", "'RULE-SET,rulefeed,DIRECT', 'MATCH,Main'", 1)
+		added, err := configpipeline.ReadEditable([]byte(withAdded), nil, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		intent := &configpipeline.EditIntent{SchemaVersion: 1, Revision: "rules", SourceRevision: view.SourceRevision, Operations: []configpipeline.EditOperation{
+			{ID: "rule-update-before", Kind: "update", Section: "rules", Target: rule.Item.ID, Expected: rule.Item.Revision, Value: rule.Value},
+			{ID: "rule-add-before", Kind: "add", Section: "rules", Before: view.Sections[3].Items[1].ID, Value: json.RawMessage(`"RULE-SET,rulefeed,DIRECT"`)},
+			{ID: "rule-move-before", Kind: "move", Section: "rules", Target: added.Sections[3].Items[1].ID, Before: rule.Item.ID},
+			{ID: "rule-provider-rename", Kind: "rename", Section: "rule-providers", Target: provider.Item.ID, Expected: provider.Item.Revision, Name: "rules-renamed"},
+		}}
+		for _, plan := range []*configpipeline.RegionPlan{nil, {Mode: "region", Selector: "Main", Enable: true}} {
+			response := call(versionAction{Op: "stage", ProfileID: "rule-order.yaml", Original: ruleSource, Metadata: `{}`, RegionPlan: plan, EditIntent: intent})
+			output, err := os.ReadFile(response.Version.Path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var document struct {
+				Rules []string `yaml:"rules"`
+			}
+			if yaml.Unmarshal(output, &document) != nil {
+				t.Fatal("invalid output")
+			}
+			if len(document.Rules) != 3 || document.Rules[0] != "RULE-SET,rules-renamed,DIRECT" || document.Rules[1] != "RULE-SET,rules-renamed,Main" {
+				t.Fatal("rule identity/reference order lost")
+			}
+		}
+	})
+
 }
