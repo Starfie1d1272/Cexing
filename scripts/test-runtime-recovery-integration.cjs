@@ -1,3 +1,4 @@
+const uiFixture = require('./ci/ui-fixtures.cjs');
 // Automatic runtime/controller cancellation regression; executed by Quick and Full.
 // Optional first argument: exported combined source root; SDK comes from OHOS_SDK_HOME.
 const assert = require('node:assert/strict');
@@ -13,7 +14,7 @@ function load(name, modules, timers) {
     module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020
   } }).outputText;
   let id = 0;
-  const sandbox = { exports: {}, require: key => { assert.ok(key in modules, `Missing mock ${key}`); return modules[key]; },
+  const sandbox = { exports: {}, ...uiFixture.globals, require: key => { if (key.endsWith('/UiText')) return uiFixture.module; assert.ok(key in modules, `Missing mock ${key}`); return modules[key]; },
     setTimeout: fn => { timers.set(++id, fn); return id; }, clearTimeout: key => timers.delete(key), setInterval: () => -1, clearInterval() {}, Promise, Date, JSON };
   vm.runInNewContext(code, sandbox);
   return sandbox.exports;

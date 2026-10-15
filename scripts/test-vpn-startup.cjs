@@ -1,3 +1,4 @@
+const uiFixture = require('./ci/ui-fixtures.cjs');
 // 用法：source scripts/env.sh && node scripts/test-vpn-startup.cjs
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -10,7 +11,7 @@ const failureSource = fs.readFileSync(path.join(__dirname, '../cexing/entry/src/
 const failureCode = ts.transpileModule(failureSource, { compilerOptions: {
   module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020
 } }).outputText;
-const failureModule = { exports: {} };
+const failureModule = { exports: {}, ...uiFixture.globals, require: key => { assert.ok(key.endsWith('/UiText')); return uiFixture.module; } };
 vm.runInNewContext(failureCode, failureModule);
 const failures = failureModule.exports.ConnectionFailures;
 const phaseModule = {exports:{}};

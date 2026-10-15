@@ -1475,6 +1475,182 @@
     {
       "name": "original_draft_keep_failed",
       "value": "Could not retain the draft. Save the configuration first."
+    },
+    {
+      "name": "live_connected_title",
+      "value": "Cexing · Proxy connected"
+    },
+    {
+      "name": "live_main_title",
+      "value": "Cexing system proxy"
+    },
+    {
+      "name": "live_idle",
+      "value": "Connected · No active traffic"
+    },
+    {
+      "name": "live_rule_mode",
+      "value": "Rule mode"
+    },
+    {
+      "name": "live_global_mode",
+      "value": "Global mode"
+    },
+    {
+      "name": "live_direct_mode",
+      "value": "Direct mode"
+    },
+    {
+      "name": "live_connecting_title",
+      "value": "Cexing · Connecting…"
+    },
+    {
+      "name": "live_connecting",
+      "value": "Cexing is connecting"
+    },
+    {
+      "name": "live_tunnel_start",
+      "value": "Creating VPN tunnel…"
+    },
+    {
+      "name": "live_disconnecting_title",
+      "value": "Cexing · Disconnecting…"
+    },
+    {
+      "name": "live_disconnecting",
+      "value": "Cexing is disconnecting"
+    },
+    {
+      "name": "live_tunnel_stop",
+      "value": "Releasing tunnel…"
+    },
+    {
+      "name": "live_strategy",
+      "value": "Display policy %s"
+    },
+    {
+      "name": "live_traffic",
+      "value": "↓ %s · ↑ %s · Uptime %s"
+    },
+    {
+      "name": "live_probe",
+      "value": " · Probe %d ms"
+    },
+    {
+      "name": "failure_phase_start",
+      "value": "Start"
+    },
+    {
+      "name": "failure_phase_authorization",
+      "value": "System permission"
+    },
+    {
+      "name": "failure_phase_service",
+      "value": "Service connection"
+    },
+    {
+      "name": "failure_phase_vpn",
+      "value": "System tunnel"
+    },
+    {
+      "name": "failure_phase_protect",
+      "value": "Process network protection"
+    },
+    {
+      "name": "failure_phase_assets",
+      "value": "Resource preparation"
+    },
+    {
+      "name": "failure_phase_core_init",
+      "value": "Core initialization"
+    },
+    {
+      "name": "failure_phase_config",
+      "value": "Configuration parsing"
+    },
+    {
+      "name": "failure_phase_core_start",
+      "value": "Core start"
+    },
+    {
+      "name": "failure_phase_readiness",
+      "value": "Startup verification"
+    },
+    {
+      "name": "failure_unknown",
+      "value": "Unknown error"
+    },
+    {
+      "name": "failure_permission",
+      "value": "Permission denied"
+    },
+    {
+      "name": "failure_configuration",
+      "value": "Configuration error"
+    },
+    {
+      "name": "failure_dns",
+      "value": "Resolution error"
+    },
+    {
+      "name": "failure_tls",
+      "value": "Secure connection error"
+    },
+    {
+      "name": "failure_timeout",
+      "value": "Timed out"
+    },
+    {
+      "name": "failure_network",
+      "value": "Network connection error"
+    },
+    {
+      "name": "failure_label",
+      "value": "%s: %s%s"
+    },
+    {
+      "name": "card_title",
+      "value": "Cexing VPN"
+    },
+    {
+      "name": "card_brand",
+      "value": "Cexing"
+    },
+    {
+      "name": "card_previous",
+      "value": "Previous status"
+    },
+    {
+      "name": "card_connected",
+      "value": "Connected"
+    },
+    {
+      "name": "card_connecting",
+      "value": "Connecting"
+    },
+    {
+      "name": "card_disconnecting",
+      "value": "Disconnecting"
+    },
+    {
+      "name": "card_disconnected",
+      "value": "Disconnected"
+    },
+    {
+      "name": "card_stop_unknown",
+      "value": "State unconfirmed"
+    },
+    {
+      "name": "card_stopping",
+      "value": "Disconnecting"
+    },
+    {
+      "name": "card_stop",
+      "value": "Disconnect"
+    },
+    {
+      "name": "card_start",
+      "value": "Connect"
     }
   ]
 }

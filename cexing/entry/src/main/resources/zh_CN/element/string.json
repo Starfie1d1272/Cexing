@@ -1475,6 +1475,182 @@
     {
       "name": "original_draft_keep_failed",
       "value": "草稿保留失败，请先保存配置"
+    },
+    {
+      "name": "live_connected_title",
+      "value": "Cexing · 代理已连接"
+    },
+    {
+      "name": "live_main_title",
+      "value": "Cexing 系统代理"
+    },
+    {
+      "name": "live_idle",
+      "value": "已连接 · 无活动流量"
+    },
+    {
+      "name": "live_rule_mode",
+      "value": "规则模式"
+    },
+    {
+      "name": "live_global_mode",
+      "value": "全局模式"
+    },
+    {
+      "name": "live_direct_mode",
+      "value": "直连模式"
+    },
+    {
+      "name": "live_connecting_title",
+      "value": "Cexing · 连接中…"
+    },
+    {
+      "name": "live_connecting",
+      "value": "Cexing 正在连接"
+    },
+    {
+      "name": "live_tunnel_start",
+      "value": "正在建立 VPN 隧道…"
+    },
+    {
+      "name": "live_disconnecting_title",
+      "value": "Cexing · 断开中…"
+    },
+    {
+      "name": "live_disconnecting",
+      "value": "Cexing 正在断开"
+    },
+    {
+      "name": "live_tunnel_stop",
+      "value": "正在释放隧道…"
+    },
+    {
+      "name": "live_strategy",
+      "value": "显示策略 %s"
+    },
+    {
+      "name": "live_traffic",
+      "value": "↓ %s · ↑ %s · 已运行 %s"
+    },
+    {
+      "name": "live_probe",
+      "value": " · 探测 %d ms"
+    },
+    {
+      "name": "failure_phase_start",
+      "value": "启动"
+    },
+    {
+      "name": "failure_phase_authorization",
+      "value": "系统授权"
+    },
+    {
+      "name": "failure_phase_service",
+      "value": "服务连接"
+    },
+    {
+      "name": "failure_phase_vpn",
+      "value": "系统隧道"
+    },
+    {
+      "name": "failure_phase_protect",
+      "value": "进程网络保护"
+    },
+    {
+      "name": "failure_phase_assets",
+      "value": "资源准备"
+    },
+    {
+      "name": "failure_phase_core_init",
+      "value": "内核初始化"
+    },
+    {
+      "name": "failure_phase_config",
+      "value": "配置解析"
+    },
+    {
+      "name": "failure_phase_core_start",
+      "value": "内核启动"
+    },
+    {
+      "name": "failure_phase_readiness",
+      "value": "启动状态确认"
+    },
+    {
+      "name": "failure_unknown",
+      "value": "未知错误"
+    },
+    {
+      "name": "failure_permission",
+      "value": "权限被拒绝"
+    },
+    {
+      "name": "failure_configuration",
+      "value": "配置错误"
+    },
+    {
+      "name": "failure_dns",
+      "value": "解析错误"
+    },
+    {
+      "name": "failure_tls",
+      "value": "安全连接错误"
+    },
+    {
+      "name": "failure_timeout",
+      "value": "超时"
+    },
+    {
+      "name": "failure_network",
+      "value": "网络连接错误"
+    },
+    {
+      "name": "failure_label",
+      "value": "%s：%s%s"
+    },
+    {
+      "name": "card_title",
+      "value": "策星 VPN"
+    },
+    {
+      "name": "card_brand",
+      "value": "策星"
+    },
+    {
+      "name": "card_previous",
+      "value": "上次状态"
+    },
+    {
+      "name": "card_connected",
+      "value": "已连接"
+    },
+    {
+      "name": "card_connecting",
+      "value": "连接中"
+    },
+    {
+      "name": "card_disconnecting",
+      "value": "断开中"
+    },
+    {
+      "name": "card_disconnected",
+      "value": "未连接"
+    },
+    {
+      "name": "card_stop_unknown",
+      "value": "状态待核对"
+    },
+    {
+      "name": "card_stopping",
+      "value": "正在断开"
+    },
+    {
+      "name": "card_stop",
+      "value": "断开"
+    },
+    {
+      "name": "card_start",
+      "value": "连接"
     }
   ]
 }
