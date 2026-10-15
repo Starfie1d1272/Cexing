@@ -1,9 +1,14 @@
 import { UiText } from './UiText';
+import { ProfileApplyFeedback } from './ProfileApplyFeedback';
 
 /** Presentation only. Does not change backend error or edit identities. */
 export namespace RuleDnsText {
   export function failure(error: Object, fallback: Resource): string {
     const message = (error as Error).message ?? '';
+    if (message === '备份恢复未确认，请重新打开应用后重试') { return UiText.get($r('app.string.failure_recovery_restart')); }
+    const kind = ProfileApplyFeedback.classify(message);
+    if (kind === 'committed-pending') { return UiText.get($r('app.string.apply_feedback_committed')); }
+    if (kind === 'selection-required') { return UiText.get($r('app.string.apply_feedback_selection')); }
     if (message === '请输入更新间隔' || message === UiText.get($r('app.string.rule_interval_required'))) { return UiText.get($r('app.string.rule_interval_required')); }
     if (message === '请输入 hosts 名称' || message === UiText.get($r('app.string.rule_hosts_required'))) { return UiText.get($r('app.string.rule_hosts_required')); }
     if (message === '配置已变化，请重新打开' || message === UiText.get($r('app.string.rule_changed'))) { return UiText.get($r('app.string.rule_changed')); }

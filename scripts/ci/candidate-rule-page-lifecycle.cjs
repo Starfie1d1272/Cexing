@@ -14,7 +14,8 @@ function page(r,ctx,file){
  vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.resolve(__dirname,'../../cexing/entry/src/main/ets/lib/CoreValidator.ets'),'utf8')).outputText,presentation);
  const source=fs.readFileSync(path.resolve(__dirname,'../../cexing/entry/src/main/ets/pages/RuleDnsEditorPage.ets'),'utf8');
  const body=(source.slice(0,source.indexOf('  build()'))+'\n}').split('\n').map(line=>line.trimStart().startsWith('@')?line.replace(/@\w+(?:\([^\n)]*\))?\s*/g,''):line).join('\n').replace('export struct ','export class ');
- const box={exports:{},...ui.globals,getContext:()=>ctx,require:n=>{
+ const dialogs=[];
+ const box={exports:{},...ui.globals,AlertDialog:{show:options=>dialogs.push(options)},getContext:()=>ctx,require:n=>{
   if(n==='./NativeTheme'||n==='./RuleDnsEditForm')return {};
   if(n==='../lib/CoreValidator')return presentation.exports;
   if(n.startsWith('../lib/'))return r.load(n.slice('../lib/'.length));
@@ -23,7 +24,7 @@ function page(r,ctx,file){
   throw Error('Unexpected page dependency '+n);
  }};
  vm.runInNewContext(ts.transpileModule(body).outputText,box,{filename:'RuleDnsEditorPage'});
- const p=new box.exports.RuleDnsEditorPage();p.file=file;p.section='dns';p.active=true;return p;
+ const p=new box.exports.RuleDnsEditorPage();p.file=file;p.section='dns';p.active=true;p.testDialogs=dialogs;return p;
 }
 async function idle(p){const until=Date.now()+10000;while(p.busy){assert.ok(Date.now()<until,'actual page operation timed out');await new Promise(resolve=>setImmediate(resolve));}}
 async function opened(runtime,ctx,file){const r=runtime(),p=page(r,ctx,file);await p.load();assert.ok(p.snapshot,p.message);assert.equal(p.message,'');await p.open(p.items[0]);assert.ok(p.selected,p.message);return {r,p};}
@@ -43,6 +44,13 @@ exports.run=async({runtime,action,ctx,file,phase})=>{
   s=await h.save(intent,s.revision);await h.preview(s.revision);
   await assert.rejects(r.editor.list(ctx,original,'',stage.version.ID,'',s.intent),/EDIT_INTENT_FAILED/,'fixture must expose old-source pairing bug');
   assert.equal(r.store.getProfileContent(ctx,file),original);
+  // Real private-file parser -> real Host -> real page, not a thrown fake Host.
+  const privatePath=path.join(ctx.filesDir,'profiles',file+'.intent.json'),saved=fs.readFileSync(privatePath);
+  try{
+   fs.writeFileSync(privatePath,'TEST_SECRET=https://example.invalid/private?token=TEST_SECRET');
+   const failed=page(runtime(),ctx,file);await failed.load();assert.equal(failed.snapshot,null);assert.ok(failed.message);
+   assert.doesNotMatch(failed.message,/TEST_SECRET|https?:|token=|example\.invalid|private/i,'private parser text must never reach page feedback');
+  }finally{fs.writeFileSync(privatePath,saved);}
  }
  let {r,p}=await opened(runtime,ctx,file);
  if(phase==='rules-save'||phase==='rules-reopen'){
@@ -57,7 +65,10 @@ exports.run=async({runtime,action,ctx,file,phase})=>{
   await p.preview(p.undo);await p.open(p.items[0]);assert.equal(p.selected.value.nameserver[0],'192.0.2.3','one-step undo keeps candidate source');
   p.edit(f.patch('page-change-again','dns',p.selected,{nameserver:['192.0.2.4']}));await idle(p);assert.ok(p.previewReady,p.message);
   const savedIntent=JSON.parse(JSON.stringify(p.intent)),paired=await r.store.readEditDraftSource(ctx,file,r.store.readEditDraft(ctx,file).revision);
-  await p.discardDraft();assert.equal(r.store.readEditDraft(ctx,file).source,undefined);await p.open(p.items[0]);assert.equal(p.selected.value.nameserver[0],'192.0.2.1','explicit draft undo restores successful source');
+  const beforeCancel=fs.readFileSync(path.join(ctx.filesDir,'profiles',file+'.intent.json'));
+  p.discardDraft();let confirm=p.testDialogs.at(-1);assert.match(confirm.message,/全部未应用修改|all unapplied changes/i);assert.match(confirm.message,/待更新来源|pending update source/i);
+  confirm.primaryButton.action();await confirm.secondaryButton.action();assert.deepEqual(fs.readFileSync(path.join(ctx.filesDir,'profiles',file+'.intent.json')),beforeCancel,'cancelled cross-page undo must not write');
+  p.discardDraft();confirm=p.testDialogs.at(-1);await confirm.secondaryButton.action();await confirm.secondaryButton.action();assert.equal(r.store.readEditDraft(ctx,file).source,undefined);await p.open(p.items[0]);assert.equal(p.selected.value.nameserver[0],'192.0.2.1','explicit draft undo restores successful source');
   const h=r.hosts.create(ctx,file,paired),s=await h.load();await h.save(savedIntent,s.revision);
   assert.equal(r.store.getProfileContent(ctx,file),original);
  }else if(phase==='rules-apply'){
