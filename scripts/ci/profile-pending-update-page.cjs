@@ -22,7 +22,7 @@ async function run() {
   r.store.downloadFromOrigin = async () => { downloads++; throw Error('pending update must not download'); };
   const Page = r.load('pages/ProfilePage').ProfilePage;
   function page() {
-    const p = new Page(), paths = []; p.pageVisible = true; p.rootVisible = true; p.currentVisibleTab = 1; p.pageGeneration = 1;
+    const p = new Page(), paths = []; p.pageVisible = true; p.rootVisible = true; p.currentVisibleTab = 1; p.pageGeneration = 1; p.profileRevision = 0;
     p.navStack = { getAllPathName: () => paths.slice(), pushPath: value => paths.push(value.name) }; return { p, paths };
   }
   const draftPath = path.join(ctx.filesDir, 'profiles', file + '.intent.json');
@@ -33,6 +33,9 @@ async function run() {
   const host = r.hosts.create(ctx, file, bus.request.source), session = await host.load();
   await host.preview(session.revision);
   assert.equal(r.store.getProfileContent(ctx, file), original); assert.deepEqual(fs.readFileSync(draftPath), before);
+  bus.request = null; const retry = page(); await retry.p.retryAutomatic({ file, active: true });
+  assert.equal(downloads, 0); assert.equal(retry.paths.join(','), 'profileTemplateUpdate');
+  assert.ok(bus.request.source.original.includes('US-two'));
   bus.request = null; const departed = page();
   fixture.hooks.read = async () => { departed.p.pageVisible = false; departed.p.pageGeneration++; };
   await departed.p.updateFile(file);
