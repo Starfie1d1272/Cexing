@@ -108,6 +108,9 @@ func executeVersionAction(home string, action versionAction) (versionResponse, e
 	if strings.HasPrefix(action.Op, "backup-") {
 		return executeBackupAction(home, store, prior, action)
 	}
+	if action.Op != "read" && action.Op != "gc" && fileExists(filepath.Join(home, "profiles", "backup-restore.json")) {
+		return versionResponse{}, errors.New("BACKUP_RECOVERY_REQUIRED")
+	}
 	if action.Op == "read" {
 		return versionResponse{State: &prior}, nil
 	}

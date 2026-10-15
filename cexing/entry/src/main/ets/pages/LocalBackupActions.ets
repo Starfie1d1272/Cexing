@@ -68,7 +68,8 @@ export struct LocalBackupActions {
       const doc = new picker.DocumentViewPicker(context);
       const options = new picker.DocumentSelectOptions(); options.maxSelectNumber = 1; options.fileSuffixFilters = ['.json'];
       const uris = await doc.select(options);
-      if (!current() || uris.length === 0) { this.working = false; return; }
+      if (!current()) { return; }
+      if (uris.length === 0) { this.working = false; return; }
       preview = await LocalBackup.preview(context, uris[0], current);
       if (!current()) { await LocalBackup.cancel(context, preview); return; }
       this.pending = preview; this.confirmRestore(context, preview, generation);
@@ -84,7 +85,7 @@ export struct LocalBackupActions {
       (preview.globalChanged ? ' 全局覆写将更新。' : '') + (interrupt ? ' 将先断开 VPN。' : '');
     const cancel = (): void => {
       if (this.restoring === generation) { return; }
-      this.pending = null;
+      if (this.pending === preview) { this.pending = null; }
       LocalBackup.cancel(context, preview).catch(() => {});
       if (current()) { this.generation++; this.working = false; }
     };
@@ -100,7 +101,7 @@ export struct LocalBackupActions {
         } catch (error) {
           if (current()) { promptAction.showToast({ message: (error as Error).message }); }
           await LocalBackup.cancel(context, preview).catch(() => {});
-        } finally { this.pending = null; if (current()) { this.working = false; } }
+        } finally { if (this.pending === preview) { this.pending = null; } if (current()) { this.working = false; } }
       } } });
   }
   build() {

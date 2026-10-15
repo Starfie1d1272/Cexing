@@ -89,10 +89,7 @@ export namespace Settings {
       recoveryChecked = true;
       if (BackupJournal.exists(context)) {
         const operation = tail.then(async () => {
-          const result = await BackupJournal.call(context, JSON.stringify({ op: 'backup-recover' }));
-          const next = applyPortable(current(context), result.preferences);
-          const p = getStore(context); writeCache(p, next); await p.flush(); committed = next;
-          await BackupJournal.acknowledge(context, result.token);
+          await reconcileBackup(context, getStore(context));
           recoveryError = false;
         });
         recoveryError = true;
@@ -193,13 +190,31 @@ export namespace Settings {
     validate(next); return next;
   }
 
+  async function reconcileBackup(context: common.Context, p: preferences.Preferences): Promise<void> {
+    const result = await BackupJournal.call(context, JSON.stringify({ op: 'backup-recover' }));
+    const next = applyPortable(current(context), result.preferences);
+    writeCache(p, next); await p.flush(); committed = next;
+    await BackupJournal.acknowledge(context, result.token);
+  }
+
   /** Keep all preference writers behind the journal and the single FileStore publication. */
   export async function restoreBackup(context: common.Context, value: BackupPreferences,
     arm: (old: BackupPreferences) => Promise<void>, commit: () => Promise<string>,
     recover: () => Promise<string>, finish: () => Promise<void>): Promise<void> {
     await enqueue(context, async (p: preferences.Preferences) => {
       const before = copy(current(context)); const next = applyPortable(before, value);
-      await arm(portable(before));
+      try { await arm(portable(before)); }
+      catch (_) {
+        // The journal may already be durable despite a lost arm reply. Fence
+        // queued writers until the same worker settles and reconciliation ends.
+        recoveryError = true;
+        try {
+          const status = await recover();
+          if (status === 'prior' && !BackupJournal.exists(context)) { recoveryError = false; }
+          else { await reconcileBackup(context, p); recoveryError = false; }
+        } catch (_) { recoveryError = true; }
+        throw new Error(recoveryError ? '备份恢复未确认，请重新打开应用后重试' : '恢复失败，原资料已保留');
+      }
       let outcome = 'prior';
       try { writeCache(p, next); await p.flush(); outcome = await commit(); }
       catch (_) { try { outcome = await recover(); } catch (_) { outcome = 'unknown'; } }

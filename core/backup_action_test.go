@@ -5,6 +5,7 @@ import (
 	"context"
 	"core/configpipeline"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -204,5 +205,114 @@ func TestBackupExportsRenamedPublishedAlias(t *testing.T) {
 	var m backupManifest
 	if e != nil || decodeBackupJSON(raw, &m) != nil || m.Active != "renamed.yaml" || m.Profiles[0].Name != "renamed.yaml" || m.Profiles[0].Original != backupSource {
 		t.Fatal("renamed alias lost", e)
+	}
+}
+
+func TestBackupBindsPreviewBytesAtArmAndCommit(t *testing.T) {
+	for _, phase := range []string{"arm", "commit"} {
+		for _, name := range []string{"config.yaml", "original.yaml", "source.json", "overlay.yaml"} {
+			t.Run(phase+"/"+name, func(t *testing.T) {
+				h := backupHome(t)
+				p := backupFixture(t, h)
+				if phase == "commit" {
+					backupArm(t, h, p)
+				}
+				root, e := backupRoot(h)
+				if e != nil {
+					t.Fatal(e)
+				}
+				plan, e := loadBackupPlan(root, p.Token)
+				root.Close()
+				if e != nil {
+					t.Fatal(e)
+				}
+				path := filepath.Join(filepath.Dir(plan.Versions[0].Path), name)
+				raw, e := os.ReadFile(path)
+				if e != nil {
+					t.Fatal(e)
+				}
+				if name == "source.json" {
+					var source map[string]any
+					json.Unmarshal(raw, &source)
+					source["Metadata"] = `{"origin":"changed"}`
+					raw, _ = json.Marshal(source)
+				} else {
+					raw = append(raw, []byte("\nx-approved: false\n")...)
+				}
+				if e = os.WriteFile(path, raw, 0600); e != nil {
+					t.Fatal(e)
+				}
+				a := versionAction{Op: "backup-commit", BackupToken: p.Token}
+				if phase == "arm" {
+					prefs, _ := json.Marshal(backupPrefs())
+					a = versionAction{Op: "backup-arm", BackupToken: p.Token, BackupOwner: "test", BackupPreferences: prefs}
+				}
+				if _, e = executeVersionAction(h, a); e == nil || e.Error() != "BACKUP_VERIFY_FAILED" {
+					t.Fatal("changed but valid candidate accepted", e)
+				}
+				state, e := executeVersionAction(h, versionAction{Op: "read"})
+				if e != nil || state.State.Current != nil {
+					t.Fatal("changed candidate published", e)
+				}
+			})
+		}
+	}
+}
+func TestEmptyBackupRestoresPreferencesOnFirstAttempt(t *testing.T) {
+	for _, existing := range []bool{false, true} {
+		t.Run(fmt.Sprint(existing), func(t *testing.T) {
+			h := backupHome(t)
+			if existing {
+				store := configpipeline.FileStore{Root: filepath.Join(h, "profile-versions")}
+				os.MkdirAll(store.Root, 0700)
+				if e := store.Publish(context.Background(), configpipeline.Snapshot{Profiles: map[string]configpipeline.Version{}}); e != nil {
+					t.Fatal(e)
+				}
+			}
+			prefs := backupPrefs()
+			prefs.MixedPort = 9125
+			m := backupManifest{SchemaVersion: 1, Preferences: prefs, Profiles: []backupProfile{}}
+			os.MkdirAll(filepath.Join(h, "backups"), 0700)
+			if e := writeBackupJSON(filepath.Join(h, "backups", "backup-import-empty.json"), m); e != nil {
+				t.Fatal(e)
+			}
+			p := backupDo(t, h, versionAction{Op: "backup-prepare", BackupFile: "backup-import-empty.json"})
+			if p.Profiles != 0 {
+				t.Fatal("empty preview shape")
+			}
+			backupArm(t, h, p)
+			before := backupDo(t, h, versionAction{Op: "backup-recover"})
+			if before.Outcome != "prior" || before.Preferences.MixedPort != 7890 {
+				t.Fatal("armed is not committed", before)
+			}
+			backupDo(t, h, versionAction{Op: "backup-commit", BackupToken: p.Token})
+			status := backupDo(t, h, versionAction{Op: "backup-status", BackupToken: p.Token})
+			if status.Outcome != "committed" {
+				t.Fatal(status)
+			}
+			after := backupDo(t, h, versionAction{Op: "backup-recover"})
+			if after.Outcome != "committed" || after.Preferences.MixedPort != 9125 {
+				t.Fatal(after)
+			}
+			backupDo(t, h, versionAction{Op: "backup-ack", BackupToken: p.Token})
+			backupDo(t, h, versionAction{Op: "backup-finish", BackupToken: p.Token})
+			if p.Names == nil {
+				t.Fatal("empty preview must serialize names as an array")
+			}
+		})
+	}
+}
+
+func TestBackupJournalFencesOtherPublications(t *testing.T) {
+	h := backupHome(t)
+	p := backupFixture(t, h)
+	backupArm(t, h, p)
+	for _, op := range []string{"stage", "commit", "rename", "remove", "backup-prepare", "backup-export"} {
+		if _, e := executeVersionAction(h, versionAction{Op: op}); e == nil || e.Error() != "BACKUP_RECOVERY_REQUIRED" {
+			t.Fatal(op, "crossed journal fence", e)
+		}
+	}
+	if r, e := executeVersionAction(h, versionAction{Op: "read"}); e != nil || r.State.Current != nil {
+		t.Fatal("read blocked or pointer changed", e)
 	}
 }

@@ -58,6 +58,8 @@ type backupName struct {
 	From string `json:"from"`
 	To   string `json:"to"`
 }
+type backupFingerprint struct{ Config, Original, Source, Overlay string }
+
 type backupPlan struct {
 	SchemaVersion int
 	Prior         configpipeline.Snapshot
@@ -65,11 +67,13 @@ type backupPlan struct {
 	Preferences   portableSettings
 	AllowLan      bool
 	Versions      []configpipeline.Version
+	Fingerprints  []backupFingerprint
 	Receipts      []string
 	Names         []backupName
 }
 type backupJournal struct {
 	SchemaVersion int              `json:"schemaVersion"`
+	Committed     bool             `json:"committed,omitempty"`
 	Owner         string           `json:"owner"`
 	Token         string           `json:"token"`
 	PriorJSON     string           `json:"priorJSON"`
@@ -81,7 +85,7 @@ type backupResponse struct {
 	File          string            `json:"file,omitempty"`
 	Token         string            `json:"token,omitempty"`
 	Profiles      int               `json:"profiles"`
-	Names         []backupName      `json:"names,omitempty"`
+	Names         []backupName      `json:"names"`
 	GlobalChanged bool              `json:"globalChanged,omitempty"`
 	Preferences   *portableSettings `json:"preferences,omitempty"`
 	Outcome       string            `json:"outcome,omitempty"`
@@ -168,6 +172,17 @@ func backupRead(root *os.Root, name string, limit int64) ([]byte, error) {
 	}
 	return data, nil
 }
+func syncBackupDirectory(path string) error {
+	directory, e := os.Open(path)
+	if e != nil {
+		return errors.New("BACKUP_IO")
+	}
+	defer directory.Close()
+	if directory.Sync() != nil {
+		return errors.New("BACKUP_IO")
+	}
+	return nil
+}
 func writeBackupJSON(path string, value any) error {
 	data, err := json.Marshal(value)
 	if err != nil || len(data) > maxBackupBytes {
@@ -193,7 +208,7 @@ func writeBackupJSON(path string, value any) error {
 	if os.Rename(name, path) != nil {
 		return errors.New("BACKUP_IO")
 	}
-	return nil
+	return syncBackupDirectory(filepath.Dir(path))
 }
 func validBackupProfile(p backupProfile) bool {
 	if !profileIDPattern.MatchString(p.Name) || len(p.Original) > 15*1024*1024 || len(p.Overlay) > maxConfigBytes || len(p.Metadata) > 64*1024 || configpipeline.CheckEditIntent(p.EditIntent) != nil {
@@ -361,13 +376,53 @@ func backupManifestFromStore(home string, prior configpipeline.Snapshot, prefs p
 	}
 	return result, nil
 }
+func fingerprintBackupVersion(v configpipeline.Version) (backupFingerprint, error) {
+	var out backupFingerprint
+	info, e := os.Lstat(filepath.Dir(v.Path))
+	if e != nil || !info.IsDir() {
+		return out, errors.New("BACKUP_VERIFY_FAILED")
+	}
+	root, e := os.OpenRoot(filepath.Dir(v.Path))
+	if e != nil {
+		return out, errors.New("BACKUP_VERIFY_FAILED")
+	}
+	defer root.Close()
+	for _, item := range []struct {
+		name  string
+		limit int64
+		value *string
+	}{{"config.yaml", maxConfigBytes, &out.Config}, {"original.yaml", 15 * 1024 * 1024, &out.Original}, {"source.json", maxBackupBytes, &out.Source}, {"overlay.yaml", maxConfigBytes, &out.Overlay}} {
+		if item.name == "overlay.yaml" {
+			if _, e := root.Lstat(item.name); os.IsNotExist(e) {
+				*item.value = "absent"
+				continue
+			}
+		}
+		data, e := backupRead(root, item.name, item.limit)
+		if e != nil {
+			return out, errors.New("BACKUP_VERIFY_FAILED")
+		}
+		sum := sha256.Sum256(data)
+		*item.value = hex.EncodeToString(sum[:])
+	}
+	return out, nil
+}
+func backupSnapshotOutcome(actual, prior, target string, committed bool) string {
+	if actual == target && (actual != prior || committed) {
+		return "committed"
+	}
+	if actual == prior {
+		return "prior"
+	}
+	return "unknown"
+}
 func loadBackupPlan(root *os.Root, token string) (backupPlan, error) {
 	var plan backupPlan
 	if !backupTokenPattern.MatchString(token) {
 		return plan, errors.New("BACKUP_INVALID")
 	}
 	raw, err := backupRead(root, token+"/plan.json", 2*1024*1024)
-	if err != nil || decodeBackupJSON(raw, &plan) != nil || plan.SchemaVersion != 1 || !validPortable(plan.Preferences) || len(plan.Versions) != len(plan.Receipts) || len(plan.Versions) > 128 {
+	if err != nil || decodeBackupJSON(raw, &plan) != nil || plan.SchemaVersion != 1 || !validPortable(plan.Preferences) || len(plan.Versions) != len(plan.Fingerprints) || len(plan.Versions) != len(plan.Receipts) || len(plan.Versions) > 128 {
 		return plan, errors.New("BACKUP_INVALID")
 	}
 	for _, v := range plan.Versions {
@@ -407,25 +462,28 @@ func executeBackupAction(home string, store configpipeline.FileStore, prior conf
 			return versionResponse{}, errors.New("BACKUP_RECOVERY_REQUIRED")
 		}
 		actual, _ := json.Marshal(prior)
-		outcome := ""
+		outcome := backupSnapshotOutcome(string(actual), journal.PriorJSON, journal.TargetJSON, journal.Committed)
 		prefs := journal.Old
-		if string(actual) == journal.PriorJSON {
-			outcome = "prior"
-		}
-		if string(actual) == journal.TargetJSON {
-			outcome = "committed"
+		if outcome == "committed" {
 			prefs = journal.New
 		}
-		if outcome == "" {
+		if outcome == "unknown" {
 			return versionResponse{}, errors.New("BACKUP_RECOVERY_REQUIRED")
 		}
 		if a.Op == "backup-ack" {
 			if a.BackupToken != journal.Token {
 				return versionResponse{}, errors.New("BACKUP_RECOVERY_REQUIRED")
 			}
-			// Only after the host has durably reconciled the selected settings snapshot.
+			// Persist the matching state and journal removal before later
+			// preference writers may proceed, including settings-only restores.
+			if e = syncBackupDirectory(store.Root); e != nil {
+				return versionResponse{}, e
+			}
 			if e = profiles.Remove("backup-restore.json"); e != nil {
 				return versionResponse{}, errors.New("BACKUP_IO")
+			}
+			if e = syncBackupDirectory(filepath.Dir(journalPath)); e != nil {
+				return versionResponse{}, e
 			}
 		}
 		return response(backupResponse{Token: journal.Token, Outcome: outcome, Preferences: &prefs})
@@ -464,6 +522,9 @@ func executeBackupAction(home string, store configpipeline.FileStore, prior conf
 			}
 		}
 		return response(backupResponse{Outcome: "clean"})
+	}
+	if (a.Op == "backup-export" || a.Op == "backup-prepare") && fileExists(journalPath) {
+		return versionResponse{}, errors.New("BACKUP_RECOVERY_REQUIRED")
 	}
 	if a.Op == "backup-export" {
 		current := ""
@@ -517,7 +578,7 @@ func executeBackupAction(home string, store configpipeline.FileStore, prior conf
 			return versionResponse{}, errors.New("BACKUP_IO")
 		}
 		token := filepath.Base(directory)
-		plan := backupPlan{SchemaVersion: 1, Prior: prior, Preferences: manifest.Preferences, AllowLan: a.BackupAllowLan, Target: configpipeline.Snapshot{Profiles: map[string]configpipeline.Version{}, Previous: prior.Current, GlobalMerge: manifest.GlobalMerge}}
+		plan := backupPlan{SchemaVersion: 1, Names: []backupName{}, Prior: prior, Preferences: manifest.Preferences, AllowLan: a.BackupAllowLan, Target: configpipeline.Snapshot{Profiles: map[string]configpipeline.Version{}, Previous: prior.Current, GlobalMerge: manifest.GlobalMerge}}
 		for name, v := range prior.Profiles {
 			plan.Target.Profiles[name] = v
 		}
@@ -567,6 +628,11 @@ func executeBackupAction(home string, store configpipeline.FileStore, prior conf
 				return versionResponse{}, errors.New("BACKUP_STAGE_FAILED")
 			}
 			plan.Versions = append(plan.Versions, version)
+			fingerprint, e := fingerprintBackupVersion(version)
+			if e != nil {
+				return versionResponse{}, e
+			}
+			plan.Fingerprints = append(plan.Fingerprints, fingerprint)
 			plan.Receipts = append(plan.Receipts, receipt)
 			plan.Target.Profiles[name] = version
 			plan.Names = append(plan.Names, backupName{p.Name, name})
@@ -591,13 +657,16 @@ func executeBackupAction(home string, store configpipeline.FileStore, prior conf
 	priorJSON, _ := json.Marshal(plan.Prior)
 	targetJSON, _ := json.Marshal(plan.Target)
 	actualJSON, _ := json.Marshal(prior)
-	outcome := "unknown"
-	if bytes.Equal(actualJSON, priorJSON) {
-		outcome = "prior"
+	committed := false
+	if fileExists(journalPath) {
+		raw, e := os.ReadFile(journalPath)
+		var journal backupJournal
+		if e != nil || decodeBackupJSON(raw, &journal) != nil || journal.Token != a.BackupToken || journal.PriorJSON != string(priorJSON) || journal.TargetJSON != string(targetJSON) {
+			return versionResponse{}, errors.New("BACKUP_RECOVERY_REQUIRED")
+		}
+		committed = journal.Committed
 	}
-	if bytes.Equal(actualJSON, targetJSON) {
-		outcome = "committed"
-	}
+	outcome := backupSnapshotOutcome(string(actualJSON), string(priorJSON), string(targetJSON), committed)
 
 	switch a.Op {
 	case "backup-status":
@@ -615,6 +684,10 @@ func executeBackupAction(home string, store configpipeline.FileStore, prior conf
 			}
 		}
 		for i, v := range plan.Versions {
+			fingerprint, e := fingerprintBackupVersion(v)
+			if e != nil || fingerprint != plan.Fingerprints[i] {
+				return versionResponse{}, errors.New("BACKUP_VERIFY_FAILED")
+			}
 			raw, err := os.ReadFile(v.Path)
 			if err != nil {
 				return versionResponse{}, errors.New("BACKUP_VERIFY_FAILED")
@@ -646,6 +719,10 @@ func executeBackupAction(home string, store configpipeline.FileStore, prior conf
 			return versionResponse{}, errors.New("BACKUP_RECOVERY_REQUIRED")
 		}
 		for i, v := range plan.Versions {
+			fingerprint, e := fingerprintBackupVersion(v)
+			if e != nil || fingerprint != plan.Fingerprints[i] {
+				return versionResponse{}, errors.New("BACKUP_VERIFY_FAILED")
+			}
 			generated, e := os.ReadFile(v.Path)
 			if e != nil {
 				return versionResponse{}, errors.New("BACKUP_VERIFY_FAILED")
@@ -657,6 +734,10 @@ func executeBackupAction(home string, store configpipeline.FileStore, prior conf
 		}
 		if err = store.Publish(ctx, plan.Target); err != nil {
 			return versionResponse{}, errors.New("BACKUP_COMMIT_FAILED")
+		}
+		journal.Committed = true
+		if err = writeBackupJSON(journalPath, journal); err != nil {
+			return versionResponse{}, err
 		}
 		return response(backupResponse{Token: a.BackupToken, Outcome: "committed", Preferences: &plan.Preferences})
 	case "backup-finish":
