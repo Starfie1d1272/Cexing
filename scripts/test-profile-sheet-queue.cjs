@@ -1,3 +1,4 @@
+const uiFixture = require('./ci/ui-fixtures.cjs');
 // Actual editor/page/root methods, synthetic storage failure; no device APIs.
 const assert = require('node:assert/strict'), fs = require('node:fs'), vm = require('node:vm'), path = require('node:path');
 const ts = require('./ci/transpile-arkts.cjs');
@@ -25,8 +26,8 @@ function load(name) {
   code = code.slice(0, cut >= 0 ? cut : code.indexOf('  build()')) + '\n}';
   code = code.split('\n').map(line => line.trimStart().startsWith('@') ? line.replace(/@\w+(?:\([^\n)]*\))?\s*/g, '') : line).join('\n');
   code = code.replace(/export struct /g, 'export class ').replace('struct Index', 'export class Index');
-  const box = { exports: {}, getContext: () => ({}), NavPathStack: class {}, require: name => modules[name] || {} };
-  vm.runInNewContext(ts.transpileModule(code).outputText, box); return box.exports[name];
+  const box = { exports: {}, getContext: () => ({}), NavPathStack: class {}, require: name => name.endsWith('/UiText') ? uiFixture.module : modules[name] || {} };
+  Object.assign(box, uiFixture.globals); vm.runInNewContext(ts.transpileModule(code).outputText, box); return box.exports[name];
 }
 const Page = load('ProfilePage'), Editor = load('GlobalMergeEditor'), Index = load('Index');
 const source = fs.readFileSync(path.join(pages, 'ProfilePage.ets'), 'utf8');

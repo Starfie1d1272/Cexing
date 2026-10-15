@@ -1,0 +1,21 @@
+const assert = require('node:assert/strict'), fs = require('node:fs'), vm = require('node:vm');
+const ts = require('./ci/transpile-arkts.cjs');
+const read = locale => new Map(JSON.parse(fs.readFileSync(`cexing/entry/src/main/resources/${locale}/element/string.json`, 'utf8')).string.map(x => [x.name, x.value]));
+const locales = { zh_CN: read('zh_CN'), base: read('base') };
+let locale = 'base', dialog, exportCount = 0;
+const resourceManager = { getStringSync(id, ...args) { let i=0;return locales[locale].get(id).replace(/%[sd]/g,()=>String(args[i++])); } };
+const helper = { exports: {}, require: () => ({ application: { getApplicationContext: () => ({ resourceManager }) } }) };
+vm.runInNewContext(ts.transpileModule(fs.readFileSync('cexing/entry/src/main/ets/lib/UiText.ets','utf8')).outputText,helper);
+let source = fs.readFileSync('cexing/entry/src/main/ets/pages/ProfilePage.ets','utf8');
+for (const [,key] of source.matchAll(/app\.string\.([A-Za-z0-9_]+)/g)) { assert.ok(locales.base.has(key),key);assert.ok(locales.zh_CN.has(key),key);assert.deepEqual(locales.base.get(key).match(/%[sd]/g),locales.zh_CN.get(key).match(/%[sd]/g),key); }
+source = (source.slice(0,source.indexOf('  @Builder'))+'\n}').split('\n').map(l=>l.trimStart().startsWith('@')?l.replace(/@\w+(?:\([^\n)]*\))?\s*/g,''):l).join('\n').replace('export struct ','export class ');
+const c={exports:{},require:key=>key.endsWith('/UiText')?helper.exports:key.endsWith('/VpnController')?{VpnStatus:{Disconnected:0},VpnController:{}}:{},$r:id=>({id:id.replace(/^app\.string\./,'')}),AlertDialog:{show:x=>dialog=x}};
+vm.runInNewContext(ts.transpileModule(source).outputText,c);
+const p=new c.exports.ProfilePage();assert.equal(p.moreActions,false);assert.equal(p.regionNames()[0],'香港','canonical persisted regions must not change with locale');assert.equal(p.regionLabel('香港'),'Hong Kong');assert.equal(p.regionLabel('未知'),'Other regions');assert.equal(p.regionLabel('%s-user'),'%s-user');
+assert.equal(helper.exports.UiText.get({id:'profile_selected'},'%s-user'),'Selected “%s-user”. Applies when VPN starts.');
+p.pageVisible=true;p.pageGeneration=1;p.exportProfile=()=>{exportCount++};const profile={file:'synthetic.yaml',name:'test'};
+p.confirmExport(profile);assert.match(dialog.message,/credentials/);const cancelled=dialog;dialog.primaryButton.action();cancelled.secondaryButton.action();assert.equal(exportCount,0);
+p.confirmExport(profile);dialog.secondaryButton.action();dialog.secondaryButton.action();assert.equal(exportCount,1,'one export per explicit consent');
+p.confirmExport(profile);p.pageGeneration++;dialog.secondaryButton.action();assert.equal(exportCount,1,'old confirmation cannot export from a reopened page');
+locale='zh_CN';assert.equal(p.regionLabel('香港'),'香港');assert.equal(p.regionLabel('未知'),'其他地区');
+console.log('PASS: actual locale boundary, canonical region identity, unchanged user labels, sensitive export confirmation/cancel/repeat/stale callbacks');

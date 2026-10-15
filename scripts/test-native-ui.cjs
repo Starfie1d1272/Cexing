@@ -1,3 +1,4 @@
+const uiFixture = require('./ci/ui-fixtures.cjs');
 // Behavioral regression against actual page logic using the official SDK compiler.
 // UI builders are excluded; HAP compilation validates ArkUI syntax. No rendering/device claim.
 const assert = require('node:assert/strict');
@@ -17,8 +18,8 @@ function load(name, modules, extra = {}) {
     module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020
   } }).outputText;
   const sandbox = { exports: {}, getContext: () => ({}), Date, Promise,
-    require: key => { assert.ok(key in modules, `Missing mock ${key}`); return modules[key]; }, ...extra };
-  vm.runInNewContext(code, sandbox);
+    require: key => { if (key.endsWith('/UiText')) return uiFixture.module; assert.ok(key in modules, `Missing mock ${key}`); return modules[key]; }, ...extra };
+  Object.assign(sandbox, uiFixture.globals); vm.runInNewContext(code, sandbox);
   const component = sandbox.exports[name];
   component.moduleExports = sandbox.exports;
   return component;
