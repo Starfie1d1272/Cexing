@@ -54,7 +54,7 @@ struct ConnectionCard {
           .maxLines(1).minFontSize(12).maxFontSize(18)
           .textOverflow({ overflow: TextOverflow.Ellipsis }).width('100%')
       }.alignItems(HorizontalAlign.Start).layoutWeight(1)
-      Button(this.buttonText()).constraintSize({ minWidth: 56, minHeight: 40 }).padding(0).fontSize(14).fontWeight(FontWeight.Medium)
+      Button(this.buttonText()).constraintSize({ minWidth: 56, minHeight: 44 }).padding(0).fontSize(14).fontWeight(FontWeight.Medium)
         .backgroundColor(this.action === 'disconnect' ? $r('app.color.ui_soft') : $r('app.color.ui_action'))
         .fontColor(this.action === 'disconnect' ? $r('app.color.ui_accent_text') : $r('app.color.ui_on_accent'))
         .enabled(!(this.fresh && this.label === '断开中')).onClick(() => this.open())
