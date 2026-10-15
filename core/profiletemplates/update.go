@@ -327,7 +327,7 @@ func (m *updateMerge) order(section string, merged map[string]entityValue) []str
 		return out
 	}
 	common := map[string]bool{}
-	for _, id := range a {
+	for _, id := range b {
 		common[id] = true
 	}
 	for id := range common {
@@ -403,15 +403,32 @@ func combineOrder(base, mine, next []string) ([]string, bool) {
 	}
 	edges := map[string][]string{}
 	degree := map[string]int{}
-	for _, id := range base {
+	basePosition := map[string]int{}
+	for i, id := range base {
+		basePosition[id] = i
+	}
+	for _, id := range mine {
 		degree[id] = 0
 	}
-	for i, left := range base {
-		for _, right := range base[i+1:] {
-			before := mp[left] < mp[right]
-			if before {
-				before = np[left] < np[right]
+	for i, left := range mine {
+		for _, right := range mine[i+1:] {
+			before := np[left] < np[right]
+			lp, lok := basePosition[left]
+			rp, rok := basePosition[right]
+			if lok && rok {
+				// Existing pairs keep Base unless either side deliberately reverses.
+				if lp < rp {
+					before = (mp[left] < mp[right]) && before
+				} else {
+					before = (mp[left] < mp[right]) || before
+				}
+			} else if !before {
+				// Both sides independently introduced/re-added this logical pair.
+				// Neither ordering is a baseline: contradictory constraints conflict.
+				edges[left] = append(edges[left], right)
+				degree[right]++
 			}
+
 			from, to := left, right
 			if !before {
 				from, to = right, left
@@ -422,9 +439,9 @@ func combineOrder(base, mine, next []string) ([]string, bool) {
 	}
 	out := []string{}
 	used := map[string]bool{}
-	for len(out) < len(base) {
+	for len(out) < len(mine) {
 		found := ""
-		for _, id := range base {
+		for _, id := range mine {
 			if !used[id] && degree[id] == 0 {
 				found = id
 				break

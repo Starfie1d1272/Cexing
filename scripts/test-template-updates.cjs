@@ -35,5 +35,7 @@ const valid = { ready: true, candidate, conflicts: [], validation: { revision: '
  const stale = new Model({ preview: async () => valid, apply: async () => { throw Error('stale'); }, label: () => '' }, () => {});
  await stale.refresh(); await stale.apply(); assert.equal(stale.preview, null); assert.ok(stale.error);
  await stale.apply(); assert.equal(stale.result, '');
+ const precision = new Model({ preview: async () => { throw Error('TEMPLATE_UPDATE_PRECISION'); }, apply: async () => '', label: () => '' }, () => {});
+ await precision.refresh(); assert.equal(precision.error, '部分高级字段需通过高级编辑修改');
  console.log('PASS: template update worker bridge, unresolved/unvalidated gate, duplicate apply and stale/exit fencing');
 })().catch(error => { console.error(error); process.exitCode = 1; });

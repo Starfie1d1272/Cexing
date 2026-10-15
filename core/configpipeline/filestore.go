@@ -71,6 +71,15 @@ func (s FileStore) Load(ctx context.Context) (Snapshot, error) {
 	return state, nil
 }
 func (s FileStore) Stage(ctx context.Context, r Result) (Version, error) {
+	return s.StageWithRegionChoice(ctx, r, nil)
+}
+
+// StageWithRegionChoice publishes host selection provenance with the same files
+// and pointer as the compiler result; the compiler remains unchanged.
+func (s FileStore) StageWithRegionChoice(ctx context.Context, r Result, choice *RegionChoice) (Version, error) {
+	if err := CheckRegionChoice(choice); err != nil {
+		return Version{}, err
+	}
 	if err := CheckEditIntent(r.EditIntent); err != nil {
 		return Version{}, err
 	}
@@ -124,8 +133,9 @@ func (s FileStore) Stage(ctx context.Context, r Result) (Version, error) {
 		SmartConversion bool
 		RegionPlan      *RegionPlan
 		GlobalMerge     string
-		EditIntent      *EditIntent `json:",omitempty"`
-	}{r.Original, r.Overlays, r.Digest, r.ProfileID, r.Metadata, r.SmartConversion, r.RegionPlan, r.GlobalMerge, r.EditIntent})
+		EditIntent      *EditIntent   `json:",omitempty"`
+		RegionChoice    *RegionChoice `json:",omitempty"`
+	}{r.Original, r.Overlays, r.Digest, r.ProfileID, r.Metadata, r.SmartConversion, r.RegionPlan, r.GlobalMerge, r.EditIntent, choice})
 	if err != nil {
 		return Version{}, err
 	}

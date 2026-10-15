@@ -37,6 +37,7 @@ type gcSource struct {
 	RegionPlan      *RegionPlan
 	GlobalMerge     string
 	EditIntent      *EditIntent
+	RegionChoice    *RegionChoice
 }
 
 func strictJSON(data []byte, target any) error {
@@ -268,7 +269,7 @@ func inspectGCDirectory(root *os.Root, name string, trash bool) (int64, bool, er
 		}
 	}
 	var source gcSource
-	if strictJSON(files["source.json"], &source) != nil || !profileFile.MatchString(source.ProfileID) || len(source.Digest) != 64 || CheckEditIntent(source.EditIntent) != nil {
+	if strictJSON(files["source.json"], &source) != nil || !profileFile.MatchString(source.ProfileID) || len(source.Digest) != 64 || CheckEditIntent(source.EditIntent) != nil || CheckRegionChoice(source.RegionChoice) != nil {
 		return 0, false, errors.New("GC_SOURCE_INVALID")
 	}
 	for _, n := range []string{"original.yaml", "config.yaml"} {

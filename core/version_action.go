@@ -15,6 +15,7 @@ import (
 var profileIDPattern = regexp.MustCompile(`(?i)^[^/\\\x00-\x1f]{1,128}\.ya?ml$`)
 
 type versionAction struct {
+	RegionChoice *configpipeline.RegionChoice `json:"regionChoice,omitempty"`
 	BackupFile        string                     `json:"backupFile,omitempty"`
 	BackupToken       string                     `json:"backupToken,omitempty"`
 	BackupPreferences json.RawMessage            `json:"backupPreferences,omitempty"`
@@ -62,7 +63,7 @@ func coreVersionAction(home, input string) string {
 		return coreDiagnosticAction(home, input)
 	}
 	if diagnostic.Op == "template-update-preview" {
-		return coreTemplateUpdateAction(input)
+		return coreTemplateUpdateAction(input, home)
 	}
 	var action versionAction
 	if len(input) > maxConfigBytes*6+2*1024*1024 || json.Unmarshal([]byte(input), &action) != nil ||
@@ -246,7 +247,7 @@ func executeVersionAction(home string, action versionAction) (versionResponse, e
 		result.Metadata = action.Metadata
 		result.SmartConversion = action.SmartConversion
 		result.RegionPlan = action.RegionPlan
-		version, err := store.Stage(ctx, result)
+		version, err := store.StageWithRegionChoice(ctx, result, action.RegionChoice)
 		if err != nil {
 			return versionResponse{}, errors.New("VERSION_STAGE_FAILED")
 		}

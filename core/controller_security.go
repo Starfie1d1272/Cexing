@@ -517,6 +517,7 @@ func reloadPlatformConfig(w MHTTP.ResponseWriter, req *MHTTP.Request) {
 	}
 	// executor does not recreate Controller; system-fd TUN stays host-owned.
 	executor.ApplyConfig(cfg, true)
+	observeAIProbeConfig(text)
 	applyLogOverride(overrides)
 	activeOverrides = overrides
 	kernelDiagnostic("config_reload", "completed", nil, nil)

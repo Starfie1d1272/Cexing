@@ -30,6 +30,7 @@ export namespace TemplateUpdates {
 }
 
 export interface TemplateUpdateHost {
+  reset?: () => void;
   // Captures Base/Mine/Next and the existing source/draft/active ticket once.
   preview: (decisions: Record<string, string>) => Promise<TemplateUpdatePreview>;
   // Compile a delta over the latest template through the common EditIntent;
@@ -49,7 +50,7 @@ export class TemplateUpdateModel {
   private host: TemplateUpdateHost;
   private changed: () => void;
   constructor(host: TemplateUpdateHost, changed: () => void) { this.host = host; this.changed = changed; }
-  close(): void { this.open = false; this.generation++; }
+  close(): void { this.open = false; this.generation++; this.host.reset?.(); }
   private current(generation: number): boolean { return this.open && this.generation === generation; }
   private emit(): void { if (this.open) { this.changed(); } }
   async refresh(): Promise<void> {
@@ -64,7 +65,8 @@ export class TemplateUpdateModel {
         throw new Error('TEMPLATE_VALIDATION_REQUIRED');
       }
       if (this.current(generation)) { this.preview = result; }
-    } catch (_) { if (this.current(generation)) { this.error = '无法比较，请重新预览'; } }
+    } catch (error) { if (this.current(generation)) { this.error = (error as Error).message === 'TEMPLATE_UPDATE_PRECISION' ?
+      '部分高级字段需通过高级编辑修改' : '无法比较，请重新预览'; } }
     finally { if (this.current(generation)) { this.busy = false; this.emit(); } }
   }
   async choose(id: string, choice: string): Promise<void> {
@@ -73,7 +75,7 @@ export class TemplateUpdateModel {
     this.decisions[id] = choice;
     await this.refresh();
   }
-  async reset(): Promise<void> { if (this.busy || !this.open) { return; } this.decisions = {}; await this.refresh(); }
+  async reset(): Promise<void> { if (this.busy || !this.open) { return; } this.decisions = {}; this.host.reset?.(); await this.refresh(); }
   async apply(): Promise<void> {
     const preview = this.preview;
     if (!this.open || this.busy || preview === null || !preview.ready || preview.conflicts.length > 0 || preview.candidate === undefined || preview.validation === undefined) { return; }

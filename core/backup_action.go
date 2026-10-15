@@ -312,8 +312,9 @@ func backupManifestFromStore(home string, prior configpipeline.Snapshot, prefs p
 				RegionPlan                  *configpipeline.RegionPlan
 				GlobalMerge                 string
 				EditIntent                  *configpipeline.EditIntent
+ RegionChoice *configpipeline.RegionChoice
 			}
-			if decodeBackupJSON(raw, &source) != nil || !profileIDPattern.MatchString(source.ProfileID) || len(source.Overlays) > 1 {
+			if decodeBackupJSON(raw, &source) != nil || !profileIDPattern.MatchString(source.ProfileID) || len(source.Overlays) > 1 || configpipeline.CheckRegionChoice(source.RegionChoice) != nil {
 				return result, errors.New("BACKUP_SOURCE_INVALID")
 			}
 			sum := sha256.Sum256(generated)
@@ -623,7 +624,14 @@ func executeBackupAction(home string, store configpipeline.FileStore, prior conf
 			if p.Overlay != "" {
 				result.Overlays = [][]byte{[]byte(p.Overlay)}
 			}
-			version, err := store.Stage(ctx, result)
+			// A restore queues a fresh explicit region selection. Runtime manual
+            // choices/observations are neither exported nor replayed from backup.
+            selector := ""
+            if p.EditIntent != nil && !p.EditIntent.Disabled && p.EditIntent.Template != nil {
+              plan:=p.EditIntent.Template
+              if plan.TemplateID=="region" && plan.Region!=nil && plan.Region.Enable && !plan.Region.Disabled { selector=plan.Region.Selector }
+            } else if p.RegionPlan!=nil && p.RegionPlan.Enable && !p.RegionPlan.Disabled { selector=p.RegionPlan.Selector }
+            version, err := store.StageWithRegionChoice(ctx, result, &configpipeline.RegionChoice{Pending:selector})
 			if err != nil {
 				return versionResponse{}, errors.New("BACKUP_STAGE_FAILED")
 			}

@@ -11,6 +11,7 @@ import { util } from '@kit.ArkTS';
 import { Logger } from './Logger';
 import { suggestProfileName, profileNameFromUrl } from './ProfileName';
 import { EffectiveVersions } from './EffectiveVersions';
+import { RegionChoiceState } from './TemplateRegionEffects';
 import { EditIntent } from './ConfigEditor';
 import { BoundedFileReader } from './BoundedFileReader';
 
@@ -492,6 +493,24 @@ export namespace ProfileStore {
     const entry = JSON.parse(fileIo.readTextSync(p)) as Record<string, Object>;
     if (entry['enabled'] !== true) { return ''; }
     return getMergeDraft(context, file);
+  }
+
+  /** Runtime consumption belongs only to this exact immutable version. */
+  export function runtimeRegionChoice(context: common.Context, file: string, versionId: string): RegionChoiceState | null {
+    const p = `${ensureDir(context)}/${file}.region-select.json`;
+    if (!fileIo.accessSync(p)) { return null; }
+    const raw = JSON.parse(fileIo.readTextSync(p)) as Record<string, Object>;
+    if (raw['versionId'] !== versionId) { return null; }
+    const state = raw['state'] as RegionChoiceState;
+    if (state === undefined || typeof state.pending !== 'string' ||
+      (state.previous !== undefined && (typeof state.previous.selector !== 'string' ||
+      typeof state.previous.name !== 'string'))) { throw new Error('地区选择记录损坏'); }
+    return state;
+  }
+
+  export function saveRuntimeRegionChoice(context: common.Context, file: string,
+    versionId: string, state: RegionChoiceState): void {
+    atomicText(`${ensureDir(context)}/${file}.region-select.json`, JSON.stringify({ versionId: versionId, state: state }));
   }
 
   export function pendingRegionSelection(context: common.Context, file: string): string {

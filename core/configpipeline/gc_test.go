@@ -18,7 +18,11 @@ func gcFixture(t *testing.T, n int) (FileStore, Snapshot, []Version) {
 	for i := 0; i < n; i++ {
 		original := []byte("proxies: []\nrules: ['MATCH,DIRECT']\n")
 		digest := sha256.Sum256(original)
-		v, err := s.Stage(context.Background(), Result{Original: original, YAML: original, Digest: hex.EncodeToString(digest[:]), ProfileID: "a.yaml", Metadata: "{}"})
+		var choice *RegionChoice
+		if i%2 == 1 {
+			choice = &RegionChoice{Pending: "Main", Previous: &RegionPreviousChoice{Selector: "Old", Name: "Manual"}}
+		}
+		v, err := s.StageWithRegionChoice(context.Background(), Result{Original: original, YAML: original, Digest: hex.EncodeToString(digest[:]), ProfileID: "a.yaml", Metadata: "{}"}, choice)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -71,7 +75,7 @@ func TestCollectBlocksReadersCandidatesUnknownAndUnexpectedFiles(t *testing.T) {
 	release()
 	original := []byte("proxies: []\n")
 	digest := sha256.Sum256(original)
-	pending, err := s.Stage(context.Background(), Result{Original: original, YAML: original, Digest: hex.EncodeToString(digest[:]), ProfileID: "c.yaml", Metadata: "{}"})
+	pending, err := s.Stage(context.Background(), Result{Original: original, YAML: original, Digest: hex.EncodeToString(digest[:]), ProfileID: "c.yaml", Metadata: "{}"}, choice)
 	if err != nil {
 		t.Fatal(err)
 	}
