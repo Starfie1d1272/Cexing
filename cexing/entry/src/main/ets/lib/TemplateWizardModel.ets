@@ -23,6 +23,7 @@ export interface TemplatePreview {
   smartCount?: number;
 }
 export interface TemplateWizardHost {
+  cancel?: () => void;
   catalogue?: () => Promise<RoutingCatalogue>;
   smart?: () => Promise<TemplatePreview>;
   load: () => Promise<TemplateInputs>;

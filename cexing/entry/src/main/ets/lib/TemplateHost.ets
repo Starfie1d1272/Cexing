@@ -31,6 +31,7 @@ export function createTemplateWizardHost(context: common.Context, profileId: str
     return loaded;
   };
   return {
+    cancel: () => { generation++; receipt = null; },
     catalogue: async () => {
       if (session === null || editor.routingCatalogue === undefined) { throw new Error('ROUTING_NOT_READY'); }
       return editor.routingCatalogue(session.revision);
@@ -100,10 +101,18 @@ export function createTemplateWizardHost(context: common.Context, profileId: str
       intent = switched.intent;
       // This is an inert draft. Declining the eventual confirmation never
       // enables either template or personal changes in the running version.
-      const next = await editor.save(intent, captured.revision);
-      if (epoch !== generation) { throw new Error('TEMPLATE_CANCELLED'); }
+      let next: EditorDraftSession;
+      let preview: EditorDraftPreview;
+      if (editor.prepare !== undefined) {
+        try { const prepared = await editor.prepare(intent, captured.revision, () => epoch === generation);
+          next = prepared.session; preview = prepared.preview;
+        } catch (error) { session = null; throw error as Error; }
+      } else {
+        next = await editor.save(intent, captured.revision);
+        if (epoch !== generation) { throw new Error('TEMPLATE_CANCELLED'); }
+        preview = await editor.preview(next.revision);
+      }
       session = next;
-      const preview = await editor.preview(next.revision);
       if (epoch !== generation) { throw new Error('TEMPLATE_CANCELLED'); }
       if (preview.digest.length === 0 || preview.changes.digest !== preview.digest) { throw new Error('TEMPLATE_PREVIEW_INVALID'); }
       receipt = preview; planned = JSON.stringify(plan);

@@ -21,6 +21,7 @@ const modules = { './CoreValidator': require('./ci/semantic-fixture.cjs'),
  './EffectiveVersions': { EffectiveVersions: { read: () => ({ Profiles: { 'one.yaml': { ID: version } } }),
   globalContent: () => '', regionPlan: () => null, editIntent: () => structuredClone(published) } },
  './ConfigEditor': { ConfigEditor: {
+  preview: async () => ({ digest: 'compiler-digest', changes: [] }),
   switchTemplate: async (_ctx,intent,next) => ({intent:{...structuredClone(intent),template:next,disabled:next.templateId==='original'?intent.disabled:false},dependentCount:0}),
   templatePlan: (templateId, version, targetGroup, region, replaceRules) => ({ templateId, version, targetGroup, region, replaceRules }),
   list: async () => ({ sourceRevision: 'source', missingFieldRevision: 'missing', sections: [
@@ -30,7 +31,7 @@ const modules = { './CoreValidator': require('./ci/semantic-fixture.cjs'),
  './ProfileTransactions': { ProfileTransactions: { editTicket: ticket,
   saveEditDraft: async (_ctx, expected, intent, guard) => {
    await guard(); assert.equal(expected.draftRevision, draft.revision);
-   draft = { revision: `draft-${++serial}`, intent: structuredClone(intent) }; draft.intent.revision = draft.revision; writes++;
+   draft = { revision: `draft-${++serial}`, intent: structuredClone(intent) }; draft.intent.revision = draft.revision; writes++; return draft.revision;
   },
   previewEditDraft: async () => ({ digest: 'compiler-digest', changes: [{ section: 'rules', before: 1, after: 9 }] }),
   applyEditDraft: async (_ctx, _ticket, digest, guard) => {

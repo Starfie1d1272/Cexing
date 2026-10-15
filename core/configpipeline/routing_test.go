@@ -31,6 +31,11 @@ func routingGroup(root *yaml.Node, id string) *yaml.Node {
 			return g
 		}
 	}
+	for _, g := range field(root, "proxy-groups").Content {
+		if strings.HasPrefix(field(g, "name").Value, RoutingGroupName(id)) {
+			return g
+		}
+	}
 	return nil
 }
 func TestRoutingScopeCompositionPriorityAndSmartIsolation(t *testing.T) {
@@ -61,7 +66,7 @@ func TestRoutingScopeCompositionPriorityAndSmartIsolation(t *testing.T) {
 		t.Fatal("global Smart overrode outlet algorithm")
 	}
 	// Personal renames use stable binding aliases, not source-name IDs.
-	alias := TemplateTarget("routing", RoutingOutletEntityID(RoutingGroupName("ai")))
+	alias := TemplateTarget("routing", RoutingOutletTargetID("ai"))
 	intent.Operations = append(intent.Operations, EditOperation{ID: "rename-outlet", Kind: "rename", Section: "proxy-groups", Target: alias, Name: "Renamed managed exit"})
 	group := routingGroup(root, "ai")
 	set(group, "name", scalar("Renamed managed exit"))

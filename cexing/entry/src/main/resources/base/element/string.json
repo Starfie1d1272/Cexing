@@ -4034,7 +4034,7 @@
     },
     {
       "name": "routing_region_hint",
-      "value": "Regions are inferred from names. Correct them when needed; service availability is not guaranteed."
+      "value": "Regions are inferred from node names. Correct them here."
     },
     {
       "name": "routing_order",
@@ -4138,7 +4138,7 @@
     },
     {
       "name": "routing_replace_confirmation",
-      "value": "Cexing will own the rules section, including rules from global and subscription overrides. The original input remains recoverable. Hong Kong and unidentified nodes are excluded from the recommended AI scope; this does not guarantee access."
+      "value": "Cexing will manage the rules section; your original rules remain recoverable."
     },
     {
       "name": "routing_include_all",
@@ -4207,6 +4207,10 @@
     {
       "name": "routing_except_hk",
       "value": "Except Hong Kong"
+    },
+    {
+      "name": "routing_shared_prefix",
+      "value": "Shared by: "
     }
   ]
 }

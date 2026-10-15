@@ -32,7 +32,7 @@ export class RoutingModel {
   private failure: ProfileApplyFailureKind | '' = '';
   private dependencies: number = 0;
   constructor(host: TemplateWizardHost, notify: (view: RoutingView) => void) { this.host = host; this.notify = notify; }
-  close(): void { this.open = false; this.generation++; }
+  close(): void { this.open = false; this.generation++; this.host.cancel?.(); }
   private current(epoch: number): boolean { return this.open && this.generation === epoch; }
   blocked(): boolean { return this.failure !== '' && this.failure !== 'failed'; }
   private emit(): void {
@@ -71,6 +71,22 @@ export class RoutingModel {
     this.set({ templateId: 'routing', version: 1, routing: plan });
   }
   updateRouting(routing: RoutingPlan): void { this.set({ templateId: 'routing', version: 1, routing: routing }); }
+  /** Accept a Sheet proposal only after common validation and durable preparation. */
+  async saveRouting(routing: RoutingPlan): Promise<boolean> {
+    if (!this.open || !this.ready || this.busy || this.blocked()) { return false; }
+    const epoch = ++this.generation; const candidate: TemplatePlan = { templateId: 'routing', version: 1,
+      routing: JSON.parse(JSON.stringify(routing)) as RoutingPlan };
+    if (this.catalogue !== undefined && candidate.routing !== undefined) { candidate.routing.overlayRulesDigest = this.catalogue.overlayRulesDigest; }
+    this.busy = true; this.message = ''; this.receipt = null; this.emit();
+    try {
+      const preview = await this.host.preview(candidate);
+      if (!this.current(epoch)) { return false; }
+      this.plan = candidate; this.receipt = preview; this.dependencies = 0; return true;
+    } catch (_) {
+      if (this.current(epoch)) { this.message = '方案未通过校验，请检查范围、顺序和订阅资源'; }
+      return false;
+    } finally { if (this.current(epoch)) { this.busy = false; this.emit(); } }
+  }
   selectedNodes(outlet: RoutingOutlet, plan: RoutingPlan): string[] {
     const catalog = this.catalogue; if (catalog === undefined) { return []; }
     return Object.keys(catalog.nodes).filter(name => {

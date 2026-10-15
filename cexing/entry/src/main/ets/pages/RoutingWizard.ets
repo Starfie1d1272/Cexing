@@ -158,6 +158,13 @@ export struct RoutingWizard {
     const target = index + delta; if (target < 0 || target >= values.length) { return; }
     const temp = values[index]; values[index] = values[target]; values[target] = temp; next.order = values; this.outlet = next;
   }
+  private sharedServices(): string[] {
+    const services: string[] = [];
+    for (const route of this.view.plan.routing?.routes ?? []) { if (route.outlet !== this.outlet.id) { continue; }
+      for (const id of route.services) { const name = this.view.catalogue?.services.find(service => service.id === id)?.name ?? id; if (!services.includes(name)) { services.push(name); } }
+    }
+    return services;
+  }
   private async saveOutlet(): Promise<void> {
     const plan = this.routing(); if (plan === undefined) { return; }
     try {
@@ -171,8 +178,7 @@ export struct RoutingWizard {
       plan.assignments = this.assignments;
       if (this.editingRoute !== '') { if (this.services.length === 0) { throw new Error('empty'); } plan.routes.forEach(route => { if (route.id === this.editingRoute) { route.services = this.services.slice(); route.outlet = this.outlet.id; } }); }
       if (plan.outlets.some(item => item.id === this.outlet.id)) { plan.outlets = plan.outlets.map(item => item.id === this.outlet.id ? this.outlet : item); } else { plan.outlets.push(this.outlet); }
-      this.model?.updateRouting(plan);
-      if (await this.model?.inspect()) { this.editing = false; promptAction.showToast({ message: this.t('routing_draft_saved'), duration: 1800 }); } else { this.formError = this.t('routing_invalid_options'); }
+      if (await this.model?.saveRouting(plan)) { this.editing = false; promptAction.showToast({ message: this.t('routing_draft_saved'), duration: 1800 }); } else { this.formError = this.t('routing_invalid_options'); }
     } catch (_) { this.formError = this.t('routing_invalid_options'); }
   }
   private advancedRules(): void { RuleDnsEditorBus.file = this.profileId; RuleDnsEditorBus.section = 'rules'; this.navStack.pushPath({ name: 'ruleDnsEditor' }); }
@@ -225,7 +231,7 @@ export struct RoutingWizard {
           Button(this.t('routing_separate')).constraintSize({ minHeight: 44 }).backgroundColor(UI.soft).fontColor(UI.ink).onClick(() => { this.independent(this.editingRoute); })
           Button(this.t('proxy_form_remove')).constraintSize({ minHeight: 44 }).backgroundColor(Color.Transparent).fontColor(UI.error).onClick(() => { this.removeRoute(this.editingRoute); this.editing = false; })
         }
-        Text(this.t('routing_shared_hint')).fontSize(12).fontColor(UI.muted)
+        if (this.sharedServices().length > 1) { Text(this.t('routing_shared_prefix') + this.sharedServices().join(' / ')).fontSize(12).fontColor(UI.muted) }
         Select(['smart', 'url-test', 'fallback', 'select'].map((value: string): SelectOption => ({ value: this.algorithmLabel(value) })))
           .value(this.algorithmLabel(this.outlet.algorithm)).accessibilityText(this.t('routing_algorithm')).constraintSize({ minHeight: 48 }).backgroundColor(UI.soft).fontColor(UI.ink)
           .onSelect((index: number) => { const next = JSON.parse(JSON.stringify(this.outlet)) as RoutingOutlet; next.algorithm = ['smart', 'url-test', 'fallback', 'select'][index]; this.outlet = next; this.refreshOrder(); })
@@ -236,7 +242,6 @@ export struct RoutingWizard {
           Toggle({ type: ToggleType.Switch, isOn: this.outlet.scope.unknown === 'include' }).accessibilityText(this.t('routing_unknown'))
             .onChange((value: boolean) => { const next = JSON.parse(JSON.stringify(this.outlet)) as RoutingOutlet; next.scope.unknown = value ? 'include' : 'exclude'; this.outlet = next; this.refreshOrder(); })
         }.constraintSize({ minHeight: 48 }).width('100%')
-        Text(this.t('routing_region_hint')).fontSize(12).fontColor(UI.muted)
         if (this.outlet.algorithm === 'fallback') {
           Text(this.t('routing_order')).fontSize(14).fontColor(UI.muted).width('100%')
           ForEach(this.outlet.order ?? [], (name: string, index: number) => {
@@ -253,6 +258,7 @@ export struct RoutingWizard {
           this.ScopeList(this.t('routing_provider_scope'), 'providers', this.view.catalogue?.providers ?? [], this.outlet.scope.providers)
           Button(this.t('routing_correct_regions')).constraintSize({ minHeight: 44 }).backgroundColor(UI.soft).fontColor(UI.ink).onClick(() => { this.corrections = !this.corrections; })
           if (this.corrections) {
+            Text(this.t('routing_region_hint')).fontSize(12).fontColor(UI.muted)
             ForEach(this.nodeNames(), (name: string) => {
               Text(name).fontSize(13).fontColor(UI.ink).width('100%')
               Select((this.view.catalogue?.regions ?? []).map((region: string): SelectOption => ({ value: region === '未知' ? this.t('routing_unknown') : region })))

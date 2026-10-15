@@ -202,7 +202,9 @@ export interface EditorDraftPreview {
   digest: string;
   changes: MergePreview;
 }
+export interface EditorDraftPrepared { session: EditorDraftSession; preview: EditorDraftPreview; }
 export interface EditorDraftHost {
+  prepare?: (intent: EditIntent, revision: string, current: () => boolean) => Promise<EditorDraftPrepared>;
   routingCatalogue?: (revision: string) => Promise<RoutingCatalogue>;
   smartChoices?: (revision: string) => Promise<SmartGroupChange[]>;
   load: () => Promise<EditorDraftSession>;

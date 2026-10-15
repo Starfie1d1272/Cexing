@@ -1,0 +1,28 @@
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict'),ts=require('./ci/transpile-arkts.cjs');
+const forms={exports:{},require:()=>({})};vm.runInNewContext(ts.transpileModule(fs.readFileSync('cexing/entry/src/main/ets/lib/ProxyMappingForm.ets','utf8')).outputText,forms);
+let source=fs.readFileSync('cexing/entry/src/main/ets/pages/RoutingWizard.ets','utf8');
+source=source.slice(0,source.indexOf('  @Builder'))+'\n}';source=source.replace(/@Consume\('[^']*'\) /g,'').replace(/@Component\n/g,'').replace(/@(State|Prop) /g,'').replace('export struct ','export class ');
+let toasts=0;
+const box={exports:{},getContext:()=>({resourceManager:{getStringByNameSync:name=>name}}),require:name=>name.endsWith('/ProxyMappingForm')?forms.exports:name==='@kit.ArkUI'?{promptAction:{showToast:()=>toasts++}}:{}};
+vm.runInNewContext(ts.transpileModule(source).outputText,box);
+(async()=>{
+ const page=new box.exports.RoutingWizard();
+ const scope={regions:[],excludeRegions:[],nodes:[],excludeNodes:[],providers:[],unknown:'include'};
+ const plan={version:1,mode:'managed',defaultOutlet:'default',assignments:{},overlayRulesDigest:'a'.repeat(64),outlets:[{id:'default',algorithm:'smart',scope:structuredClone(scope)},{id:'shared',algorithm:'smart',scope:structuredClone(scope)}],routes:[{id:'ai',services:['openai','anthropic'],outlet:'shared'},{id:'music',services:['spotify'],outlet:'shared'}]};
+ page.view={plan:{templateId:'routing',version:1,routing:structuredClone(plan)},busy:false,ready:true,changed:false,message:'',preview:'',failure:'',dependencies:0,catalogue:{services:[{id:'openai',name:'ChatGPT'},{id:'anthropic',name:'Claude'},{id:'spotify',name:'Spotify'}],nodes:{'US fixture':'美国'},regions:['美国']}};
+ let accepted=false,writes=0,proposal;
+ page.model={blocked:()=>false,saveRouting:async candidate=>{proposal=structuredClone(candidate);if(!accepted)return false;writes++;page.view.plan.routing=structuredClone(candidate);return true;}};
+ page.editOutlet('default');assert.equal(page.sharedServices().length,0,'unshared default has no impact hint');
+ page.editRoute(page.view.plan.routing.routes[0]);assert.equal(page.sharedServices().length,3,'combined and separate service rows share one outlet');
+ const initial=JSON.stringify(page.view.plan);
+ page.changeScope('regions','美国',true);page.services=['openai'];page.editing=false;
+ assert.equal(JSON.stringify(page.view.plan),initial,'cancel cannot replace parent intent');
+ page.editRoute(page.view.plan.routing.routes[0]);assert.equal(page.outlet.scope.regions.length,0);assert.equal(page.services.length,2,'reopen restores parent services');
+ page.changeScope('regions','美国',true);await page.saveOutlet();assert.equal(writes,0);assert.equal(page.editing,true);assert.equal(JSON.stringify(page.view.plan),initial,'validation failure keeps parent draft');assert.equal(toasts,0);
+ page.editing=false;page.editRoute(page.view.plan.routing.routes[0]);assert.equal(page.outlet.scope.regions.length,0,'failed edit does not reappear');
+ page.independent('ai');page.changeScope('regions','美国',true);accepted=true;await page.saveOutlet();
+ assert.equal(writes,1);assert.equal(toasts,1);assert.equal(page.editing,false);
+ const saved=page.view.plan.routing;assert.notEqual(saved.routes[0].outlet,'shared');assert.equal(saved.routes[1].outlet,'shared');assert.equal(saved.outlets.find(outlet=>outlet.id==='shared').scope.regions.length,0,'separating services does not mutate shared parent exit');
+ assert.equal(proposal.outlets.find(outlet=>outlet.id===saved.routes[0].outlet).scope.regions[0],'美国');
+ console.log('PASS: real outlet Sheet cancel, failed validation, reopen, combined-service sharing and successful independent save');
+})().catch(error=>{console.error(error);process.exitCode=1;});

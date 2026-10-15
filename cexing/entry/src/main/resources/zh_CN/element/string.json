@@ -4034,7 +4034,7 @@
     },
     {
       "name": "routing_region_hint",
-      "value": "地区按名称推测，可手动纠正；不保证服务可用。"
+      "value": "地区按节点名称推测，可在此纠正。"
     },
     {
       "name": "routing_order",
@@ -4138,7 +4138,7 @@
     },
     {
       "name": "routing_replace_confirmation",
-      "value": "策星将接管规则段（含全局与本订阅覆写的规则），原输入可恢复。推荐 AI 范围排除香港及未知节点，不保证服务可用。"
+      "value": "策星将接管规则，原规则可恢复。"
     },
     {
       "name": "routing_include_all",
@@ -4207,6 +4207,10 @@
     {
       "name": "routing_except_hk",
       "value": "除香港外"
+    },
+    {
+      "name": "routing_shared_prefix",
+      "value": "共用："
     }
   ]
 }
