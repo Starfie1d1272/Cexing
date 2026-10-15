@@ -96,6 +96,8 @@ Go-only `Compiler.EditorResourceSource` 仅复用既有 editSource/boundEditSour
 
 成功提交后调用 committed，重连调用 resume。消费状态沿用 `.region-select.json` 并绑定 versionId，旧 pending/previous 仅在来源缺少新字段时迁移。同 selector 的更新保留已消费请求；移除/换组先恢复原手动选项，离线不推断未观察的 reload fallback，后来的手动选择优先。控制面读写受原事务门禁、active version、epoch 和 session 约束；失败不撤销已提交事实。无可恢复选项时在发布前拒绝，并提供手动选择的修复操作。
 
+地区生成需要 provider 成员时，编译器先在双层 Merge 的私有 root 上执行同一 intent 中的 provider 声明操作，再解析本地有效缓存并生成地区实体，最后执行其余个人操作。provider 操作不会在第二阶段重放；所有原始目标 guard 在第一阶段前保存，跨 provider rename 引用改写仍按原始基线严格核对。宿主缓存投影使用 `ApplyProviderResourceEdits`，不提前执行尚未生成的组/规则编辑；最终输出继续走原有完整验证和发布事务。
+
 ### 候选草稿的关闭与恢复
 
 候选 Original、metadata、已解决 intent 与同一个草稿 revision 必须成对保存；页面关闭不调用 undo，也不通过重新下载恢复。普通 `EditorDraftHosts.create(context,file).load()` 自动恢复已有候选，`TemplateUpdateSource` 无显式 override 时使用同一持久来源。相同 override 可继续，其他候选不能覆盖尚未处理的草稿。显式 undo 才清候选，成功 apply 的已消费 revision 只投影成功 provenance。
