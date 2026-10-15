@@ -72,3 +72,15 @@ Go 异步读者须用 `FileStore.AcquireReadLease` 覆盖读取生命周期；�
 配置事务持有 Controller 发布门禁以阻止新连接越过在途操作，停止仍可立即取消旧代次。apply、commit 与 rollback 的完成边界重新核对会话及操作身份；HTTP payload 携带 expectedSession，服务端在应用前核对，旧回滚不能作用于新内核。已发布后才发现会话变化时保留真实指针并进入 unknown，不报告 applied 或盲目覆盖新会话。 Smart 偏好与版本发布结果共同对账：仅确认未发布且旧指针未变时恢复旧偏好；已发布或发布结果无法确认时保留候选偏好，不将控制面 unknown 当作未提交。重命名前先检查全部目标侧车、草稿与元数据，拒绝碰撞后不得移动或覆盖任一来源资料。
 
 完整来源上限 15 MiB，生成 YAML 上限 16 MiB。Controller JSON 传输限额独立计入包装和最坏转义，解码后仍严格限制 YAML 字节；worker 请求亦有独立有界传输限制，不静默截断。文件导入读取用 BoundedFileReader，写入用 `ProfileStore.importContentAsync` 的有界异步短写循环及原子移动。
+
+## 本地备份恢复
+
+设置页的本地备份由用户主动导出并用系统 picker 选择位置；操作前短提示订阅地址/节点凭据风险。schemaVersion=1 的清单仅含原始来源、启用的全局/本订阅 Merge、地区/EditIntent（含模板/Smart 例外）和明确列出的普通偏好；不含 LAN 授权、Controller secret、日志、签名或运行时会话。不自动上传。单文件最多 64 MiB、128 个订阅；来源仍遵守 15 MiB，候选仍遵守 16 MiB。未知版本、损坏、路径穿越、重复名称和无法完整校验的候选拒绝。
+
+`LocalBackup.preview` 异步读取用户选择的文件，通过原有 compiler/FileStore stage 全部候选；同名内容另存为唯一名字，预览后确认设置/全局覆写变化以及运行中断。确认后 `LocalBackup.restore` 先复用 Controller 的确认停止，再持有 ProfileTransactions 同一门禁，一次 Publish 全部目标引用，保留当时 Current 为 Previous。不会按条导入并假报整批成功。
+
+Preferences 写队列在恢复期间持有 `backup-restore.json` journal：先记录旧/新完整可移植偏好与前后版本快照，再写偏好、发布目标，最后按真实指针对账并 durable flush。丢失响应由同一 worker 的 status 核对；重启时 Settings 在启动/普通写入通过 idle 前，从 journal 和实际 state 选择旧/新偏好。无法确认时保留 journal 并拒绝新启动。LAN 授权与运行连接标志始终来自本机，不从备份迁移。
+
+未发布候选有 `.pending`，journal 存在时 GC 拒绝；导入取消清理候选，冷进程首次加载会清理遗留预览及应用私有传输文件，真实 Current/Previous/Profiles 引用不会被删。Go 读取持有相同读者租约。正常完成后复用版本 GC；清理失败不否认已发布配置。系统 picker 写入失败可能留下未完成的目标文件，界面不报告已保存；应用私有临时文件在 finally 清理，系统文件位置由用户管理。
+
+备份预览绑定 config/original/source/可选 overlay 的精确字节摘要，在 arm 与 commit 均复核，合法 YAML 内容变化也须重新预览。arm 回复丢失即封锁普通设置写入，在同一 worker 顺序确认恢复 journal；无法确认则保留恢复锁，不能让冷恢复覆盖后来保存。prior/target 相同的空备份用持久 committed 位区分完成阶段。运行态手动地区选择和观察值不导出，恢复只从已启用计划建立新的 pending。系统 picker 的迟到返回仅能释放自己的操作门禁。

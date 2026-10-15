@@ -41,6 +41,22 @@ export namespace BoundedFileReader {
     } finally { await fileIo.close(file); }
   }
 
+  export async function write(uri: string, data: ArrayBuffer, current?: () => boolean): Promise<void> {
+    check(current);
+    const file = await fileIo.open(uri, fileIo.OpenMode.READ_WRITE | fileIo.OpenMode.CREATE | fileIo.OpenMode.TRUNC);
+    try {
+      let offset = 0;
+      while (offset < data.byteLength) {
+        check(current);
+        const chunk = data.slice(offset, Math.min(offset + CHUNK_BYTES, data.byteLength));
+        const count = await fileIo.write(file.fd, chunk, { offset: offset });
+        if (count <= 0 || count > chunk.byteLength) { throw new Error('文件未完整写入'); }
+        offset += count;
+      }
+      await fileIo.fsync(file.fd); check(current);
+    } finally { await fileIo.close(file); }
+  }
+
   export async function yaml(uri: string, current?: () => boolean): Promise<string> {
     const data = await bytes(uri, IMPORT_CONFIG_BYTES, current);
     check(current);

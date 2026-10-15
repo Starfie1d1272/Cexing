@@ -1,3 +1,4 @@
+import { LocalBackupActions } from './LocalBackupActions';
 import { ProfileStorageDetails } from './ProfileStorageDetails';
 import { UiText } from '../lib/UiText';
 import { SettingsReconnectButton } from './SettingsReconnectButton';
@@ -375,6 +376,7 @@ export struct SettingsPage {
             }
           }
         }, (group: SettingGroup) => group.title)
+        ListItem() { LocalBackupActions() }
         ListItem() { ProfileStorageDetails() }
       }
       .width('100%')
