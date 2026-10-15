@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs'), vm = require('node:vm');
 const ts = require('./ci/transpile-arkts.cjs');
 const src = fs.readFileSync('cexing/entry/src/main/ets/lib/TemplateWizardModel.ets', 'utf8');
-const updates = { exports: {}, require: () => ({}) };
+const updates = { exports: {}, require: name => name === './ProfileApplyFeedback' ? require('./ci/load-profile-feedback.cjs') : {} };
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('cexing/entry/src/main/ets/lib/TemplateUpdates.ets','utf8')).outputText,updates);
 const sandbox = { exports: {}, require: () => updates.exports };
 vm.runInNewContext(ts.transpileModule(src).outputText, sandbox);

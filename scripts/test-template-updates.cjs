@@ -3,6 +3,7 @@ const ts = require('./ci/transpile-arkts.cjs');
 const source = fs.readFileSync('cexing/entry/src/main/ets/lib/TemplateUpdates.ets', 'utf8');
 let workerInput;
 const sandbox = { exports: {}, require: name => {
+ if (name === './ProfileApplyFeedback') return require('./ci/load-profile-feedback.cjs');
  if (name === 'libentry.so') return { versionAction: async (_home, input) => {
   workerInput = JSON.parse(input); return JSON.stringify({ ready: false, conflicts: [{ id: 'conflict', entity: 'ai/web', section: 'rules', kind: 'edit' }] });
  } };

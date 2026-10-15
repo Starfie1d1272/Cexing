@@ -97,6 +97,7 @@ export struct ProfilePage {
   private pageVisible: boolean = false;
   private pageGeneration: number = 0;
   private removeIdleListener: (() => void) | null = null;
+  private settlementRefresh: number = -1;
   private activationRequest: number = 0;
 
   private openTemplate(file: string): void {
@@ -302,13 +303,24 @@ export struct ProfilePage {
     this.pageGeneration++;
     this.selectedFile = this.detailFile;
     this.removeIdleListener?.();
-    this.removeIdleListener = ProfileTransactions.onIdle(() => { this.acceptExternalImport(); });
+    this.removeIdleListener = ProfileTransactions.onIdle(() => {
+      this.acceptExternalImport();
+      // AutoUpdater persists its outcome after awaiting this transaction. Read
+      // it on the next event turn, after that continuation, without polling.
+      if (this.settlementRefresh >= 0) { clearTimeout(this.settlementRefresh); }
+      const page = this.pageGeneration;
+      this.settlementRefresh = setTimeout(() => {
+        this.settlementRefresh = -1;
+        if (this.pageVisible && page === this.pageGeneration) { this.changed(); }
+      }, 0);
+    });
     this.refresh();
     this.acceptExternalImport();
   }
 
   aboutToDisappear(): void {
     this.removeIdleListener?.(); this.removeIdleListener = null;
+    if (this.settlementRefresh >= 0) { clearTimeout(this.settlementRefresh); this.settlementRefresh = -1; }
     this.cancelExport();
     this.releaseExternalImport();
     this.pageVisible = false;

@@ -1,3 +1,4 @@
+import { ProfileApplyFeedback } from './ProfileApplyFeedback';
 import { common } from '@kit.AbilityKit';
 import core from 'libentry.so';
 import { TemplatePreview } from './TemplateWizardModel';
@@ -15,15 +16,14 @@ export interface TemplateApplyFailure { kind: string; message: string; }
 // Exact allowlist of shared transaction outcomes; arbitrary exception bodies
 // never become UI text. Saved and unknown outcomes require recovery, not replay.
 export function templateApplyFailure(error: Error): TemplateApplyFailure {
-  const message = error?.message ?? '';
-  if (message === '应用未确认，请重连恢复' || message === '版本发布结果未知，请断开 VPN 后检查') {
+  const kind = ProfileApplyFeedback.classify(error?.message ?? '');
+  if (kind === 'unconfirmed') {
     return { kind: 'unconfirmed', message: '应用未确认，请返回连接页断开后重连恢复' };
   }
-  if (message === '配置已保存，地区选择待重连恢复') {
+  if (kind === 'committed-pending') {
     return { kind: 'saved-recovery', message: '配置已保存，地区选择待重连恢复' };
   }
-  if (message === '请先在代理面板选择可用节点，再关闭或切换地区策略' ||
-    message === '原手动选项已失效，请先手动选择可用节点再关闭地区策略' || message === 'REGION_PREVIOUS_UNAVAILABLE') {
+  if (kind === 'selection-required') {
     return { kind: 'retry', message: '请先在代理面板选择可用选项，再关闭或切换地区策略' };
   }
   return { kind: 'retry', message: '应用失败，请重新预览' };
