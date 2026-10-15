@@ -10,7 +10,7 @@ const store = { isApplyUncertain: () => false, getActiveFile: () => '', getEnabl
   downloadFromOrigin: () => new Promise((resolve, reject) => { finishDownload = resolve; failDownload = reject; }) };
 const versions = { read: () => state, regionPlan: () => null, editIntent: () => null, stage: async () => ({ version: { ID: `version-${++serial}`, Path: 'synthetic-stage' }, receipt: 'receipt' }),
   verify: async () => 'receipt', commit: async (_context, version) => { state.Profiles['other.yaml'] = version; }, discard: async () => {} };
-const mods = { './ProfileStore': { ProfileStore: store }, './EffectiveVersions': { EffectiveVersions: versions },
+const mods = { './ProfileRegionChoices': { ProfileRegionChoices: { selector: () => '', prepare: async () => ({ state: { pending: '' }, observeRemoved: '' }), committed: async () => {} } }, './ProfileStore': { ProfileStore: store }, './EffectiveVersions': { EffectiveVersions: versions },
   './CoreValidator': { CoreValidator: { prepareResources: async () => {} } },
   './VpnController': { VpnStatus: { Disconnected: 0, Connected: 2 }, VpnController: controller },
   '@kit.CoreFileKit': { fileIo: { readTextSync: () => 'synthetic candidate' } }, './Settings': { Settings: { load: () => ({}) } } };
