@@ -1,4 +1,5 @@
 const uiFixture = require('./ci/ui-fixtures.cjs');
+const { resourceContext } = require('./ci/mock-profile-resources.cjs');
 // Behavioral regression against actual page logic using the official SDK compiler.
 // UI builders are excluded; HAP compilation validates ArkUI syntax. No rendering/device claim.
 const assert = require('node:assert/strict');
@@ -17,8 +18,11 @@ function load(name, modules, extra = {}) {
   const code = ts.transpileModule(source, { compilerOptions: {
     module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020
   } }).outputText;
-  const sandbox = { exports: {}, getContext: () => ({}), Date, Promise,
-    require: key => { if (key.endsWith('/UiText')) return uiFixture.module; assert.ok(key in modules, `Missing mock ${key}`); return modules[key]; }, ...extra };
+  const sandbox = { exports: {}, getContext: () => resourceContext(), Date, Promise,
+    require: key => { if (key.endsWith('/ProfileApplyFeedback')) {
+      const box = { exports: {}, require: dependency => modules['../lib/' + dependency.split('/').pop()] || {} };
+      vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(pages, '../lib/ProfileApplyFeedback.ets'), 'utf8')).outputText, box); return box.exports;
+    } if (key.endsWith('/UiText')) return uiFixture.module; assert.ok(key in modules, `Missing mock ${key}`); return modules[key]; }, ...extra };
   Object.assign(sandbox, uiFixture.globals);
   vm.runInNewContext(code, sandbox);
   const component = sandbox.exports[name];
@@ -29,6 +33,14 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
 (async () => {
   let now = 1000, stream, tick, dialog, stop = 0, start = 0, cancelRestore = 0, timerCleared = 0;
   const toasts = [];
+  let scanCallback, scanCalls = 0;
+  let readYaml = async () => 'proxies: []';
+  let profileSession = 'synthetic-session';
+  let importedWrites = 0, uncertainProfile = false, recoveryCalls = 0;
+  let reconnectProfile = async (_context, current) => { recoveryCalls++; return current(); };
+  let autoRetry = async () => {};
+  const updateState = { id: 'source-fixture', succeededAt: 10, failedAt: 20, retryAt: 30 };
+  let externalPending = null, externalActive = null;
   let stopResult = async () => true;
   let smartPrepare = async () => {};
   let activeHomeFile = 'fixture.yaml';
@@ -39,11 +51,21 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   const controller = { status: status.Connected, onChanged(fn) { listeners.add(fn); }, offChanged(fn) { listeners.delete(fn); },
     getLastStopCompleted: () => lastStopCompleted, needsStop: () => lastStopCompleted === false,
     consumeLastStartError: () => { const value = pendingFailure; pendingFailure = ''; return value; },
-    getLastStartFailure: () => null, stop: () => { stop++; return stopResult(); },
+    trafficSession: () => profileSession, getLastStartFailure: () => null, stop: () => { stop++; return stopResult(); },
     start: () => { start++; emit(status.Connecting); return true; } };
   const common = {
-    '@kit.AbilityKit': {}, '@kit.CoreFileKit': {}, '@kit.ShareKit': {}, '@kit.ArkData': {},
+    '@kit.AbilityKit': {}, '@kit.ScanKit': { scanCore: { ScanType: { QR_CODE: 1 } }, scanBarcode: {
+      startScanForResult(_context, options, callback) {
+        assert.equal(options.enableAlbum, true); scanCalls++; scanCallback = callback;
+      } } }, '../lib/ProfileImportInput': { ProfileImportInput: { take: () => { const value = externalPending; externalPending = null;
+      if (value) externalActive = value; return value; },
+      release: value => { if (value && externalActive === value) externalActive = null; },
+      hasPending: () => externalPending !== null,
+      parseText: value => value.startsWith('https://') ? { kind: 'url', value } : null } }, '@kit.CoreFileKit': {}, '@kit.ShareKit': {}, '@kit.ArkData': {},
     '../lib/DiagnosticExportSnapshots': {},
+    '../lib/ProfileRecovery': { ProfileRecovery: { reconnect: (...args) => reconnectProfile(...args) } },
+    '../lib/AutoUpdater': { AutoUpdater: { retry: (...args) => autoRetry(...args) } },
+    '../lib/BoundedFileReader': { BoundedFileReader: { yaml: (...args) => readYaml(...args) } },
     '../lib/AppRuntime': { AppRuntime: { cancelRestore: () => cancelRestore++ } },
     '../lib/DiagnosticsBundleView': { DiagnosticsBundleView: { result: r => r.reason === 'page_check_timeout' ? '检查超时' : r.stage === 'controller_authorization' ? '连接认证失败，请断开后重新连接' : '本机服务可达', title: () => '本机服务' } },
     '@kit.ArkUI': { promptAction: { showToast(value) { toasts.push(value.message); } } },
@@ -57,7 +79,7 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
     '../lib/ProfileStore': { ProfileStore: { getActiveFile: () => activeHomeFile } },
     '../lib/Settings': { Settings: { load: () => ({ mode: 'rule' }) } },
     '../lib/AppRuntime': { AppRuntime: { cancelRestore: () => cancelRestore++ } },
-    '../lib/ProfileTransactions': { ProfileTransactions: { ensureActiveSmartPolicy: () => smartPrepare() } },
+    '../lib/ProfileTransactions': { ProfileTransactions: { onIdle: () => () => {}, isBusy: () => false, ensureActiveSmartPolicy: () => smartPrepare() } },
     './ProfilePage': { ProfileDetailBus: { current: '' } }
   }, { Date: { now: () => now }, setInterval: cb => { tick = cb; return 1; },
     clearInterval: () => timerCleared++, AlertDialog: { show: value => { dialog = value; } } });
@@ -176,7 +198,7 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
       '../lib/ProfileStore': { ProfileStore: { getActiveFile: ()=>'fixture.yaml' } },
       '../lib/Settings': { Settings: { load: ()=>({mode:'rule'}) } },
       '../lib/AppRuntime': { AppRuntime: { cancelRestore() {} } },
-      '../lib/ProfileTransactions': { ProfileTransactions: { ensureActiveSmartPolicy: async()=>{preparations++;} } },
+      '../lib/ProfileTransactions': { ProfileTransactions: { onIdle: () => () => {}, isBusy: () => false, ensureActiveSmartPolicy: async()=>{preparations++;} } },
       './ProfilePage': { ProfileDetailBus: { current:'' } }
     }, { getContext: ()=>real.context, setInterval:()=>1, clearInterval() {} });
     const actualHome = new ActualHome();actualHome.rootVisible=true;actualHome.currentVisibleTab=0;
@@ -252,21 +274,23 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   const profiles = [{ file: 'fixture.yaml', name: 'Fixture', active: true },
     { file: 'candidate.yaml', name: 'Candidate', active: false }];
   const Profile = load('ProfilePage', { ...common,
-    '@kit.CoreFileKit': {}, '@kit.ArkTS': {}, '@kit.BasicServicesKit': {}, './ProfileEditPage': {},
+    '@kit.CoreFileKit': {}, '@kit.ArkTS': {}, '@kit.BasicServicesKit': {}, './ProfileEditPage': {}, './ProfileTemplatePage': { ProfileTemplateBus: { file: '' } }, './ProfileProxyEditorPage': { ProfileProxyEditorBus: { file: '' } }, './RuleDnsEditorPage': { RuleDnsEditorBus: { file: '', section: '' } },
     '../lib/CoreApi': { CoreApi: {} },
     '../lib/EffectiveVersions': { EffectiveVersions: { read: () => null } },
-    '../lib/ProfileTransactions': { ProfileTransactions: {
+    '../lib/ProfileTransactions': { ProfileTransactions: { onIdle: () => () => {}, isBusy: () => false,
       remove: async () => { deleted++; }, activate: (...args) => activateResult(...args),
       setRegionPlan: (...args) => regionResult(...args),
       ensureActiveSmartPolicy: () => smartPrepare(),
       update: async () => 'applied', rename: () => 'fixture.yaml'
     } },
     '../lib/ProfileStore': { ProfileStore: { list: () => profiles, getMeta: () => ({}),
-      getActiveFile: () => active, pendingRegionSelection: () => '',
+      isApplyUncertain: () => uncertainProfile, updateState: () => ({ ...updateState }),
+      importContent: () => { importedWrites++; return 'candidate.yaml'; },
+      getActiveFile: () => active, getOrigin: () => '', pendingRegionSelection: () => '',
       importFromUrl: async () => { if (rejectImport) throw Error('network'); return 'candidate.yaml'; } } }
-  }, { AlertDialog: { show: value => { dialog = value; } } });
+  }, { AlertDialog: { show: value => { dialog = value; } }, canIUse: () => true });
   const profile = new Profile(); profile.profileRevision = 0; profile.navStack = { pop() {} };
-  profile.showSheet = true; profile.inputUrl = 'https://example.invalid/fixture.yaml';
+  profile.pageVisible = true; profile.showSheet = true; profile.inputUrl = 'https://example.invalid/fixture.yaml';
   await profile.importUrl(); assert.equal(profile.inputUrl, 'https://example.invalid/fixture.yaml');
   assert.ok(profile.importError); assert.equal(profile.importing, false);
   rejectImport = false; await profile.importUrl();
@@ -376,6 +400,107 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   assert.match(unknownImport.importError, /重试断开/);
   lastStopCompleted = true;
   console.log('PASS: first import connect, repeated taps, cancel/leave/tab stale results, provider/resource failures and unknown-stop gate');
+  const scanned = activationPage().page;
+  scanned.scanInput(); scanned.scanInput(); assert.equal(scanCalls, 1, 'scanner launch is single-flight');
+  scanCallback(null, { originalValue: 'https://example.invalid/scanned' });
+  assert.equal(scanned.inputUrl, 'https://example.invalid/scanned');
+  assert.equal(scanned.sheetMode, 2, 'scan only prefills the confirmation form');
+  const cancelledScan = activationPage().page; cancelledScan.scanInput();
+  scanCallback({ code: 1 }, null); assert.equal(cancelledScan.showSheet, false);
+  const leftScan = activationPage().page; leftScan.scanInput(); leftScan.aboutToDisappear();
+  scanCallback(null, { originalValue: 'https://example.invalid/stale' });
+  assert.equal(leftScan.inputUrl, '', 'late scanner result cannot reopen a hidden page');
+  assert.equal(start, startsBeforeImport + 1, 'scan cannot activate or start VPN');
+  console.log('PASS: native scanner album option, single-flight, confirmation-only result, cancel and late result');
+  let finishFile, fileReads = 0;
+  readYaml = () => { fileReads++; return new Promise(resolve => { finishFile = resolve; }); };
+  const fileImport = activationPage().page;
+  const readingFile = fileImport.importFile('file://docs/synthetic.yaml');
+  await fileImport.importFile('file://docs/synthetic.yaml');
+  assert.equal(fileReads, 1, 'file import must remain single-flight while async I/O yields');
+  finishFile('proxies: []'); await readingFile;
+  assert.equal(importedWrites, 1); assert.equal(fileImport.sheetMode, 4);
+  const hiddenFile = activationPage().page;
+  const oldFile = hiddenFile.importFile('file://docs/old.yaml');
+  hiddenFile.aboutToDisappear(); finishFile('late content'); await oldFile;
+  assert.equal(importedWrites, 1, 'late async file content cannot be committed after leave');
+  readYaml = async () => { throw Error('invalid UTF8 private-uri'); };
+  const damagedFile = activationPage().page;
+  await damagedFile.importFile('file://docs/damaged.yaml');
+  assert.equal(importedWrites, 1); assert.equal(damagedFile.importing, false);
+  assert.ok(!toasts.some(value => value.includes('private-uri')));
+  console.log('PASS: shared async file helper, repeated import, late read suppression and safe failure');
+  uncertainProfile = true;
+  const recovery = activationPage().page;
+  assert.equal(recovery.recoveryNeeded, true);
+  recovery.confirmRecovery(); const cancelledRecovery = dialog;
+  cancelledRecovery.primaryButton.action(); cancelledRecovery.secondaryButton.action();
+  assert.equal(recoveryCalls, 0, 'cancelled recovery confirmation stays cancelled');
+  recovery.confirmRecovery(); const oldRecovery = dialog;
+  recovery.aboutToDisappear(); oldRecovery.secondaryButton.action(); assert.equal(recoveryCalls, 0);
+  const sessionRecovery = activationPage().page;
+  sessionRecovery.confirmRecovery(); const staleSessionDialog = dialog;
+  profileSession = 'new-session'; staleSessionDialog.secondaryButton.action();
+  assert.equal(recoveryCalls, 0, 'old recovery confirmation cannot stop a new session');
+  const freshRecovery = activationPage().page;
+  let finishRecovery;
+  reconnectProfile = (_context, current) => { recoveryCalls++; return new Promise(resolve => {
+    finishRecovery = () => resolve(current());
+  }); };
+  freshRecovery.confirmRecovery(); const confirmedRecovery = dialog;
+  confirmedRecovery.secondaryButton.action(); confirmedRecovery.secondaryButton.action();
+  assert.equal(recoveryCalls, 1, 'one confirmation produces one reconnect');
+  freshRecovery.aboutToDisappear(); finishRecovery(); await Promise.resolve(); await Promise.resolve();
+  assert.equal(freshRecovery.tabJump, -1, 'late recovery cannot navigate');
+  uncertainProfile = false;
+  active = profiles[0].file;
+  const retryPage = activationPage().page;
+  let finishRetry, retries = 0;
+  autoRetry = () => { retries++; return new Promise(resolve => { finishRetry = resolve; }); };
+  const retrying = retryPage.retryAutomatic(profiles[0]); await retryPage.retryAutomatic(profiles[0]);
+  assert.equal(retries, 1, 'automatic update retry is single-flight');
+  const priorRetryToasts = toasts.length;
+  retryPage.aboutToDisappear(); finishRetry(); await retrying;
+  assert.equal(toasts.length, priorRetryToasts, 'late auto-update retry must not report success');
+  const skippedRetry = activationPage().page; autoRetry = async () => {};
+  await skippedRetry.retryAutomatic(profiles[0]);
+  assert.equal(toasts.at(-1), '未能更新，请检查网络及自动更新设置', 'skipped retry is not success');
+  console.log('PASS: unknown recovery explicit confirmation/cancel/single-flight, late navigation and skipped/late automatic retry');
+  const queuedScan = activationPage().page; queuedScan.rootVisible = true;
+  queuedScan.scanInput();
+  externalPending = { kind: 'url', value: 'https://shared.invalid/after-scan' };
+  queuedScan.acceptExternalImport(); assert.ok(externalPending, 'busy scan retains pending input');
+  scanCallback({ code: 1 }, null);
+  assert.equal(externalPending, null); assert.equal(queuedScan.inputUrl, 'https://shared.invalid/after-scan');
+  queuedScan.cancelImport(); assert.equal(externalActive, null, 'cancel releases the exact confirmation lease');
+  const queuedFile = activationPage().page; queuedFile.rootVisible = true;
+  readYaml = () => new Promise(resolve => { finishFile = resolve; });
+  const importingQueuedFile = queuedFile.importFile('file://docs/queue.yaml');
+  externalPending = { kind: 'url', value: 'https://shared.invalid/after-file' };
+  queuedFile.acceptExternalImport(); assert.ok(externalPending, 'busy file read retains pending input');
+  finishFile('proxies: []'); await importingQueuedFile;
+  assert.ok(externalPending, 'ready confirmation retains the modal slot');
+  assert.equal(queuedFile.sheetMode, 4);
+  queuedFile.cancelImport();
+  assert.equal(externalPending, null); assert.equal(queuedFile.inputUrl, 'https://shared.invalid/after-file');
+  assert.equal(queuedFile.sheetMode, 2, 'new share is confirmed after the user safely closes the ready sheet');
+  queuedFile.cancelImport();
+  console.log('PASS: cancelled sharing lease, queued external input after scanner cancellation and async file import');
+  const editorNavigation = activationPage().page;
+  const editorPaths = [];
+  editorNavigation.navStack = { getAllPathName: () => editorPaths.slice(), pushPath: value => editorPaths.push(value.name) };
+  editorNavigation.openRuleDns('candidate.yaml'); editorNavigation.openRuleDns('candidate.yaml');
+  assert.equal(editorPaths.join(','), 'ruleDnsEditor', 'real subscription action opens the registered editor once');
+  editorPaths.length = 0;
+  editorNavigation.openProxyEditor('candidate.yaml'); editorNavigation.openProxyEditor('candidate.yaml');
+  assert.equal(editorPaths.join(','), 'profileProxyEditor', 'node editor action also deduplicates navigation');
+  editorPaths.length = 0;
+  editorNavigation.openTemplate('candidate.yaml'); editorNavigation.openTemplate('candidate.yaml');
+  assert.equal(editorPaths.join(','), 'profileTemplate');
+  const rootEntry = fs.readFileSync(path.join(pages, 'Index.ets'), 'utf8');
+  assert.match(rootEntry, /name === 'profileTemplate'[\s\S]*?ProfileTemplatePage\(\{ visible: this\.templateVisible \}\)/);
+  assert.match(rootEntry, /name === 'ruleDnsEditor'[\s\S]*?RuleDnsEditorPage\(\{ visible: this\.ruleDnsVisible \}\)/);
+  assert.match(rootEntry, /onHidden\(\(\) => \{ this\.ruleDnsVisible = false; \}\)/);
   function regionPage() {
     const page = activationPage().page;
     page.importedFile = 'candidate.yaml'; page.regionFromImport = true;
@@ -396,20 +521,22 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   leftRegion.aboutToDisappear(); finishRegion('saved'); await pendingRegion;
   assert.equal(leftRegion.tabJump, -1, 'late create and enable cannot navigate after leaving');
   let regionLists = 0, committedRegionEnabled = true;
+  let regionFailureMessage = '地区策略已关闭，但原选项未恢复';
   const PartialDisable = load('ProfilePage', { ...common,
-    '@kit.CoreFileKit': {}, '@kit.ArkTS': {}, '@kit.BasicServicesKit': {}, './ProfileEditPage': {},
+    '@kit.CoreFileKit': {}, '@kit.ArkTS': {}, '@kit.BasicServicesKit': {}, './ProfileEditPage': {}, './ProfileTemplatePage': { ProfileTemplateBus: { file: '' } }, './ProfileProxyEditorPage': { ProfileProxyEditorBus: { file: '' } }, './RuleDnsEditorPage': { RuleDnsEditorBus: { file: '', section: '' } },
     '../lib/CoreApi': { CoreApi: {} },
     '../lib/EffectiveVersions': { EffectiveVersions: {
       read: () => ({ Profiles: { 'candidate.yaml': {} } }),
       regionPlan: () => ({ mode: 'region', selector: 'Main', assignments: {}, enable: committedRegionEnabled })
     } },
-    '../lib/ProfileTransactions': { ProfileTransactions: {
+    '../lib/ProfileTransactions': { ProfileTransactions: { onIdle: () => () => {}, isBusy: () => false,
       setRegionPlan: async () => {
         committedRegionEnabled = false;
-        throw Error('地区策略已关闭，但原选项未恢复');
+        throw Error(regionFailureMessage);
       }
     } },
     '../lib/ProfileStore': { ProfileStore: {
+      isApplyUncertain: () => false, getOrigin: () => '',
       list: () => { regionLists++; return profiles; }, getMeta: () => ({}), getActiveFile: () => active
     } }
   });
@@ -428,7 +555,14 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   assert.match(fs.readFileSync(path.join(pages, 'ProfilePage.ets'), 'utf8'),
     /this\.ProfileDetail\(p\)\s*\}, \(p: ProfileMeta\) => this\.detailKey\(p\)\)/,
     'detail ForEach must use the revision-aware key');
-  assert.ok(toasts.includes('地区策略已关闭，但原选项未恢复'));
+  assert.ok(toasts.includes('配置已保存，地区选择待重连恢复'), 'committed restore failures retain the necessary recovery direction');
+  regionFailureMessage = 'private: synthetic-token';
+  await partialDisable.toggleRegion('candidate.yaml');
+  assert.equal(toasts.at(-1), '地区策略未完成，请重试');
+  partialDisable.importedFile = 'candidate.yaml'; partialDisable.regionMode = 'region'; partialDisable.regionPreview = { eligible: true, nodes: {} };
+  await partialDisable.saveRegion(false); assert.equal(partialDisable.importError, '地区策略未完成，请重试');
+  assert.ok(!partialDisable.importError.includes('synthetic-token'));
+
   active = 'fixture.yaml';
   controller.status = status.Connected; profile.confirmDelete(profiles[0]); dialog.secondaryButton.action();
   assert.equal(deleted, 0, 'running active profile must be protected');
@@ -436,7 +570,7 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   let failDraft = true;
   const Edit = load('ProfileEditPage', { ...common,
     '../lib/ProfileStore': { ProfileStore: { writeDraft: () => { if (failDraft) throw Error('disk full'); } } },
-    '../lib/ProfileTransactions': { ProfileTransactions: { edit: async () => 'applied' } }
+    '../lib/ProfileTransactions': { ProfileTransactions: { onIdle: () => () => {}, isBusy: () => false, edit: async () => 'applied' } }
   });
   const editor = new Edit(); editor.persistDraft('synthetic');
   assert.equal(editor.dirty, true); assert.equal(editor.draftPersisted, false, 'failed draft write cannot claim recovery');
@@ -459,6 +593,6 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   assert.equal(networkSaved,1,'cancel/hidden sheet retains existing scope');assert.equal(network.inputPkg,'');
   network.showAddDialog=true;network.inputPkg='sample.late';network.showRouteDetails=true;network.aboutToDisappear();network.addPackage();
   assert.equal(networkSaved,1,'page exit blocks queued add');assert.equal(network.showRouteDetails,false);
-  const returned = new Network();returned.aboutToAppear();assert.deepEqual(Array.from(returned.accessList),['sample.app']);
+  const returned = new Network();returned.aboutToAppear();await new Promise(setImmediate);assert.deepEqual(Array.from(returned.accessList),['sample.app']);
   console.log('PASS: native page traffic, one-tap stop, bounded diagnosis, transaction activation/navigation identity, import retry, draft persistence and active-delete guard');
 })().catch(error => { console.error(error); process.exit(1); });

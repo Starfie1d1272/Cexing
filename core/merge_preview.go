@@ -69,9 +69,6 @@ func compileLayeredMergeWithIntent(home, original, global, overlay, overrides st
 		if err != nil {
 			return configpipeline.Result{}, "", err
 		}
-		if err := configpipeline.ApplyEditIntent(context.Background(), root, intent); err != nil {
-			return configpipeline.Result{}, "", err
-		}
 		members, err := regionProviderNames(home, root)
 		if err != nil {
 			return configpipeline.Result{}, "", err
