@@ -1,6 +1,5 @@
 # 路由与选点能力矩阵
 
-本矩阵为组合分流的目标契约；可视化与发布接入随联动 PR 验收，不能只凭此文断言 main 已具备。
 
 依据：`core/go.mod` 锁定的 vernesong/mihomo `daf3ad03021c`，不以最新文档推断手机已适配全部能力。源码字段见 [SmartOption](https://github.com/vernesong/mihomo/blob/daf3ad03021c/adapter/outboundgroup/smart.go)、[GroupCommonOption 与解析](https://github.com/vernesong/mihomo/blob/daf3ad03021c/adapter/outboundgroup/parser.go)、[url-test](https://github.com/vernesong/mihomo/blob/daf3ad03021c/adapter/outboundgroup/urltest.go)、[fallback](https://github.com/vernesong/mihomo/blob/daf3ad03021c/adapter/outboundgroup/fallback.go)。通用语义对照 [MetaCubeX 官方组文档](https://wiki.metacubex.one/config/proxy-groups/)、[自动测速](https://wiki.metacubex.one/config/proxy-groups/url-test/)、[顺序回退](https://wiki.metacubex.one/config/proxy-groups/fallback/)。Smart 是锁定分支扩展，不把 MetaCubeX 通用说明当作其参数依据。
 
@@ -18,7 +17,7 @@
 | prefer-asn | 已支持可视化：Smart 高级开关 | 推荐/安全转换为 false；不为默认方案额外开启 ASN 偏好或采集 |
 | tolerance | 已支持可视化：Smart / url-test 高级数值 | uint16 范围 0–65535 毫秒；省略为 0，不能把容差解释成成功/解锁检测 |
 | URL / interval / timeout / lazy / expected-status / max-failed-times | 已支持可视化：出口及组编辑高级控件 | 推荐组为 HTTPS gstatic generate_204、300 秒、5000 毫秒、true、字符串 204、5。自定义有效值保留；expected-status 支持官方 `/` 与 `-` 范围。普通导入不被套推荐健康检查默认 |
-| use / proxies / include-all / include-all-proxies / include-all-providers | 已支持可视化：高级组编辑和出口来源/节点范围 | 继承内核语义。全纳入不包括其他策略组；本地 provider 快照必须已校验，宿主不下载私人来源 |
+| use / proxies / include-all / include-all-proxies / include-all-providers | 已支持可视化：高级组编辑和出口来源/节点范围 | 继承内核语义。全纳入不包括其他策略组；本地 provider 快照必须已校验，宿主不下载私人来源。重复叶节点名称无法唯一引用时拒绝托管，内置 direct/reject/dns 不纳入代理候选；原订阅仍可沿用 |
 | filter / exclude-filter / exclude-type | 已支持可视化：高级组编辑文本控件；出口提供结构化排除 | filter 仅筛 provider 及 include-all-proxies 引入的节点；exclude 语义依锁定解析器，最终候选与完整校验为准。托管出口编译为精确成员过滤，原始参数不能绕过声明的范围 |
 | 域名、CIDR、规则集、合法复合/其他规则 | 已支持可视化：现有规则编辑器及高级原始字段 | 推荐使用内置完整维护分类，个人规则默认插入局域网之后、服务/国内规则之前；显式高级重排仍是用户修改。服务子集先于 AI 聚合 |
 | 未识别合法字段 | 已支持：高级组 JSON、原始订阅与 Merge | 表单从原对象复制，只改所选字段，不重建丢弃未知键。托管出口的 name/type/members/filter/empty-fallback 属于结构化意图，拒绝通过原始 options 绕过范围；完整原始配置编辑仍可用 |

@@ -31,6 +31,29 @@ export function createTemplateWizardHost(context: common.Context, profileId: str
     return loaded;
   };
   return {
+    catalogue: async () => {
+      if (session === null || editor.routingCatalogue === undefined) { throw new Error('ROUTING_NOT_READY'); }
+      return editor.routingCatalogue(session.revision);
+    },
+    smart: async () => {
+      const epoch = ++generation; receipt = null;
+      const captured = session ?? await loadSession();
+      if (captured.intent?.disabled === true) { throw new Error('SMART_EDITS_DISABLED'); }
+      if (editor.smartChoices === undefined) { throw new Error('SMART_NOT_READY'); }
+      const choices = await editor.smartChoices(captured.revision);
+      if (epoch !== generation) { throw new Error('TEMPLATE_CANCELLED'); }
+      const eligible = choices.filter(item => item.before === 'url-test' && !item.override);
+      if (eligible.length === 0) { throw new Error('SMART_NO_COMPATIBLE_GROUP'); }
+      const intent = cloneIntent(captured);
+      const overrides: Record<string, boolean> = intent.smartGroups ?? {};
+      eligible.forEach(item => { overrides[item.choiceId] = true; }); intent.smartGroups = overrides;
+      const next = await editor.save(intent, captured.revision);
+      if (epoch !== generation) { throw new Error('TEMPLATE_CANCELLED'); } session = next;
+      const preview = await editor.preview(next.revision);
+      if (epoch !== generation || preview.digest.length === 0 || preview.digest !== preview.changes.digest) { throw new Error('TEMPLATE_PREVIEW_INVALID'); } receipt = preview;
+      planned = JSON.stringify(intent.template ?? { templateId: 'original', version: 1 }); inactiveEdits = false;
+      return { revision: preview.revision, digest: preview.digest, summary: CoreValidator.describeMergePreview(preview.changes), smartCount: eligible.length };
+    },
     regionPreview: (plan: RegionPlan) => ProfileTransactions.previewRegion(context, profileId, plan),
     load: async (): Promise<TemplateInputs> => {
       const epoch = ++generation; receipt = null;
@@ -54,7 +77,8 @@ export function createTemplateWizardHost(context: common.Context, profileId: str
         saved?.template ?? { templateId: 'original', version: 1 };
       if (saved?.template === undefined && saved?.disabled !== true && legacy !== null &&
         legacy.enable && legacy.disabled !== true) { applied = { templateId: 'region', version: 1, region: legacy }; }
-      return { groups: groups.map(item => item.sourceName ?? ''), labels: labels,
+      const archives: Record<string, TemplatePlan> = saved?.templateArchives ?? {};
+      return { managedDraft: loaded.intent?.template?.routing ?? loaded.intent?.templateArchives?.['routing']?.routing ?? saved?.template?.routing ?? archives['routing']?.routing, hasLegacy: ['region', 'ai', 'automatic'].includes(current.templateId) || ['region', 'ai', 'automatic'].includes(saved?.template?.templateId ?? '') || Object.keys(archives).some(id => ['region', 'ai', 'automatic'].includes(id)), groups: groups.map(item => item.sourceName ?? ''), labels: labels,
         selectors: groups.filter(item => item.type === 'select').map(item => item.sourceName ?? ''), current: current, published: applied, regionDraft: loaded.intent?.template?.region ??
           loaded.intent?.templateArchives?.['region']?.region ?? saved?.templateArchives?.['region']?.region ?? legacy ?? undefined };
     },
@@ -68,7 +92,7 @@ export function createTemplateWizardHost(context: common.Context, profileId: str
       inactiveEdits = saved?.disabled === true &&
         (intent.operations.length > 0 || Object.keys(overrides).length > 0) && plan.templateId !== 'original';
       const nextPlan = ConfigEditor.templatePlan(plan.templateId, plan.version, plan.targetGroup,
-        plan.region !== undefined ? JSON.parse(JSON.stringify(plan.region)) as RegionPlan : undefined, plan.replaceRules);
+        plan.region !== undefined ? JSON.parse(JSON.stringify(plan.region)) as RegionPlan : undefined, plan.replaceRules, plan.routing);
       const switched = await ConfigEditor.switchTemplate(context, intent, nextPlan, pauseDependents === true);
       if (epoch !== generation) { throw new Error('TEMPLATE_CANCELLED'); }
       if (switched.dependentCount > 0) { throw new Error(`TEMPLATE_DEPENDENCIES:${switched.dependentCount}`); }

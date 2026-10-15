@@ -302,7 +302,6 @@ export struct HomePage {
   @Builder
   ConnectionTools() {
     Column({ space: 16 }) {
-      if (this.wide || this.status !== VpnStatus.Connected) { this.PanelEntry() }
       Row() {
         Text(UiText.get($r('app.string.home_current_profile'))).fontSize(13).fontColor(UI.muted).layoutWeight(1)
         Button(UiText.get($r('app.string.action_manage')), { type: ButtonType.Normal }).constraintSize({ minHeight: 48 }).fontSize(14)
@@ -359,7 +358,7 @@ export struct HomePage {
                 .onClick(() => { this.tabJump = 1; })
             }.padding(24).width('100%').borderRadius(28).backgroundColor(UI.surface)
           } else {
-            if (!this.wide && this.status === VpnStatus.Connected) { this.PanelEntry() }
+            if (this.status === VpnStatus.Connected) { this.PanelEntry() }
             Flex({ direction: this.wide ? FlexDirection.Row : FlexDirection.Column,
               justifyContent: FlexAlign.SpaceBetween }) {
               this.ConnectionCard()

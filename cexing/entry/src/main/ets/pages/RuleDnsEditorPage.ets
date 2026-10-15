@@ -130,7 +130,7 @@ export struct RuleDnsEditorPage {
     if (this.busy || this.section === 'dns') { return; }
     const empty: Record<string, Object> = {};
     this.selected = { item: { id: '', revision: '' }, missingFieldRevision: this.snapshot?.missingFieldRevision ?? '', value: this.section === 'rules' ? '' : empty };
-    this.isNew = true; this.insertionBefore = this.items[0]?.id ?? '';
+    this.isNew = true; this.insertionBefore = (this.section === 'rules' ? this.items.find(item => item.preferredInsertion) : undefined)?.id ?? this.items[0]?.id ?? '';
   }
   private async preview(next: EditIntent | null): Promise<void> {
     if (this.busy || !this.active || this.session === null || this.host === null) { return; }

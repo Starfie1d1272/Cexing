@@ -19,7 +19,23 @@ export interface EditOperation {
   before?: string;
   name?: string;
 }
+export interface RoutingScope {
+  regions: string[]; excludeRegions: string[]; nodes: string[]; excludeNodes: string[]; providers: string[]; unknown: string;
+}
+export interface RoutingOutlet { id: string; algorithm: string; scope: RoutingScope; order?: string[]; options?: Record<string, Object>; }
+export interface RoutingRoute { id: string; services: string[]; outlet: string; }
+export interface RoutingPlan {
+  version: number; mode: string; defaultOutlet?: string; outlets: RoutingOutlet[]; routes: RoutingRoute[];
+  assignments?: Record<string, string>; overlayRulesDigest: string;
+}
+export interface RoutingService { id: string; name: string; }
+export interface RoutingCatalogue {
+  providerNodes: Record<string, string[]>; directNodes: string[];
+  nodes: Record<string, string>; providers: string[]; regions: string[]; unknown: number; pending: boolean;
+  services: RoutingService[]; overlayRulesDigest: string;
+}
 export interface TemplatePlan {
+  routing?: RoutingPlan;
   templateId: string;
   version: number;
   targetGroup?: string;
@@ -40,6 +56,7 @@ export interface EditIntent {
 }
 export interface EditorProviderRef { id: string; name: string; type?: string; state: string; count?: number; }
 export interface EditableItem {
+  preferredInsertion?: boolean;
   id: string;
   revision: string;
   type?: string;
@@ -80,9 +97,9 @@ export interface TemplateSwitchResult { intent?: EditIntent; dependentCount: num
 export namespace ConfigEditor {
   /** ArkTS does not structurally assign the wizard's distinct TemplatePlan. */
   export function templatePlan(templateId: string, version: number, targetGroup?: string,
-    region?: RegionPlan, replaceRules?: boolean): TemplatePlan {
+    region?: RegionPlan, replaceRules?: boolean, routing?: RoutingPlan): TemplatePlan {
     return { templateId: templateId, version: version, targetGroup: targetGroup,
-      region: region, replaceRules: replaceRules };
+      region: region, replaceRules: replaceRules, routing: routing };
   }
 
   export async function switchTemplate(context: common.Context, intent: EditIntent, next: TemplatePlan,
@@ -186,6 +203,8 @@ export interface EditorDraftPreview {
   changes: MergePreview;
 }
 export interface EditorDraftHost {
+  routingCatalogue?: (revision: string) => Promise<RoutingCatalogue>;
+  smartChoices?: (revision: string) => Promise<SmartGroupChange[]>;
   load: () => Promise<EditorDraftSession>;
   target: (section: string, id: string, revision: string) => Promise<EditTarget>;
   save: (intent: EditIntent, expectedRevision: string) => Promise<EditorDraftSession>;

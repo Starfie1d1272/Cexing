@@ -60,6 +60,7 @@ export class ProxyMappingForm {
   }
   setList(key: string, value: string[]): void { this.value[key] = value.slice(); }
   flag(key: string): boolean { return this.value[key] === true; }
+  flagOrDefault(key: string, value: boolean): boolean { return this.value[key] === undefined ? value : this.flag(key); }
   setFlag(key: string, value: boolean): void { this.value[key] = value; }
 
   nestedText(path: string[]): string {
@@ -108,6 +109,13 @@ export class ProxyMappingForm {
     this.value[key] = Number(value);
   }
 
+  setFraction(key: string, value: string): void {
+    this.invalidNumbers = this.invalidNumbers.filter(name => name !== key);
+    if (value.trim() === '') { this.value = this.without(this.value, key); return; }
+    const number = Number(value);
+    if (!Number.isFinite(number) || number <= 0 || number > 1) { this.invalidNumbers.push(key); return; }
+    this.value[key] = number;
+  }
   advancedText(): string { return JSON.stringify(this.value, null, 2); }
 
   replaceAdvanced(value: string): void {
@@ -121,6 +129,27 @@ export class ProxyMappingForm {
 
   private required(key: string, label: string): void {
     if (this.text(key).trim() === '') { throw new Error(`请填写${label}`); }
+  }
+
+  private validateGroupOptions(): void {
+    for (const key of ['interval', 'timeout', 'max-failed-times', 'tolerance']) {
+      const value = this.value[key]; if (value === undefined) { continue; }
+      const limit = key === 'timeout' ? 300000 : key === 'tolerance' ? 65535 : 86400;
+      if (typeof value !== 'number' || !Number.isInteger(value) || value < 0 || value > limit) { throw new Error('请填写有效数字'); }
+    }
+    const sample = this.value['sample-rate'];
+    if (sample !== undefined && (typeof sample !== 'number' || !Number.isFinite(sample) || sample <= 0 || sample > 1)) { throw new Error('请填写有效数字'); }
+    const status = this.value['expected-status'];
+    if (status !== undefined && (typeof status !== 'string' || !/^(\*|[0-9]+(?:-[0-9]+)?(?:\/[0-9]+(?:-[0-9]+)?)*)$/.test(status))) { throw new Error('高级字段格式无效'); }
+    for (const key of ['lazy', 'uselightgbm', 'collectdata', 'prefer-asn', 'include-all', 'include-all-proxies', 'include-all-providers']) {
+      if (this.value[key] !== undefined && typeof this.value[key] !== 'boolean') { throw new Error('高级字段格式无效'); }
+    }
+    const priority = this.text('policy-priority');
+    for (const rule of priority.split(';')) {
+      if (rule.trim() === '') { continue; }
+      const index = rule.lastIndexOf(':'); const factor = Number(rule.substring(index + 1));
+      if (index < 1 || !Number.isFinite(factor) || factor <= 0) { throw new Error('高级字段格式无效'); }
+    }
   }
 
   finish(): ProxyMappingDraft {
@@ -140,9 +169,10 @@ export class ProxyMappingForm {
         if (!/^https?:\/\/\S+$/i.test(this.text('url'))) { throw new Error('请填写来源链接'); }
       } else if (type === 'file') { this.required('path', '文件路径'); }
       else if (type === 'inline' && !Array.isArray(this.value['payload'])) { throw new Error('请在高级编辑中填写节点列表'); }
-    } else if (this.section === 'proxy-groups' && this.list('proxies').length === 0 && this.list('use').length === 0) {
+    } else if (this.section === 'proxy-groups' && this.list('proxies').length === 0 && this.list('use').length === 0 && !['include-all', 'include-all-proxies', 'include-all-providers'].some(key => this.flag(key))) {
       throw new Error('请添加节点或订阅来源');
     }
+    if (this.section === 'proxy-groups') { this.validateGroupOptions(); }
     const value = JSON.parse(JSON.stringify(this.value)) as Record<string, Object>;
     return { section: this.section, name: this.text('name'), target: this.target, value: value };
   }

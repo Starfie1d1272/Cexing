@@ -32,6 +32,8 @@ export struct TemplateWizard {
   @State private reviewingUpdate: boolean = false;
   @State private updateAvailable: boolean = false;
   @Prop profileId: string = '';
+  @Prop regionOnly: boolean = false;
+  private regionInitialised: boolean = false;
   onClose: () => void = () => {};
   registerBackGuard: (guard: (() => boolean) | null) => void = () => {};
   private reviewBackGuard: (() => boolean) | null = null;
@@ -62,6 +64,7 @@ export struct TemplateWizard {
     });
     this.regionGeneration++; this.regionBusy = false; this.showRegionAdvanced = false;
     this.recoveryGeneration++; this.recovering = false; this.recoveryMessage = '';
+    this.regionInitialised = false;
     this.visible = true; this.confirmationGeneration++; this.confirming = false;
     this.reviewingUpdate = false;
     this.activeUpdateSource = this.updateSource ?? (this.profileId.length > 0 ?
@@ -74,6 +77,7 @@ export struct TemplateWizard {
     this.model = new TemplateWizardModel(host, () => {
       if (this.model !== null) {
         this.view = this.model.snapshot();
+        if (this.regionOnly && this.view.ready && !this.regionInitialised) { this.regionInitialised = true; this.model.choose('region', ''); }
         this.aiRevision = this.view.ready && !this.view.busy && !this.model.needsRepair() && this.view.templateId === 'ai' ?
           this.aiBinding.revision(getContext(this) as common.UIAbilityContext, this.profileId, this.view.target) : '';
         this.updateAvailable = this.view.ready && !this.view.busy && !this.model.needsRepair() &&
@@ -126,6 +130,19 @@ export struct TemplateWizard {
     if (model === null || model.busy || this.confirming || !model.hasChanges()) { return; }
     const generation = this.confirmationGeneration;
     this.confirming = true;
+    if (this.regionOnly && model.templateId === 'region') {
+      try {
+        const choice = await promptAction.showDialog({ title: UiText.get($r('app.string.profile_region_create')),
+          message: UiText.get($r('app.string.routing_region_create_confirmation')),
+          buttons: [{ text: UiText.get($r('app.string.template_cancel')), color: $r('app.color.ui_muted') },
+            { text: UiText.get($r('app.string.profile_create_only')), color: $r('app.color.ui_accent_text') },
+            { text: UiText.get($r('app.string.profile_create_enable')), color: $r('app.color.ui_accent_text') }] });
+        if (!this.visible || generation !== this.confirmationGeneration || choice.index === 0) { return; }
+        model.regionActivation(choice.index === 2);
+      } catch (_) { return; }
+      finally { if (generation === this.confirmationGeneration) { this.confirming = false; } }
+      this.confirming = true;
+    }
     if (model.preview === null) { await model.inspect(); }
     if (!this.visible || generation !== this.confirmationGeneration || this.model !== model) { return; }
     this.confirming = false;
@@ -306,10 +323,12 @@ export struct TemplateWizard {
         Button(UiText.get($r('app.string.template_update'))).constraintSize({ minHeight: 48 }).backgroundColor(UI.soft).fontColor(UI.ink)
           .enabled(this.view.ready && !this.view.busy).onClick(() => { this.reviewingUpdate = true; })
       }
-      this.option('original', UiText.get($r('app.string.template_original')))
+      if (!this.regionOnly) { this.option('original', UiText.get($r('app.string.template_original'))) }
       this.option('region', UiText.get($r('app.string.template_region')))
-      this.option('ai', UiText.get($r('app.string.template_ai')))
-      this.option('automatic', UiText.get($r('app.string.template_automatic')))
+      if (!this.regionOnly) {
+        this.option('ai', UiText.get($r('app.string.template_ai')))
+        this.option('automatic', UiText.get($r('app.string.template_automatic')))
+      }
       if ((this.view.dependencies ?? 0) > 0) {
         Text(UiText.get($r('app.string.template_dependents'), this.view.dependencies ?? 0)).fontSize(14).fontColor(UI.muted)
         Row({ space: 8 }) {

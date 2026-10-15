@@ -130,6 +130,10 @@ vm.runInNewContext(ts.transpileModule(pageSource).outputText, pageSandbox);
   const inactive = page.apply();
   assert.equal(page.confirming, true); dialog.resolve({ index: 0 }); await inactive;
   assert.equal(commits, 0);
+  page.regionOnly=true;page.model.choose('region','Pick');let regionCandidate;
+  page.host.preview=async plan=>{regionCandidate=structuredClone(plan);return preview;};dialog=deferred();
+  const createOnly=page.apply();dialog.resolve({index:1});await createOnly;
+  assert.equal(regionCandidate.region.enable,false);assert.equal(commits,1,'only explicitly confirmed creation publishes');
   console.log('PASS: template page repeated confirmation, cancel/back and page replacement');
 })().catch(error => { console.error(error); process.exitCode = 1; });
 

@@ -3971,6 +3971,242 @@
     {
       "name": "template_region_advanced",
       "value": "地区调整"
+    },
+    {
+      "name": "routing_managed",
+      "value": "策星管理"
+    },
+    {
+      "name": "routing_one_click_smart",
+      "value": "一键 Smart"
+    },
+    {
+      "name": "routing_recommended",
+      "value": "策星推荐"
+    },
+    {
+      "name": "routing_except",
+      "value": "除外："
+    },
+    {
+      "name": "routing_all_nodes",
+      "value": "全部节点"
+    },
+    {
+      "name": "routing_nodes",
+      "value": "个节点"
+    },
+    {
+      "name": "routing_exit",
+      "value": "出口"
+    },
+    {
+      "name": "routing_default_exit",
+      "value": "默认出口"
+    },
+    {
+      "name": "routing_algorithm",
+      "value": "选点方式"
+    },
+    {
+      "name": "routing_services",
+      "value": "专用分流"
+    },
+    {
+      "name": "routing_add",
+      "value": "添加"
+    },
+    {
+      "name": "routing_add_service",
+      "value": "添加服务"
+    },
+    {
+      "name": "routing_countries",
+      "value": "国家/地区 · 留空为全部"
+    },
+    {
+      "name": "routing_exclude_countries",
+      "value": "排除国家/地区"
+    },
+    {
+      "name": "routing_unknown",
+      "value": "其他/未识别"
+    },
+    {
+      "name": "routing_region_hint",
+      "value": "地区按名称推测，可手动纠正；不保证服务可用。"
+    },
+    {
+      "name": "routing_order",
+      "value": "回退候选顺序"
+    },
+    {
+      "name": "routing_advanced",
+      "value": "高级"
+    },
+    {
+      "name": "routing_node_scope",
+      "value": "节点范围 · 留空为全部"
+    },
+    {
+      "name": "routing_exclude_nodes",
+      "value": "排除节点"
+    },
+    {
+      "name": "routing_provider_scope",
+      "value": "来源范围 · 留空为全部"
+    },
+    {
+      "name": "routing_correct_regions",
+      "value": "纠正地区"
+    },
+    {
+      "name": "routing_expected_status",
+      "value": "预期 HTTP 状态"
+    },
+    {
+      "name": "routing_max_failed",
+      "value": "最大失败次数"
+    },
+    {
+      "name": "routing_lazy",
+      "value": "按需健康检查"
+    },
+    {
+      "name": "routing_tolerance",
+      "value": "延迟容差（毫秒）"
+    },
+    {
+      "name": "routing_policy_priority",
+      "value": "策略权重 · 匹配式:系数"
+    },
+    {
+      "name": "routing_lightgbm",
+      "value": "使用离线模型"
+    },
+    {
+      "name": "routing_prefer_asn",
+      "value": "偏好 ASN"
+    },
+    {
+      "name": "routing_collectdata",
+      "value": "采集训练样本"
+    },
+    {
+      "name": "routing_sample_rate",
+      "value": "采样率（大于 0 且不超过 1）"
+    },
+    {
+      "name": "routing_raw_options",
+      "value": "原始组参数"
+    },
+    {
+      "name": "routing_invalid_options",
+      "value": "请检查组参数及数值"
+    },
+    {
+      "name": "routing_share_exit",
+      "value": "共用出口"
+    },
+    {
+      "name": "routing_shared_hint",
+      "value": "修改将影响共用此出口的服务。"
+    },
+    {
+      "name": "routing_separate",
+      "value": "独立出口"
+    },
+    {
+      "name": "routing_custom_rules",
+      "value": "自定义规则 / 规则集"
+    },
+    {
+      "name": "routing_legacy_preserved",
+      "value": "已保留原方案与个人修改。"
+    },
+    {
+      "name": "routing_legacy_edit",
+      "value": "编辑原方案"
+    },
+    {
+      "name": "routing_dependencies",
+      "value": "部分个人修改依赖原方案。"
+    },
+    {
+      "name": "routing_apply_title",
+      "value": "应用策星管理"
+    },
+    {
+      "name": "routing_replace_confirmation",
+      "value": "策星将接管规则段（含全局与本订阅覆写的规则），原输入可恢复。推荐 AI 范围排除香港及未知节点，不保证服务可用。"
+    },
+    {
+      "name": "routing_include_all",
+      "value": "纳入全部节点和来源"
+    },
+    {
+      "name": "routing_include_proxies",
+      "value": "纳入全部节点"
+    },
+    {
+      "name": "routing_include_providers",
+      "value": "纳入全部来源"
+    },
+    {
+      "name": "routing_filter",
+      "value": "筛选表达式"
+    },
+    {
+      "name": "routing_exclude_filter",
+      "value": "排除表达式"
+    },
+    {
+      "name": "routing_exclude_type",
+      "value": "排除节点类型"
+    },
+    {
+      "name": "routing_draft_saved",
+      "value": "草稿已保存"
+    },
+    {
+      "name": "routing_create_smart",
+      "value": "创建 Smart 入口"
+    },
+    {
+      "name": "routing_region_create_confirmation",
+      "value": "请先确认节点范围。仅创建保留当前选项；创建并启用会在就绪后切换一次。订阅规则保持不变。"
+    },
+    {
+      "name": "routing_scope_unavailable",
+      "value": "节点范围暂不可用，请检查订阅来源后重试"
+    },
+    {
+      "name": "routing_no_smart",
+      "value": "没有可转换的自动组，可创建 Smart 入口或使用策星推荐。"
+    },
+    {
+      "name": "routing_restore_edits",
+      "value": "请先在高级编辑中恢复已停用的个人修改。"
+    },
+    {
+      "name": "routing_validation_failed",
+      "value": "请检查节点范围、回退顺序和订阅资源。"
+    },
+    {
+      "name": "routing_urltest",
+      "value": "自动测速"
+    },
+    {
+      "name": "routing_fallback",
+      "value": "顺序回退"
+    },
+    {
+      "name": "routing_select",
+      "value": "手动选择"
+    },
+    {
+      "name": "routing_except_hk",
+      "value": "除香港外"
     }
   ]
 }

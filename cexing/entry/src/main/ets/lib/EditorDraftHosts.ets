@@ -1,7 +1,7 @@
 import { common } from '@kit.AbilityKit';
 import { util } from '@kit.ArkTS';
 import core from 'libentry.so';
-import { ConfigEditor, EditIntent, EditTarget, EditorDraftHost, EditorDraftSession, EditorDraftPreview } from './ConfigEditor';
+import { ConfigEditor, EditIntent, EditTarget, EditorDraftHost, EditorDraftSession, EditorDraftPreview, RoutingCatalogue, SmartGroupChange } from './ConfigEditor';
 import { Settings } from './Settings';
 import { EffectiveVersions, RegionPlan } from './EffectiveVersions';
 import { ProfileStore, ProfileMetaExt } from './ProfileStore';
@@ -49,6 +49,22 @@ class ProfileEditorHost implements EditorDraftHost {
     }
   }
 
+  async routingCatalogue(revision: string): Promise<RoutingCatalogue> {
+    const input = await this.check(revision);
+    const raw = await core.versionAction(this.context.filesDir, JSON.stringify({ op: 'routing-catalogue',
+      original: input.original, overlay: input.overlay, globalMerge: input.global, updateGlobal: true,
+      expected: input.ticket.activeVersion, editIntent: input.intent }));
+    const reply = JSON.parse(raw) as Record<string, Object>;
+    await this.check(revision);
+    if (reply['error'] !== undefined || reply['routingCatalogue'] === undefined) { throw new Error('ROUTING_CATALOGUE_FAILED'); }
+    return reply['routingCatalogue'] as RoutingCatalogue;
+  }
+  async smartChoices(revision: string): Promise<SmartGroupChange[]> {
+    const input = await this.check(revision);
+    const view = await ConfigEditor.smartPreview(this.context, input.original, input.overlay,
+      input.ticket.activeVersion, false, input.intent ?? undefined, input.global, input.region ?? undefined);
+    await this.check(revision); return view;
+  }
   private capture(): HostInput {
     const original = ProfileStore.getProfileContent(this.context, this.file);
     if (original === null) { throw new Error('原始配置不存在'); }

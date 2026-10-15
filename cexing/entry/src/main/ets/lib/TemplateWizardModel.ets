@@ -1,7 +1,7 @@
 /* Template UI owns a draft only. The host must use ProfileTransactions and the
  * existing effective version; it never writes settings or publishes YAML here. */
 import { RegionPlan, RegionPreview } from './EffectiveVersions';
-import { TemplatePlan as EditorTemplatePlan } from './ConfigEditor';
+import { RoutingPlan, RoutingCatalogue, TemplatePlan as EditorTemplatePlan } from './ConfigEditor';
 import { ProfileApplyFeedback, ProfileApplyFailureKind } from './ProfileApplyFeedback';
 
 export type TemplatePlan = EditorTemplatePlan;
@@ -12,14 +12,19 @@ export interface TemplateInputs {
   current: TemplatePlan;
   published?: TemplatePlan;
   regionDraft?: RegionPlan;
+  hasLegacy?: boolean;
+  managedDraft?: RoutingPlan;
 }
 export interface TemplatePreview {
   revision: string;
   digest: string;
   summary: string;
   inactiveEdits?: boolean;
+  smartCount?: number;
 }
 export interface TemplateWizardHost {
+  catalogue?: () => Promise<RoutingCatalogue>;
+  smart?: () => Promise<TemplatePreview>;
   load: () => Promise<TemplateInputs>;
   regionPreview?: (plan: RegionPlan) => Promise<RegionPreview>;
   preview: (plan: TemplatePlan, pauseDependents?: boolean) => Promise<TemplatePreview>;
@@ -132,6 +137,11 @@ export class TemplateWizardModel {
       !['region', 'all'].includes(mode)) { return; }
     this.region = this.copyRegion({ mode: mode, selector: this.target, enable: true, assignments: assignments });
     this.preview = null; this.error = ''; this.result = ''; this.dependencies = 0; this.epoch++; this.emit();
+  }
+
+  regionActivation(enable: boolean): void {
+    if (this.busy || this.needsRepair() || this.templateId !== 'region') { return; }
+    this.region.enable = enable; this.preview = null; this.epoch++; this.emit();
   }
 
   async previewRegion(plan: RegionPlan): Promise<RegionPreview> {
