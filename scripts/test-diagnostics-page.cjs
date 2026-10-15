@@ -26,7 +26,7 @@ const deviceInfo={osFullName:'HarmonyOS 7.0.0.109'};
 const context={filesDir:'/private',cacheDir:'/cache',startAbility:async w=>{opened=w.uri;}};
 const service={record:async()=>true,check:(_ctx,kind)=>{checks++;const result={kind,stage,outcome,at:'2026-10-13T00:00:00Z',durationMs:1};return holdCheck?new Promise(resolve=>checkWaits.push(()=>resolve(result))):Promise.resolve(result);},exportBundle:()=>{exportsMade++;const json=currentJson;files.set('/cache/cexing-support.json',Buffer.from(json));const result={json,path:'/cache/cexing-support.json',fileName:'cexing-support.json'};return holdExport?new Promise(resolve=>exportWaits.push(()=>resolve(result))):Promise.resolve(result);}};
 const modules={'../lib/CoreApi':{CoreApi:{getProxies:()=>holdProxy?new Promise(resolve=>proxyWaits.push(()=>resolve({UserChoice:{}}))):Promise.resolve({UserChoice:{}})}},'./NativeTheme':{},
- '../lib/VpnController':{VpnController:{status:2,onChanged:fn=>{listener=fn;},offChanged(){},getLastStartFailure:()=>null,getTunCreateObserved:()=>true,getKernelReadyReported:()=>true},VpnStatus:{Connected:2,Connecting:1,Disconnecting:3}},
+ '../lib/VpnController':{VpnController:{status:2,configurationEpoch:()=>1,trafficSession:()=>'synthetic',onChanged:fn=>{listener=fn;},offChanged(){},getLastStartFailure:()=>null,getTunCreateObserved:()=>true,getKernelReadyReported:()=>true},VpnStatus:{Connected:2,Connecting:1,Disconnecting:3}},
  '../lib/ConnectionFailure':failures,'../lib/DiagnosticsBundleView':view,'../lib/DiagnosticExportSnapshots':snapshots,'../lib/DiagnosticsService':{DiagnosticsService:service},
  '@kit.BasicServicesKit':{deviceInfo,pasteboard:{MIMETYPE_TEXT_PLAIN:'text/plain',createData:(_m,s)=>s,getSystemPasteboard:()=>({setData:async s=>{copied=s;}})}},
  '@kit.AbilityKit':{bundleManager:{BundleFlag:{GET_BUNDLE_INFO_DEFAULT:0},getBundleInfoForSelf:async()=>({versionName:'1.0.0',versionCode:1})}},'@kit.ArkUI':{promptAction:{showToast:v=>messages.push(v.message)}},
@@ -62,14 +62,14 @@ const readURI=uri=>files.get(uri.slice('file://'.length)).toString();
  // clear a newer DNS check or proxy-list load after a VPN notification.
  holdShare=false;holdPicker=true;holdCheck=true;
  for(const choice of [[],['file://old-save']]) {
-  const old=page.exportSupport(false);await flush();listener(page.status===0?2:0);
+  const old=page.exportSupport(false);await flush();listener(0);listener(2);
   const newer=page.check('dns');await flush();pickerWaits.shift()(choice);await old;
   assert.equal(page.busy,true,'old export completion/cancel cannot clear newer check');checkWaits.shift()();await newer;assert.equal(page.busy,false);
  }
- holdPicker=false;holdShare=true;const oldShare=page.exportSupport(true);await flush();const oldController=shareCalls.at(-1);listener(page.status===0?2:0);holdProxy=true;
+ holdPicker=false;holdShare=true;const oldShare=page.exportSupport(true);await flush();const oldController=shareCalls.at(-1);listener(0);listener(2);holdProxy=true;
  const newProxy=page.chooseProxy();await flush();oldController.resolve();await oldShare;assert.equal(page.busy,true,'old share cannot clear proxy operation');proxyWaits.shift()();await newProxy;oldController.dismiss();holdShare=false;holdProxy=false;
- const oldCheck=page.check('dns');await flush();listener(page.status===0?2:0);holdPicker=true;const newSave=page.exportSupport(false);await flush();checkWaits.shift()();await oldCheck;assert.equal(page.busy,true,'old check cannot clear newer export');pickerWaits.shift()([]);await newSave;holdCheck=false;
- holdExport=true;holdPicker=true;holdCheck=true;const preparing=page.exportSupport(false);await flush();listener(page.status===0?2:0);const currentCheck=page.check('dns');await flush();const pickerCount=pickerWaits.length;exportWaits.shift()();await preparing;assert.equal(pickerWaits.length,pickerCount,'stale preparation does not launch a new dialog over another operation');assert.equal(page.busy,true);checkWaits.shift()();await currentCheck;holdExport=false;holdCheck=false;
+ const oldCheck=page.check('dns');await flush();listener(0);listener(2);holdPicker=true;const newSave=page.exportSupport(false);await flush();checkWaits.shift()();await oldCheck;assert.equal(page.busy,true,'old check cannot clear newer export');pickerWaits.shift()([]);await newSave;holdCheck=false;
+ holdExport=true;holdPicker=true;holdCheck=true;const preparing=page.exportSupport(false);await flush();listener(0);listener(2);const currentCheck=page.check('dns');await flush();const pickerCount=pickerWaits.length;exportWaits.shift()();await preparing;assert.equal(pickerWaits.length,pickerCount,'stale preparation does not launch a new dialog over another operation');assert.equal(page.busy,true);checkWaits.shift()();await currentCheck;holdExport=false;holdCheck=false;
  // Picker completion after leaving/reentering cannot write a user file.
  holdShare=false;holdPicker=true;currentJson=packet('old-page');const late=page.exportSupport(false);await flush();page.aboutToDisappear();page.aboutToAppear();pickerWaits.shift()(['file://late']);await late;assert.ok(!files.has('file://late'));
  // Fresh exports remain accurate and partial native writes are completed.
@@ -78,6 +78,6 @@ const readURI=uri=>files.get(uri.slice('file://'.length)).toString();
  assert.throws(()=>snapshots.DiagnosticExportSnapshots.create(quotaContext,'{}',true),/snapshot_capacity/);const reservedSave=snapshots.DiagnosticExportSnapshots.create(quotaContext,'{}',false);snapshots.DiagnosticExportSnapshots.release(reservedSave,false);
  assert.throws(()=>snapshots.DiagnosticExportSnapshots.create(context,'x'.repeat(1024*1024+1),false),/snapshot_size/);
  await page.chooseProxy();assert.deepEqual(Array.from(page.proxyNames),['UserChoice']);assert.equal(page.proxyName,'');await page.copySummary();assert.match(copied,/controller_checked_at=/);deviceInfo.osFullName='https://private.invalid/?token=secret';await page.copySummary();assert.match(copied,/system_version=unknown/);assert.ok(!copied.includes('secret'));await page.openFeedback();assert.ok(opened.includes('template=diagnostics.yml'));
- assert.match(src,/Text\(this\.control\)/);assert.ok(!src.includes('this.Fact('));
+ assert.match(src,/Text\(this\.status === VpnStatus\.Connected \? this\.control/);assert.ok(!src.includes('this.Fact('));
  console.log('PASS: immutable per-export JSON, VPN-concurrent A/B sharing, mutable-cache picker race, preview consistency, active/grace cleanup, cancellation/failure/FD close, reentry/late callbacks, full UTF8 writes and no implicit checks/upload');
 })().catch(e=>{console.error(e);process.exitCode=1;});

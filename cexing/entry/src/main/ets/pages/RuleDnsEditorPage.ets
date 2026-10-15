@@ -226,23 +226,23 @@ export struct RuleDnsEditorPage {
       if (this.selected !== null) {
         if (this.section === 'rule-providers' && !this.isNew) {
           Row({ space: 8 }) {
-            Button(UiText.get($r('app.string.rule_view_status'))).enabled(!this.busy).onClick(() => this.provider(false))
-            Button(UiText.get($r('app.string.rule_update'))).enabled(!this.busy).onClick(() => this.provider(true))
+            Button(UiText.get($r('app.string.rule_view_status'))).constraintSize({ minHeight: 48 }).backgroundColor(UI.soft).fontColor(UI.ink).enabled(!this.busy).onClick(() => this.provider(false))
+            Button(UiText.get($r('app.string.rule_update'))).constraintSize({ minHeight: 48 }).backgroundColor(UI.soft).fontColor(UI.ink).enabled(!this.busy).onClick(() => this.provider(true))
           }
           if (this.providerState !== '') { Text(this.providerState).fontSize(14) }
           if (this.providerError !== '') {
-            Button(UiText.get($r('app.string.rule_error_details'))).onClick(() => { this.showProviderError = !this.showProviderError; })
+            Button(UiText.get($r('app.string.rule_error_details'))).constraintSize({ minHeight: 48 }).backgroundColor(UI.soft).fontColor(UI.ink).onClick(() => { this.showProviderError = !this.showProviderError; })
             if (this.showProviderError) { Text(this.providerError).fontSize(14).fontColor(UI.error) }
           }
           Row({ space: 8 }) {
             TextInput({ placeholder: UiText.get($r('app.string.rule_new_name')), text: this.rename }).onChange((value: string) => { this.rename = value; }).layoutWeight(1)
-            Button(UiText.get($r('app.string.rule_rename'))).enabled(!this.busy).onClick(() => this.renameProvider())
+            Button(UiText.get($r('app.string.rule_rename'))).constraintSize({ minHeight: 48 }).backgroundColor(UI.soft).fontColor(UI.ink).enabled(!this.busy).onClick(() => this.renameProvider())
           }
         }
         if (this.section === 'dns') {
           Row({ space: 12 }) {
-            Button(UiText.get($r('app.string.rule_default'))).enabled(!this.busy).onClick(() => this.preset(false))
-            Button(UiText.get($r('app.string.rule_recommended'))).enabled(!this.busy).onClick(() => this.preset(true))
+            Button(UiText.get($r('app.string.rule_default'))).constraintSize({ minHeight: 48 }).backgroundColor(UI.soft).fontColor(UI.ink).enabled(!this.busy).onClick(() => this.preset(false))
+            Button(UiText.get($r('app.string.rule_recommended'))).constraintSize({ minHeight: 48 }).backgroundColor(UI.soft).fontColor(UI.ink).enabled(!this.busy).onClick(() => this.preset(true))
           }
         }
         RuleDnsEditForm({ section: this.section, selected: this.selected, isNew: this.isNew,
@@ -250,32 +250,32 @@ export struct RuleDnsEditorPage {
           onOperation: (operation: EditOperation) => this.edit(operation), onClose: () => { this.selected = null; } }).layoutWeight(1)
       } else {
         Row({ space: 8 }) {
-          Button(UiText.get($r('app.string.rule_rules'))).accessibilitySelected(this.section === 'rules').onClick(() => { this.section = 'rules'; this.list(); })
-          Button(UiText.get($r('app.string.rule_providers'))).accessibilitySelected(this.section === 'rule-providers').onClick(() => { this.section = 'rule-providers'; this.list(); })
-          Button('DNS').accessibilitySelected(this.section === 'dns').onClick(() => { this.section = 'dns'; this.list(); })
-          Button('hosts').accessibilitySelected(this.section === 'hosts').onClick(() => { this.section = 'hosts'; this.list(); })
+          Button(UiText.get($r('app.string.rule_rules'))).constraintSize({ minHeight: 48 }).backgroundColor(this.section === 'rules' ? UI.action : UI.soft).fontColor(this.section === 'rules' ? UI.onAccent : UI.ink).accessibilitySelected(this.section === 'rules').onClick(() => { this.section = 'rules'; this.list(); })
+          Button(UiText.get($r('app.string.rule_providers'))).constraintSize({ minHeight: 48 }).backgroundColor(this.section === 'rule-providers' ? UI.action : UI.soft).fontColor(this.section === 'rule-providers' ? UI.onAccent : UI.ink).accessibilitySelected(this.section === 'rule-providers').onClick(() => { this.section = 'rule-providers'; this.list(); })
+          Button('DNS').constraintSize({ minHeight: 48 }).backgroundColor(this.section === 'dns' ? UI.action : UI.soft).fontColor(this.section === 'dns' ? UI.onAccent : UI.ink).accessibilitySelected(this.section === 'dns').onClick(() => { this.section = 'dns'; this.list(); })
+          Button('hosts').constraintSize({ minHeight: 48 }).backgroundColor(this.section === 'hosts' ? UI.action : UI.soft).fontColor(this.section === 'hosts' ? UI.onAccent : UI.ink).accessibilitySelected(this.section === 'hosts').onClick(() => { this.section = 'hosts'; this.list(); })
         }.enabled(!this.busy)
         List({ space: 8 }) {
           ForEach(this.items, (item: EditableItem, index: number) => {
             ListItem() {
               Row() {
-                Button(item.name ?? `${item.type ?? this.section} ${index + 1}`).layoutWeight(1).onClick(() => this.open(item))
+                Button(item.name ?? `${item.type ?? this.section} ${index + 1}`).constraintSize({ minHeight: 48 }).backgroundColor(UI.soft).fontColor(UI.ink).layoutWeight(1).onClick(() => this.open(item))
                 if (this.section !== 'dns') {
-                  Button(UiText.get($r('app.string.rule_delete'))).accessibilityText(UiText.get($r('app.string.rule_remove_named'), item.name ?? `${item.type ?? this.section} ${index + 1}`)).onClick(() => this.edit(RuleDnsForms.deleteItem(`delete-${util.generateRandomUUID(true)}`, this.section, item)))
+                  Button(UiText.get($r('app.string.rule_delete'))).constraintSize({ minHeight: 48 }).backgroundColor(Color.Transparent).fontColor(UI.error).accessibilityText(UiText.get($r('app.string.rule_remove_named'), item.name ?? `${item.type ?? this.section} ${index + 1}`)).onClick(() => this.edit(RuleDnsForms.deleteItem(`delete-${util.generateRandomUUID(true)}`, this.section, item)))
                 }
               }.enabled(!this.busy)
             }
           }, (item: EditableItem) => item.id).onMove((from: number, to: number) => this.move(from, to))
         }.layoutWeight(1)
-        if (this.section !== 'dns') { Button(UiText.get($r('app.string.rule_add'))).enabled(!this.busy).onClick(() => this.add()) }
-        if (this.previewReady) { Button(UiText.get($r('app.string.rule_apply'))).enabled(!this.busy).onClick(() => this.apply()) }
-        if (this.undo !== null) { Button(UiText.get($r('app.string.rule_undo'))).enabled(!this.busy).onClick(() => this.preview(this.undo)) }
-        if ((this.intent?.operations.length ?? 0) > 0) { Button(UiText.get($r('app.string.rule_discard'))).enabled(!this.busy).onClick(() => this.discardDraft()) }
-        Button(this.intent?.disabled === true ? UiText.get($r('app.string.rule_enable')) : UiText.get($r('app.string.rule_disable'))).enabled(!this.busy).onClick(() => {
+        if (this.section !== 'dns') { Button(UiText.get($r('app.string.rule_add'))).constraintSize({ minHeight: 48 }).backgroundColor(UI.soft).fontColor(UI.ink).enabled(!this.busy).onClick(() => this.add()) }
+        if (this.previewReady) { Button(UiText.get($r('app.string.rule_apply'))).constraintSize({ minHeight: 48 }).backgroundColor(UI.action).fontColor(UI.onAccent).enabled(!this.busy).onClick(() => this.apply()) }
+        if (this.undo !== null) { Button(UiText.get($r('app.string.rule_undo'))).constraintSize({ minHeight: 48 }).backgroundColor(UI.soft).fontColor(UI.ink).enabled(!this.busy).onClick(() => this.preview(this.undo)) }
+        if ((this.intent?.operations.length ?? 0) > 0) { Button(UiText.get($r('app.string.rule_discard'))).constraintSize({ minHeight: 48 }).backgroundColor(Color.Transparent).fontColor(UI.error).enabled(!this.busy).onClick(() => this.discardDraft()) }
+        Button(this.intent?.disabled === true ? UiText.get($r('app.string.rule_enable')) : UiText.get($r('app.string.rule_disable'))).constraintSize({ minHeight: 48 }).backgroundColor(UI.soft).fontColor(UI.ink).enabled(!this.busy).onClick(() => {
           if (this.intent !== null) { const next = JSON.parse(JSON.stringify(this.intent)) as EditIntent; next.disabled = !next.disabled; this.preview(next); }
         })
       }
-      if (this.snapshot === null && !this.busy) { Button(UiText.get($r('app.string.rule_retry'))).onClick(() => this.load()) }
+      if (this.snapshot === null && !this.busy) { Button(UiText.get($r('app.string.rule_retry'))).constraintSize({ minHeight: 48 }).backgroundColor(UI.soft).fontColor(UI.ink).onClick(() => this.load()) }
       if (this.busy) { LoadingProgress().width(24).height(24) }
       if (this.message !== '') { Text(this.message).fontSize(14).fontColor(UI.muted) }
     }.width('100%').height('100%').padding(16).backgroundColor(UI.paper)

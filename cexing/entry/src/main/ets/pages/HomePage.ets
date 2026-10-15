@@ -32,7 +32,6 @@ export struct HomePage {
   @State wide: boolean = false;
   @State stageHeight: number = 174;
   @State shortWindow: boolean = false;
-  @State prioritizePanel: boolean = false;
   @State startFailed: boolean = false;
   @State stopUnknown: boolean = false;
   private lastTrafficAt: number = 0;
@@ -289,21 +288,21 @@ export struct HomePage {
   PanelEntry() {
     Button({ type: ButtonType.Normal }) {
       Row({ space: 12 }) {
-        SymbolGlyph($r('sys.symbol.chevron_right')).fontSize(18).fontColor([UI.accentText])
+        SymbolGlyph($r('sys.symbol.chevron_right')).fontSize(18).fontColor([UI.onAccent])
         Column({ space: 4 }) {
           Text(UiText.get($r('app.string.nav_panel'))).fontSize(17).fontWeight(FontWeight.Medium)
-          Text('Zashboard').fontSize(11).fontColor(UI.muted)
+          Text(UiText.get($r('app.string.home_panel_actions'))).fontSize(13).fontColor(UI.onAccent)
         }.alignItems(HorizontalAlign.Start).layoutWeight(1)
       }.width('100%').padding(18)
     }.width('100%').constraintSize({ minHeight: 80 }).borderRadius(24)
-      .backgroundColor(UI.soft).fontColor(UI.ink).enabled(this.status === VpnStatus.Connected)
+      .backgroundColor(UI.action).fontColor(UI.onAccent).enabled(this.status === VpnStatus.Connected)
       .onClick(() => { this.navStack.pushPath({ name: 'zashboard' }); })
   }
 
   @Builder
   ConnectionTools() {
     Column({ space: 16 }) {
-      if (!this.prioritizePanel) { this.PanelEntry() }
+      if (this.wide || this.status !== VpnStatus.Connected) { this.PanelEntry() }
       Row() {
         Text(UiText.get($r('app.string.home_current_profile'))).fontSize(13).fontColor(UI.muted).layoutWeight(1)
         Button(UiText.get($r('app.string.action_manage')), { type: ButtonType.Normal }).constraintSize({ minHeight: 48 }).fontSize(14)
@@ -315,7 +314,7 @@ export struct HomePage {
             .maxLines(2).textOverflow({ overflow: TextOverflow.Ellipsis }).layoutWeight(1)
           SymbolGlyph($r('sys.symbol.chevron_right')).fontSize(16).fontColor([UI.muted])
         }.padding(18).width('100%')
-      }.width('100%').constraintSize({ minHeight: 80 }).borderRadius(24).backgroundColor(UI.surface)
+      }.fontColor(UI.ink).width('100%').constraintSize({ minHeight: 80 }).borderRadius(24).backgroundColor(UI.surface)
         .accessibilityText(UiText.get($r('app.string.a11y_current_profile'), this.profileName))
         .onClick(() => {
           const file = ProfileStore.getActiveFile(getContext(this) as common.UIAbilityContext);
@@ -339,7 +338,7 @@ export struct HomePage {
           SymbolGlyph($r('sys.symbol.chevron_right')).fontSize(18).fontColor([UI.accentText])
           Text(UiText.get($r('app.string.home_check_connection'))).fontSize(16).fontWeight(FontWeight.Medium).fontColor(UI.ink).layoutWeight(1)
         }.width('100%').padding({ left: 18, right: 18 })
-      }.width('100%').constraintSize({ minHeight: 56 }).borderRadius(20).backgroundColor(UI.surface)
+      }.fontColor(UI.ink).width('100%').constraintSize({ minHeight: 56 }).borderRadius(20).backgroundColor(UI.surface)
         .accessibilityText(UiText.get($r('app.string.home_check_description')))
         .onClick(() => { this.navStack.pushPath({ name: 'diagnostics' }); })
     }.width(this.wide ? '48%' : '100%').alignItems(HorizontalAlign.Start)
@@ -360,7 +359,7 @@ export struct HomePage {
                 .onClick(() => { this.tabJump = 1; })
             }.padding(24).width('100%').borderRadius(28).backgroundColor(UI.surface)
           } else {
-            if (this.prioritizePanel && this.status === VpnStatus.Connected) { this.PanelEntry() }
+            if (!this.wide && this.status === VpnStatus.Connected) { this.PanelEntry() }
             Flex({ direction: this.wide ? FlexDirection.Row : FlexDirection.Column,
               justifyContent: FlexAlign.SpaceBetween }) {
               this.ConnectionCard()
@@ -386,7 +385,6 @@ export struct HomePage {
         const scale = (getContext(this) as common.UIAbilityContext).config.fontSizeScale ?? 1;
         this.shortWindow = Number(area.height) <= 400;
         this.stageHeight = (this.shortWindow ? 134 : 174) + Math.max(0, scale - 1) * 160;
-        this.prioritizePanel = Number(area.height) <= 650 || this.stageHeight >= 240;
       })
 
   }

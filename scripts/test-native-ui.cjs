@@ -51,7 +51,7 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   const controller = { status: status.Connected, onChanged(fn) { listeners.add(fn); }, offChanged(fn) { listeners.delete(fn); },
     getLastStopCompleted: () => lastStopCompleted, needsStop: () => lastStopCompleted === false,
     consumeLastStartError: () => { const value = pendingFailure; pendingFailure = ''; return value; },
-    trafficSession: () => profileSession, getLastStartFailure: () => null, stop: () => { stop++; return stopResult(); },
+    configurationEpoch: () => 1, trafficSession: () => profileSession, getLastStartFailure: () => null, stop: () => { stop++; return stopResult(); },
     start: () => { start++; emit(status.Connecting); return true; } };
   const common = {
     '@kit.AbilityKit': {}, '@kit.ScanKit': { scanCore: { ScanType: { QR_CODE: 1 } }, scanBarcode: {
@@ -216,6 +216,7 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   }
   console.log('PASS: one-tap stop, cancel/reconnect, stale traffic and sentinel-named profiles');
 
+  emit(status.Connected);
   let resolveProbe;
   const Diagnostics = load('DiagnosticsPage', { ...common,
     '../lib/CoreApi': { CoreApi: {} }, '../lib/DiagnosticsService': { DiagnosticsService: { record: async () => true, check: () => new Promise(resolve => { resolveProbe = () => resolve({ kind: 'controller', stage: 'controller_version', outcome: 'success', at: '2026-10-13T00:00:00Z', durationMs: 1 }); }) } }

@@ -9,6 +9,7 @@ export interface TemplateInputs {
   selectors: string[];
   labels?: Record<string, string>;
   current: TemplatePlan;
+  published?: TemplatePlan;
 }
 export interface TemplatePreview {
   revision: string;
@@ -25,6 +26,8 @@ export interface TemplateWizardHost {
 }
 
 export interface TemplateWizardView {
+  publishedId?: string;
+  changed?: boolean;
   dependencies?: number;
   applyFailure?: ProfileApplyFailureKind | '';
   templateId: string;
@@ -59,7 +62,7 @@ export class TemplateWizardModel {
   constructor(host: TemplateWizardHost, changed: () => void) { this.host = host; this.changed = changed; }
 
   snapshot(): TemplateWizardView {
-    return { dependencies: this.dependencies, applyFailure: this.applyFailure, templateId: this.templateId, target: this.target, busy: this.busy,
+    return { publishedId: (this.inputs.published ?? this.inputs.current).templateId, changed: this.hasChanges(), dependencies: this.dependencies, applyFailure: this.applyFailure, templateId: this.templateId, target: this.target, busy: this.busy,
       ready: this.ready, error: this.error, result: this.result,
       summary: this.preview?.summary ?? '', hasPreview: this.preview !== null,
       groups: this.inputs.groups, selectors: this.inputs.selectors, labels: this.inputs.labels };
@@ -104,6 +107,12 @@ export class TemplateWizardModel {
     this.emit();
   }
 
+  hasChanges(): boolean {
+    const published = this.inputs.published ?? this.inputs.current;
+    const target = published.templateId === 'region' ? published.region?.selector ?? '' : published.targetGroup ?? '';
+    return this.templateId !== published.templateId || this.target !== target;
+  }
+
   private plan(): TemplatePlan {
     if (this.templateId === 'region') {
       // Preserve existing per-node corrections when retaining the selector.
@@ -142,7 +151,7 @@ export class TemplateWizardModel {
   }
 
   async apply(confirmed: boolean = false): Promise<void> {
-    if (!this.open || !this.ready || this.busy || this.preview === null || this.needsRepair()) { return; }
+    if (!this.open || !this.ready || this.busy || this.preview === null || !this.hasChanges() || this.needsRepair()) { return; }
     if ((this.templateId === 'automatic' || this.preview.inactiveEdits === true) && !confirmed) { return; }
     const epoch = ++this.epoch;
     const preview = this.preview;
@@ -154,6 +163,7 @@ export class TemplateWizardModel {
       const result = await this.host.apply(plan, preview, confirmed);
       if (!this.current(epoch)) { return; }
       this.inputs.current = plan;
+      this.inputs.published = plan;
       this.result = result;
       this.preview = null;
     } catch (error) {

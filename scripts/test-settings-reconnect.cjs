@@ -5,7 +5,7 @@ let source = fs.readFileSync('cexing/entry/src/main/ets/pages/SettingsReconnectB
 source = (source.slice(0, source.indexOf('  build()')) + '\n}').split('\n')
   .map(line => line.trimStart().startsWith('@') ? line.replace(/@\w+(?:\([^\n)]*\))?\s*/g, '') : line).join('\n').replace('export struct ', 'export class ');
 let dialog, epoch = 1, calls = 0, finish;
-const modules = { '../lib/VpnController': { VpnController: { status: 2, configurationEpoch: () => epoch, onChanged() {}, offChanged() {} }, VpnStatus: { Connected: 2 } },
+const modules = { '../lib/Settings': { Settings: { onChanged() {}, offChanged() {} } }, '../lib/VpnController': { VpnController: { status: 2, settingsNeedReconnect: () => true, configurationEpoch: () => epoch, onChanged() {}, offChanged() {} }, VpnStatus: { Connected: 2 } },
   '../lib/ProfileStore': { ProfileStore: { getActiveFile: () => 'synthetic.yaml' } },
   '../lib/ProfileRecovery': { ProfileRecovery: { reconnect: async (_, current) => { calls++; await new Promise(resolve => { finish = resolve; }); return current(); } } },
   '@kit.ArkUI': { promptAction: { showToast() {} } } };

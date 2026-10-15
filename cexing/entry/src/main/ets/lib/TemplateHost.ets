@@ -48,8 +48,12 @@ export function createTemplateWizardHost(context: common.Context, profileId: str
       if (loaded.intent?.disabled === true) { current = { templateId: 'original', version: 1 }; }
       else if (loaded.intent?.template === undefined && saved?.template === undefined && legacy !== null &&
         legacy.enable && legacy.disabled !== true) { current = { templateId: 'region', version: 1, region: legacy }; }
+      let applied: TemplatePlan = saved?.disabled === true ? { templateId: 'original', version: 1 } :
+        saved?.template ?? { templateId: 'original', version: 1 };
+      if (saved?.template === undefined && saved?.disabled !== true && legacy !== null &&
+        legacy.enable && legacy.disabled !== true) { applied = { templateId: 'region', version: 1, region: legacy }; }
       return { groups: groups.map(item => item.sourceName ?? ''), labels: labels,
-        selectors: groups.filter(item => item.type === 'select').map(item => item.sourceName ?? ''), current: current };
+        selectors: groups.filter(item => item.type === 'select').map(item => item.sourceName ?? ''), current: current, published: applied };
     },
     preview: async (plan: TemplatePlan, pauseDependents?: boolean): Promise<TemplatePreview> => {
       const epoch = ++generation; receipt = null;

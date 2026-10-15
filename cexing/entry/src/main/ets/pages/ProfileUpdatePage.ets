@@ -11,7 +11,10 @@ import { NativeTheme as UI } from './NativeTheme';
 
 export interface ProfileUpdateRequest { file: string; source: EditorSourceCandidate; ticket: EditTicket; }
 /** One in-memory handoff. No downloaded Original is written before receipt apply. */
-export class ProfileUpdateBus { static request: ProfileUpdateRequest | null = null; }
+export class ProfileUpdateBus {
+  static request: ProfileUpdateRequest | null = null;
+  static backGuard: (() => boolean) | null = null;
+}
 
 @Component
 export struct ProfileUpdatePage {
@@ -87,14 +90,13 @@ export struct ProfileUpdatePage {
 
   build() {
     if (this.ready && this.host !== undefined) {
-      TemplateUpdateReview({ profileId: this.file, host: this.host, onClose: () => {
+      TemplateUpdateReview({ registerBackGuard: (guard: (() => boolean) | null) => { ProfileUpdateBus.backGuard = guard; }, profileId: this.file, host: this.host, onClose: () => {
         this.release(); if (this.visible) { this.navStack.pop(); }
       } })
     } else if (this.failed) {
       Column({ space: 16 }) {
         Text($r('app.string.profile_update_expired')).fontColor(UI.muted)
-        Button($r('app.string.profile_update_back')).constraintSize({ minHeight: 44 })
-          .onClick(() => { this.release(); if (this.visible) { this.navStack.pop(); } })
+
       }.width('100%').height('100%').padding(20).justifyContent(FlexAlign.Center)
     }
   }

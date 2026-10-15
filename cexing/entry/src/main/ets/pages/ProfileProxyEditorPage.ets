@@ -529,8 +529,8 @@ export struct ProfileProxyEditorPage {
       if (this.formOpen) {
         if (this.section === 'proxy-providers' && (this.originalTarget !== null || this.selectedAdd !== '')) {
           Row({ space: 8 }) {
-            Button($r('app.string.proxy_editor_view_status')).constraintSize({ minHeight: 44 }).enabled(!this.busy).onClick(() => { this.provider(false); })
-            Button($r('app.string.proxy_editor_update_source')).constraintSize({ minHeight: 44 }).enabled(!this.busy).onClick(() => { this.provider(true); })
+            Button($r('app.string.proxy_editor_view_status')).backgroundColor(UI.soft).fontColor(UI.ink).constraintSize({ minHeight: 44 }).enabled(!this.busy).onClick(() => { this.provider(false); })
+            Button($r('app.string.proxy_editor_update_source')).backgroundColor(UI.soft).fontColor(UI.ink).constraintSize({ minHeight: 44 }).enabled(!this.busy).onClick(() => { this.provider(true); })
           }
           if (this.providerState !== '') { Text(this.providerState).fontSize(13).fontColor(UI.muted).width('100%') }
         }
@@ -538,21 +538,21 @@ export struct ProfileProxyEditorPage {
           onDraft: (draft: ProxyMappingDraft) => this.saveForm(draft), onOriginal: () => { this.openOriginal(); }, onCancel: () => { this.epoch++; this.model?.cancel(); this.formOpen = false; this.sourceNodes = []; this.sourceReady = false; this.busy = false; } }).layoutWeight(1)
       } else {
         Row({ space: 8 }) {
-          Button($r('app.string.proxy_editor_nodes')).constraintSize({ minHeight: 44 }).accessibilitySelected(this.section === 'proxies').onClick(() => { this.section = 'proxies'; this.sync(); })
-          Button($r('app.string.proxy_editor_sources')).constraintSize({ minHeight: 44 }).accessibilitySelected(this.section === 'proxy-providers').onClick(() => { this.section = 'proxy-providers'; this.sync(); })
-          Button($r('app.string.proxy_editor_groups')).constraintSize({ minHeight: 44 }).accessibilitySelected(this.section === 'proxy-groups').onClick(() => { this.section = 'proxy-groups'; this.sync(); })
+          Button($r('app.string.proxy_editor_nodes')).backgroundColor(this.section === 'proxies' ? UI.action : UI.soft).fontColor(this.section === 'proxies' ? UI.onAccent : UI.ink).constraintSize({ minHeight: 44 }).accessibilitySelected(this.section === 'proxies').onClick(() => { this.section = 'proxies'; this.sync(); })
+          Button($r('app.string.proxy_editor_sources')).backgroundColor(this.section === 'proxy-providers' ? UI.action : UI.soft).fontColor(this.section === 'proxy-providers' ? UI.onAccent : UI.ink).constraintSize({ minHeight: 44 }).accessibilitySelected(this.section === 'proxy-providers').onClick(() => { this.section = 'proxy-providers'; this.sync(); })
+          Button($r('app.string.proxy_editor_groups')).backgroundColor(this.section === 'proxy-groups' ? UI.action : UI.soft).fontColor(this.section === 'proxy-groups' ? UI.onAccent : UI.ink).constraintSize({ minHeight: 44 }).accessibilitySelected(this.section === 'proxy-groups').onClick(() => { this.section = 'proxy-groups'; this.sync(); })
         }.enabled(!this.busy)
         if (this.disabled) { Text($r('app.string.proxy_editor_edits_disabled')).fontSize(13).fontColor(UI.muted).width('100%') }
         if (this.section === 'proxies') {
-          Select(this.sourceChoices).accessibilityText($r('app.string.proxy_editor_source_picker')).constraintSize({ minHeight: 44 }).value(this.sourceLabel).enabled(!this.busy)
+          Select(this.sourceChoices).backgroundColor(UI.soft).fontColor(UI.ink).accessibilityText($r('app.string.proxy_editor_source_picker')).constraintSize({ minHeight: 44 }).value(this.sourceLabel).enabled(!this.busy)
             .onSelect((index: number) => { this.chooseSource(index); })
         }
         Search({ value: this.query, placeholder: this.t('proxy_editor_search') }).onChange((value: string) => { this.query = value; this.visibleCount = 100; })
         if (this.section === 'proxies' && this.isProviderSource()) {
           Row({ space: 8 }) {
             if (this.sourceReady) { Text(this.t('proxy_editor_loaded_count', this.sourceCount)).fontSize(13).fontColor(UI.muted).layoutWeight(1) }
-            Button($r('app.string.proxy_editor_source_settings')).constraintSize({ minHeight: 44 }).enabled(!this.busy).onClick(() => { this.editSelectedSource(); })
-            Button($r('app.string.proxy_editor_refresh')).constraintSize({ minHeight: 44 }).enabled(!this.busy).onClick(() => { this.chooseSource(this.sourceChoices.findIndex((item) => item.key === this.sourceKey)); })
+            Button($r('app.string.proxy_editor_source_settings')).backgroundColor(UI.soft).fontColor(UI.ink).constraintSize({ minHeight: 44 }).enabled(!this.busy).onClick(() => { this.editSelectedSource(); })
+            Button($r('app.string.proxy_editor_refresh')).backgroundColor(UI.soft).fontColor(UI.ink).constraintSize({ minHeight: 44 }).enabled(!this.busy).onClick(() => { this.chooseSource(this.sourceChoices.findIndex((item) => item.key === this.sourceKey)); })
           }
           List({ space: 8 }) {
             ForEach(this.sourceNodes.filter((node: ProxyProviderNode) => node.name.includes(this.query) || node.type.includes(this.query))
@@ -565,47 +565,47 @@ export struct ProfileProxyEditorPage {
           ForEach(this.shownRows(), (row: ProxyEditorRow) => {
             ListItem() {
               Row({ space: 8 }) {
-                Button(row.label).constraintSize({ minHeight: 44 }).layoutWeight(1).enabled(!row.disabled).onClick(() => { this.open(row); })
+                Button(row.label).backgroundColor(UI.soft).fontColor(UI.ink).constraintSize({ minHeight: 44 }).layoutWeight(1).enabled(!row.disabled).onClick(() => { this.open(row); })
                 if (this.section === 'proxies') {
-                  Button(row.disabled ? this.t('proxy_editor_enable_node') : this.t('proxy_editor_disable_node'))
+                  Button(row.disabled ? this.t('proxy_editor_enable_node') : this.t('proxy_editor_disable_node')).backgroundColor(UI.soft).fontColor(UI.ink)
                     .constraintSize({ minHeight: 44 }).accessibilityText(this.t(row.disabled ?
                       'proxy_editor_enable_node_named' : 'proxy_editor_disable_node_named', row.label))
                     .onClick(() => { this.toggleNode(row); })
                 }
                 if (this.section === 'proxy-groups' && !row.added) {
-                  Button($r('app.string.proxy_editor_smart')).constraintSize({ minHeight: 44 }).accessibilityText(this.t('proxy_editor_smart_named', row.label)).onClick(() => { this.smart(row); })
+                  Button($r('app.string.proxy_editor_smart')).backgroundColor(UI.soft).fontColor(UI.ink).constraintSize({ minHeight: 44 }).accessibilityText(this.t('proxy_editor_smart_named', row.label)).onClick(() => { this.smart(row); })
                 }
                 if (this.moveHandler() !== undefined) { Text('≡').accessibilityLevel('no').fontSize(20).fontColor(UI.muted) }
-                Button($r('app.string.proxy_editor_delete')).constraintSize({ minHeight: 44 }).accessibilityText(this.t('proxy_editor_delete_named', row.label)).onClick(() => { this.remove(row); })
+                Button($r('app.string.proxy_editor_delete')).backgroundColor(Color.Transparent).fontColor(UI.error).constraintSize({ minHeight: 44 }).accessibilityText(this.t('proxy_editor_delete_named', row.label)).onClick(() => { this.remove(row); })
               }.enabled(!this.busy && !this.needsRecovery())
             }
           }, (row: ProxyEditorRow) => row.id).onMove(this.moveHandler())
         }.width('100%').layoutWeight(1).onReachEnd(() => { this.moreRows(); })
         }
-        Button($r('app.string.proxy_editor_add')).constraintSize({ minHeight: 44 }).width('100%').constraintSize({ minHeight: 48 }).enabled(!this.busy && !this.needsRecovery()).onClick(() => { this.add(); })
+        Button($r('app.string.proxy_editor_add')).backgroundColor(UI.soft).fontColor(UI.ink).constraintSize({ minHeight: 44 }).width('100%').constraintSize({ minHeight: 48 }).enabled(!this.busy && !this.needsRecovery()).onClick(() => { this.add(); })
         Row({ space: 8 }) {
-          Button($r('app.string.proxy_editor_undo')).constraintSize({ minHeight: 44 }).enabled(!this.busy && !this.needsRecovery() && (this.model?.canUndo() ?? false)).onClick(() => { this.undo(); })
-          Button(this.disabled ? this.t('proxy_editor_enable_edits') : this.t('proxy_editor_disable_edits')).constraintSize({ minHeight: 44 }).enabled(!this.busy && !this.needsRecovery()).onClick(() => {
+          Button($r('app.string.proxy_editor_undo')).backgroundColor(UI.soft).fontColor(UI.ink).constraintSize({ minHeight: 44 }).enabled(!this.busy && !this.needsRecovery() && (this.model?.canUndo() ?? false)).onClick(() => { this.undo(); })
+          Button(this.disabled ? this.t('proxy_editor_enable_edits') : this.t('proxy_editor_disable_edits')).backgroundColor(UI.soft).fontColor(UI.ink).constraintSize({ minHeight: 44 }).enabled(!this.busy && !this.needsRecovery()).onClick(() => {
             if (this.model !== null) { const next = this.model.workingIntent(); next.disabled = !next.disabled; this.save(next); }
           })
-          if (!this.previewReady && !this.needsRecovery()) { Button($r('app.string.proxy_editor_preview')).constraintSize({ minHeight: 44 }).enabled(!this.busy).onClick(() => { this.inspect(); }) }
-          if (this.previewReady && !this.needsRecovery()) { Button($r('app.string.proxy_editor_apply')).constraintSize({ minHeight: 44 }).enabled(!this.busy).onClick(() => { this.apply(); }) }
+          if (!this.previewReady && !this.needsRecovery()) { Button($r('app.string.proxy_editor_preview')).backgroundColor(UI.soft).fontColor(UI.ink).constraintSize({ minHeight: 44 }).enabled(!this.busy).onClick(() => { this.inspect(); }) }
+          if (this.previewReady && !this.needsRecovery()) { Button($r('app.string.proxy_editor_apply')).backgroundColor(UI.action).fontColor(UI.onAccent).constraintSize({ minHeight: 44 }).enabled(!this.busy).onClick(() => { this.apply(); }) }
         }
         if (this.renameReferences) { Text($r('app.string.proxy_editor_rename_refs')).fontSize(13).fontColor(UI.muted).width('100%') }
         if (this.previewText !== '') { Text(this.previewText).fontSize(13).fontColor(UI.muted) }
-        if (this.model?.snapshot === null && !this.busy) { Button($r('app.string.proxy_editor_retry')).constraintSize({ minHeight: 44 }).onClick(() => { this.load(); }) }
+        if (this.model?.snapshot === null && !this.busy) { Button($r('app.string.proxy_editor_retry')).backgroundColor(UI.soft).fontColor(UI.ink).constraintSize({ minHeight: 44 }).onClick(() => { this.load(); }) }
       }
       if (this.busy) { LoadingProgress().accessibilityText($r('app.string.proxy_editor_busy')).width(28).height(28) }
       if (this.error !== '') {
         Text(this.error).fontSize(14).fontColor(UI.error).width('100%')
         if (this.needsRecovery()) {
-          Button($r('app.string.apply_feedback_reconnect')).constraintSize({ minHeight: 44 }).enabled(!this.busy)
+          Button($r('app.string.apply_feedback_reconnect')).backgroundColor(UI.soft).fontColor(UI.ink).constraintSize({ minHeight: 44 }).enabled(!this.busy)
             .onClick(() => { this.recoverApply(); })
         } else if (this.applyFailure === 'selection-required') {
-          Button($r('app.string.apply_feedback_panel')).constraintSize({ minHeight: 44 }).enabled(!this.busy)
+          Button($r('app.string.apply_feedback_panel')).backgroundColor(UI.soft).fontColor(UI.ink).constraintSize({ minHeight: 44 }).enabled(!this.busy)
             .onClick(() => { this.repairSelection(); })
         }
-        Button($r('app.string.proxy_editor_reload')).constraintSize({ minHeight: 44 }).enabled(!this.busy).onClick(() => { this.load(); })
+        Button($r('app.string.proxy_editor_reload')).backgroundColor(UI.soft).fontColor(UI.ink).constraintSize({ minHeight: 44 }).enabled(!this.busy).onClick(() => { this.load(); })
       }
     }.width('100%').height('100%').padding(16).backgroundColor(UI.paper)
   }

@@ -54,12 +54,13 @@ const preview = { revision: 'version-synthetic', digest: 'synthetic', summary: '
   assert.equal(failed.preview, null); assert.equal(failed.busy, false); assert.ok(failed.error);
   fail = false; await failed.apply(); assert.equal(failed.result, '');
   await failed.inspect(); failed.choose('original', ''); await failed.apply(); assert.equal(failed.result, '');
-  await failed.inspect(); await failed.apply(); assert.equal(failed.result, '已保存');
+  await failed.inspect(); await failed.apply(); assert.equal(failed.result, '', 'unchanged published plan is inert');
+  failed.choose('ai', 'Pick'); await failed.inspect(); await failed.apply(); assert.equal(failed.result, '已保存');
   let dependencyApplies=0;
   const dependent=new Model({load:async()=>inputs(),preview:async(_plan,pause)=>{
     if(!pause)throw Error('TEMPLATE_DEPENDENCIES:2');return preview;
   },apply:async()=>{dependencyApplies++;return '已保存';}},()=>{});
-  await dependent.load();await dependent.inspect();assert.equal(dependent.dependencies,2);
+  await dependent.load();dependent.inputs.published = {templateId:'ai',version:1,targetGroup:'Pick'};await dependent.inspect();assert.equal(dependent.dependencies,2);
   assert.equal(dependent.preview,null);await dependent.apply();assert.equal(dependencyApplies,0);
   await dependent.inspect(true);assert.equal(dependent.dependencies,0);assert.equal(dependent.preview,preview);
   await dependent.apply();assert.equal(dependencyApplies,1);

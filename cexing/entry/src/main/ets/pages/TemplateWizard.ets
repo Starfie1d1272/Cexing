@@ -32,9 +32,12 @@ export struct TemplateWizard {
   @State private updateAvailable: boolean = false;
   @Prop profileId: string = '';
   onClose: () => void = () => {};
+  registerBackGuard: (guard: (() => boolean) | null) => void = () => {};
+  private reviewBackGuard: (() => boolean) | null = null;
   @State private view: TemplateWizardView = { templateId: 'original', target: '', busy: false,
     ready: false, error: '', result: '', summary: '', hasPreview: false, groups: [], selectors: [] };
-  private confirming: boolean = false;
+  @State private confirming: boolean = false;
+  @State private showChanges: boolean = false;
   private confirmationGeneration: number = 0;
   @State private aiRevision: string = '';
   private aiBinding: AiProbeBinding = new AiProbeBinding();
@@ -42,6 +45,13 @@ export struct TemplateWizard {
   private visible: boolean = false;
 
   aboutToAppear(): void {
+    this.registerBackGuard(() => {
+      if (this.reviewingUpdate) {
+        if (this.reviewBackGuard?.() === true) { return true; }
+        this.reviewingUpdate = false; this.load(); return true;
+      }
+      return this.view.busy || this.confirming || this.recovering;
+    });
     this.recoveryGeneration++; this.recovering = false; this.recoveryMessage = '';
     this.visible = true; this.confirmationGeneration++; this.confirming = false;
     this.reviewingUpdate = false;
@@ -63,7 +73,7 @@ export struct TemplateWizard {
     });
     this.load();
   }
-  aboutToDisappear(): void { this.visible = false; this.recoveryGeneration++; this.confirmationGeneration++; this.confirming = false; this.model?.close(); }
+  aboutToDisappear(): void { this.registerBackGuard(null); this.visible = false; this.recoveryGeneration++; this.confirmationGeneration++; this.confirming = false; this.model?.close(); }
   private close(): void { this.visible = false; this.recoveryGeneration++; this.confirmationGeneration++; this.confirming = false; this.model?.close(); this.onClose(); }
   private load(): void {
     this.model?.setApplyFailure(ProfileApplyFeedback.recovery(getContext(this) as common.UIAbilityContext));
@@ -104,8 +114,13 @@ export struct TemplateWizard {
   }
   private async apply(): Promise<void> {
     const model = this.model;
-    if (model === null || model.busy || model.preview === null) { return; }
-    if (this.confirming) { return; }
+    if (model === null || model.busy || this.confirming || !model.hasChanges()) { return; }
+    const generation = this.confirmationGeneration;
+    this.confirming = true;
+    if (model.preview === null) { await model.inspect(); }
+    if (!this.visible || generation !== this.confirmationGeneration || this.model !== model) { return; }
+    this.confirming = false;
+    if (model.preview === null || model.needsRepair()) { return; }
     if (model.templateId === 'automatic' || model.preview.inactiveEdits === true) {
       const preview = model.preview;
       const automatic = model.templateId === 'automatic';
@@ -126,12 +141,22 @@ export struct TemplateWizard {
   }
   @Builder
   option(id: string, label: string) {
-    Button(label).constraintSize({ minHeight: 44 }).width('100%')
-      .accessibilitySelected(this.view.templateId === id).backgroundColor(this.view.templateId === id ? UI.action : UI.soft)
-      .fontColor(this.view.templateId === id ? UI.onAccent : UI.ink)
-      .enabled(this.view.ready === true && this.view.busy === false && !this.model?.needsRepair())
-      .onClick(() => this.model?.choose(id, ''))
+    Button({ type: ButtonType.Normal }) {
+      Row({ space: 12 }) {
+        Radio({ value: id, group: 'routing-plan' }).checked(this.view.templateId === id)
+          .radioStyle({ checkedBackgroundColor: UI.action, uncheckedBorderColor: UI.muted,
+            indicatorColor: UI.onAccent }).hitTestBehavior(HitTestMode.None).accessibilityLevel('no')
+        Text(label).fontSize(16).fontColor(UI.ink).layoutWeight(1)
+        if (this.view.publishedId === id) {
+          Text(UiText.get($r('app.string.template_published'))).fontSize(12).fontColor(UI.accentText)
+        }
+      }.width('100%').padding(16)
+    }.fontColor(UI.ink).constraintSize({ minHeight: 56 }).width('100%').borderRadius(16).backgroundColor(UI.paper)
+      .accessibilitySelected(this.view.templateId === id).accessibilityText(label)
+      .enabled(this.view.ready && !this.view.busy && !this.confirming && !this.model?.needsRepair())
+      .onClick(() => { this.showChanges = false; this.model?.choose(id, ''); })
   }
+
   private displayMessage(message: string): string {
     if (message === '') { return ''; }
     if (message === '应用未确认，请返回连接页断开后重连恢复') { return UiText.get($r('app.string.apply_feedback_unconfirmed')); }
@@ -152,18 +177,14 @@ export struct TemplateWizard {
   build() {
     if (this.reviewingUpdate) {
       TemplateUpdateReview({ profileId: this.profileId, editor: this.activeEditor, source: this.activeUpdateSource,
+        registerBackGuard: (guard: (() => boolean) | null) => { this.reviewBackGuard = guard; },
         onClose: () => { this.reviewingUpdate = false; this.load(); } })
     } else {
     Column({ space: 12 }) {
-      Row() {
-        Text(UiText.get($r('app.string.template_title'))).fontSize(22).fontWeight(FontWeight.Bold).fontColor(UI.ink)
-        Blank()
-        Button(UiText.get($r('app.string.template_back'))).backgroundColor(UI.soft).fontColor(UI.ink).onClick(() => this.close())
-      }.width('100%')
       Scroll() {
       Column({ space: 12 }) {
       if (this.updateAvailable) {
-        Button(UiText.get($r('app.string.template_update'))).backgroundColor(UI.soft).fontColor(UI.ink)
+        Button(UiText.get($r('app.string.template_update'))).constraintSize({ minHeight: 48 }).backgroundColor(UI.soft).fontColor(UI.ink)
           .enabled(this.view.ready && !this.view.busy).onClick(() => { this.reviewingUpdate = true; })
       }
       this.option('original', UiText.get($r('app.string.template_original')))
@@ -173,19 +194,22 @@ export struct TemplateWizard {
       if ((this.view.dependencies ?? 0) > 0) {
         Text(UiText.get($r('app.string.template_dependents'), this.view.dependencies ?? 0)).fontSize(14).fontColor(UI.muted)
         Row({ space: 8 }) {
-          Button(UiText.get($r('app.string.template_edit_dependents'))).layoutWeight(1).constraintSize({ minHeight: 48 }).onClick(() => this.close())
-          Button(UiText.get($r('app.string.template_pause_dependents'))).layoutWeight(1).constraintSize({ minHeight: 48 })
+          Button(UiText.get($r('app.string.template_edit_dependents'))).backgroundColor(UI.soft).fontColor(UI.ink).layoutWeight(1).constraintSize({ minHeight: 48 }).onClick(() => this.close())
+          Button(UiText.get($r('app.string.template_pause_dependents'))).backgroundColor(UI.soft).fontColor(UI.ink).layoutWeight(1).constraintSize({ minHeight: 48 })
             .enabled(!this.view.busy).onClick(() => this.model?.inspect(true))
         }.width('100%')
       }
       if (this.view.templateId !== 'original' && this.view.ready === true) {
         Text(this.view.templateId === 'region' ? UiText.get($r('app.string.template_selector')) : UiText.get($r('app.string.template_exit'))).fontSize(14).fontColor(UI.muted)
         Select((this.view.templateId === 'region' ? this.view.selectors :
-          this.view.groups).map((name: string): SelectOption => { return { value: this.view.labels?.[name] ?? name }; }))
+          this.view.groups).map((name: string): SelectOption => { return { value: this.view.labels?.[name] ?? name }; })).constraintSize({ minHeight: 48 }).backgroundColor(UI.soft).fontColor(UI.ink)
           .selected(Math.max(0, (this.view.templateId === 'region' ? this.view.selectors : this.view.groups).indexOf(this.view.target)))
-          .accessibilityText(this.view.templateId === 'region' ? UiText.get($r('app.string.template_selector')) : UiText.get($r('app.string.template_exit'))).value(this.view.labels?.[this.view.target] ?? (this.view.target || UiText.get($r('app.string.template_choose')))).width('100%').enabled(this.view.busy === false && !this.model?.needsRepair())
+          .accessibilityText(this.view.templateId === 'region' ? UiText.get($r('app.string.template_selector')) : UiText.get($r('app.string.template_exit'))).value(this.view.labels?.[this.view.target] ?? (this.view.target || UiText.get($r('app.string.template_choose')))).width('100%').enabled(this.view.busy === false && !this.confirming && !this.model?.needsRepair())
           .onSelect((index: number) => this.model?.choose(this.view.templateId,
             (this.view.templateId === 'region' ? this.view.selectors : this.view.groups)[index] ?? ''))
+      }
+      if (this.view.templateId === 'region') {
+        Text(UiText.get($r('app.string.template_region_scope'))).fontSize(13).fontColor(UI.muted)
       }
       if (this.view.templateId === 'ai') {
         Text(UiText.get($r('app.string.template_ai_scope'))).fontSize(13).fontColor(UI.muted)
@@ -206,25 +230,30 @@ export struct TemplateWizard {
       if (this.view.result.length > 0) {
         Text(this.displayMessage(this.view.result)).fontSize(14).fontColor(UI.accentText)
       }
-      if (this.view.hasPreview) {
+      if (this.showChanges && this.view.hasPreview) {
         Text(this.view.summary).fontSize(14).fontColor(UI.muted)
       }
       }.width('100%')
       }.width('100%').layoutWeight(1)
       if (this.needsRecovery()) {
-        Button(UiText.get($r('app.string.apply_feedback_reconnect'))).constraintSize({ minHeight: 48 }).width('100%')
+        Button(UiText.get($r('app.string.apply_feedback_reconnect'))).backgroundColor(UI.soft).fontColor(UI.ink).constraintSize({ minHeight: 48 }).width('100%')
           .enabled(!this.recovering).onClick(() => this.recoverApply())
       } else if (this.view.applyFailure === 'selection-required') {
-        Button(UiText.get($r('app.string.apply_feedback_panel'))).constraintSize({ minHeight: 48 }).width('100%')
+        Button(UiText.get($r('app.string.apply_feedback_panel'))).backgroundColor(UI.soft).fontColor(UI.ink).constraintSize({ minHeight: 48 }).width('100%')
           .enabled(!this.recovering).onClick(() => this.repairSelection())
       }
-      if (this.view.ready !== true && this.view.busy === false && !this.model?.needsRepair()) {
-        Button(UiText.get($r('app.string.template_retry'))).onClick(() => this.load())
+      if (this.view.ready !== true && this.view.busy === false && !this.confirming && !this.model?.needsRepair()) {
+        Button(UiText.get($r('app.string.template_retry'))).constraintSize({ minHeight: 48 }).backgroundColor(UI.soft).fontColor(UI.ink).onClick(() => this.load())
       }
-      if (!this.model?.needsRepair()) { Button(this.view.busy ? UiText.get($r('app.string.template_working')) : this.view.hasPreview ? UiText.get($r('app.string.template_apply_plan')) : UiText.get($r('app.string.template_preview')))
-        .width('100%').constraintSize({ minHeight: 48 }).backgroundColor(UI.action).fontColor(UI.onAccent)
-        .enabled(this.view.ready === true && this.view.busy === false && !this.model?.needsRepair())
-        .onClick(() => { if (this.model?.preview) { this.apply(); } else { this.model?.inspect(); } })
+      if (!this.model?.needsRepair()) {
+        Button(UiText.get($r('app.string.template_view_changes'))).width('100%').constraintSize({ minHeight: 44 })
+          .backgroundColor(Color.Transparent).fontColor(UI.accentText)
+          .enabled(this.view.ready && !this.view.busy && !this.confirming && this.view.changed === true)
+          .onClick(() => { this.showChanges = true; this.model?.inspect(); })
+        Button(this.view.busy || this.confirming ? UiText.get($r('app.string.template_working')) : UiText.get($r('app.string.template_apply')))
+          .width('100%').constraintSize({ minHeight: 48 }).backgroundColor(UI.action).fontColor(UI.onAccent)
+          .enabled(this.view.ready && !this.view.busy && !this.confirming && this.view.changed === true)
+          .onClick(() => this.apply())
       }
     }.width('100%').height('100%').padding(20).backgroundColor(UI.surface)
     }

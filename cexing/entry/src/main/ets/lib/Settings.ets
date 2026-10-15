@@ -38,6 +38,21 @@ export class AppSettings {
 }
 
 export namespace Settings {
+  const listeners: (() => void)[] = [];
+  export function onChanged(listener: () => void): void { if (!listeners.includes(listener)) { listeners.push(listener); } }
+  export function offChanged(listener: () => void): void {
+    const index = listeners.indexOf(listener); if (index >= 0) { listeners.splice(index, 1); }
+  }
+  function notify(): void { listeners.slice().forEach(listener => { try { listener(); } catch (_) {} }); }
+
+  /** Only settings that require a new system TUN/core start. Immediate runtime
+   * preferences and the live proxy mode deliberately do not create a banner. */
+  export function restartKey(s: AppSettings): string {
+    const list = s.accessMode === 'all' ? [] : Array.from(new Set(s.accessList)).sort();
+    return JSON.stringify({ ipv6: s.ipv6, accessMode: s.accessMode, accessList: list,
+      mixedPort: s.mixedPort, allowLan: s.allowLan, logLevel: s.logLevel, logToFile: s.logToFile });
+  }
+
   let store: preferences.Preferences | null = null;
   let committed: AppSettings | null = null;
   let tail: Promise<void> = Promise.resolve();
@@ -166,7 +181,7 @@ export namespace Settings {
       try {
         writeCache(p, next);
         await p.flush();
-        committed = next;
+        committed = next; notify();
       } catch (_) {
         try { writeCache(p, before); await p.flush(); } catch (_) { Logger.error(TAG, 'settings rollback failed'); }
         throw new Error('保存失败，请重试');
@@ -193,7 +208,7 @@ export namespace Settings {
   async function reconcileBackup(context: common.Context, p: preferences.Preferences): Promise<void> {
     const result = await BackupJournal.call(context, JSON.stringify({ op: 'backup-recover' }));
     const next = applyPortable(current(context), result.preferences);
-    writeCache(p, next); await p.flush(); committed = next;
+    writeCache(p, next); await p.flush(); committed = next; notify();
     await BackupJournal.acknowledge(context, result.token);
   }
 
@@ -222,7 +237,7 @@ export namespace Settings {
         recoveryError = true; throw new Error('备份恢复未确认，请重新打开应用后重试');
       }
       const selected = outcome === 'committed' ? next : before;
-      try { writeCache(p, selected); await p.flush(); committed = selected; await finish(); }
+      try { writeCache(p, selected); await p.flush(); committed = selected; await finish(); notify(); }
       catch (_) { recoveryError = true; throw new Error('备份恢复未确认，请重新打开应用后重试'); }
       if (outcome !== 'committed') { throw new Error('恢复失败，原资料已保留'); }
     });
@@ -258,7 +273,7 @@ export namespace Settings {
         lanRevokeFailed = previouslyAllowed;
         try {
           p.putSync('allowLanConfirmed', false); p.putSync('allowLan', false); await p.flush();
-          lanRevokeFailed = false; lanWriteFailed = false; lanNeedsRevocation = false;
+          lanRevokeFailed = false; lanWriteFailed = false; lanNeedsRevocation = false; notify();
         } catch (_) {
           lanNeedsRevocation = true;
           throw new Error('LAN revocation could not be saved');
@@ -271,7 +286,7 @@ export namespace Settings {
         p.putSync('allowLanConfirmed', false); await p.flush();
         p.putSync('allowLan', true); await p.flush();
         p.putSync('allowLanConfirmed', true); await p.flush();
-        lanWriteFailed = false; lanRevokeFailed = false; lanNeedsRevocation = false;
+        lanWriteFailed = false; lanRevokeFailed = false; lanNeedsRevocation = false; notify();
       } catch (_) {
         lanNeedsRevocation = true;
         try {

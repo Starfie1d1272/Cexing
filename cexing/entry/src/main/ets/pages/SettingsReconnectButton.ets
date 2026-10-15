@@ -1,3 +1,4 @@
+import { Settings } from '../lib/Settings';
 import { UiText } from '../lib/UiText';
 import { common } from '@kit.AbilityKit';
 import { promptAction } from '@kit.ArkUI';
@@ -13,26 +14,35 @@ export struct SettingsReconnectButton {
   @Consume('tab') @Watch('onVisibilityChanged') currentVisibleTab: number = 2;
   @Consume('rootVisible') @Watch('onVisibilityChanged') rootVisible: boolean = true;
   @State connected: boolean = false;
+  @State pending: boolean = false;
   @State working: boolean = false;
   @State confirming: boolean = false;
   private active: boolean = false;
   private request: number = 0;
   private listener: (() => void) | null = null;
 
-  private onVisibilityChanged(): void { this.request++; this.confirming = false; this.working = false; }
+  private refreshPending(): void {
+    this.connected = VpnController.status === VpnStatus.Connected;
+    try { this.pending = VpnController.settingsNeedReconnect(getContext(this) as common.UIAbilityContext); }
+    catch (_) { this.pending = false; }
+  }
+  private settingsListener: () => void = () => this.refreshPending();
+  private onVisibilityChanged(): void { this.request++; this.confirming = false; this.working = false; this.refreshPending(); }
 
   aboutToAppear(): void {
     this.active = true;
-    this.connected = VpnController.status === VpnStatus.Connected;
-    this.listener = () => { this.connected = VpnController.status === VpnStatus.Connected; };
+    this.refreshPending();
+    Settings.onChanged(this.settingsListener);
+    this.listener = () => this.refreshPending();
     VpnController.onChanged(this.listener);
   }
   aboutToDisappear(): void {
+    Settings.offChanged(this.settingsListener);
     this.active = false; this.request++; this.working = false; this.confirming = false;
     if (this.listener !== null) { VpnController.offChanged(this.listener); this.listener = null; }
   }
   private confirm(): void {
-    if (!this.canApply || this.working || this.confirming) { return; }
+    if (!this.pending || !this.canApply || this.working || this.confirming) { return; }
     const context = getContext(this) as common.UIAbilityContext;
     const request = ++this.request;
     const epoch = VpnController.configurationEpoch();
@@ -70,7 +80,7 @@ export struct SettingsReconnectButton {
     });
   }
   build() {
-    if (this.connected) {
+    if (this.pending || this.working) {
       Button(this.working ? UiText.get($r('app.string.settings_reconnecting')) : UiText.get($r('app.string.settings_reconnect_apply')))
         .width('100%').constraintSize({ minHeight: 48 }).backgroundColor(UI.soft).fontColor(UI.ink)
         .accessibilityDescription(!this.canApply ? UiText.get($r('app.string.a11y_unsaved_settings')) :

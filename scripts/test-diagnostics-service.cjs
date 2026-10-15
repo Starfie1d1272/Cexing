@@ -7,6 +7,8 @@ const ts = require('./ci/transpile-arkts.cjs');
 const source = fs.readFileSync(path.join(__dirname, '../cexing/entry/src/main/ets/lib/DiagnosticsService.ets'), 'utf8');
 const output = ts.transpileModule(source).outputText;
 let credential = 's'.repeat(64), status = 200, workerFailed = false, transportError = null;
+let sessionEpoch = 1;
+let finishRequest, delayRequest = false;
 let body = { version: 'fixture' }, destroyed = 0;
 const actions = [], requests = [], files = new Map();
 const support = { schema: 'cexing-support-bundle/1', sources: [{ name: 'kernel-previous', stage: 'tun_start', code: 'errno:111' }] };
@@ -19,7 +21,7 @@ const kits = {
     openSync: file => ({ fd: file }), writeSync: (file, content) => files.set(file, content), closeSync: () => {},
     moveFileSync: (from, to) => { files.set(to, files.get(from)); files.delete(from); } } },
   '@kit.NetworkKit': { http: { RequestMethod: { GET: 'GET', POST: 'POST' }, createHttp: () => ({
-    request: async (url, options) => { requests.push({ url, options }); if (transportError) throw transportError;
+    request: async (url, options) => { if(delayRequest) await new Promise(resolve => { finishRequest = resolve; }); requests.push({ url, options }); if (transportError) throw transportError;
       return { responseCode: status, result: JSON.stringify(body) }; }, destroy: () => destroyed++ }) } },
   'libentry.so': { __esModule: true, default: { versionAction: async (home, input) => {
     assert.equal(home, context.filesDir); const action = JSON.parse(input); actions.push(action);
@@ -27,7 +29,7 @@ const kits = {
     return JSON.stringify(action.op === 'diagnostics-export' ? support : { recorded: true });
   } } },
   './CoreApi': { CoreApi: { getControllerAccess: () => credential ? { httpBase: 'http://127.0.0.1:9090', secret: credential } : null } },
-  './VpnController': { VpnStatus: { Disconnected: 0 }, VpnController: { status: 0, getLastStartFailure: () => null, getLastStopCompleted: () => null, getTunCreateObserved: () => false, getKernelReadyReported: () => false, onChanged: fn => { sandbox.listener = fn; }, offChanged: fn => { assert.equal(fn, sandbox.listener); sandbox.listener = null; } } },
+  './VpnController': { VpnStatus: { Disconnected: 0, Connected: 2 }, VpnController: { status: 2, configurationEpoch: () => sessionEpoch, trafficSession: () => 'session-' + sessionEpoch, getLastStartFailure: () => null, getLastStopCompleted: () => null, getTunCreateObserved: () => false, getKernelReadyReported: () => false, onChanged: fn => { sandbox.listener = fn; }, offChanged: fn => { assert.equal(fn, sandbox.listener); sandbox.listener = null; } } },
   './Settings': { Settings: { load: () => ({ keepAlive: true, ipv6: false, allowLan: false, logToFile: false,
     smartAutoConvert: true, autoUpdate: false, autoRestore: true, mixedPort: 7890, autoUpdateIntervalHours: 24,
     accessMode: 'all', mode: 'rule', logLevel: 'info', accessList: ['private.app'], mainGroup: 'private node' }) } }
@@ -60,6 +62,16 @@ const { DiagnosticsService: service } = sandbox.exports;
     durationMs: 5, error: { kind: 'dns', code: 'DNS_RCODE_3', message: 'DNS_RCODE_3' }, details: { rcode: 3 } };
   result = await service.check(context, 'dns'); assert.equal(result.stage, 'dns_exchange'); assert.equal(result.details.rcode, 3);
   assert.equal(JSON.parse(requests.at(-1).options.extraData).kind, 'dns');
+  const controller = kits['./VpnController'].VpnController;
+  controller.status = 0; const offlineRequests = requests.length;
+  result = await service.check(context, 'controller'); assert.equal(result.outcome, 'skipped');
+  assert.equal(result.reason, 'not_connected'); assert.equal(requests.length, offlineRequests);
+  await service.exportBundle(context); assert.equal(requests.length, offlineRequests, 'offline export needs no controller');
+  controller.status = 2; delayRequest = true; const beforeLate = actions.length;
+  const late = service.check(context, 'dns'); await new Promise(setImmediate);
+  sessionEpoch++; finishRequest(); result = await late; delayRequest = false;
+  assert.equal(result.outcome, 'cancelled'); assert.equal(result.reason, 'session_changed');
+  assert.equal(actions.length, beforeLate, 'a prior session result cannot enter the new session journal');
   const noTransfer = requests.length;
   result = await service.check(context, 'bandwidth'); assert.equal(result.outcome, 'skipped');
   assert.equal(requests.length, noTransfer, 'support checks never start a bandwidth transfer');

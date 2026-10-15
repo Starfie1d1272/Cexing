@@ -41,6 +41,7 @@ export struct DiagnosticsPage {
     this.checkedAt = '';
     this.control = UiText.get($r('app.string.diag_not_checked'));
     this.generation++;
+    this.results = []; this.checkLines = []; this.proxyNames = []; this.proxyName = '';
     this.cancelOperation();
   };
 
@@ -54,6 +55,7 @@ export struct DiagnosticsPage {
     this.visible = false;
     this.exportEpoch++;
     this.generation++;
+    this.results = []; this.checkLines = []; this.proxyNames = []; this.proxyName = '';
     this.cancelOperation();
     this.control = UiText.get($r('app.string.diag_not_checked'));
     this.checkedAt = '';
@@ -83,7 +85,9 @@ export struct DiagnosticsPage {
   }
 
   private async check(kind: DiagnosticCheckKind = 'controller'): Promise<void> {
-    if (this.busy || !this.visible) { return; }
+    if (this.busy || !this.visible || this.status !== VpnStatus.Connected) { return; }
+    const epoch = VpnController.configurationEpoch();
+    const session = VpnController.trafficSession();
     const attempt = ++this.generation;
     const operation = this.beginOperation();
     if (kind === 'controller') { this.checkedAt = ''; this.control = UiText.get($r('app.string.diag_checking')); }
@@ -103,6 +107,10 @@ export struct DiagnosticsPage {
         reason: 'page_check_timeout', durationMs: 15000 }).catch(() => {});
     }
     if (!this.visible || attempt !== this.generation || !this.ownsOperation(operation)) { return; }
+    if (this.status !== VpnStatus.Connected || epoch !== VpnController.configurationEpoch() ||
+      session !== VpnController.trafficSession() || result.outcome === 'cancelled') {
+      this.control = UiText.get($r('app.string.diag_not_checked')); this.finishOperation(operation); return;
+    }
     const label = DiagnosticsBundleView.result(result);
     if (kind === 'controller') { this.control = label; this.checkedAt = result.at; }
     this.results = this.results.filter((item: DiagnosticCheckResult) => item.kind !== kind).concat([result]);
@@ -114,11 +122,15 @@ export struct DiagnosticsPage {
   }
 
   private async chooseProxy(): Promise<void> {
-    if (this.busy || !this.visible) { return; }
+    if (this.busy || !this.visible || this.status !== VpnStatus.Connected) { return; }
+    const epoch = VpnController.configurationEpoch();
+    const session = VpnController.trafficSession();
     const attempt = this.generation;
     const operation = this.beginOperation();
     const proxies = await CoreApi.getProxies().catch(() => null);
     if (!this.visible || attempt !== this.generation || !this.ownsOperation(operation)) { return; }
+    if (epoch !== VpnController.configurationEpoch() || session !== VpnController.trafficSession() ||
+      this.status !== VpnStatus.Connected) { this.finishOperation(operation); return; }
     this.proxyNames = proxies === null ? [] : Object.keys(proxies);
     this.finishOperation(operation);
     if (this.proxyNames.length === 0) { this.exportMessage = UiText.get($r('app.string.diag_proxy_unavailable')); }
@@ -197,7 +209,7 @@ export struct DiagnosticsPage {
     const attempt = this.generation;
     const checkedAt = this.checkedAt;
     const states = ['disconnected', 'connecting', 'connected', 'disconnecting'];
-    const control = this.control === UiText.get($r('app.string.diag_reachable')) ? 'reachable' :
+    const control = this.status !== VpnStatus.Connected ? 'not-run' : this.control === UiText.get($r('app.string.diag_reachable')) ? 'reachable' :
       this.control === UiText.get($r('app.string.diag_timeout')) ? 'timeout' :
       this.control === UiText.get($r('app.string.diag_not_checked')) || this.busy ? 'not-run' : 'failed';
     try {
@@ -244,7 +256,7 @@ export struct DiagnosticsPage {
             Divider().color(UI.line).margin({ left: 18, right: 18 })
             Column({ space: 8 }) {
               Text(UiText.get($r('app.string.diag_local_service'))).fontSize(13).fontColor(UI.muted)
-              Text(this.control).fontSize(17).fontColor(UI.ink).width('100%')
+              Text(this.status === VpnStatus.Connected ? this.control : UiText.get($r('app.string.diag_offline'))).fontSize(17).fontColor(UI.ink).width('100%')
             }.width('100%').padding(18).alignItems(HorizontalAlign.Start)
           }.width('100%').borderRadius(24).backgroundColor(UI.surface)
           if (this.control === UiText.get($r('app.string.diag_timeout'))) {
@@ -264,19 +276,19 @@ export struct DiagnosticsPage {
             }
             Text(UiText.get($r('app.string.diag_check_scope')))
               .fontSize(14).fontColor(UI.muted).width('100%')
-            Button(UiText.get($r('app.string.diag_check_dns'))).constraintSize({ minHeight: 48 }).enabled(!this.busy).onClick(() => this.check('dns'))
-            Button(UiText.get($r('app.string.diag_read_proxies'))).constraintSize({ minHeight: 48 }).enabled(!this.busy).onClick(() => this.chooseProxy())
+            Button(UiText.get($r('app.string.diag_check_dns'))).backgroundColor(UI.soft).fontColor(UI.ink).constraintSize({ minHeight: 48 }).enabled(!this.busy && this.status === VpnStatus.Connected).onClick(() => this.check('dns'))
+            Button(UiText.get($r('app.string.diag_read_proxies'))).backgroundColor(UI.soft).fontColor(UI.ink).constraintSize({ minHeight: 48 }).enabled(!this.busy && this.status === VpnStatus.Connected).onClick(() => this.chooseProxy())
             if (this.proxyNames.length > 0) {
-              Select(this.proxyNames.map((name: string): SelectOption => ({ value: name })))
+              Select(this.proxyNames.map((name: string): SelectOption => ({ value: name }))).constraintSize({ minHeight: 48 }).backgroundColor(UI.soft).fontColor(UI.ink)
                 .accessibilityText(UiText.get($r('app.string.diag_choose_proxy')))
                 .selected(this.proxyNames.indexOf(this.proxyName)).value(this.proxyName || UiText.get($r('app.string.diag_choose_proxy')))
                 .onSelect((index: number) => { this.proxyName = this.proxyNames[index]; })
             }
-            Button(UiText.get($r('app.string.diag_check_proxy'))).constraintSize({ minHeight: 48 }).enabled(!this.busy && this.status === VpnStatus.Connected && this.proxyName.length > 0)
+            Button(UiText.get($r('app.string.diag_check_proxy'))).backgroundColor(UI.soft).fontColor(UI.ink).constraintSize({ minHeight: 48 }).enabled(!this.busy && this.status === VpnStatus.Connected && this.proxyName.length > 0)
               .accessibilityDescription(this.status !== VpnStatus.Connected ? UiText.get($r('app.string.diag_connect_first')) :
                 (this.proxyName.length === 0 ? UiText.get($r('app.string.diag_proxy_first')) : ''))
               .onClick(() => this.check('connection'))
-            Button(UiText.get($r('app.string.diag_check_delay'))).constraintSize({ minHeight: 48 }).enabled(!this.busy && this.status === VpnStatus.Connected && this.proxyName.length > 0)
+            Button(UiText.get($r('app.string.diag_check_delay'))).backgroundColor(UI.soft).fontColor(UI.ink).constraintSize({ minHeight: 48 }).enabled(!this.busy && this.status === VpnStatus.Connected && this.proxyName.length > 0)
               .accessibilityDescription(this.status !== VpnStatus.Connected ? UiText.get($r('app.string.diag_connect_first')) :
                 (this.proxyName.length === 0 ? UiText.get($r('app.string.diag_proxy_first')) : ''))
               .onClick(() => this.check('delay'))
@@ -294,7 +306,10 @@ export struct DiagnosticsPage {
         .backgroundColor(UI.soft).fontColor(UI.accentText).onClick(() => this.openFeedback())
           }
       Button(this.busy ? UiText.get($r('app.string.action_working')) : UiText.get($r('app.string.diag_check_service'))).width('100%').constraintSize({ minHeight: 56 })
-        .backgroundColor(UI.action).fontColor(UI.onAccent).enabled(!this.busy).onClick(() => this.check())
+        .backgroundColor(UI.action).fontColor(UI.onAccent).enabled(!this.busy && this.status === VpnStatus.Connected).onClick(() => this.check())
+      Button(UiText.get($r('app.string.diag_repair_resources'))).width('100%').constraintSize({ minHeight: 48 })
+        .backgroundColor(UI.soft).fontColor(UI.ink).enabled(!this.busy)
+        .onClick(() => { this.navStack.pushPath({ name: 'resources' }); })
       Button(UiText.get($r('app.string.diag_save_bundle'))).width('100%').constraintSize({ minHeight: 48 }).enabled(!this.busy)
         .backgroundColor(UI.soft).fontColor(UI.accentText).onClick(() => this.exportSupport(false))
       if (this.exportMessage !== '') { Text(this.exportMessage).fontSize(14).fontColor(UI.muted).width('100%') }

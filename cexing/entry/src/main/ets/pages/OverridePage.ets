@@ -170,7 +170,7 @@ export struct OverridePage {
                 .fontWeight(FontWeight.Medium)
                 .fontColor(UI.ink)
                 .width('100%')
-              Select(LOG_OPTIONS).accessibilityText(UiText.get($r('app.string.core_log_level')))
+              Select(LOG_OPTIONS).backgroundColor(UI.soft).fontColor(UI.ink).accessibilityText(UiText.get($r('app.string.core_log_level')))
                 .selected(LOG_LEVELS.indexOf(this.logLevel)).value(this.logLevel)
                 .font({ size: 14 }).constraintSize({ minHeight: 48 }).width('100%')
                 .onSelect((index: number) => { this.logLevel = LOG_LEVELS[index]; this.dirty = true; })

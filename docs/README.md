@@ -2,6 +2,7 @@
 
 | 目的 | 入口 |
 |---|---|
+| 查询入口、反馈和编辑路径 | [用户路径与界面](reference/ui-workflows.md) |
 | 理解产品与名称 | [策星](brand.md) |
 | 理解模块所有权与生命周期 | [架构](architecture.md) |
 | 构建与自动检查 | [构建](how-to/build.md)、[CI](how-to/ci.md) |

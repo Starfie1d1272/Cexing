@@ -83,13 +83,13 @@ export struct AiProbeStatus {
   build() {
     Column({ space: 8 }) {
       Row({ space: 8 }) {
-        Button(this.summary()).backgroundColor(UI.soft).fontColor(UI.muted)
+        Button(this.summary()).constraintSize({ minHeight: 48 }).backgroundColor(UI.soft).fontColor(UI.muted)
           .accessibilityDescription(this.expanded ? UiText.get($r('app.string.template_expanded')) : UiText.get($r('app.string.template_collapsed'))).onClick(() => { this.expanded = !this.expanded; })
         if (this.results.length > 0) {
           Text(new Date(this.results[0].at).toLocaleTimeString()).fontSize(12).fontColor(UI.muted)
         }
         Blank()
-        Button(UiText.get($r('app.string.template_retry'))).backgroundColor(UI.soft).fontColor(UI.ink).accessibilityDescription(this.checking ? UiText.get($r('app.string.ai_checking')) : (this.revision.length === 0 || !this.online || VpnController.status !== VpnStatus.Connected ? UiText.get($r('app.string.ai_retry_unavailable')) : '')).enabled(!this.checking && this.revision.length > 0 && this.online && VpnController.status === VpnStatus.Connected)
+        Button(UiText.get($r('app.string.template_retry'))).constraintSize({ minHeight: 48 }).backgroundColor(UI.soft).fontColor(UI.ink).accessibilityDescription(this.checking ? UiText.get($r('app.string.ai_checking')) : (this.revision.length === 0 || !this.online || VpnController.status !== VpnStatus.Connected ? UiText.get($r('app.string.ai_retry_unavailable')) : '')).enabled(!this.checking && this.revision.length > 0 && this.online && VpnController.status === VpnStatus.Connected)
           .onClick(() => this.service?.check(this.revision, true))
       }.width('100%')
       if (this.expanded) {

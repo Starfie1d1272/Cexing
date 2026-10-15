@@ -25,6 +25,7 @@ export struct TemplateUpdateReview {
   @Prop profileId: string = '';
   private activeHost: TemplateUpdateHost | null = null;
   onClose: () => void = () => {};
+  registerBackGuard: (guard: (() => boolean) | null) => void = () => {};
   @State private conflicts: TemplateConflict[] = [];
   @State private ready: boolean = false;
   @State private busy: boolean = false;
@@ -33,6 +34,7 @@ export struct TemplateUpdateReview {
   @State private message: string = '';
   private model: TemplateUpdateModel | null = null;
   aboutToAppear(): void {
+    this.registerBackGuard(() => this.busy || this.confirmingDiscard || this.recovering);
     this.visible = true; this.recoveryGeneration++; this.confirmingDiscard = false; this.recovering = false; this.recoveryMessage = '';
     const source = this.source ?? (this.profileId.length > 0 ?
       createTemplateUpdateSource(getContext(this) as common.UIAbilityContext, this.profileId) : undefined);
@@ -53,7 +55,7 @@ export struct TemplateUpdateReview {
     this.model.setApplyFailure(ProfileApplyFeedback.recovery(getContext(this) as common.UIAbilityContext));
     this.model.refresh();
   }
-  aboutToDisappear(): void { this.visible = false; this.recoveryGeneration++; this.model?.close(); }
+  aboutToDisappear(): void { this.registerBackGuard(null); this.visible = false; this.recoveryGeneration++; this.model?.close(); }
   private close(): void { this.visible = false; this.recoveryGeneration++; this.model?.close(); this.onClose(); }
   private needsRecovery(): boolean { return this.applyFailure === 'unconfirmed' || this.applyFailure === 'committed-pending'; }
   private failureMessage(): string {
@@ -137,9 +139,9 @@ export struct TemplateUpdateReview {
           Text(UiText.get($r('app.string.template_conflict_mine'), this.activeHost?.detail?.(conflict).mine ?? UiText.get($r('app.string.template_personal')))).fontSize(14).fontColor(UI.muted)
           Text(UiText.get($r('app.string.template_conflict_new'), this.activeHost?.detail?.(conflict).template ?? UiText.get($r('app.string.template_personal')))).fontSize(14).fontColor(UI.muted)
           Row({ space: 8 }) {
-            Button(UiText.get($r('app.string.template_keep_mine'))).layoutWeight(1).backgroundColor(UI.soft).fontColor(UI.ink)
+            Button(UiText.get($r('app.string.template_keep_mine'))).constraintSize({ minHeight: 48 }).layoutWeight(1).backgroundColor(UI.soft).fontColor(UI.ink)
               .enabled(!this.busy && !this.confirmingDiscard).onClick(() => this.model?.choose(conflict.id, 'mine'))
-            Button(UiText.get($r('app.string.template_use_new'))).layoutWeight(1).backgroundColor(UI.soft).fontColor(UI.ink)
+            Button(UiText.get($r('app.string.template_use_new'))).constraintSize({ minHeight: 48 }).layoutWeight(1).backgroundColor(UI.soft).fontColor(UI.ink)
               .enabled(!this.busy && !this.confirmingDiscard).onClick(() => this.model?.choose(conflict.id, 'template'))
           }.width('100%')
         }.width('100%')
@@ -150,8 +152,7 @@ export struct TemplateUpdateReview {
       }.width('100%')
       }.width('100%').layoutWeight(1)
       Row({ space: 8 }) {
-        Button(UiText.get($r('app.string.template_back'))).layoutWeight(1).backgroundColor(UI.soft).fontColor(UI.ink).onClick(() => this.close())
-        if (!this.model?.needsRepair()) { Button(UiText.get($r('app.string.template_repreview'))).layoutWeight(1).backgroundColor(UI.soft).fontColor(UI.ink)
+        if (!this.model?.needsRepair()) { Button(UiText.get($r('app.string.template_repreview'))).constraintSize({ minHeight: 48 }).layoutWeight(1).backgroundColor(UI.soft).fontColor(UI.ink)
           .enabled(!this.busy && !this.confirmingDiscard).onClick(() => this.model?.reset())
         }
       }.width('100%')
@@ -161,10 +162,10 @@ export struct TemplateUpdateReview {
           .onClick(() => this.discardDraft())
       }
       if (this.needsRecovery()) {
-        Button(UiText.get($r('app.string.apply_feedback_reconnect'))).width('100%').constraintSize({ minHeight: 48 })
+        Button(UiText.get($r('app.string.apply_feedback_reconnect'))).backgroundColor(UI.soft).fontColor(UI.ink).width('100%').constraintSize({ minHeight: 48 })
           .enabled(!this.recovering).onClick(() => this.recoverApply())
       } else if (this.applyFailure === 'selection-required') {
-        Button(UiText.get($r('app.string.apply_feedback_panel'))).width('100%').constraintSize({ minHeight: 48 })
+        Button(UiText.get($r('app.string.apply_feedback_panel'))).backgroundColor(UI.soft).fontColor(UI.ink).width('100%').constraintSize({ minHeight: 48 })
           .enabled(!this.recovering).onClick(() => this.repairSelection())
       }
       if (!this.model?.needsRepair()) { Button(this.busy ? UiText.get($r('app.string.template_working')) : UiText.get($r('app.string.template_apply_update'))).width('100%').constraintSize({ minHeight: 48 })

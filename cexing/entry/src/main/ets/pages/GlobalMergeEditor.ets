@@ -12,6 +12,8 @@ import { CoreValidator } from '../lib/CoreValidator';
 export struct GlobalMergeEditor {
   @Consume('profileRevision') profileRevision: number;
   onClose: () => void = () => {};
+  registerCloseGuard: (guard: (() => boolean) | null) => void = () => {};
+  private prepareClose: (() => boolean) | null = null;
   @State private editedText: string = '';
   @State globalEnabled: boolean = false;
   @State busy: boolean = false;
@@ -21,6 +23,8 @@ export struct GlobalMergeEditor {
   private dirty: boolean = false;
 
   aboutToAppear(): void {
+    this.prepareClose = () => !this.busy && (!this.dirty || this.saveDraft());
+    this.registerCloseGuard(this.prepareClose);
     try {
       const context = getContext(this) as common.UIAbilityContext;
       const current = EffectiveVersions.globalContent(context);
@@ -33,7 +37,7 @@ export struct GlobalMergeEditor {
   }
 
   aboutToDisappear(): void {
-    if (this.dirty && !this.loadFailed) { this.saveDraft(); }
+    this.registerCloseGuard(null);
   }
 
   private toast(message: string): void { promptAction.showToast({ message: message, duration: 1800 }); }
@@ -109,7 +113,7 @@ export struct GlobalMergeEditor {
       Text(UiText.get($r('app.string.editor_global'))).fontSize(22).fontWeight(FontWeight.Bold).fontColor(UI.ink)
       Text(this.globalEnabled ? UiText.get($r('app.string.editor_enabled')) : UiText.get($r('app.string.editor_disabled')))
         .fontSize(13).fontColor(UI.accentText)
-      Button(UiText.get($r('app.string.editor_help'))).constraintSize({ minHeight: 44 }).onClick(() => this.help())
+      Button(UiText.get($r('app.string.editor_help'))).backgroundColor(UI.soft).fontColor(UI.ink).constraintSize({ minHeight: 44 }).onClick(() => this.help())
       if (this.loadFailed) {
         Text(UiText.get($r('app.string.editor_read_blocked'))).fontSize(13).fontColor(UI.error)
       }
@@ -122,14 +126,10 @@ export struct GlobalMergeEditor {
           .width('100%').constraintSize({ maxHeight: 120 }).scrollBar(BarState.Auto)
       }
       if (this.committedPending) {
-        Button(UiText.get($r('app.string.merge_open_connection'))).constraintSize({ minHeight: 44 }).width('100%')
+        Button(UiText.get($r('app.string.merge_open_connection'))).backgroundColor(UI.soft).fontColor(UI.ink).constraintSize({ minHeight: 44 }).width('100%')
           .enabled(!this.busy).onClick(() => this.recoverCommitted())
       }
       Row({ space: 8 }) {
-        Button(UiText.get($r('app.string.editor_close'))).layoutWeight(1).constraintSize({ minHeight: 44 }).backgroundColor(UI.soft).fontColor(UI.ink)
-          .enabled(!this.busy).onClick(() => this.close())
-        Button(UiText.get($r('app.string.editor_save_draft'))).layoutWeight(1).constraintSize({ minHeight: 44 }).backgroundColor(UI.soft).fontColor(UI.ink)
-          .accessibilityDescription(this.loadFailed ? UiText.get($r('app.string.editor_read_blocked')) : (this.busy ? UiText.get($r('app.string.editor_working')) : '')).enabled(!this.busy && !this.loadFailed && !this.committedPending).onClick(() => { if (this.saveDraft()) { this.toast(UiText.get($r('app.string.editor_draft_saved'))); } })
         Button(UiText.get($r('app.string.editor_preview'))).layoutWeight(1).constraintSize({ minHeight: 44 }).backgroundColor(UI.soft).fontColor(UI.ink)
           .accessibilityDescription(this.loadFailed ? UiText.get($r('app.string.editor_read_blocked')) : (this.busy ? UiText.get($r('app.string.editor_working')) : '')).enabled(!this.busy && !this.loadFailed && !this.committedPending).onClick(() => this.preview())
       }.width('100%')

@@ -22,6 +22,9 @@ vm.runInNewContext(ts.transpileModule(fs.readFileSync('cexing/entry/src/main/ets
 (async () => {
  const host = sandbox.exports.createTemplateWizardHost({ filesDir: '/private' }, 'one.yaml');
  const inputs = await host.load(); assert.deepEqual(Array.from(inputs.groups), ['Pick']); assert.equal(inputs.current.templateId, 'original'); assert.equal(inputs.labels.Pick, 'Renamed Pick'); assert.deepEqual(Array.from(inputs.selectors), ['Pick']);
+ draft.template = {templateId:'ai',version:1,targetGroup:'Pick'}; draft.disabled=false;
+ const reopened = await host.load();
+ assert.equal(reopened.current.templateId,'ai'); assert.equal(reopened.published.templateId,'original', 'preview draft is never marked published');
  const plan = { templateId: 'ai', version: 1, targetGroup: 'Pick' };
  const preview = await host.preview(plan); assert.equal(preview.inactiveEdits, true);
  assert.equal(draft.operations.length, 1); assert.equal(draft.disabled, false); assert.equal(published.disabled, true); assert.equal(committed, 0);

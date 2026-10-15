@@ -166,10 +166,20 @@ export namespace DiagnosticsService {
    * selected adapter. No bandwidth transfer or automatic checks at export. */
   export async function check(context: common.Context, kind: DiagnosticCheckKind,
     proxy: string = ''): Promise<DiagnosticCheckResult> {
+    const epoch = VpnController.configurationEpoch();
+    const session = VpnController.trafficSession();
+    const connected = VpnController.status === VpnStatus.Connected;
+    const current = (): boolean => connected && VpnController.status === VpnStatus.Connected &&
+      epoch === VpnController.configurationEpoch() && session === VpnController.trafficSession();
     await initialize(context);
     const started = Date.now();
     const result: DiagnosticCheckResult = { kind: kind, stage: 'controller_transport',
       outcome: 'unknown', at: new Date(started).toISOString(), durationMs: 0 };
+    if (!current()) {
+      result.stage = 'precondition'; result.outcome = connected ? 'cancelled' : 'skipped';
+      result.reason = connected ? 'session_changed' : 'not_connected';
+      return result;
+    }
     if (kind === 'bandwidth') {
       result.stage = 'precondition'; result.outcome = 'skipped';
       result.reason = 'requires_explicit_bandwidth_test';
@@ -217,6 +227,10 @@ export namespace DiagnosticsService {
         message: 'local controller request failed' };
     } finally { request.destroy(); }
     result.durationMs = Date.now() - started;
+    if (!current()) {
+      result.stage = 'session_scope'; result.outcome = 'cancelled'; result.reason = 'session_changed';
+      result.error = undefined; result.details = undefined; return result;
+    }
     await persistCheck(context, result, proxy); return result;
   }
 

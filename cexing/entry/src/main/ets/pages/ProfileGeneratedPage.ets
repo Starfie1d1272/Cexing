@@ -45,7 +45,7 @@ export struct ProfileGeneratedPage {
         LoadingProgress().width(36).height(36)
       } else if (this.error.length > 0) {
         Text(this.error).fontSize(15).fontColor(UI.error).width('100%')
-        Button(UiText.get($r('app.string.action_retry'))).onClick(() => { this.load(); })
+        Button(UiText.get($r('app.string.action_retry'))).constraintSize({ minHeight: 48 }).backgroundColor(UI.soft).fontColor(UI.ink).onClick(() => { this.load(); })
       } else {
         Scroll() {
           Text(this.content).fontSize(14).fontFamily('HarmonyOS Sans Mono')

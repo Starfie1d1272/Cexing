@@ -1,8 +1,6 @@
 import { LocalBackupActions } from './LocalBackupActions';
 import { ProfileStorageDetails } from './ProfileStorageDetails';
 import { UiText } from '../lib/UiText';
-import { ProfileStore } from '../lib/ProfileStore';
-import { RuleDnsEditorBus } from './RuleDnsEditorPage';
 import { SettingsReconnectButton } from './SettingsReconnectButton';
 import { NativeTheme as UI } from './NativeTheme';
 /*
@@ -55,9 +53,15 @@ export struct SettingsPage {
       ]
     },
     {
+      title: UiText.get($r('app.string.nav_profiles')),
+      rows: [
+        { title: UiText.get($r('app.string.settings_auto_update')), sub: UiText.get($r('app.string.settings_update_hint')), hasToggle: true, dest: '', action: '', toggleKey: 'autoUpdate' },
+        { title: UiText.get($r('app.string.settings_interval')), sub: '', hasToggle: false, dest: '', action: 'interval', toggleKey: '' }
+      ]
+    },
+    {
       title: UiText.get($r('app.string.settings_system_connection')),
       rows: [
-        { title: 'DNS', sub: '', hasToggle: false, dest: '', action: 'dns', toggleKey: '' },
         { title: UiText.get($r('app.string.nav_network')), sub: UiText.get($r('app.string.settings_network_hint')), hasToggle: false, dest: 'network', action: '', toggleKey: '' },
         { title: 'Smart', sub: UiText.get($r('app.string.settings_smart_hint')), hasToggle: false, dest: 'smart', action: '', toggleKey: '' },
 
@@ -67,14 +71,6 @@ export struct SettingsPage {
       title: UiText.get($r('app.string.settings_advanced')),
       rows: [
         { title: UiText.get($r('app.string.nav_core')), sub: '', hasToggle: false, dest: 'override', action: '', toggleKey: '' },
-        { title: UiText.get($r('app.string.nav_resources')), sub: '', hasToggle: false, dest: 'resources', action: '', toggleKey: '' }
-      ]
-    },
-    {
-      title: UiText.get($r('app.string.nav_profiles')),
-      rows: [
-        { title: UiText.get($r('app.string.settings_auto_update')), sub: UiText.get($r('app.string.settings_update_hint')), hasToggle: true, dest: '', action: '', toggleKey: 'autoUpdate' },
-        { title: UiText.get($r('app.string.settings_interval')), sub: '', hasToggle: false, dest: '', action: 'interval', toggleKey: '' }
       ]
     },
     {
@@ -269,48 +265,9 @@ export struct SettingsPage {
     }
   }
 
-  private openDns(): void {
-    if (!this.pageActive || !this.ready) { return; }
-    const generation = ++this.feedbackGeneration;
-    const context = getContext(this) as common.UIAbilityContext;
-    try {
-      const profiles = ProfileStore.list(context);
-      const active = ProfileStore.getActiveFile(context);
-      const current = (): boolean => this.pageActive && this.currentVisibleTab === 2 && this.rootVisible &&
-        generation === this.feedbackGeneration && this.navStack.getAllPathName().length === 0;
-      const open = (file: string): void => {
-        if (!current()) { return; }
-        if (!ProfileStore.list(context).some((profile) => profile.file === file)) {
-          promptAction.showToast({ message: UiText.get($r('app.string.settings_dns_read_failed')) }); return;
-        }
-        RuleDnsEditorBus.file = file;
-        RuleDnsEditorBus.section = 'dns';
-        this.navStack.pushPath({ name: 'ruleDnsEditor' });
-      };
-      if (profiles.some((profile) => profile.file === active)) { open(active); }
-      else if (profiles.length === 1) { open(profiles[0].file); }
-      else if (profiles.length === 0) {
-        promptAction.showToast({ message: UiText.get($r('app.string.settings_dns_import_first')) });
-      } else {
-        ActionSheet.show({ title: UiText.get($r('app.string.settings_dns_choose')), message: '',
-          cancel: () => { if (current()) { this.feedbackGeneration++; } },
-          sheets: profiles.map((profile): SheetInfo => ({ title: profile.name, action: () => {
-            try { open(profile.file); }
-            catch (_) { if (current()) { promptAction.showToast({ message: UiText.get($r('app.string.settings_dns_read_failed')) }); } }
-          } })) });
-      }
-    } catch (_) { promptAction.showToast({ message: UiText.get($r('app.string.settings_dns_read_failed')) }); }
-  }
-
   private onRowTap(row: SettingRow): void {
-    if (row.action === 'dns') { this.openDns(); return; }
-    if (row.dest.length > 0) {
-      this.navStack.pushPath({ name: row.dest });
-      return;
-    }
-    if (row.action === 'interval') {
-      this.onIntervalTap();
-    }
+    if (row.dest.length > 0) { this.navStack.pushPath({ name: row.dest }); return; }
+    if (row.action === 'interval') { this.onIntervalTap(); }
   }
 
   @Builder
@@ -318,7 +275,7 @@ export struct SettingsPage {
     if (row.hasToggle) {
       this.RowContent(row)
     } else {
-      Button({ type: ButtonType.Normal }) { this.RowContent(row) }
+      Button({ type: ButtonType.Normal }) { this.RowContent(row) }.constraintSize({ minHeight: 48 }).fontColor(UI.ink)
         .width('100%').padding(0).backgroundColor(Color.Transparent)
         .accessibilityGroup(true).accessibilityText(row.title).accessibilityDescription(row.sub)
         .onClick(() => this.onRowTap(row))
@@ -412,7 +369,7 @@ export struct SettingsPage {
         Column({ space: 8 }) {
           Text(this.readFailure).fontSize(14).fontColor(UI.error).width('100%')
           if (!this.readRestartNeeded) {
-            Button($r('app.string.action_retry')).constraintSize({ minHeight: 44 }).onClick(() => this.aboutToAppear())
+            Button($r('app.string.action_retry')).backgroundColor(UI.soft).fontColor(UI.ink).constraintSize({ minHeight: 44 }).onClick(() => this.aboutToAppear())
           }
         }.width('100%')
       }

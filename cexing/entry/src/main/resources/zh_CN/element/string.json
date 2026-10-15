@@ -70,7 +70,7 @@
     },
     {
       "name": "nav_resources",
-      "value": "资源"
+      "value": "修复资源"
     },
     {
       "name": "nav_panel",
@@ -314,7 +314,7 @@
     },
     {
       "name": "settings_reconnect_apply",
-      "value": "重连应用"
+      "value": "重连以应用已保存修改"
     },
     {
       "name": "background_acquired",
@@ -1102,7 +1102,7 @@
     },
     {
       "name": "network_saved",
-      "value": "已保存，下次启动 VPN 生效"
+      "value": "已保存"
     },
     {
       "name": "network_invalid_package",
@@ -1662,7 +1662,7 @@
     },
     {
       "name": "template_auto_scope",
-      "value": "本地网络直连，其余流量使用所选出口。"
+      "value": "局域网直连，其余流量走指定出口；将替换订阅规则。"
     },
     {
       "name": "template_replace_title",
@@ -1698,11 +1698,11 @@
     },
     {
       "name": "template_original",
-      "value": "不使用模板"
+      "value": "订阅默认"
     },
     {
       "name": "template_region",
-      "value": "按地区智能选择"
+      "value": "地区分组"
     },
     {
       "name": "template_ai",
@@ -1710,7 +1710,7 @@
     },
     {
       "name": "template_automatic",
-      "value": "自动分流"
+      "value": "基础分流"
     },
     {
       "name": "template_selector",
@@ -1786,7 +1786,7 @@
     },
     {
       "name": "template_apply_failed",
-      "value": "应用失败，请重新预览后重试"
+      "value": "应用失败，新方案未生效，请重试。"
     },
     {
       "name": "template_compare_failed",
@@ -2878,7 +2878,7 @@
     },
     {
       "name": "profile_nodes_groups",
-      "value": "节点与策略组"
+      "value": "编辑节点与策略组"
     },
     {
       "name": "profile_rules_dns",
@@ -3150,11 +3150,11 @@
     },
     {
       "name": "profile_more",
-      "value": "更多操作"
+      "value": "高级编辑"
     },
     {
       "name": "profile_less",
-      "value": "收起操作"
+      "value": "收起高级编辑"
     },
     {
       "name": "profile_expanded",
@@ -3943,6 +3943,30 @@
     {
       "name": "template_pause_dependents",
       "value": "一并停用"
+    },
+    {
+      "name": "template_published",
+      "value": "已发布"
+    },
+    {
+      "name": "template_view_changes",
+      "value": "查看改动"
+    },
+    {
+      "name": "home_panel_actions",
+      "value": "节点 · 策略 · 延迟测试"
+    },
+    {
+      "name": "diag_offline",
+      "value": "未连接 · 连接检查暂停"
+    },
+    {
+      "name": "diag_repair_resources",
+      "value": "修复资源"
+    },
+    {
+      "name": "template_region_scope",
+      "value": "保留订阅规则，按节点名称生成地区选项，供控制面板选择。"
     }
   ]
 }
