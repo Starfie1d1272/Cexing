@@ -125,7 +125,7 @@ export struct RuleDnsEditForm {
   choose(label: string, values: string[], current: string, changed: (value: string) => void) {
     Row({ space: 12 }) {
       Text(label).fontColor(UI.ink).layoutWeight(1)
-      Select(values.map((value: string): SelectOption => ({ value: this.optionLabel(label, value) }))).value(this.optionLabel(label, current)).accessibilityText(label)
+      Select(values.map((value: string): SelectOption => ({ value: this.optionLabel(label, value) }))).constraintSize({ minHeight: 48 }).backgroundColor(UI.soft).fontColor(UI.ink).value(this.optionLabel(label, current)).accessibilityText(label)
         .selected(values.indexOf(current)).onSelect((index: number) => changed(values[index]))
     }.width('100%')
   }
@@ -146,7 +146,7 @@ export struct RuleDnsEditForm {
             }
           }
           if (this.isNew && this.kind !== 'MATCH' && this.positions.length > 0) {
-            Select(this.positions.map((_item: EditableItem, index: number): SelectOption => ({ value: UiText.get($r('app.string.rule_before'), index + 1) })))
+            Select(this.positions.map((_item: EditableItem, index: number): SelectOption => ({ value: UiText.get($r('app.string.rule_before'), index + 1) }))).constraintSize({ minHeight: 48 }).backgroundColor(UI.soft).fontColor(UI.ink)
               .selected(this.positions.findIndex((item: EditableItem) => item.id === this.ruleBefore))
               .onSelect((index: number) => { this.ruleBefore = this.positions[index].id; }).accessibilityText(UiText.get($r('app.string.rule_position')))
           }
@@ -183,12 +183,12 @@ export struct RuleDnsEditForm {
           TextArea({ placeholder: UiText.get($r('app.string.rule_hosts_values')), text: this.hosts }).height(120).onChange((value: string) => { this.hosts = value; })
         }
         if (!this.advanced && !this.isNew && this.section !== 'hosts') {
-          Button(UiText.get($r('app.string.rule_advanced'))).onClick(() => { this.advanced = true; })
+          Button(UiText.get($r('app.string.rule_advanced'))).constraintSize({ minHeight: 48 }).backgroundColor(UI.soft).fontColor(UI.ink).onClick(() => { this.advanced = true; })
         }
         if (this.error !== '') { Text(this.error).fontSize(14).fontColor(UI.error) }
         Row({ space: 12 }) {
-          Button(UiText.get($r('app.string.rule_cancel'))).onClick(() => this.onClose())
-          Button(UiText.get($r('app.string.rule_preview'))).onClick(() => this.submit())
+          Button(UiText.get($r('app.string.rule_cancel'))).constraintSize({ minHeight: 48 }).backgroundColor(UI.soft).fontColor(UI.ink).onClick(() => this.onClose())
+          Button(UiText.get($r('app.string.rule_preview'))).constraintSize({ minHeight: 48 }).backgroundColor(UI.soft).fontColor(UI.ink).onClick(() => this.submit())
         }
       }.width('100%').padding(20)
     }.width('100%').backgroundColor(UI.paper)

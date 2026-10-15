@@ -65,6 +65,7 @@ export struct ProfilePage {
   @Consume('tab') @Watch('onTabVisible') currentVisibleTab: number;
   @State profiles: ProfileMeta[] = [];
   @State metas: Record<string, ProfileMetaExt> = {};
+  private globalCloseGuard: (() => boolean) | null = null;
   @State importing: boolean = false;
   @State activating: boolean = false;
   @State scanning: boolean = false;
@@ -937,7 +938,7 @@ export struct ProfilePage {
         }.alignItems(HorizontalAlign.Start).layoutWeight(1)
         SymbolGlyph($r('sys.symbol.chevron_right')).accessibilityLevel('no').fontSize(16).fontColor([UI.muted])
       }.padding(18).width('100%')
-    }.accessibilityText(p.name).accessibilitySelected(p.active).width('100%').constraintSize({ minHeight: 84 }).backgroundColor(UI.surface).borderRadius(24)
+    }.fontColor(UI.ink).accessibilityText(p.name).accessibilitySelected(p.active).width('100%').constraintSize({ minHeight: 84 }).backgroundColor(UI.surface).borderRadius(24)
       .onClick(() => {
         ProfileDetailBus.current = p.file;
         this.navStack.pushPath({ name: 'profileDetail' });
@@ -968,29 +969,30 @@ export struct ProfilePage {
           if (this.updateFeedback[p.file] !== undefined) {
             Text(this.updateFeedback[p.file]).fontSize(14).fontColor(UI.error).width('100%')
             if (p.active) {
-              Button(this.updatingFile === p.file ? UiText.get($r('app.string.profile_updating')) : UiText.get($r('app.string.profile_retry_auto'))).width('100%').constraintSize({ minHeight: 48 })
+              Button(this.updatingFile === p.file ? UiText.get($r('app.string.profile_updating')) : UiText.get($r('app.string.profile_retry_auto'))).backgroundColor(UI.soft).fontColor(UI.ink).width('100%').constraintSize({ minHeight: 48 })
                 .enabled(this.updatingFile.length === 0).onClick(() => { this.retryAutomatic(p); })
             }
           }
-          this.DetailAction(UiText.get($r('app.string.profile_templates')), () => { this.openTemplate(p.file); })
-          this.DetailAction(UiText.get($r('app.string.profile_nodes_groups')), () => { this.openProxyEditor(p.file); })
-          this.DetailAction(UiText.get($r('app.string.profile_rules_dns')), () => {
-            this.openRuleDns(p.file);
-          })
           if (!p.active) {
             Button(UiText.get($r('app.string.profile_enable'))).width('100%').constraintSize({ minHeight: 56 }).backgroundColor(UI.action).fontColor(UI.onAccent)
-              .onClick(() => this.activate(p))
+              .enabled(!this.activating && this.updatingFile.length === 0).onClick(() => this.activate(p))
           }
           if (this.isUrlProfile(p.file)) {
             Button(this.updatingFile === p.file ? UiText.get($r('app.string.profile_updating')) : UiText.get($r('app.string.profile_update')))
-              .width('100%').constraintSize({ minHeight: 56 }).backgroundColor(UI.action).fontColor(UI.onAccent).enabled(this.updatingFile.length === 0)
+              .width('100%').constraintSize({ minHeight: 56 }).backgroundColor(UI.soft).fontColor(UI.ink).enabled(!this.activating && this.updatingFile.length === 0)
               .onClick(() => this.updateProfile(p))
           }
-          Button(this.moreActions ? UiText.get($r('app.string.profile_less')) : UiText.get($r('app.string.profile_more')))
+          this.DetailAction(UiText.get($r('app.string.profile_templates')), () => { this.openTemplate(p.file); })
+          Button(this.moreActions ? UiText.get($r('app.string.profile_less')) : UiText.get($r('app.string.profile_more'))).backgroundColor(UI.soft).fontColor(UI.ink)
             .constraintSize({ minHeight: 48 }).width('100%')
             .accessibilityDescription(this.moreActions ? UiText.get($r('app.string.profile_expanded')) : UiText.get($r('app.string.profile_collapsed')))
             .onClick(() => { this.moreActions = !this.moreActions; })
           if (this.moreActions) {
+          this.DetailAction(UiText.get($r('app.string.profile_nodes_groups')), () => { this.openProxyEditor(p.file); })
+          this.DetailAction(UiText.get($r('app.string.profile_rules_dns')), () => {
+            this.openRuleDns(p.file);
+          })
+
           this.DetailAction(UiText.get($r('app.string.profile_original')), () => {
             ProfileEditBus.current = p.file;
             this.navStack.pushPath({ name: 'profileEdit' });
@@ -1003,13 +1005,6 @@ export struct ProfilePage {
             ProfileEditBus.current = p.file;
             this.navStack.pushPath({ name: 'profileGenerated' });
           })
-          if (this.savedRegion(p.file) !== null) {
-            this.DetailAction(UiText.get($r('app.string.profile_region_edit')), () => { this.editRegion(p.file); })
-            this.DetailAction(this.savedRegion(p.file)?.enable ? UiText.get($r('app.string.profile_region_disable')) :
-              UiText.get($r('app.string.profile_region_enable')), () => { this.toggleRegion(p.file); })
-          } else {
-            this.DetailAction(UiText.get($r('app.string.profile_region_create')), () => { this.editRegion(p.file); })
-          }
           this.DetailAction(UiText.get($r('app.string.profile_rename')), () => {
             this.renameTarget = p.file;
             this.renameInput = p.name;
@@ -1139,7 +1134,7 @@ export struct ProfilePage {
           this.renameInput = v;
         })
       Row({ space: 12 }) {
-        Button(UiText.get($r('app.string.profile_cancel')))
+        Button(UiText.get($r('app.string.profile_cancel'))).constraintSize({ minHeight: 48 })
           .layoutWeight(1)
           .backgroundColor(UI.soft)
           .fontColor(UI.ink)
@@ -1203,7 +1198,7 @@ export struct ProfilePage {
   SharedFileSheet() {
     Column({ space: 16 }) {
       Text(UiText.get($r('app.string.profile_import_file_title'))).fontSize(21).fontWeight(FontWeight.Bold).fontColor(UI.ink)
-      Button(this.importing ? UiText.get($r('app.string.profile_importing')) : UiText.get($r('app.string.profile_import'))).width('100%').constraintSize({ minHeight: 48 })
+      Button(this.importing ? UiText.get($r('app.string.profile_importing')) : UiText.get($r('app.string.profile_import'))).backgroundColor(UI.soft).fontColor(UI.ink).width('100%').constraintSize({ minHeight: 48 })
         .enabled(!this.importing).onClick(() => { this.importFile(this.sharedFileUri); })
       Button(UiText.get($r('app.string.profile_cancel'))).width('100%').constraintSize({ minHeight: 48 }).backgroundColor(UI.soft).fontColor(UI.ink)
         .onClick(() => {
@@ -1239,7 +1234,7 @@ export struct ProfilePage {
       Text(UiText.get($r('app.string.profile_region_risk')))
         .fontSize(13).fontColor(UI.muted)
       if (this.regionPreview !== null) {
-        Select(this.regionPreview.selectors.map((name: string) => new RegionSelectOption(name)))
+        Select(this.regionPreview.selectors.map((name: string) => new RegionSelectOption(name))).constraintSize({ minHeight: 48 }).backgroundColor(UI.soft).fontColor(UI.ink)
           .selected(this.regionPreview.selectors.indexOf(this.regionSelector))
           .value(this.regionSelector).width('100%')
           .onSelect(async (index: number) => {
@@ -1248,13 +1243,13 @@ export struct ProfilePage {
             try { await this.refreshRegionPreview(); } catch (_) { this.importError = UiText.get($r('app.string.profile_preview_failed')); }
           })
         Row({ space: 8 }) {
-          Button(UiText.get($r('app.string.profile_by_region'))).backgroundColor(this.regionMode === 'region' ? UI.action : UI.soft)
+          Button(UiText.get($r('app.string.profile_by_region'))).constraintSize({ minHeight: 48 }).backgroundColor(this.regionMode === 'region' ? UI.action : UI.soft)
             .fontColor(this.regionMode === 'region' ? UI.onAccent : UI.accentText)
             .onClick(() => { this.regionMode = 'region'; })
-          Button(UiText.get($r('app.string.profile_all_nodes'))).backgroundColor(this.regionMode === 'all' ? UI.action : UI.soft)
+          Button(UiText.get($r('app.string.profile_all_nodes'))).constraintSize({ minHeight: 48 }).backgroundColor(this.regionMode === 'all' ? UI.action : UI.soft)
             .fontColor(this.regionMode === 'all' ? UI.onAccent : UI.accentText)
             .onClick(() => { this.regionMode = 'all'; })
-          Button(UiText.get($r('app.string.profile_unchanged'))).backgroundColor(UI.soft).fontColor(UI.accentText)
+          Button(UiText.get($r('app.string.profile_unchanged'))).constraintSize({ minHeight: 48 }).backgroundColor(UI.soft).fontColor(UI.accentText)
             .onClick(() => {
           this.activationRequest++;
           this.showSheet = false; this.sheetMode = SHEET_NONE;
@@ -1263,7 +1258,7 @@ export struct ProfilePage {
         if (this.regionPreview.providerPending) {
           Text(UiText.get($r('app.string.profile_provider_wait')))
             .fontSize(13).fontColor(UI.error)
-          Button(UiText.get($r('app.string.profile_refresh_preview'))).backgroundColor(UI.soft).fontColor(UI.accentText)
+          Button(UiText.get($r('app.string.profile_refresh_preview'))).constraintSize({ minHeight: 48 }).backgroundColor(UI.soft).fontColor(UI.accentText)
             .onClick(async () => {
               try { await this.refreshRegionPreview(); this.importError = ''; }
               catch (_) { this.importError = UiText.get($r('app.string.profile_provider_pending')); }
@@ -1282,7 +1277,7 @@ export struct ProfilePage {
               Row({ space: 8 }) {
                 Text(node).fontSize(12).fontColor(UI.ink).layoutWeight(1)
                   .maxLines(1).textOverflow({ overflow: TextOverflow.Ellipsis })
-                Select(this.regionNames().map((name: string) => new RegionSelectOption(this.regionLabel(name))))
+                Select(this.regionNames().map((name: string) => new RegionSelectOption(this.regionLabel(name)))).constraintSize({ minHeight: 48 }).backgroundColor(UI.soft).fontColor(UI.ink)
                   .selected(this.regionNames().indexOf(this.regionPreview?.nodes[node] ?? '未知'))
                   .value(this.regionLabel(this.regionPreview?.nodes[node] ?? '未知')).width(104)
                   .accessibilityText(UiText.get($r('app.string.profile_node_region'), node))
@@ -1320,7 +1315,11 @@ export struct ProfilePage {
     else if (this.sheetMode === SHEET_PASTE) { this.PasteSheet() }
     else if (this.sheetMode === SHEET_REGION) { this.RegionSheet() }
     else if (this.sheetMode === SHEET_GLOBAL) {
-      GlobalMergeEditor({ onClose: () => { this.showSheet = false; } })
+      GlobalMergeEditor({ onClose: () => { this.showSheet = false; },
+        registerCloseGuard: (guard: () => boolean) => {
+          this.globalCloseGuard = guard;
+          return () => { if (this.globalCloseGuard === guard) { this.globalCloseGuard = null; } };
+        } })
     }
   }
 
@@ -1328,7 +1327,7 @@ export struct ProfilePage {
     Column({ space: 16 }) {
       if (this.recoveryNeeded) {
         Text(this.recoveryFailure === 'committed-pending' ? UiText.get($r('app.string.apply_feedback_committed')) : UiText.get($r('app.string.profile_uncertain'))).fontSize(14).fontColor(UI.error).width('100%')
-        Button(this.recovering ? UiText.get($r('app.string.profile_recovering')) : UiText.get($r('app.string.profile_recover'))).width('100%').constraintSize({ minHeight: 48 })
+        Button(this.recovering ? UiText.get($r('app.string.profile_recovering')) : UiText.get($r('app.string.profile_recover'))).backgroundColor(UI.soft).fontColor(UI.ink).width('100%').constraintSize({ minHeight: 48 })
           .enabled(!this.recovering).onClick(() => { this.confirmRecovery(); })
       }
       if (this.selectedFile.length > 0) {
@@ -1345,7 +1344,7 @@ export struct ProfilePage {
           Column({ space: 4 }) {
             Text(UiText.get($r('app.string.profile_global'))).fontSize(16).fontColor(UI.ink)
           }.alignItems(HorizontalAlign.Start).width('100%').padding({ left: 20, right: 20 })
-        }.width('100%').constraintSize({ minHeight: 64 }).backgroundColor(UI.soft).borderRadius(16)
+        }.fontColor(UI.ink).width('100%').constraintSize({ minHeight: 64 }).backgroundColor(UI.soft).borderRadius(16)
           .onClick(() => { this.sheetMode = SHEET_GLOBAL; this.showSheet = true; })
         if (this.profiles.length === 0) {
           Column({ space: 20 }) {
@@ -1378,7 +1377,11 @@ export struct ProfilePage {
           }
         },
         shouldDismiss: (dismiss: SheetDismiss) => {
-          if (this.sheetMode !== SHEET_GLOBAL && !this.importing && !this.activating && !this.regionBusy && !ProfileTransactions.isBusy()) {
+          if (this.sheetMode === SHEET_GLOBAL) {
+            if (this.globalCloseGuard?.() === true) { dismiss.dismiss(); }
+            return;
+          }
+          if (!this.importing && !this.activating && !this.regionBusy && !ProfileTransactions.isBusy()) {
             this.importGeneration++; this.importing = false; this.activationRequest++;
             dismiss.dismiss();
           }

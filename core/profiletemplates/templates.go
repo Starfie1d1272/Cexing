@@ -49,7 +49,7 @@ func (p Plan) Validate() error {
 			return errors.New("TEMPLATE_OPTIONS_INVALID")
 		}
 	case "region":
-		if p.Region == nil || p.Region.Disabled || !p.Region.Enable || p.Region.Mode != "region" || p.TargetGroup != "" || p.ReplaceRules {
+		if p.Region == nil || p.Region.Disabled || !p.Region.Enable || (p.Region.Mode != "region" && p.Region.Mode != "all") || p.TargetGroup != "" || p.ReplaceRules {
 			return errors.New("TEMPLATE_OPTIONS_INVALID")
 		}
 	case "ai", "automatic":

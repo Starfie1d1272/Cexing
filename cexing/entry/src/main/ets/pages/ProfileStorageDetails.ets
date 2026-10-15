@@ -37,14 +37,14 @@ export struct ProfileStorageDetails {
   }
   build() {
     Column({ space: 8 }) {
-      Button(this.expanded ? UiText.get($r('app.string.storage_collapse')) : UiText.get($r('app.string.storage_details'))).width('100%').constraintSize({ minHeight: 48 }).accessibilityDescription(this.expanded ? UiText.get($r('app.string.storage_expanded')) : UiText.get($r('app.string.storage_collapsed'))).onClick(() => {
+      Button(this.expanded ? UiText.get($r('app.string.storage_collapse')) : UiText.get($r('app.string.storage_details'))).backgroundColor(UI.soft).fontColor(UI.ink).width('100%').constraintSize({ minHeight: 48 }).accessibilityDescription(this.expanded ? UiText.get($r('app.string.storage_expanded')) : UiText.get($r('app.string.storage_collapsed'))).onClick(() => {
         this.expanded = !this.expanded;
         if (this.expanded) { this.refresh(); } else { this.generation++; this.working = false; }
       })
       if (this.expanded) {
         if (this.summary !== '') { Text(this.summary).fontSize(14).fontColor(UI.ink) }
         if (this.failure !== '') { Text(this.failure).fontSize(14).fontColor(UI.muted) }
-        Button(this.working ? UiText.get($r('app.string.storage_working')) : UiText.get($r('app.string.storage_refresh'))).width('100%').constraintSize({ minHeight: 48 }).enabled(!this.working).accessibilityDescription(this.working ? UiText.get($r('app.string.storage_working')) : '').onClick(() => this.refresh())
+        Button(this.working ? UiText.get($r('app.string.storage_working')) : UiText.get($r('app.string.storage_refresh'))).backgroundColor(UI.soft).fontColor(UI.ink).width('100%').constraintSize({ minHeight: 48 }).enabled(!this.working).accessibilityDescription(this.working ? UiText.get($r('app.string.storage_working')) : '').onClick(() => this.refresh())
       }
     }.width('100%').padding(14).backgroundColor(UI.surface).borderRadius(24)
   }

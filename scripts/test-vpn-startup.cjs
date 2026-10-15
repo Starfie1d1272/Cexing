@@ -41,6 +41,15 @@ function load(relative, modules, timers = [], clock = Date) {
   vm.runInNewContext(output, context);
   return context.exports;
 }
+const realSettings = load('lib/Settings.ets', { './BackupJournal': {}, '@kit.ArkData': {}, './Logger': logger });
+const {AppSettings,Settings} = realSettings;
+const baseline = new AppSettings();
+const equivalent = new AppSettings(); equivalent.accessMode='black'; equivalent.accessList=['test.bundle','test.bundle'];
+assert.equal(Settings.restartKey(baseline,'test.bundle'),Settings.restartKey(equivalent,'test.bundle'), 'all and empty effective exclusions are equal');
+equivalent.accessList=['other.app','sample.app','other.app','test.bundle'];
+const reordered = Object.assign(new AppSettings(),{accessMode:'black',accessList:['sample.app','other.app']});
+assert.equal(Settings.restartKey(equivalent,'test.bundle'),Settings.restartKey(reordered,'test.bundle'), 'order, duplicates and self do not change the effective system scope');
+reordered.accessMode='white';assert.notEqual(Settings.restartKey(equivalent,'test.bundle'),Settings.restartKey(reordered,'test.bundle'));
 async function testClient(mode, accessMode = 'all', accessList = [], ipv6 = false) {
   let cleared = 0;
   let callbacks;
@@ -50,7 +59,7 @@ async function testClient(mode, accessMode = 'all', accessList = [], ipv6 = fals
   let ready = false;
   let error = '';
   const timers = [];
-  const settings = { accessMode, accessList, ipv6, vpnWasConnected: false };
+  const settings = Object.assign(new realSettings.AppSettings(), { accessMode, accessList, ipv6, vpnWasConnected: false });
   const context = {
     filesDir: '/private', applicationInfo: { name: 'test.bundle' },
     connectServiceExtensionAbility: (want, value) => {
@@ -79,7 +88,7 @@ async function testClient(mode, accessMode = 'all', accessList = [], ipv6 = fals
     '@kit.CoreFileKit': { fileIo: { accessSync: () => stopReceipt.length > 0,
       readTextSync: () => stopReceipt } }, './Logger': logger,
     './ConnectionFailure': failureModule.exports, './VpnPhases': phaseModule.exports,
-    './CoreApi': { CoreApi: { bindContext() {} } }, './Settings': { Settings: { isLanPersistenceUncertain: () => false, idle: async () => {}, load: () => settings, save() {} } },
+    './CoreApi': { CoreApi: { bindContext() {} } }, './Settings': { Settings: { restartKey: realSettings.Settings.restartKey, isLanPersistenceUncertain: () => false, idle: async () => {}, load: () => settings, save() {} } },
     './ProfileStore': { ProfileStore: { clearApplyUncertain: () => { cleared++; } } },
     '@kit.IPCKit': { rpc: { MessageSequence: { create: () => ({values:[],writeString(value){this.values.push(value);},reclaim() {} }) }, MessageOption: class {} } }
   };
@@ -115,12 +124,22 @@ async function testClient(mode, accessMode = 'all', accessList = [], ipv6 = fals
   assert.equal(controller.getKernelReadyReported(), false);
   assert.equal(settings.vpnWasConnected, false);
   if (mode === 'ready') {
+    settings.logToFile = false; // saved after bind, before readiness
     ready = true;
     timers.shift()();
     await flush();
     assert.equal(controller.status, VpnStatus.Connected);
     assert.equal(controller.getKernelReadyReported(), true);
     assert.equal(settings.vpnWasConnected, true);
+    assert.equal(controller.settingsNeedReconnect(context), true, 'readiness acknowledges the sent snapshot, not later saved preferences');
+    settings.logToFile = true;
+    assert.equal(controller.settingsNeedReconnect(context), false, 'reverting clears the actual difference');
+    settings.keepAlive = false; settings.mode = 'global'; settings.autoRestore = false;
+    assert.equal(controller.settingsNeedReconnect(context), false, 'immediate preferences do not create a restart prompt');
+    settings.ipv6 = !ipv6;
+    assert.equal(controller.settingsNeedReconnect(context), true);
+    settings.ipv6 = ipv6;
+    assert.equal(controller.settingsNeedReconnect(context), false);
   } else if (mode === 'error') {
     error = failures.encode(session, failures.classify('core-start', 'synthetic config error: secret.example'));
     timers.shift()();
@@ -182,7 +201,7 @@ async function testExtension(failStop = false, lateCreate = false, protection = 
       if (brokenPointer) throw Error('synthetic invalid effective pointer');
       return null;
     } } },
-    '../lib/Settings': { Settings: { isLanPersistenceUncertain: () => false, idle: async () => {}, load: () => ({}) } }, '@kit.ArkTS': { util: {} }
+    '../lib/Settings': { Settings: { restartKey: realSettings.Settings.restartKey, isLanPersistenceUncertain: () => false, idle: async () => {}, load: () => ({}) } }, '@kit.ArkTS': { util: {} }
   };
   const Extension = load('vpnability/CexingVpnAbility.ets', modules).default;
   const extension = new Extension();
@@ -269,7 +288,7 @@ function testApplicationPolicy() {
   const modules = {
     '@kit.NetworkKit': {}, '@kit.CoreFileKit': {}, '@kit.IPCKit': {}, './Logger': logger,
     './ConnectionFailure': failureModule.exports, './VpnPhases': phaseModule.exports,
-    './CoreApi': {}, './Settings': { Settings: {isLanPersistenceUncertain: () => false, idle: async () => {}, load: () => ({accessMode:'white',accessList:[]})} }, './ProfileStore': {}
+    './CoreApi': {}, './Settings': { Settings: {restartKey: realSettings.Settings.restartKey, isLanPersistenceUncertain: () => false, idle: async () => {}, load: () => ({accessMode:'white',accessList:[]})} }, './ProfileStore': {}
   };
   const policy = load('lib/VpnController.ets', modules);
   const self = 'test.bundle';

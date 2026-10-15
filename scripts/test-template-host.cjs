@@ -14,14 +14,18 @@ const editor = {
   receipt = { revision: expected, digest: `digest-${revision}`, changes: { digest: `digest-${revision}`, changes: [{ section: 'rules', before: 1, after: 9 }] } }; return receipt; },
  apply: async checked => { assert.equal(checked, receipt); assert.equal(checked.revision, `ticket-${revision}`); calls.push('apply'); committed++; published = structuredClone(draft); return 'applied'; }
 };
-const modules = { './CoreValidator': require('./ci/semantic-fixture.cjs'), './EditorDraftHosts': { EditorDraftHosts: { create: () => editor } }, './ConfigEditor': { ConfigEditor: { switchTemplate: async (_ctx,intent,next,pause) => dependencies > 0 && !pause ? {dependentCount:dependencies} : ({intent:{...structuredClone(intent),template:next,disabled:next.templateId==='original'?intent.disabled:false},dependentCount:0}),
+const modules = { './ProfileTransactions': {ProfileTransactions:{previewRegion:async(_ctx,file,plan)=>{assert.equal(file,'one.yaml');assert.equal(plan.mode,'all');return {eligible:true,nodes:{one:'美国',two:'日本'},selectors:['Pick'],counts:{},unknown:0,providerPending:false};}}}, './CoreValidator': require('./ci/semantic-fixture.cjs'), './EditorDraftHosts': { EditorDraftHosts: { create: () => editor } }, './ConfigEditor': { ConfigEditor: { switchTemplate: async (_ctx,intent,next,pause) => dependencies > 0 && !pause ? {dependentCount:dependencies} : ({intent:{...structuredClone(intent),template:next,disabled:next.templateId==='original'?intent.disabled:false},dependentCount:0}),
   templatePlan: (templateId, version, targetGroup, region, replaceRules) => ({templateId, version, targetGroup, region, replaceRules}) } }, './EffectiveVersions': { EffectiveVersions: { read: () => ({ Profiles: { 'one.yaml': { ID: 'version-one' } } }),
  editIntent: () => structuredClone(published), regionPlan: () => null } } };
 const sandbox = { exports: {}, ...uiFixture.globals, require: name => { if (name.endsWith('/UiText')) return uiFixture.module; assert.ok(name in modules, name); return modules[name]; } };
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('cexing/entry/src/main/ets/lib/TemplateHost.ets', 'utf8')).outputText, sandbox);
 (async () => {
  const host = sandbox.exports.createTemplateWizardHost({ filesDir: '/private' }, 'one.yaml');
+ const regionPreview=await host.regionPreview({mode:'all',selector:'Pick',enable:false,assignments:{}});assert.equal(regionPreview.eligible,true);
  const inputs = await host.load(); assert.deepEqual(Array.from(inputs.groups), ['Pick']); assert.equal(inputs.current.templateId, 'original'); assert.equal(inputs.labels.Pick, 'Renamed Pick'); assert.deepEqual(Array.from(inputs.selectors), ['Pick']);
+ draft.template = {templateId:'ai',version:1,targetGroup:'Pick'}; draft.disabled=false;
+ const reopened = await host.load();
+ assert.equal(reopened.current.templateId,'ai'); assert.equal(reopened.published.templateId,'original', 'preview draft is never marked published');
  const plan = { templateId: 'ai', version: 1, targetGroup: 'Pick' };
  const preview = await host.preview(plan); assert.equal(preview.inactiveEdits, true);
  assert.equal(draft.operations.length, 1); assert.equal(draft.disabled, false); assert.equal(published.disabled, true); assert.equal(committed, 0);

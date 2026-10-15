@@ -16,8 +16,8 @@ import { ProfileEditPage, ProfileEditBus } from './ProfileEditPage';
 import { ProfileGeneratedPage } from './ProfileGeneratedPage';
 import { RuleDnsEditorPage } from './RuleDnsEditorPage';
 import { ProfileProxyEditorPage } from './ProfileProxyEditorPage';
-import { ProfileTemplatePage } from './ProfileTemplatePage';
-import { ProfileUpdatePage } from './ProfileUpdatePage';
+import { ProfileTemplatePage, ProfileTemplateBus } from './ProfileTemplatePage';
+import { ProfileUpdatePage, ProfileUpdateBus } from './ProfileUpdatePage';
 
 @Entry
 @Component
@@ -90,10 +90,12 @@ struct Index {
       NavDestination() { ProfilePage({ detailFile: ProfileDetailBus.current }) }.title(UiText.get($r('app.string.nav_profile_details')))
     } else if (name === 'profileTemplateUpdate') {
       NavDestination() { ProfileUpdatePage({ visible: this.templateUpdateVisible }) }.title($r('app.string.profile_update_title'))
+        .onBackPressed(() => ProfileUpdateBus.backGuard?.() ?? false)
         .onShown(() => { this.templateUpdateVisible = true; })
         .onHidden(() => { this.templateUpdateVisible = false; })
     } else if (name === 'profileTemplate') {
       NavDestination() { ProfileTemplatePage({ visible: this.templateVisible }) }.title($r('app.string.proxy_editor_template_title'))
+        .onBackPressed(() => ProfileTemplateBus.backGuard?.() ?? false)
         .onShown(() => { this.templateVisible = true; })
         .onHidden(() => { this.templateVisible = false; })
     } else if (name === 'profileProxyEditor') {

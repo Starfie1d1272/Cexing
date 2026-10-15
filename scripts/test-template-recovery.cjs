@@ -104,7 +104,7 @@ function make(Page){const p=new Page();p.profileId='one.yaml';p.tabJump=-1;p.clo
     candidate:{templateId:'ai',version:1,entries:[]},validation:{revision:'r',digest:'d',summary:''}};
    const model=new Model({load:async()=>({groups:[],selectors:[],current:{templateId:'original',version:1}}),
     preview:async()=>{previews++;return valid},apply:async()=>{applies++;throw Error(message)},label:()=>''},()=>{});
-   if(model.load)await model.load();await model[method]();await model.apply();
+   if(model.load){await model.load();model.choose('ai','Pick');}await model[method]();await model.apply();
    assert.equal(model.applyFailure,kind);assert.equal(model.preview,null);assert.ok(!model.error.includes('synthetic-token'));
    if(kind!=='failed'){await model[method]();await model.apply();assert.equal(previews,1);assert.equal(applies,1)}
   }

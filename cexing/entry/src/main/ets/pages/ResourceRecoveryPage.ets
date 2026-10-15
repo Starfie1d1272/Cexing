@@ -96,7 +96,7 @@ export struct ResourceRecoveryPage {
             Text(item.state === 'ready' ? UiText.get($r('app.string.resource_ready')) : item.state === 'missing' ? UiText.get($r('app.string.resource_missing')) : UiText.get($r('app.string.resource_invalid')))
               .fontSize(14).fontColor(UI.muted)
           }.alignItems(HorizontalAlign.Start).layoutWeight(1)
-          Button(UiText.get($r('app.string.action_restore'))).constraintSize({ minHeight: 44 })
+          Button(UiText.get($r('app.string.action_restore'))).backgroundColor(UI.soft).fontColor(UI.ink).constraintSize({ minHeight: 44 })
             .enabled(!this.busy && this.vpnStatus === VpnStatus.Disconnected && !this.stopUnknown)
             .accessibilityDescription(this.vpnStatus !== VpnStatus.Disconnected || this.stopUnknown ?
               UiText.get($r('app.string.a11y_restore_stopped')) : (this.busy ? UiText.get($r('app.string.action_working')) : ''))
@@ -107,7 +107,7 @@ export struct ResourceRecoveryPage {
       if (this.busy) { LoadingProgress().width(24).height(24) }
       if (this.message !== '') { Text(this.message).fontSize(14).fontColor(UI.muted) }
       if (this.resources.length === 0 && !this.busy) {
-        Button(UiText.get($r('app.string.action_retry'))).onClick(() => this.refresh())
+        Button(UiText.get($r('app.string.action_retry'))).constraintSize({ minHeight: 48 }).backgroundColor(UI.soft).fontColor(UI.ink).onClick(() => this.refresh())
       }
     }.width('100%').padding(20).backgroundColor(UI.paper)
     }.width('100%').height('100%').backgroundColor(UI.paper)

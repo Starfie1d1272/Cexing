@@ -116,8 +116,8 @@ export struct LocalBackupActions {
   }
   build() {
     Column({ space: 8 }) {
-      Button(UiText.get($r('app.string.backup_export'))).width('100%').constraintSize({ minHeight: 48 }).enabled(!this.working).accessibilityDescription(this.working ? UiText.get($r('app.string.backup_working')) : '').onClick(() => this.exportConfirm())
-      Button(UiText.get($r('app.string.backup_restore_local'))).width('100%').constraintSize({ minHeight: 48 }).enabled(!this.working).accessibilityDescription(this.working ? UiText.get($r('app.string.backup_working')) : '').onClick(() => this.importFile())
+      Button(UiText.get($r('app.string.backup_export'))).backgroundColor(UI.soft).fontColor(UI.ink).width('100%').constraintSize({ minHeight: 48 }).enabled(!this.working).accessibilityDescription(this.working ? UiText.get($r('app.string.backup_working')) : '').onClick(() => this.exportConfirm())
+      Button(UiText.get($r('app.string.backup_restore_local'))).backgroundColor(UI.soft).fontColor(UI.ink).width('100%').constraintSize({ minHeight: 48 }).enabled(!this.working).accessibilityDescription(this.working ? UiText.get($r('app.string.backup_working')) : '').onClick(() => this.importFile())
     }.enabled(!this.working).width('100%').padding(14).backgroundColor(UI.surface).borderRadius(24)
   }
 }

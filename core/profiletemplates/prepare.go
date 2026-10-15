@@ -90,6 +90,9 @@ func Prepare(ctx context.Context, root *yaml.Node, p Plan) (TemplateSnapshot, ma
 				codes = append(codes, code)
 			}
 		}
+		if p.Region.Mode == "all" {
+			codes = []string{"all"}
+		}
 		if len(codes) != len(members.Content) {
 			return TemplateSnapshot{}, nil, errors.New("TEMPLATE_CAPTURE_INVALID")
 		}
@@ -163,7 +166,7 @@ func CaptureEdited(ctx context.Context, root *yaml.Node, base TemplateSnapshot, 
 // Invert the already pinned CLDR display data to stable country IDs. This does
 // not classify nodes or duplicate RegionPlan; the existing preview owns that.
 var regionEntityIDs = func() map[string]string {
-	out := map[string]string{"香港": "region/hk", "台湾": "region/tw", "未知": "region/other"}
+	out := map[string]string{"all": "region/all", "香港": "region/hk", "台湾": "region/tw", "未知": "region/other"}
 	names := display.Regions(language.SimplifiedChinese)
 	for a := 'A'; a <= 'Z'; a++ {
 		for b := 'A'; b <= 'Z'; b++ {

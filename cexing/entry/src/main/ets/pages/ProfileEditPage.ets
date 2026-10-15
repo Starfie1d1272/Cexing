@@ -296,7 +296,7 @@ export struct ProfileEditPage {
       Text(UiText.get($r('app.string.original_merge'))).fontSize(17).fontWeight(FontWeight.Medium).fontColor(UI.ink)
       Text(UiText.get($r('app.string.original_scope')))
         .fontSize(13).fontColor(UI.muted).width('100%')
-      Button(UiText.get($r('app.string.editor_help'))).fontSize(13).backgroundColor(Color.Transparent).fontColor(UI.accentText)
+      Button(UiText.get($r('app.string.editor_help'))).constraintSize({ minHeight: 48 }).fontSize(13).backgroundColor(Color.Transparent).fontColor(UI.accentText)
         .onClick(() => {
           AlertDialog.show({ title: UiText.get($r('app.string.original_merge')),
             message: UiText.get($r('app.string.original_merge_help')),
@@ -319,14 +319,12 @@ export struct ProfileEditPage {
           .width('100%').constraintSize({ maxHeight: 120 }).scrollBar(BarState.Auto)
       }
       if (this.mergeCommittedPending) {
-        Button(UiText.get($r('app.string.merge_open_connection'))).constraintSize({ minHeight: 44 }).width('100%')
+        Button(UiText.get($r('app.string.merge_open_connection'))).backgroundColor(UI.soft).fontColor(UI.ink).constraintSize({ minHeight: 44 }).width('100%')
           .enabled(!this.mergeBusy).onClick(() => this.recoverCommittedMerge())
       }
       Row({ space: 12 }) {
-        Button(UiText.get($r('app.string.editor_close'))).constraintSize({ minHeight: 44 }).layoutWeight(1).backgroundColor(UI.soft).fontColor(UI.ink)
-          .enabled(!this.mergeBusy).onClick(() => { this.closeMerge(); })
         Button(this.mergeBusy ? UiText.get($r('app.string.original_previewing')) : UiText.get($r('app.string.editor_preview')))
-          .constraintSize({ minHeight: 44 }).layoutWeight(1).backgroundColor(UI.action).fontColor(UI.onAccent)
+          .constraintSize({ minHeight: 44 }).layoutWeight(1).backgroundColor(UI.soft).fontColor(UI.ink)
           .enabled(!this.mergeBusy && !this.mergeLoadFailed && !this.dirty && !this.mergeCommittedPending).onClick(() => { this.previewMerge(); })
       }.width('100%')
       Button(this.mergeBusy ? UiText.get($r('app.string.editor_working')) : UiText.get($r('app.string.original_apply_merge')))
@@ -426,10 +424,10 @@ export struct ProfileEditPage {
         }, (revision: number) => revision.toString())
       }
 
-      Button(UiText.get($r('app.string.editor_help'))).constraintSize({ minHeight: 44 }).onClick(() => this.saveHelp())
+      Button(UiText.get($r('app.string.editor_help'))).backgroundColor(UI.soft).fontColor(UI.ink).constraintSize({ minHeight: 44 }).onClick(() => this.saveHelp())
       Row({ space: 12 }) {
         if (this.dirty) {
-          Button(UiText.get($r('app.string.original_discard'))).constraintSize({ minHeight: 48 }).layoutWeight(1).backgroundColor(UI.soft).fontColor(UI.error)
+          Button(UiText.get($r('app.string.original_discard'))).constraintSize({ minHeight: 48 }).layoutWeight(1).backgroundColor(Color.Transparent).fontColor(UI.error)
             .enabled(!this.saving).onClick(() => this.discardDraft())
         }
         Button(this.saving ? UiText.get($r('app.string.original_saving')) : UiText.get($r('app.string.original_save')))
@@ -442,7 +440,8 @@ export struct ProfileEditPage {
     .padding({ left: 24, right: 24 })
     .backgroundColor(UI.paper).constraintSize({ maxWidth: 760 }).alignSelf(ItemAlign.Center)
     .bindSheet($$this.showSaveAsSheet, this.SaveAsSheet(), { height: SheetSize.MEDIUM })
-    .bindSheet($$this.showMergeSheet, this.MergeSheet(), { height: SheetSize.LARGE })
+    .bindSheet($$this.showMergeSheet, this.MergeSheet(), { height: SheetSize.LARGE,
+      shouldDismiss: (dismiss: SheetDismiss) => { if (!this.mergeBusy && this.persistMergeDraft()) { dismiss.dismiss(); } } })
     }
   }
 }

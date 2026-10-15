@@ -3,7 +3,10 @@ import { EditorDraftHost } from '../lib/ConfigEditor';
 import { EditorDraftHosts } from '../lib/EditorDraftHosts';
 import { TemplateWizard } from './TemplateWizard';
 
-export class ProfileTemplateBus { static file: string = ''; }
+export class ProfileTemplateBus {
+  static file: string = '';
+  static backGuard: (() => boolean) | null = null;
+}
 
 /** A host belongs to one visible navigation session, never the selected tab. */
 @Component
@@ -31,7 +34,7 @@ export struct ProfileTemplatePage {
 
   build() {
     if (this.ready && this.editor !== undefined) {
-      TemplateWizard({ profileId: this.file, editor: this.editor, onClose: () => {
+      TemplateWizard({ registerBackGuard: (guard: (() => boolean) | null) => { ProfileTemplateBus.backGuard = guard; }, profileId: this.file, editor: this.editor, onClose: () => {
         if (this.visible) { this.navStack.pop(); }
       } })
     }

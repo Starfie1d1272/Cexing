@@ -156,7 +156,7 @@ export struct ProxyMappingFormPage {
             .onChange((value: boolean) => { this.form.setFlag('tls', value); })
         }.width('100%')
       }
-      Select(this.transportTypes().map((value: string) => new ProxyFormOption(value)))
+      Select(this.transportTypes().map((value: string) => new ProxyFormOption(value))).constraintSize({ minHeight: 48 }).backgroundColor(UI.soft).fontColor(UI.ink)
         .accessibilityText($r('app.string.proxy_form_transport')).value(this.transport || 'tcp').enabled(!this.submitting).onSelect((_, value: string) => {
           this.transport = value; this.form.setText('network', value);
         })
@@ -193,23 +193,23 @@ export struct ProxyMappingFormPage {
     ForEach(this.members, (name: string, index: number) => {
       Row({ space: 8 }) {
         Text(name).fontSize(14).fontColor(UI.ink).layoutWeight(1)
-        Button($r('app.string.proxy_form_move_up')).constraintSize({ minHeight: 44 }).accessibilityText(this.t('proxy_form_move_up_member', name)).enabled(index > 0).onClick(() => { this.moveMember(index, -1); })
-        Button($r('app.string.proxy_form_move_down')).constraintSize({ minHeight: 44 }).accessibilityText(this.t('proxy_form_move_down_member', name)).enabled(index < this.members.length - 1).onClick(() => { this.moveMember(index, 1); })
-        Button($r('app.string.proxy_form_remove')).constraintSize({ minHeight: 44 }).accessibilityText(this.t('proxy_form_remove_member', name)).onClick(() => { this.members = this.members.filter((_, i: number) => i !== index); })
+        Button($r('app.string.proxy_form_move_up')).backgroundColor(UI.soft).fontColor(UI.ink).constraintSize({ minHeight: 44 }).accessibilityText(this.t('proxy_form_move_up_member', name)).enabled(index > 0).onClick(() => { this.moveMember(index, -1); })
+        Button($r('app.string.proxy_form_move_down')).backgroundColor(UI.soft).fontColor(UI.ink).constraintSize({ minHeight: 44 }).accessibilityText(this.t('proxy_form_move_down_member', name)).enabled(index < this.members.length - 1).onClick(() => { this.moveMember(index, 1); })
+        Button($r('app.string.proxy_form_remove')).backgroundColor(Color.Transparent).fontColor(UI.error).constraintSize({ minHeight: 44 }).accessibilityText(this.t('proxy_form_remove_member', name)).onClick(() => { this.members = this.members.filter((_, i: number) => i !== index); })
       }.width('100%')
     }, (name: string) => name)
     Select(this.names.concat(['DIRECT', 'REJECT']).filter((name: string) =>
-      name !== this.form.text('name') && !this.members.includes(name)).map((name: string) => new ProxyFormOption(name)))
+      name !== this.form.text('name') && !this.members.includes(name)).map((name: string) => new ProxyFormOption(name))).constraintSize({ minHeight: 48 }).backgroundColor(UI.soft).fontColor(UI.ink)
       .value(this.t('proxy_form_add_member')).onSelect((_, name: string) => { this.members = this.members.concat([name]); })
     Text($r('app.string.proxy_editor_sources')).fontSize(15).fontColor(UI.ink).width('100%')
     ForEach(this.providers, (name: string) => {
       Row() {
         Text(name).fontSize(14).fontColor(UI.ink).layoutWeight(1)
-        Button($r('app.string.proxy_form_remove')).constraintSize({ minHeight: 44 }).accessibilityText(this.t('proxy_form_remove_member', name)).onClick(() => { this.providers = this.providers.filter((value: string) => value !== name); })
+        Button($r('app.string.proxy_form_remove')).backgroundColor(Color.Transparent).fontColor(UI.error).constraintSize({ minHeight: 44 }).accessibilityText(this.t('proxy_form_remove_member', name)).onClick(() => { this.providers = this.providers.filter((value: string) => value !== name); })
       }.width('100%')
     }, (name: string) => name)
     Select(this.providerNames.filter((name: string) => !this.providers.includes(name))
-      .map((name: string) => new ProxyFormOption(name))).value(this.t('proxy_form_add_source'))
+      .map((name: string) => new ProxyFormOption(name))).constraintSize({ minHeight: 48 }).backgroundColor(UI.soft).fontColor(UI.ink).value(this.t('proxy_form_add_source'))
       .onSelect((_, name: string) => { this.providers = this.providers.concat([name]); })
     if (this.type !== 'select') {
       this.Field(this.t('proxy_form_check_url'), 'url')
@@ -233,11 +233,11 @@ export struct ProxyMappingFormPage {
               if (this.linkOpen) {
                 TextInput({ text: this.nodeLink, placeholder: this.t('proxy_form_node_link') }).type(InputType.Password).maxLength(8192)
                   .onChange((value: string) => { this.nodeLink = value; })
-                Button($r('app.string.proxy_form_read')).constraintSize({ minHeight: 44 }).onClick(() => { this.importLink(); })
+                Button($r('app.string.proxy_form_read')).backgroundColor(UI.soft).fontColor(UI.ink).constraintSize({ minHeight: 44 }).onClick(() => { this.importLink(); })
               }
             }
             this.Field(this.t('proxy_form_name'), 'name')
-            Select(this.types().map((value: string) => new ProxyFormOption(value))).accessibilityText($r('app.string.proxy_form_type')).value(this.type)
+            Select(this.types().map((value: string) => new ProxyFormOption(value))).constraintSize({ minHeight: 48 }).backgroundColor(UI.soft).fontColor(UI.ink).accessibilityText($r('app.string.proxy_form_type')).value(this.type)
               .onSelect((_, value: string) => { this.type = value; this.form.setText('type', value); })
             if (this.section === 'proxies') {
               if (['ss', 'vmess', 'vless', 'trojan'].includes(this.type)) { this.NodeFields() }
@@ -256,7 +256,7 @@ export struct ProxyMappingFormPage {
       }
       if (this.error.length > 0) { Text(this.error).fontSize(14).fontColor(UI.error).width('100%') }
       if (this.loadFailed) {
-        Button($r('app.string.proxy_form_open_original')).constraintSize({ minHeight: 44 }).enabled(!this.busy && !this.submitting)
+        Button($r('app.string.proxy_form_open_original')).backgroundColor(UI.soft).fontColor(UI.ink).constraintSize({ minHeight: 44 }).enabled(!this.busy && !this.submitting)
           .onClick(() => { this.onOriginal(); })
       }
       Row({ space: 12 }) {

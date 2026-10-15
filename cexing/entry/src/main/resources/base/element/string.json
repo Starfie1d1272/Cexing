@@ -94,7 +94,7 @@
     },
     {
       "name": "nav_resources",
-      "value": "Resources"
+      "value": "Repair resources"
     },
     {
       "name": "nav_panel",
@@ -1102,7 +1102,7 @@
     },
     {
       "name": "network_saved",
-      "value": "Saved for next VPN start"
+      "value": "Saved"
     },
     {
       "name": "network_invalid_package",
@@ -1662,7 +1662,7 @@
     },
     {
       "name": "template_auto_scope",
-      "value": "Local networks connect directly. Other traffic uses the selected exit."
+      "value": "Local networks connect directly; all other traffic uses the selected exit. This replaces subscription rules."
     },
     {
       "name": "template_replace_title",
@@ -1686,7 +1686,7 @@
     },
     {
       "name": "template_title",
-      "value": "Routing templates"
+      "value": "Routing plan"
     },
     {
       "name": "template_back",
@@ -1698,19 +1698,19 @@
     },
     {
       "name": "template_original",
-      "value": "No template"
+      "value": "Subscription default"
     },
     {
       "name": "template_region",
-      "value": "Smart selection by region"
+      "value": "Region groups"
     },
     {
       "name": "template_ai",
-      "value": "Dedicated AI exit"
+      "value": "AI exit"
     },
     {
       "name": "template_automatic",
-      "value": "Automatic routing"
+      "value": "Basic routing"
     },
     {
       "name": "template_selector",
@@ -1786,7 +1786,7 @@
     },
     {
       "name": "template_apply_failed",
-      "value": "Apply failed. Preview again before retrying."
+      "value": "Apply failed. The new plan is not active. Try again."
     },
     {
       "name": "template_compare_failed",
@@ -2874,11 +2874,11 @@
     },
     {
       "name": "profile_templates",
-      "value": "Routing templates"
+      "value": "Routing plan"
     },
     {
       "name": "profile_nodes_groups",
-      "value": "Nodes and proxy groups"
+      "value": "Edit nodes & groups"
     },
     {
       "name": "profile_rules_dns",
@@ -3150,11 +3150,11 @@
     },
     {
       "name": "profile_more",
-      "value": "More actions"
+      "value": "Advanced editing"
     },
     {
       "name": "profile_less",
-      "value": "Fewer actions"
+      "value": "Collapse advanced editing"
     },
     {
       "name": "profile_expanded",
@@ -3943,6 +3943,34 @@
     {
       "name": "template_pause_dependents",
       "value": "Pause together"
+    },
+    {
+      "name": "template_published",
+      "value": "Current plan"
+    },
+    {
+      "name": "template_view_changes",
+      "value": "View changes"
+    },
+    {
+      "name": "home_panel_actions",
+      "value": "Nodes · policies · latency tests"
+    },
+    {
+      "name": "diag_offline",
+      "value": "Not connected"
+    },
+    {
+      "name": "diag_repair_resources",
+      "value": "Repair resources"
+    },
+    {
+      "name": "template_region_scope",
+      "value": "Keeps subscription rules and adds region choices for the panel; regions are inferred from node names."
+    },
+    {
+      "name": "template_region_advanced",
+      "value": "Region adjustments"
     }
   ]
 }

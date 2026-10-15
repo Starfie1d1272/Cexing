@@ -175,6 +175,37 @@ export namespace VpnController {
   let collectingNative: boolean = false;
   let nativeGapReported: boolean = false;
 
+  let pendingSettings: string = '';
+  let appliedSettings: string = '';
+  const APPLIED_SETTINGS_FILE = 'session-applied-settings.json';
+
+  /** This records what was sent to this session, never the settings at callback
+   * time. An accepted start or an unconfirmed reconnect cannot acknowledge it. */
+  function acknowledgeSettings(context: common.Context): void {
+    appliedSettings = pendingSettings;
+    if (appliedSettings.length === 0) { return; }
+    try {
+      const path = `${context.filesDir}/${APPLIED_SETTINGS_FILE}`;
+      const file = fileIo.openSync(`${path}.pending`, fileIo.OpenMode.WRITE_ONLY | fileIo.OpenMode.CREATE | fileIo.OpenMode.TRUNC);
+      try { fileIo.writeSync(file.fd, JSON.stringify({ session: startSession, key: appliedSettings })); }
+      finally { fileIo.closeSync(file); }
+      fileIo.moveFileSync(`${path}.pending`, path);
+    } catch (_) { Logger.warn(TAG, 'applied settings receipt unavailable'); }
+  }
+  function recoverSettings(context: common.Context): void {
+    appliedSettings = '';
+    try {
+      const text = fileIo.readTextSync(`${context.filesDir}/${APPLIED_SETTINGS_FILE}`);
+      if (text.length > 32768) { return; }
+      const saved = JSON.parse(text) as Record<string, string>;
+      if (saved['session'] === startSession && typeof saved['key'] === 'string') { appliedSettings = saved['key']; }
+    } catch (_) {}
+  }
+  export function settingsNeedReconnect(context: common.UIAbilityContext): boolean {
+    return status === VpnStatus.Connected && appliedSettings.length > 0 &&
+      Settings.restartKey(Settings.load(context), context.applicationInfo.name) !== appliedSettings;
+  }
+
   /** Identity verified by the extension, never inferred from cumulative values. */
   export function trafficSession(): string { return startSession; }
 
@@ -345,6 +376,7 @@ export namespace VpnController {
               lastStartFailure = null;
               lastStartError = '';
               confirmed = true;
+              recoverSettings(context);
               setStatus(VpnStatus.Connected);
             }
           } catch (_) {}
@@ -506,6 +538,7 @@ export namespace VpnController {
       return false;
     }
     cancelRecovery();
+    pendingSettings = ''; appliedSettings = '';
     lastStopCompleted = null;
     lastStartError = '';
     lastStartFailure = null;
@@ -571,6 +604,7 @@ export namespace VpnController {
     if (applications.trustedApplications !== undefined) {
       vpnConfig.trustedApplications = applications.trustedApplications;
     } else { vpnConfig.blockedApplications = applications.blockedApplications; }
+    pendingSettings = Settings.restartKey(s, context.applicationInfo.name);
     const hostSettings = JSON.stringify({ mixedPort: s.mixedPort, logLevel: s.logLevel,
       allowLan: s.allowLan, mode: s.mode, logToFile: s.logToFile });
     const params: Record<string, Object> = { 'VPN_CONFIG': vpnConfig, 'SESSION_ID': startSession,
@@ -671,6 +705,7 @@ export namespace VpnController {
         kernelReadyReported = true;
         lastStartError = '';
         lastStartFailure = null;
+        acknowledgeSettings(context);
         setStatus(VpnStatus.Connected);
         const settings = Settings.load(context);
         settings.vpnWasConnected = true;

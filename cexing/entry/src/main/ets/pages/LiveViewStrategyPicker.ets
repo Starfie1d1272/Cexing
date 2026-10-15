@@ -82,7 +82,7 @@ export struct LiveViewStrategyPicker {
         .backgroundColor(UI.soft).fontColor(UI.accentText).onClick(() => this.open())
       if (this.editing) {
         if (this.groups.length > 0) {
-          Select(([{ value: UiText.get($r('app.string.strategy_auto')) }] as SelectOption[]).concat(this.groups.map((name: string): SelectOption => ({ value: name }))))
+          Select(([{ value: UiText.get($r('app.string.strategy_auto')) }] as SelectOption[]).concat(this.groups.map((name: string): SelectOption => ({ value: name })))).constraintSize({ minHeight: 48 }).backgroundColor(UI.soft).fontColor(UI.ink)
             .selected(this.selectedIndex()).value(this.draft.length > 0 ? this.draft : UiText.get($r('app.string.strategy_auto')))
             .enabled(!this.busy).accessibilityText(UiText.get($r('app.string.strategy_display')))
             .onSelect((index: number) => {
