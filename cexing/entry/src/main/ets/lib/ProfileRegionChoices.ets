@@ -4,7 +4,7 @@ import { ConfigEditor, EditIntent } from './ConfigEditor';
 import { isEditOperationActive } from './EditOperationScope';
 import { EffectiveVersions, EffectiveVersion, RegionPlan } from './EffectiveVersions';
 import { ProfileStore } from './ProfileStore';
-import { CoreApi } from './CoreApi';
+import { CoreApi, ProxyInfo } from './CoreApi';
 import { RegionChoiceState, RegionChoiceTransition, RegionChoicePort, RegionChoiceGroup,
   prepareRegionChoice, committedRegionChoice, resumeRegionChoice } from './TemplateRegionEffects';
 
@@ -103,7 +103,8 @@ export namespace ProfileRegionChoices {
     try {
       const names = await aliases(context, version);
       const observing = live && ProfileStore.getActiveFile(context) === file;
-      const groups = observing ? await CoreApi.getProxies() ?? {} : {};
+      let groups: Record<string, ProxyInfo> = {};
+      if (observing) { groups = await CoreApi.getProxies() ?? {}; }
       const saved = read(context, file, version, before);
       try {
         return prepareRegionChoice(before, after, logicalState(saved, names), logicalGroups(groups, names));
