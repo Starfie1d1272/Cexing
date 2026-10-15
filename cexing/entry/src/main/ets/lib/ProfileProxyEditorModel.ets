@@ -241,15 +241,15 @@ export class ProfileProxyEditorModel {
     if (this.busy || this.ticket === null || this.preview === null || this.editor === null || this.confirmed === null) { return null; }
     const request = ++this.generation;
     const ticket = this.ticket;
-    this.check(ticket);
     this.busy = true;
     try {
+      this.check(ticket);
       const result = await this.editor.apply(this.confirmed);
       if (result !== 'applied' && result !== 'saved') { throw new Error('应用结果未确认'); }
       if (request !== this.generation) { return null; }
       this.preview = null; this.editor = null; this.confirmed = null;
       this.history = [];
       return result;
-    } finally { this.busy = false; }
+    } finally { this.preview = null; this.editor = null; this.confirmed = null; this.busy = false; }
   }
 }
