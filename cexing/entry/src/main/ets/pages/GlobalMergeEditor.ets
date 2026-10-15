@@ -1,3 +1,4 @@
+import { UiText } from '../lib/UiText';
 import { common } from '@kit.AbilityKit';
 import { promptAction } from '@kit.ArkUI';
 import { NativeTheme as UI } from './NativeTheme';
@@ -39,7 +40,7 @@ export struct GlobalMergeEditor {
       GlobalMergeDraft.save(getContext(this) as common.UIAbilityContext, this.editedText);
       this.dirty = false;
       return true;
-    } catch (_) { this.toast('草稿保存失败，内容仍在编辑器中'); return false; }
+    } catch (_) { this.toast(UiText.get($r('app.string.editor_draft_failed'))); return false; }
   }
 
   private changeText(value: string): void {
@@ -60,8 +61,8 @@ export struct GlobalMergeEditor {
       const result = await ProfileTransactions.previewGlobalMerge(
         getContext(this) as common.UIAbilityContext, this.editedText);
       this.summary = result.changes.map((change: MergeChange) =>
-        `${change.section}: ${change.before} → ${change.after}`).join(' · ') || '配置内容无统计差异';
-    } catch (e) { this.summary = (e as Error).message ?? '覆写预览失败'; }
+        `${change.section}: ${change.before} → ${change.after}`).join(' · ') || UiText.get($r('app.string.editor_no_diff'));
+    } catch (e) { this.summary = this.safeFailure(e, $r('app.string.editor_preview_failed')); }
     finally { this.busy = false; }
   }
 
@@ -73,42 +74,50 @@ export struct GlobalMergeEditor {
         getContext(this) as common.UIAbilityContext, this.editedText);
       this.globalEnabled = this.editedText.length > 0;
       this.profileRevision++;
-      this.toast(result === 'applied' ? '全局覆写已应用' : '全局覆写已保存，启动后生效');
-      this.summary = '其他订阅会在启用或更新时重新校验并应用。';
-    } catch (e) { this.summary = (e as Error).message ?? '应用失败，保留原有效配置'; }
+      this.toast(result === 'applied' ? UiText.get($r('app.string.editor_global_applied')) : UiText.get($r('app.string.editor_global_saved')));
+      this.summary = UiText.get($r('app.string.editor_other_profiles'));
+    } catch (e) { this.summary = this.safeFailure(e, $r('app.string.editor_apply_failed')); }
     finally { this.busy = false; }
+  }
+
+  private safeFailure(error: Object, fallback: Resource): string {
+    const message = (error as Error).message ?? '';
+    if (message.startsWith('请先启用订阅')) { return UiText.get($r('app.string.editor_enable_first')); }
+    return message.includes('未确认') || message.includes('结果未知') ? UiText.get($r('app.string.editor_unknown')) : UiText.get(fallback);
+  }
+
+  private help(): void {
+    AlertDialog.show({ title: UiText.get($r('app.string.editor_global')),
+      message: UiText.get($r('app.string.editor_global_scope')) + '\n' +
+        UiText.get($r('app.string.editor_global_help')) + '\n' + UiText.get($r('app.string.editor_list_help')),
+      primaryButton: { value: UiText.get($r('app.string.editor_got_it')), action: () => {} } });
   }
 
   build() {
     Column({ space: 12 }) {
-      Text('全局覆写').fontSize(22).fontWeight(FontWeight.Bold).fontColor(UI.ink)
-      Text(this.globalEnabled ? '已启用' : '未启用')
+      Text(UiText.get($r('app.string.editor_global'))).fontSize(22).fontWeight(FontWeight.Bold).fontColor(UI.ink)
+      Text(this.globalEnabled ? UiText.get($r('app.string.editor_enabled')) : UiText.get($r('app.string.editor_disabled')))
         .fontSize(13).fontColor(UI.accentText)
-      Text('为所有订阅设置通用配置，单个订阅的覆写优先。')
-        .fontSize(13).fontColor(UI.muted)
-      Text('预览查看当前订阅的变化，应用后生效。清空内容并应用可停用。')
-        .fontSize(13).fontColor(UI.muted)
-      Text('填写规则或策略组列表时，会替换订阅中的对应列表。')
-        .fontSize(13).fontColor(UI.muted)
+      Button(UiText.get($r('app.string.editor_help'))).constraintSize({ minHeight: 44 }).onClick(() => this.help())
       if (this.loadFailed) {
-        Text('现有覆写或草稿读取失败，已阻止覆盖').fontSize(13).fontColor(UI.error)
+        Text(UiText.get($r('app.string.editor_read_blocked'))).fontSize(13).fontColor(UI.error)
       }
-      TextArea({ text: $$this.editedText, placeholder: '输入 YAML 覆写配置' })
+      TextArea({ text: $$this.editedText, placeholder: UiText.get($r('app.string.editor_yaml_placeholder')) })
         .width('100%').layoutWeight(1).fontSize(14).fontFamily('HarmonyOS Sans Mono')
-        .backgroundColor(UI.paper).borderRadius(12).padding(12)
-        .enabled(!this.busy && !this.loadFailed).onChange((value: string) => this.changeText(value))
+        .backgroundColor(UI.paper).borderRadius(12).padding(12).accessibilityText(UiText.get($r('app.string.editor_global')))
+        .accessibilityDescription(this.loadFailed ? UiText.get($r('app.string.editor_read_blocked')) : (this.busy ? UiText.get($r('app.string.editor_working')) : '')).enabled(!this.busy && !this.loadFailed).onChange((value: string) => this.changeText(value))
       if (this.summary.length > 0) { Text(this.summary).fontSize(13).fontColor(UI.muted).maxLines(4) }
       Row({ space: 8 }) {
-        Button('关闭').layoutWeight(1).height(44).backgroundColor(UI.soft).fontColor(UI.ink)
+        Button(UiText.get($r('app.string.editor_close'))).layoutWeight(1).constraintSize({ minHeight: 44 }).backgroundColor(UI.soft).fontColor(UI.ink)
           .enabled(!this.busy).onClick(() => this.close())
-        Button('保存草稿').layoutWeight(1).height(44).backgroundColor(UI.soft).fontColor(UI.ink)
-          .enabled(!this.busy && !this.loadFailed).onClick(() => { if (this.saveDraft()) { this.toast('草稿已保存'); } })
-        Button('预览').layoutWeight(1).height(44).backgroundColor(UI.soft).fontColor(UI.ink)
-          .enabled(!this.busy && !this.loadFailed).onClick(() => this.preview())
+        Button(UiText.get($r('app.string.editor_save_draft'))).layoutWeight(1).constraintSize({ minHeight: 44 }).backgroundColor(UI.soft).fontColor(UI.ink)
+          .accessibilityDescription(this.loadFailed ? UiText.get($r('app.string.editor_read_blocked')) : (this.busy ? UiText.get($r('app.string.editor_working')) : '')).enabled(!this.busy && !this.loadFailed).onClick(() => { if (this.saveDraft()) { this.toast(UiText.get($r('app.string.editor_draft_saved'))); } })
+        Button(UiText.get($r('app.string.editor_preview'))).layoutWeight(1).constraintSize({ minHeight: 44 }).backgroundColor(UI.soft).fontColor(UI.ink)
+          .accessibilityDescription(this.loadFailed ? UiText.get($r('app.string.editor_read_blocked')) : (this.busy ? UiText.get($r('app.string.editor_working')) : '')).enabled(!this.busy && !this.loadFailed).onClick(() => this.preview())
       }.width('100%')
-      Button(this.busy ? '处理中' : '应用全局覆写').width('100%').height(48)
+      Button(this.busy ? UiText.get($r('app.string.editor_working')) : UiText.get($r('app.string.editor_apply_global'))).width('100%').constraintSize({ minHeight: 48 })
         .backgroundColor(UI.action).fontColor(UI.onAccent)
-        .enabled(!this.busy && !this.loadFailed).onClick(() => this.apply())
+        .accessibilityDescription(this.loadFailed ? UiText.get($r('app.string.editor_read_blocked')) : (this.busy ? UiText.get($r('app.string.editor_working')) : '')).enabled(!this.busy && !this.loadFailed).onClick(() => this.apply())
     }.width('100%').height('100%').padding(20).backgroundColor(UI.surface)
   }
 }

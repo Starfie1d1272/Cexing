@@ -1,3 +1,4 @@
+const uiFixture = require('./ci/ui-fixtures.cjs');
 // Real ArkTS bridge/transaction/editor methods, with synthetic core responses.
 // The Go regression separately executes the real compiler, validator and FileStore.
 const assert = require('node:assert/strict');
@@ -56,7 +57,8 @@ function compile(file, page = false) {
   if (page) src = src.slice(0, src.indexOf('  build()')) + '\n}';
   src = src.split('\n').map(line => line.trimStart().startsWith('@') ? line.replace(/@\w+(?:\([^\n)]*\))?\s*/g, '') : line).join('\n').replace(/export struct /g, 'export class ');
   const sandbox = { exports: {}, getContext: () => ctx, require: n => { assert.ok(n in modules, n); return modules[n]; } };
-  vm.runInNewContext(ts.transpileModule(src, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, sandbox);
+  Object.assign(sandbox, uiFixture.globals); modules['../lib/UiText'] = uiFixture.module;
+vm.runInNewContext(ts.transpileModule(src, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, sandbox);
   return sandbox.exports;
 }
 const versions = compile('lib/EffectiveVersions.ets').EffectiveVersions;
@@ -83,6 +85,8 @@ const Editor = compile('pages/GlobalMergeEditor.ets', true).GlobalMergeEditor;
 (async () => {
   const noProfile = new Editor(); noProfile.aboutToAppear(); noProfile.changeText('keep draft');
   await noProfile.preview(); assert.match(noProfile.summary, /请先启用/);
+  assert.match(noProfile.safeFailure(Error('版本发布结果未知，请断开 VPN 后检查'), {id:'app.string.editor_apply_failed'}), /未确认.*断开/);
+  assert.equal(noProfile.safeFailure(Error('https://private.invalid/?token=synthetic'), {id:'app.string.editor_apply_failed'}), '应用未完成，请重试');
   assert.equal(draft.read(ctx), 'keep draft'); assert.equal(state.Current, null);
   await assert.rejects(tx.applyGlobalMerge(ctx, 'new'), /请先启用/);
   await tx.activate(ctx, 'one.yaml');

@@ -1,3 +1,4 @@
+const uiFixture = require('./ci/ui-fixtures.cjs');
 // Actual page methods with synthetic large text; no native rendering/device claim.
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -42,6 +43,7 @@ const sandbox = { exports: {}, getContext: () => ({}),
   setTimeout: (fn, delay) => { assert.equal(delay, 600); timers.set(++timerID, fn); return timerID; },
   clearTimeout: id => timers.delete(id)
 };
+Object.assign(sandbox, uiFixture.globals); modules['../lib/UiText'] = uiFixture.module;
 vm.runInNewContext(ts.transpileModule(source, { compilerOptions: {
   module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020
 } }).outputText, sandbox);
