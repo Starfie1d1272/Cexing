@@ -4,6 +4,7 @@ import { fileIo } from '@kit.CoreFileKit';
 import core from 'libentry.so';
 import { Settings } from './Settings';
 import { MergePreview } from './CoreValidator';
+import { RegionChoiceState } from './TemplateRegionEffects';
 import { EditIntent } from './ConfigEditor';
 
 export interface EffectiveVersion { ID: string; Path: string; ProfileID: string; }
@@ -40,6 +41,7 @@ export interface RegionPreview {
   unknown: number;
 }
 interface VersionRequest {
+  regionChoice?: RegionChoiceState;
   op: string;
   editIntent?: EditIntent | null;
   profileId?: string;
@@ -137,6 +139,13 @@ export namespace EffectiveVersions {
     return plan ?? null;
   }
 
+  export function regionChoice(context: common.Context, version: EffectiveVersion): RegionChoiceState | null {
+    check(context, version);
+    const source = JSON.parse(fileIo.readTextSync(
+      `${context.filesDir}/profile-versions/${version.ID}/source.json`)) as Record<string, Object>;
+    return source['RegionChoice'] as RegionChoiceState ?? null;
+  }
+
   /** Missing legacy provenance means no structured edits. Drafts are never read here. */
   export function editIntent(context: common.Context, version: EffectiveVersion): EditIntent | null {
     check(context, version);
@@ -165,11 +174,11 @@ export namespace EffectiveVersions {
 
   export async function stage(context: common.Context, profileId: string, original: string,
     overlay: string, metadata: string, expected: string,
-    regionPlan: RegionPlan | null, globalMerge?: string, editIntent?: EditIntent | null): Promise<StagedVersion> {
+    regionPlan: RegionPlan | null, globalMerge?: string, editIntent?: EditIntent | null, regionChoice?: RegionChoiceState): Promise<StagedVersion> {
     const s = Settings.load(context);
     const overrides = JSON.stringify({ mixedPort: s.mixedPort, logLevel: s.logLevel,
       allowLan: s.allowLan, ipv6: s.ipv6, mode: s.mode, logToFile: s.logToFile });
-    const result = await call(context, { op: 'stage', profileId: profileId, original: original,
+    const result = await call(context, { op: 'stage', regionChoice: regionChoice, profileId: profileId, original: original,
       overlay: overlay, metadata: metadata, expected: expected, overrides: overrides,
       smartConversion: s.smartAutoConvert, regionPlan: regionPlan,
       globalMerge: globalMerge, updateGlobal: globalMerge !== undefined, editIntent: editIntent });

@@ -28,11 +28,14 @@ func (p TemplatePlan) Validate() error {
 	if err := p.validateSnapshots(); err != nil {
 		return err
 	}
-	if p.Version != 1 {
+	if p.Version < 1 {
 		return errors.New("TEMPLATE_VERSION_UNSUPPORTED")
 	}
 	switch p.TemplateID {
 	case "original":
+		if p.Version != 1 {
+			return errors.New("TEMPLATE_VERSION_UNSUPPORTED")
+		}
 		if p.TargetGroup != "" || p.Region != nil || p.ReplaceRules {
 			return errors.New("TEMPLATE_OPTIONS_INVALID")
 		}

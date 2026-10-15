@@ -1,0 +1,272 @@
+package main
+
+import (
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"io"
+	"os"
+	"path/filepath"
+
+	"core/aiprobe"
+	"core/configpipeline"
+	"github.com/metacubex/chi"
+	MHTTP "github.com/metacubex/http"
+	G "github.com/metacubex/mihomo/adapter/outboundgroup"
+	C "github.com/metacubex/mihomo/constant"
+	"github.com/metacubex/mihomo/hub/route"
+	"github.com/metacubex/mihomo/tunnel"
+)
+
+var aiProbeManager aiprobe.Manager
+
+// Accessed under the existing runLock. Set only by native start/authenticated
+// reload immediately after executor.ApplyConfig, never from a probe request.
+var aiAppliedDigest string
+var aiAppliedEpoch uint64
+
+func observeAIProbeConfig(text string) {
+	sum := sha256.Sum256([]byte(text))
+	aiAppliedDigest = hex.EncodeToString(sum[:])
+	aiAppliedEpoch++
+}
+
+func init() {
+	// Register remains within the existing authenticated Controller router; no
+	// Controller address, auth policy or lifecycle implementation is replaced.
+	route.Register(func(r chi.Router) { r.Post("/ohos/ai-probe", checkAIReachability) })
+}
+
+type aiProbeInput struct {
+	Revision string `json:"revision"`
+	Retry    bool   `json:"retry"`
+}
+
+func checkAIReachability(w MHTTP.ResponseWriter, req *MHTTP.Request) {
+	var input aiProbeInput
+	decoder := json.NewDecoder(io.LimitReader(req.Body, 1025))
+	decoder.DisallowUnknownFields()
+	if decoder.Decode(&input) != nil || decoder.Decode(new(any)) != io.EOF || len(input.Revision) > 128 {
+		controllerError(w, 400, "PROBE_INVALID")
+		return
+	}
+	epoch := controllerEpoch.Load()
+	runLock.Lock()
+	id, err := activeAIProbeIdentity(input.Revision)
+	appliedDigest := aiAppliedDigest
+	var target C.Proxy
+	if err == nil {
+		target = tunnel.Proxies()[id.Group]
+	}
+	runLock.Unlock()
+	if err != nil || target == nil || !controllerRunning.Load() {
+		code := "PROBE_NOT_APPLIED"
+		if err != nil && err.Error() != "PROBE_NOT_APPLIED" {
+			code = "PROBE_ROUTE_UNPROVEN"
+		}
+		controllerError(w, 409, code)
+		return
+	}
+	current := func() bool {
+		runLock.Lock()
+		defer runLock.Unlock()
+		if !controllerRunning.Load() || epoch != controllerEpoch.Load() || tunListener == nil || aiAppliedDigest != appliedDigest || aiAppliedEpoch != id.Runtime {
+			return false
+		}
+		state, err := (configpipeline.FileStore{Root: filepath.Join(homeDir, "profile-versions")}).Load(context.Background())
+		if err != nil || state.Current == nil || state.Current.ID != id.Revision || state.Current.ProfileID != id.Profile {
+			return false
+		}
+		selected, err := probeSelection(id.Group)
+		return err == nil && selected == id.Selection
+	}
+	results, err := aiProbeManager.Check(req.Context(), id, target, current, input.Retry)
+	if err != nil || req.Context().Err() != nil || !current() {
+		controllerError(w, 409, "PROBE_NOT_CURRENT")
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "no-store")
+	_ = json.NewEncoder(w).Encode(struct {
+		Revision string           `json:"revision"`
+		Results  []aiprobe.Result `json:"results"`
+	}{id.Revision, results})
+}
+
+// Only an AI template in the successful Current version can authorize probes.
+// Caller input never supplies an endpoint, group, subscription URL or credential.
+func activeAIProbeIdentity(expected string) (aiprobe.Identity, error) {
+	fail := errors.New("PROBE_NOT_APPLIED")
+	if !initialized || tunListener == nil || expected == "" {
+		return aiprobe.Identity{}, fail
+	}
+	state, err := (configpipeline.FileStore{Root: filepath.Join(homeDir, "profile-versions")}).Load(context.Background())
+	if err != nil || state.Current == nil || state.Current.ID != expected {
+		return aiprobe.Identity{}, fail
+	}
+	f, err := os.Open(filepath.Join(homeDir, "profile-versions", state.Current.ID, "source.json"))
+	if err != nil {
+		return aiprobe.Identity{}, fail
+	}
+	defer f.Close()
+	var source struct{ EditIntent *configpipeline.EditIntent }
+	decoder := json.NewDecoder(io.LimitReader(f, maxConfigBytes*4))
+	if decoder.Decode(&source) != nil || decoder.Decode(new(any)) != io.EOF || source.EditIntent == nil || source.EditIntent.SchemaVersion != 1 || source.EditIntent.Disabled || source.EditIntent.Template == nil {
+		return aiprobe.Identity{}, fail
+	}
+	candidate, err := os.ReadFile(state.Current.Path)
+	if err != nil || len(candidate) > maxConfigBytes || aiAppliedDigest == "" {
+		return aiprobe.Identity{}, fail
+	}
+	digest := sha256.Sum256(candidate)
+	if hex.EncodeToString(digest[:]) != aiAppliedDigest {
+		return aiprobe.Identity{}, fail
+	}
+	plan := source.EditIntent.Template
+	if plan.TemplateID != "ai" || plan.Version != 1 || plan.TargetGroup == "" {
+		return aiprobe.Identity{}, fail
+	}
+	group, err := aiProbeTarget(source.EditIntent)
+	if err != nil {
+		return aiprobe.Identity{}, err
+	}
+	selected, err := probeSelection(group)
+	if err != nil {
+		return aiprobe.Identity{}, err
+	}
+	return aiprobe.Identity{Profile: state.Current.ProfileID, Revision: expected, Group: group, Selection: selected, Runtime: aiAppliedEpoch}, nil
+}
+
+// Follow successful personal renames using the compiler's public opaque IDs.
+// Deleting the original target cannot authorize a replacement with the same name.
+func aiProbeTarget(intent *configpipeline.EditIntent) (string, error) {
+	fail := errors.New("PROBE_TARGET_UNPROVEN")
+	if intent == nil || intent.Template == nil {
+		return "", fail
+	}
+	name := intent.Template.TargetGroup
+	identity := func(name string) (string, error) {
+		data, err := json.Marshal(map[string]any{"proxy-groups": []any{map[string]any{"name": name, "type": "select", "proxies": []string{"DIRECT"}}}})
+		if err != nil {
+			return "", fail
+		}
+		snapshot, err := configpipeline.ReadEditable(data, nil, nil)
+		if err != nil {
+			return "", fail
+		}
+		for _, section := range snapshot.Sections {
+			if section.Section == "proxy-groups" && len(section.Items) == 1 {
+				return section.Items[0].ID, nil
+			}
+		}
+		return "", fail
+	}
+	id, err := identity(name)
+	if err != nil {
+		return "", fail
+	}
+	for _, operation := range intent.Operations {
+		if operation.Section != "proxy-groups" || operation.Target != id {
+			continue
+		}
+		switch operation.Kind {
+		case "delete":
+			return "", fail
+		case "rename":
+			if operation.Name == "" {
+				return "", fail
+			}
+			name = operation.Name
+			id, err = identity(name)
+			if err != nil {
+				return "", fail
+			}
+		}
+	}
+	return name, nil
+}
+
+// Snapshot live proxy objects and user-controlled Selector choices in the group graph.
+// Smart/url-test decisions remain per request; results describe the group, not
+// a permanently attributed node. No names/fingerprints are returned or logged.
+func probeSelection(group string) (string, error) {
+	proxies := tunnel.Proxies()
+	root, ok := proxies[group]
+	if !ok {
+		return "", errors.New("PROBE_GROUP_MISSING")
+	}
+	if _, ok := root.Adapter().(interface{ GetProxies(bool) []C.Proxy }); !ok {
+		return "", errors.New("PROBE_NOT_A_GROUP")
+	}
+	choices := map[string]string{}
+	visited := map[string]uint64{}
+	var visit func(C.Proxy) error
+	visit = func(p C.Proxy) error {
+		if p == nil {
+			return errors.New("PROBE_GROUP_MISSING")
+		}
+		token, identityErr := aiProxyIdentities.identity(p)
+		if identityErr != nil {
+			return identityErr
+		}
+		if prior, seen := visited[p.Name()]; seen {
+			if prior != token {
+				return errors.New("PROBE_ROUTE_AMBIGUOUS")
+			}
+			return nil
+		}
+		if p.ProxyInfo().DialerProxy != "" {
+			// This adapter resolves a later dialer by the mutable global name
+			// registry. Leave unchecked until that entire chain can be pinned.
+			return errors.New("PROBE_CHAIN_UNPINNED")
+		}
+		visited[p.Name()] = token
+		if len(visited) > 512 {
+			return errors.New("PROBE_GROUP_LIMIT")
+		}
+
+		if group, ok := p.Adapter().(interface {
+			GetProxies(bool) []C.Proxy
+			EmptyFallback() C.Proxy
+		}); ok {
+			members := group.GetProxies(false)
+			// GetProxies injects a fallback even when filters/providers are empty. A
+			// sole fallback cannot prove availability; conservatively leave unchecked.
+			if len(members) == 0 || (len(members) == 1 && members[0] == group.EmptyFallback()) {
+				return errors.New("PROBE_GROUP_EMPTY")
+			}
+		}
+		if selector, ok := p.Adapter().(*G.Selector); ok {
+			name := selector.Now()
+			choices[p.Name()] = name
+			if name == "" || name == "REJECT" || name == "REJECT-DROP" {
+				return errors.New("PROBE_GROUP_EMPTY")
+			}
+			next := selector.Unwrap(nil, false)
+			return visit(next)
+		}
+		if members, ok := p.Adapter().(interface{ GetProxies(bool) []C.Proxy }); ok {
+			all := members.GetProxies(false)
+			if len(all) == 0 {
+				return errors.New("PROBE_GROUP_EMPTY")
+			}
+			for _, member := range all {
+				if err := visit(member); err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+	}
+	if err := visit(root); err != nil {
+		return "", err
+	}
+	encoded, _ := json.Marshal(struct {
+		Choices map[string]string
+		Objects map[string]uint64
+	}{choices, visited})
+	digest := sha256.Sum256(encoded)
+	return hex.EncodeToString(digest[:]), nil
+}

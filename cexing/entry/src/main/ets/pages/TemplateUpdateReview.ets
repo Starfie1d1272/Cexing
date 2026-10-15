@@ -1,9 +1,17 @@
+import { createTemplateUpdateSource } from '../lib/TemplateUpdateSource';
+import { common } from '@kit.AbilityKit';
+import { EditorDraftHost } from '../lib/ConfigEditor';
+import { createTemplateUpdateHost, TemplateUpdateSource } from '../lib/TemplateUpdateHost';
 import { TemplateConflict, TemplateUpdateHost, TemplateUpdateModel, TemplateUpdatePreview } from '../lib/TemplateUpdates';
 import { NativeTheme as UI } from './NativeTheme';
 
 @Component
 export struct TemplateUpdateReview {
   host?: TemplateUpdateHost;
+  editor?: EditorDraftHost;
+  source?: TemplateUpdateSource;
+  @Prop profileId: string = '';
+  private activeHost: TemplateUpdateHost | null = null;
   onClose: () => void = () => {};
   @State private conflicts: TemplateConflict[] = [];
   @State private ready: boolean = false;
@@ -12,8 +20,13 @@ export struct TemplateUpdateReview {
   @State private message: string = '';
   private model: TemplateUpdateModel | null = null;
   aboutToAppear(): void {
-    if (this.host === undefined) { return; }
-    this.model = new TemplateUpdateModel(this.host, () => {
+    const source = this.source ?? (this.profileId.length > 0 ?
+      createTemplateUpdateSource(getContext(this) as common.UIAbilityContext, this.profileId) : undefined);
+    const host = this.host ?? (source !== undefined && this.profileId.length > 0 ?
+      createTemplateUpdateHost(getContext(this) as common.UIAbilityContext, this.profileId, this.editor, source) : undefined);
+    if (host === undefined) { return; }
+    this.activeHost = host;
+    this.model = new TemplateUpdateModel(host, () => {
       const model = this.model;
       if (model === null) { return; }
       this.conflicts = model.preview?.conflicts ?? [];
@@ -29,11 +42,13 @@ export struct TemplateUpdateReview {
   build() {
     Column({ space: 12 }) {
       Text('更新分流方案').fontSize(22).fontWeight(FontWeight.Bold).fontColor(UI.ink)
+      Scroll() {
+      Column({ space: 12 }) {
       if (this.ready) { Text('待应用').fontSize(14).fontColor(UI.muted) }
       if (this.summary.length > 0) { Text(this.summary).fontSize(14).fontColor(UI.muted) }
       ForEach(this.conflicts, (conflict: TemplateConflict) => {
         Column({ space: 8 }) {
-          Text(this.host?.label(conflict) ?? '个人修改').fontSize(15).fontColor(UI.ink)
+          Text(this.activeHost?.label(conflict) ?? '个人修改').fontSize(15).fontColor(UI.ink)
           Row({ space: 8 }) {
             Button('保留我的修改').layoutWeight(1).backgroundColor(UI.soft).fontColor(UI.ink)
               .enabled(!this.busy).onClick(() => this.model?.choose(conflict.id, 'mine'))
@@ -43,7 +58,8 @@ export struct TemplateUpdateReview {
         }.width('100%')
       }, (conflict: TemplateConflict) => conflict.id)
       if (this.message.length > 0) { Text(this.message).fontSize(14).fontColor(UI.muted) }
-      Blank()
+      }.width('100%')
+      }.width('100%').layoutWeight(1)
       Row({ space: 8 }) {
         Button('返回').layoutWeight(1).backgroundColor(UI.soft).fontColor(UI.ink).onClick(() => this.close())
         Button('重新预览').layoutWeight(1).backgroundColor(UI.soft).fontColor(UI.ink)
