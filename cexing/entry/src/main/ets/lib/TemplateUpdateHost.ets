@@ -1,4 +1,4 @@
-import { UiText } from './UiText';
+import { CoreValidator } from './CoreValidator';
 import { EditorDraftHosts } from './EditorDraftHosts';
 import { common } from '@kit.AbilityKit';
 import { EditIntent, EditorDraftHost, EditorDraftSession, EditorDraftPreview } from './ConfigEditor';
@@ -64,9 +64,8 @@ export function createTemplateUpdateHost(context: common.Context, profileId: str
       const checked = await editor.preview(next.revision);
       if (epoch !== generation || checked.revision !== next.revision || checked.digest.length === 0 ||
         checked.changes.digest !== checked.digest) { throw new Error('TEMPLATE_UPDATE_VALIDATION'); }
-      const count = checked.changes.changes.length;
       comparison.validation = { revision: checked.revision, digest: checked.digest,
-        summary: count > 0 ? UiText.get($r('app.string.template_change_count'), count) : UiText.get($r('app.string.template_no_changes')) };
+        summary: CoreValidator.describeMergePreview(checked.changes) };
       receipt = checked; offered = comparison; fingerprint = JSON.stringify(comparison);
       return comparison;
       } catch (error) {

@@ -59,7 +59,7 @@ function compile(file, page = false) {
   if (page) src = src.slice(0, src.indexOf('  build()')) + '\n}';
   src = src.split('\n').map(line => line.trimStart().startsWith('@') ? line.replace(/@\w+(?:\([^\n)]*\))?\s*/g, '') : line).join('\n').replace(/export struct /g, 'export class ');
   const sandbox = { exports: {}, getContext: () => ctx, require: n => { assert.ok(n in modules, n); return modules[n]; } };
-  Object.assign(sandbox, uiFixture.globals); modules['../lib/UiText'] = uiFixture.module;
+  Object.assign(sandbox, uiFixture.globals); modules['../lib/UiText'] = uiFixture.module; modules['../lib/CoreValidator'] = require('./ci/semantic-fixture.cjs'); modules['../lib/ProfileApplyFeedback'] = require('./ci/semantic-fixture.cjs');
 vm.runInNewContext(ts.transpileModule(src, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, sandbox);
   return sandbox.exports;
 }
@@ -142,7 +142,7 @@ const Editor = compile('pages/GlobalMergeEditor.ets', true).GlobalMergeEditor;
   assert.equal(displayedText(), 'draft only', 'a reactive redraw must bind the current draft');
   await editor.preview();
   assert.equal(displayedText(), 'draft only', 'preview must keep the visible input');
-  assert.equal(editor.summary, 'rules: 1 → 2');
+  assert.equal(editor.summary, '规则：内容已调整');
   assert.equal(draft.read(ctx), 'draft only');
   editor.changeText('draft only');
   const enabledState = JSON.stringify(state); let closed = 0; editor.onClose = () => closed++;
@@ -197,9 +197,17 @@ const Editor = compile('pages/GlobalMergeEditor.ets', true).GlobalMergeEditor;
   assert.equal(data.get(prior.Path), priorBytes); assert.equal(originals.get('one.yaml'), original);
   const pageSource = fs.readFileSync(path.join(base, 'pages/ProfilePage.ets'), 'utf8');
   const closeBody = pageSource.match(/GlobalMergeEditor\(\{ onClose: \(\) => \{([^}]*)\}/)[1];
-  const disappearBody = pageSource.slice(pageSource.lastIndexOf('.bindSheet('))
-    .match(/onDisappear: \(\) => \{([^}]*)\}/)[1];
-  const owner = { showSheet: true, sheetMode: 7 };
+  const sheetSource = pageSource.slice(pageSource.indexOf('.bindSheet('));
+  const callbackMarker = 'onDisappear: () => {';
+  const callbackStart = sheetSource.indexOf(callbackMarker) + callbackMarker.length;
+  let callbackEnd = callbackStart, depth = 1;
+  while (depth > 0 && callbackEnd < sheetSource.length) {
+    const char = sheetSource[callbackEnd++];
+    if (char === '{') depth++; else if (char === '}') depth--;
+  }
+  assert.equal(depth, 0, 'sheet callback fixture captures the whole nested body');
+  const disappearBody = sheetSource.slice(callbackStart, callbackEnd - 1);
+  const owner = { showSheet: true, sheetMode: 7, releaseExternalImport() {}, acceptExternalImport() {} };
   const runCallback = body => vm.runInNewContext(`(function () {${body}}).call(owner)`, { owner, SHEET_NONE: 0 });
   runCallback(closeBody);
   assert.equal(owner.showSheet, false);

@@ -3,16 +3,21 @@ import { window } from '@kit.ArkUI';
 import { AppRuntime } from '../lib/AppRuntime';
 import { Logger } from '../lib/Logger';
 import { ConnectionEntry } from '../lib/ConnectionEntry';
+import { ProfileImportInput } from '../lib/ProfileImportInput';
 
 export default class EntryAbility extends UIAbility {
   onCreate(want: Want): void {
     ConnectionEntry.bind(this.context);
     AppRuntime.initialize(this.context, () => ConnectionEntry.recovered(this.context));
-    ConnectionEntry.receive(want);
+    if (want.action === 'ohos.want.action.viewData' || want.action === 'ohos.want.action.sendData') {
+      ProfileImportInput.receive(want);
+    } else { ConnectionEntry.receive(want); }
   }
 
   onNewWant(want: Want): void {
-    ConnectionEntry.receive(want);
+    if (want.action === 'ohos.want.action.viewData' || want.action === 'ohos.want.action.sendData') {
+      ProfileImportInput.receive(want);
+    } else { ConnectionEntry.receive(want); }
   }
 
   onForeground(): void {
