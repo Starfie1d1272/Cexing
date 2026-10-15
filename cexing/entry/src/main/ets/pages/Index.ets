@@ -15,6 +15,7 @@ import { ProfileGeneratedPage } from './ProfileGeneratedPage';
 import { RuleDnsEditorPage } from './RuleDnsEditorPage';
 import { ProfileProxyEditorPage } from './ProfileProxyEditorPage';
 import { ProfileTemplatePage } from './ProfileTemplatePage';
+import { ProfileUpdatePage } from './ProfileUpdatePage';
 
 @Entry
 @Component
@@ -31,6 +32,7 @@ struct Index {
   @State private smartVisible: boolean = false;
   @State private ruleDnsVisible: boolean = false;
   @State private templateVisible: boolean = false;
+  @State private templateUpdateVisible: boolean = false;
   @State private proxyEditorVisible: boolean = false;
   @State private zashboardVisible: boolean = false;
 
@@ -80,6 +82,10 @@ struct Index {
       NavDestination() { OverridePage() }.title('内核设置')
     } else if (name === 'profileDetail') {
       NavDestination() { ProfilePage({ detailFile: ProfileDetailBus.current }) }.title('订阅详情')
+    } else if (name === 'profileTemplateUpdate') {
+      NavDestination() { ProfileUpdatePage({ visible: this.templateUpdateVisible }) }.title($r('app.string.profile_update_title'))
+        .onShown(() => { this.templateUpdateVisible = true; })
+        .onHidden(() => { this.templateUpdateVisible = false; })
     } else if (name === 'profileTemplate') {
       NavDestination() { ProfileTemplatePage({ visible: this.templateVisible }) }.title($r('app.string.proxy_editor_template_title'))
         .onShown(() => { this.templateVisible = true; })

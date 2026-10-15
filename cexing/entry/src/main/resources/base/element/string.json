@@ -543,6 +543,26 @@
     {
       "name": "proxy_editor_node_state_failed",
       "value": "Cannot change node state. Reload and retry."
+    },
+    {
+      "name": "profile_update_expired",
+      "value": "The update changed. Return and download it again."
+    },
+    {
+      "name": "profile_update_back",
+      "value": "Back"
+    },
+    {
+      "name": "profile_update_title",
+      "value": "Update subscription"
+    },
+    {
+      "name": "profile_update_done",
+      "value": "Subscription updated"
+    },
+    {
+      "name": "profile_update_close_editor",
+      "value": "Close the editor, then retry the update."
     }
   ]
 }

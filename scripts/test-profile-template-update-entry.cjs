@@ -1,8 +1,8 @@
 // Registered page -> actual default Source/Host/receipt flow. Platform and
 // worker responses are synthetic; real compiler/publication lives in Go tests.
 const assert = require('node:assert/strict'), fs = require('node:fs'), vm = require('node:vm');
-const ts = require('./ci/transpile-arkts.cjs');
-let serial = 0, version = 'v1', writes = 0, applies = 0, reads = 0, encodes = 0;
+const ts = require('./ci/transpile-arkts.cjs'), { resourceContext } = require('./ci/mock-profile-resources.cjs');
+let serial = 0, version = 'v1', writes = 0, applies = 0, reads = 0, encodes = 0, successfulOriginal = 'synthetic';
 const snapshot = { templateId: 'ai', version: 1, entries: [] };
 let published = { schemaVersion: 1, revision: 'published', sourceRevision: 'source', operations: [],
   template: { templateId: 'ai', version: 1, targetGroup: 'Pick', baseline: snapshot, mine: snapshot } };
@@ -13,7 +13,7 @@ const modules = {
   '@kit.ArkTS': { util: { generateRandomUUID: () => `session-${++serial}` } },
   './Settings': { Settings: { load: () => ({}), idle: async () => {} } },
   './CoreValidator': { CoreValidator: { prepareResources: async () => {} } },
-  './ProfileStore': { ProfileStore: { prepareContent: value => value, getProfileContent: () => 'synthetic', getEnabledMerge: () => '', readEditDraft: () => draft } },
+  './ProfileStore': { ProfileStore: { prepareContent: value => value, getProfileContent: () => successfulOriginal, getEnabledMerge: () => '', readEditDraft: () => draft } },
   './EffectiveVersions': { EffectiveVersions: { read: () => ({ Profiles: { 'one.yaml': { ID: version } } }),
     globalContent: () => '', regionPlan: () => null, editIntent: () => structuredClone(published) } },
   './ConfigEditor': { ConfigEditor: { list: async () => ({ sourceRevision: 'source', sections: [
@@ -22,8 +22,8 @@ const modules = {
     saveEditDraft: async (_context, captured, intent, guard) => { await guard(); assert.equal(captured.draftRevision, draft.revision);
       draft = { revision: `draft-${++serial}`, intent: structuredClone(intent) }; draft.intent.revision = draft.revision; writes++; return draft.revision; },
     previewEditDraft: async () => ({ digest: 'compiler-digest', changes: [{ section: 'rules', before: 1, after: 2 }] }),
-    applyEditDraft: async (_context, _ticket, digest, guard) => { assert.equal(digest, 'compiler-digest'); await guard(false);
-      version = `version-${++serial}`; await guard(true); published = structuredClone(draft.intent); applies++; return 'applied'; }
+    applyEditDraft: async (_context, _ticket, digest, guard, candidate) => { assert.equal(digest, 'compiler-digest'); await guard(false);
+      version = `version-${++serial}`; if (candidate) successfulOriginal = candidate.original; await guard(true); published = structuredClone(draft.intent); applies++; return 'applied'; }
   } },
   'libentry.so': { versionAction: async (_root, input) => {
     const value = JSON.parse(input);
@@ -42,9 +42,10 @@ function load(name, page = false) {
   let source = fs.readFileSync(`cexing/entry/src/main/ets/${page ? 'pages' : 'lib'}/${name}.ets`, 'utf8');
   if (page) { const marker = source.includes('  @Builder') ? '  @Builder' : '  build()'; source = source.slice(0, source.indexOf(marker)) + '\n}';
     source = source.split('\n').map(line => line.trimStart().startsWith('@') ? line.replace(/@\w+(?:\([^\n)]*\))?\s*/g, '') : line).join('\n').replace('export struct ', 'export class '); }
-  const sandbox = { exports: {}, getContext: () => ({ filesDir: '/synthetic' }), require: path => {
+  const sandbox = { exports: {}, getContext: () => ({ ...resourceContext(), filesDir: '/synthetic' }), require: path => {
     if (modules[path]) return modules[path];
-    if (path === '@kit.ArkUI') return { promptAction: {} };
+    const library = path.replace('../lib/', './'); if (modules[library]) return modules[library];
+    if (path === '@kit.ArkUI') return { promptAction: { showToast: value => assert.equal(value.message, '订阅已更新') } };
     if (path.startsWith('@') || path === './NativeTheme') return {};
     return load(path.split('/').pop(), /TemplateWizard$|TemplateUpdateReview$/.test(path));
   } };
@@ -70,5 +71,14 @@ async function idle(model) { for (let i = 0; i < 30 && model.busy; i++) await ne
   await review.model.apply(); assert.equal(applies, 1, 'receipt cannot be replayed');
   review.aboutToDisappear(); wizard.aboutToDisappear(); entry.visible = false; entry.visibilityChanged();
   assert.equal(entry.editor, undefined); assert.equal(entry.profileRevision, 1);
+  const update = load('ProfileUpdatePage', true); const paths = ['profileTemplateUpdate'];
+  update.ProfileUpdateBus.request = { file: 'one.yaml', ticket: ticket(), source: {
+    original: 'downloaded synthetic', metadata: { origin: 'https://example.invalid/synthetic', sub: {}, updatedAt: 1 } } };
+  const downloaded = new update.ProfileUpdatePage(); downloaded.visible = true; downloaded.profileRevision = 0;
+  downloaded.navStack = { getAllPathName: () => paths.slice(), pop: () => paths.pop() }; downloaded.aboutToAppear();
+  assert.equal(downloaded.ready, true); const candidateHost = downloaded.host;
+  const checkedCandidate = await candidateHost.preview({}); assert.equal(successfulOriginal, 'synthetic', 'real shared factory cannot publish during candidate preview');
+  await candidateHost.apply(checkedCandidate); assert.equal(successfulOriginal, 'downloaded synthetic');
+  assert.equal(applies, 2); assert.equal(paths.length, 0); assert.equal(downloaded.host, undefined);
   console.log('PASS: production template entry -> default update Source/Host -> inert save/preview -> original receipt apply and route release (synthetic platform/worker)');
 })().catch(error => { console.error(error); process.exitCode = 1; });

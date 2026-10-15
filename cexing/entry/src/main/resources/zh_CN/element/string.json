@@ -519,6 +519,26 @@
     {
       "name": "proxy_editor_node_state_failed",
       "value": "无法修改节点状态，请重新读取"
+    },
+    {
+      "name": "profile_update_expired",
+      "value": "更新已失效，请返回重试"
+    },
+    {
+      "name": "profile_update_back",
+      "value": "返回"
+    },
+    {
+      "name": "profile_update_title",
+      "value": "更新订阅"
+    },
+    {
+      "name": "profile_update_done",
+      "value": "订阅已更新"
+    },
+    {
+      "name": "profile_update_close_editor",
+      "value": "请关闭编辑后重新更新"
     }
   ]
 }

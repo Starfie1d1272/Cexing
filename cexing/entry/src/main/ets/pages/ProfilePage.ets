@@ -23,6 +23,7 @@ import { ProfileEditBus } from './ProfileEditPage';
 import { RuleDnsEditorBus } from './RuleDnsEditorPage';
 import { ProfileProxyEditorBus } from './ProfileProxyEditorPage';
 import { ProfileTemplateBus } from './ProfileTemplatePage';
+import { ProfileUpdateBus } from './ProfileUpdatePage';
 import { GlobalMergeEditor } from './GlobalMergeEditor';
 
 const TAG = 'profile';
@@ -509,22 +510,45 @@ export struct ProfilePage {
     } finally { this.updatingFile = ''; this.acceptExternalImport(); }
   }
 
-  private async updateProfile(p: ProfileMeta): Promise<void> {
-    if (this.updatingFile.length > 0) {
-      return;
-    }
+  private async updateProfile(p: ProfileMeta): Promise<void> { await this.updateFile(p.file); }
+
+  private async updateFile(file: string): Promise<void> {
+    if (this.updatingFile.length > 0) { return; }
     const context = getContext(this) as common.UIAbilityContext;
-    this.updatingFile = p.file;
+    const page = this.pageGeneration; const tab = this.currentVisibleTab;
+    const paths = this.navStack.getAllPathName();
+    const current = (): boolean => this.pageVisible && page === this.pageGeneration &&
+      tab === this.currentVisibleTab && this.samePath(paths) &&
+      (this.detailFile.length === 0 ? this.rootVisible : this.detailOnTop());
+    this.updatingFile = file;
     try {
-      const result = await ProfileTransactions.update(context, p.file);
-      this.toast(result === 'applied' ? '已更新并应用' : '已更新，启用或启动后生效');
-      this.changed();
-    } catch (e) {
-      this.refresh();
-      this.toast(this.recoveryNeeded ? '应用未确认，请重连恢复' : '更新失败，请检查网络后重试');
+      const version = EffectiveVersions.read(context)?.Profiles[file];
+      const intent = version !== undefined ? EffectiveVersions.editIntent(context, version) : null;
+      if (intent?.disabled !== true && intent?.template !== undefined && intent.template.templateId !== 'original') {
+        const ticket = ProfileTransactions.editTicket(context, file);
+        const downloaded = await ProfileStore.downloadFromOrigin(context, file);
+        if (!current()) { return; }
+        if (this.showSheet) { this.toast(context.resourceManager.getStringByNameSync('profile_update_close_editor')); return; }
+        if (JSON.stringify(ticket) !== JSON.stringify(ProfileTransactions.editTicket(context, file))) {
+          this.toast('配置已变化，请重新更新'); return;
+        }
+        ProfileUpdateBus.request = { file: file, ticket: ticket,
+          source: { original: downloaded.content, metadata: downloaded.meta } };
+        try { this.navStack.pushPath({ name: 'profileTemplateUpdate' }); }
+        catch (_) { ProfileUpdateBus.request = null; throw new Error('UPDATE_ROUTE_FAILED'); }
+        return;
+      }
+      const result = await ProfileTransactions.update(context, file);
+      if (current()) {
+        this.toast(result === 'applied' ? '已更新并应用' : '已更新，启用或启动后生效'); this.changed();
+      }
+    } catch (_) {
+      if (current()) {
+        this.refresh(); this.toast(this.recoveryNeeded ? '应用未确认，请重连恢复' : '更新失败，请检查网络后重试');
+      }
     } finally {
       this.updatingFile = '';
-      this.acceptExternalImport();
+      if (this.samePath(paths)) { this.acceptExternalImport(); }
     }
   }
 
@@ -613,6 +637,7 @@ export struct ProfilePage {
       this.currentVisibleTab !== 1 || this.importing || this.activating || this.scanning ||
       this.showSheet || this.sheetMode !== SHEET_NONE || this.regionBusy || this.recovering ||
       this.updatingFile.length > 0 || this.refreshing || ProfileTransactions.isBusy()) { return; }
+    if ((this.navStack.getAllPathName?.() ?? []).length > 0) { return; }
     const candidate = ProfileImportInput.take();
     if (candidate === null) { return; }
     this.externalImport = candidate;
@@ -773,18 +798,13 @@ export struct ProfilePage {
 
   /** 下拉刷新：激活配置为 URL 源时重新下载并热重载 */
   private async onPullRefresh(): Promise<void> {
+    if (this.refreshing) { return; }
     this.refreshing = true;
     try {
       const context = getContext(this) as common.UIAbilityContext;
       const active = ProfileStore.getActiveFile(context);
       if (active.length > 0 && this.isUrlProfile(active)) {
-        try {
-          const result = await ProfileTransactions.update(context, active);
-          this.toast(result === 'applied' ? '已更新并应用' : '已更新，启用或启动后生效');
-        } catch (e) {
-          this.refresh();
-          this.toast(this.recoveryNeeded ? '应用未确认，请重连恢复' : '更新失败，请检查网络后重试');
-        }
+        await this.updateFile(active);
       }
       this.refresh();
     } finally {
