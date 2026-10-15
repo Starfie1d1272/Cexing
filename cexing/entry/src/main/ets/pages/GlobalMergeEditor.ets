@@ -12,7 +12,8 @@ import { CoreValidator } from '../lib/CoreValidator';
 export struct GlobalMergeEditor {
   @Consume('profileRevision') profileRevision: number;
   onClose: () => void = () => {};
-  registerCloseGuard: (guard: (() => boolean) | null) => void = () => {};
+  registerCloseGuard: (guard: () => boolean) => (() => void) = () => () => {};
+  private releaseCloseGuard: (() => void) | null = null;
   private prepareClose: (() => boolean) | null = null;
   @State private editedText: string = '';
   @State globalEnabled: boolean = false;
@@ -24,7 +25,7 @@ export struct GlobalMergeEditor {
 
   aboutToAppear(): void {
     this.prepareClose = () => !this.busy && (!this.dirty || this.saveDraft());
-    this.registerCloseGuard(this.prepareClose);
+    this.releaseCloseGuard = this.registerCloseGuard(this.prepareClose);
     try {
       const context = getContext(this) as common.UIAbilityContext;
       const current = EffectiveVersions.globalContent(context);
@@ -37,7 +38,7 @@ export struct GlobalMergeEditor {
   }
 
   aboutToDisappear(): void {
-    this.registerCloseGuard(null);
+    this.releaseCloseGuard?.(); this.releaseCloseGuard = null;
   }
 
   private toast(message: string): void { promptAction.showToast({ message: message, duration: 1800 }); }

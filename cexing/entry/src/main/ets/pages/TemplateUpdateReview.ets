@@ -158,7 +158,7 @@ export struct TemplateUpdateReview {
       }.width('100%')
       if (!this.model?.needsRepair() && this.activeHost?.discard !== undefined) {
         Button(UiText.get($r('app.string.rule_discard'))).width('100%').constraintSize({ minHeight: 48 })
-          .backgroundColor(UI.soft).fontColor(UI.ink).enabled(!this.busy && !this.recovering && !this.confirmingDiscard)
+          .backgroundColor(Color.Transparent).fontColor(UI.error).enabled(!this.busy && !this.recovering && !this.confirmingDiscard)
           .onClick(() => this.discardDraft())
       }
       if (this.needsRecovery()) {

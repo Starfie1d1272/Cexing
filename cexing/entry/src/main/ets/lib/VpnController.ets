@@ -201,9 +201,9 @@ export namespace VpnController {
       if (saved['session'] === startSession && typeof saved['key'] === 'string') { appliedSettings = saved['key']; }
     } catch (_) {}
   }
-  export function settingsNeedReconnect(context: common.Context): boolean {
+  export function settingsNeedReconnect(context: common.UIAbilityContext): boolean {
     return status === VpnStatus.Connected && appliedSettings.length > 0 &&
-      Settings.restartKey(Settings.load(context)) !== appliedSettings;
+      Settings.restartKey(Settings.load(context), context.applicationInfo.name) !== appliedSettings;
   }
 
   /** Identity verified by the extension, never inferred from cumulative values. */
@@ -604,7 +604,7 @@ export namespace VpnController {
     if (applications.trustedApplications !== undefined) {
       vpnConfig.trustedApplications = applications.trustedApplications;
     } else { vpnConfig.blockedApplications = applications.blockedApplications; }
-    pendingSettings = Settings.restartKey(s);
+    pendingSettings = Settings.restartKey(s, context.applicationInfo.name);
     const hostSettings = JSON.stringify({ mixedPort: s.mixedPort, logLevel: s.logLevel,
       allowLan: s.allowLan, mode: s.mode, logToFile: s.logToFile });
     const params: Record<string, Object> = { 'VPN_CONFIG': vpnConfig, 'SESSION_ID': startSession,

@@ -1316,7 +1316,10 @@ export struct ProfilePage {
     else if (this.sheetMode === SHEET_REGION) { this.RegionSheet() }
     else if (this.sheetMode === SHEET_GLOBAL) {
       GlobalMergeEditor({ onClose: () => { this.showSheet = false; },
-        registerCloseGuard: (guard: (() => boolean) | null) => { this.globalCloseGuard = guard; } })
+        registerCloseGuard: (guard: () => boolean) => {
+          this.globalCloseGuard = guard;
+          return () => { if (this.globalCloseGuard === guard) { this.globalCloseGuard = null; } };
+        } })
     }
   }
 

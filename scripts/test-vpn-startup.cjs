@@ -42,6 +42,14 @@ function load(relative, modules, timers = [], clock = Date) {
   return context.exports;
 }
 const realSettings = load('lib/Settings.ets', { './BackupJournal': {}, '@kit.ArkData': {}, './Logger': logger });
+const {AppSettings,Settings} = realSettings;
+const baseline = new AppSettings();
+const equivalent = new AppSettings(); equivalent.accessMode='black'; equivalent.accessList=['test.bundle','test.bundle'];
+assert.equal(Settings.restartKey(baseline,'test.bundle'),Settings.restartKey(equivalent,'test.bundle'), 'all and empty effective exclusions are equal');
+equivalent.accessList=['other.app','sample.app','other.app','test.bundle'];
+const reordered = Object.assign(new AppSettings(),{accessMode:'black',accessList:['sample.app','other.app']});
+assert.equal(Settings.restartKey(equivalent,'test.bundle'),Settings.restartKey(reordered,'test.bundle'), 'order, duplicates and self do not change the effective system scope');
+reordered.accessMode='white';assert.notEqual(Settings.restartKey(equivalent,'test.bundle'),Settings.restartKey(reordered,'test.bundle'));
 async function testClient(mode, accessMode = 'all', accessList = [], ipv6 = false) {
   let cleared = 0;
   let callbacks;

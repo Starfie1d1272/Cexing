@@ -537,10 +537,10 @@ export struct ProfileProxyEditorPage {
         ProxyMappingFormPage({ busy: this.busy, section: this.section, target: this.formTarget, names: this.names, providerNames: this.providers,
           onDraft: (draft: ProxyMappingDraft) => this.saveForm(draft), onOriginal: () => { this.openOriginal(); }, onCancel: () => { this.epoch++; this.model?.cancel(); this.formOpen = false; this.sourceNodes = []; this.sourceReady = false; this.busy = false; } }).layoutWeight(1)
       } else {
-        Row({ space: 8 }) {
-          Button($r('app.string.proxy_editor_nodes')).backgroundColor(this.section === 'proxies' ? UI.action : UI.soft).fontColor(this.section === 'proxies' ? UI.onAccent : UI.ink).constraintSize({ minHeight: 44 }).accessibilitySelected(this.section === 'proxies').onClick(() => { this.section = 'proxies'; this.sync(); })
-          Button($r('app.string.proxy_editor_sources')).backgroundColor(this.section === 'proxy-providers' ? UI.action : UI.soft).fontColor(this.section === 'proxy-providers' ? UI.onAccent : UI.ink).constraintSize({ minHeight: 44 }).accessibilitySelected(this.section === 'proxy-providers').onClick(() => { this.section = 'proxy-providers'; this.sync(); })
-          Button($r('app.string.proxy_editor_groups')).backgroundColor(this.section === 'proxy-groups' ? UI.action : UI.soft).fontColor(this.section === 'proxy-groups' ? UI.onAccent : UI.ink).constraintSize({ minHeight: 44 }).accessibilitySelected(this.section === 'proxy-groups').onClick(() => { this.section = 'proxy-groups'; this.sync(); })
+        Flex({ wrap: FlexWrap.Wrap }) {
+          Button($r('app.string.proxy_editor_nodes')).backgroundColor(this.section === 'proxies' ? UI.action : UI.soft).fontColor(this.section === 'proxies' ? UI.onAccent : UI.ink).constraintSize({ minHeight: 44 }).margin({ right: 8, bottom: 8 }).accessibilitySelected(this.section === 'proxies').onClick(() => { this.section = 'proxies'; this.sync(); })
+          Button($r('app.string.proxy_editor_sources')).backgroundColor(this.section === 'proxy-providers' ? UI.action : UI.soft).fontColor(this.section === 'proxy-providers' ? UI.onAccent : UI.ink).constraintSize({ minHeight: 44 }).margin({ right: 8, bottom: 8 }).accessibilitySelected(this.section === 'proxy-providers').onClick(() => { this.section = 'proxy-providers'; this.sync(); })
+          Button($r('app.string.proxy_editor_groups')).backgroundColor(this.section === 'proxy-groups' ? UI.action : UI.soft).fontColor(this.section === 'proxy-groups' ? UI.onAccent : UI.ink).constraintSize({ minHeight: 44 }).margin({ right: 8, bottom: 8 }).accessibilitySelected(this.section === 'proxy-groups').onClick(() => { this.section = 'proxy-groups'; this.sync(); })
         }.enabled(!this.busy)
         if (this.disabled) { Text($r('app.string.proxy_editor_edits_disabled')).fontSize(13).fontColor(UI.muted).width('100%') }
         if (this.section === 'proxies') {

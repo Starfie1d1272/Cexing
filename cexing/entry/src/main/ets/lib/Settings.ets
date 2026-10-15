@@ -47,9 +47,9 @@ export namespace Settings {
 
   /** Only settings that require a new system TUN/core start. Immediate runtime
    * preferences and the live proxy mode deliberately do not create a banner. */
-  export function restartKey(s: AppSettings): string {
-    const list = s.accessMode === 'all' ? [] : Array.from(new Set(s.accessList)).sort();
-    return JSON.stringify({ ipv6: s.ipv6, accessMode: s.accessMode, accessList: list,
+  export function restartKey(s: AppSettings, self: string = ''): string {
+    const list = s.accessMode === 'all' ? [] : Array.from(new Set(s.accessList.filter(name => name !== self))).sort();
+    return JSON.stringify({ ipv6: s.ipv6, accessMode: s.accessMode === 'white' ? 'white' : 'black', accessList: list,
       mixedPort: s.mixedPort, allowLan: s.allowLan, logLevel: s.logLevel, logToFile: s.logToFile });
   }
 

@@ -427,7 +427,7 @@ export struct ProfileEditPage {
       Button(UiText.get($r('app.string.editor_help'))).backgroundColor(UI.soft).fontColor(UI.ink).constraintSize({ minHeight: 44 }).onClick(() => this.saveHelp())
       Row({ space: 12 }) {
         if (this.dirty) {
-          Button(UiText.get($r('app.string.original_discard'))).constraintSize({ minHeight: 48 }).layoutWeight(1).backgroundColor(UI.soft).fontColor(UI.error)
+          Button(UiText.get($r('app.string.original_discard'))).constraintSize({ minHeight: 48 }).layoutWeight(1).backgroundColor(Color.Transparent).fontColor(UI.error)
             .enabled(!this.saving).onClick(() => this.discardDraft())
         }
         Button(this.saving ? UiText.get($r('app.string.original_saving')) : UiText.get($r('app.string.original_save')))

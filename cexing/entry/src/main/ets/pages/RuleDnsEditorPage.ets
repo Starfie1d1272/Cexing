@@ -249,11 +249,11 @@ export struct RuleDnsEditorPage {
           targets: this.targets, providers: this.providers, positions: this.items, insertionBefore: this.insertionBefore, matchId: this.items.find((item: EditableItem) => item.type === 'MATCH')?.id ?? '',
           onOperation: (operation: EditOperation) => this.edit(operation), onClose: () => { this.selected = null; } }).layoutWeight(1)
       } else {
-        Row({ space: 8 }) {
-          Button(UiText.get($r('app.string.rule_rules'))).constraintSize({ minHeight: 48 }).backgroundColor(this.section === 'rules' ? UI.action : UI.soft).fontColor(this.section === 'rules' ? UI.onAccent : UI.ink).accessibilitySelected(this.section === 'rules').onClick(() => { this.section = 'rules'; this.list(); })
-          Button(UiText.get($r('app.string.rule_providers'))).constraintSize({ minHeight: 48 }).backgroundColor(this.section === 'rule-providers' ? UI.action : UI.soft).fontColor(this.section === 'rule-providers' ? UI.onAccent : UI.ink).accessibilitySelected(this.section === 'rule-providers').onClick(() => { this.section = 'rule-providers'; this.list(); })
-          Button('DNS').constraintSize({ minHeight: 48 }).backgroundColor(this.section === 'dns' ? UI.action : UI.soft).fontColor(this.section === 'dns' ? UI.onAccent : UI.ink).accessibilitySelected(this.section === 'dns').onClick(() => { this.section = 'dns'; this.list(); })
-          Button('hosts').constraintSize({ minHeight: 48 }).backgroundColor(this.section === 'hosts' ? UI.action : UI.soft).fontColor(this.section === 'hosts' ? UI.onAccent : UI.ink).accessibilitySelected(this.section === 'hosts').onClick(() => { this.section = 'hosts'; this.list(); })
+        Flex({ wrap: FlexWrap.Wrap }) {
+          Button(UiText.get($r('app.string.rule_rules'))).constraintSize({ minHeight: 48 }).backgroundColor(this.section === 'rules' ? UI.action : UI.soft).fontColor(this.section === 'rules' ? UI.onAccent : UI.ink).margin({ right: 8, bottom: 8 }).accessibilitySelected(this.section === 'rules').onClick(() => { this.section = 'rules'; this.list(); })
+          Button(UiText.get($r('app.string.rule_providers'))).constraintSize({ minHeight: 48 }).backgroundColor(this.section === 'rule-providers' ? UI.action : UI.soft).fontColor(this.section === 'rule-providers' ? UI.onAccent : UI.ink).margin({ right: 8, bottom: 8 }).accessibilitySelected(this.section === 'rule-providers').onClick(() => { this.section = 'rule-providers'; this.list(); })
+          Button('DNS').constraintSize({ minHeight: 48 }).backgroundColor(this.section === 'dns' ? UI.action : UI.soft).fontColor(this.section === 'dns' ? UI.onAccent : UI.ink).margin({ right: 8, bottom: 8 }).accessibilitySelected(this.section === 'dns').onClick(() => { this.section = 'dns'; this.list(); })
+          Button('hosts').constraintSize({ minHeight: 48 }).backgroundColor(this.section === 'hosts' ? UI.action : UI.soft).fontColor(this.section === 'hosts' ? UI.onAccent : UI.ink).margin({ right: 8, bottom: 8 }).accessibilitySelected(this.section === 'hosts').onClick(() => { this.section = 'hosts'; this.list(); })
         }.enabled(!this.busy)
         List({ space: 8 }) {
           ForEach(this.items, (item: EditableItem, index: number) => {
