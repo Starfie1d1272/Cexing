@@ -71,7 +71,7 @@ export struct ProfileUpdatePage {
         undo: (revision: string) => editor.undo(revision)
       };
       const host = createTemplateUpdateHost(context, this.file, bound, source);
-      this.host = { reset: host.reset, label: host.label, preview: host.preview,
+      this.host = { reset: host.reset, label: host.label, detail: host.detail, preview: host.preview,
         apply: async (preview: TemplateUpdatePreview): Promise<string> => {
           const result = await host.apply(preview);
           const paths = this.navStack.getAllPathName();

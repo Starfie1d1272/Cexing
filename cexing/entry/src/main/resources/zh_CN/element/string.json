@@ -2747,6 +2747,14 @@
     {
       "name": "profile_exporting",
       "value": "导出中…"
+    },
+    {
+      "name": "profile_region_saved_recovery",
+      "value": "配置已保存，地区选择待重连恢复"
+    },
+    {
+      "name": "profile_region_manual_repair",
+      "value": "请先在代理面板选择可用选项，再关闭地区策略"
     }
   ]
 }

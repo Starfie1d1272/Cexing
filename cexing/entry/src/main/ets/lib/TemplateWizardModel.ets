@@ -1,6 +1,7 @@
 /* Template UI owns a draft only. The host must use ProfileTransactions and the
  * existing effective version; it never writes settings or publishes YAML here. */
 import { TemplatePlan as EditorTemplatePlan } from './ConfigEditor';
+import { templateApplyFailure } from './TemplateUpdates';
 
 export type TemplatePlan = EditorTemplatePlan;
 export interface TemplateInputs {
@@ -139,8 +140,15 @@ export class TemplateWizardModel {
       this.inputs.current = plan;
       this.result = result;
       this.preview = null;
-    } catch (_) {
-      if (this.current(epoch)) { this.error = '应用失败，请重新预览后重试'; this.preview = null; }
+    } catch (error) {
+      if (this.current(epoch)) {
+        const failure = templateApplyFailure(error as Error);
+        this.error = failure.kind === 'saved-recovery' ? '' : failure.message;
+        this.result = failure.kind === 'saved-recovery' ? failure.message : '';
+        if (failure.kind === 'saved-recovery') { this.inputs.current = plan; }
+        if (failure.kind === 'unconfirmed') { this.ready = false; }
+        this.preview = null;
+      }
     } finally { if (this.current(epoch)) { this.busy = false; this.emit(); } }
   }
 }

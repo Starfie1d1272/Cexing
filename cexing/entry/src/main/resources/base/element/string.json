@@ -2747,6 +2747,14 @@
     {
       "name": "profile_exporting",
       "value": "Exporting…"
+    },
+    {
+      "name": "profile_region_saved_recovery",
+      "value": "Configuration saved. Reconnect to restore the region selection."
+    },
+    {
+      "name": "profile_region_manual_repair",
+      "value": "Select an available option in the proxy panel, then disable the region policy."
     }
   ]
 }

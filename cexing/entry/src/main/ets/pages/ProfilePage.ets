@@ -201,7 +201,7 @@ export struct ProfilePage {
       const pending = ProfileStore.pendingRegionSelection(context, this.importedFile) !== '';
       this.toast(enable ? (pending ? UiText.get($r('app.string.profile_region_created_later')) : UiText.get($r('app.string.profile_region_selected'))) :
         UiText.get($r('app.string.profile_region_created')));
-    } catch (e) { this.importError = (e as Error).message ?? UiText.get($r('app.string.profile_region_unsaved')); }
+    } catch (e) { this.importError = this.regionFailure(e as Error); }
     finally { this.regionBusy = false; this.acceptExternalImport(); }
   }
 
@@ -261,8 +261,24 @@ export struct ProfilePage {
     } catch (e) {
       // A committed disable may still report a failed Controller selection restore.
       this.changed();
-      this.toast((e as Error).message ?? UiText.get($r('app.string.profile_region_failed')));
+      this.toast(this.regionFailure(e as Error));
     }
+  }
+
+  private regionFailure(error: Error): string {
+    const message = error?.message ?? '';
+    if (message === '应用未确认，请重连恢复' || message === '版本发布结果未知，请断开 VPN 后检查') {
+      return UiText.get($r('app.string.profile_recover_required'));
+    }
+    if (message === '配置已保存，地区选择待重连恢复') {
+      return UiText.get($r('app.string.profile_region_saved_recovery'));
+    }
+    if (message === 'REGION_PREVIOUS_UNAVAILABLE' ||
+      message === '请先在代理面板选择可用节点，再关闭或切换地区策略' ||
+      message === '原手动选项已失效，请先手动选择可用节点再关闭地区策略') {
+      return UiText.get($r('app.string.profile_region_manual_repair'));
+    }
+    return UiText.get($r('app.string.profile_region_failed'));
   }
 
   private confirmDelete(p: ProfileMeta): void {

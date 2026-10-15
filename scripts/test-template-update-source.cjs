@@ -1,11 +1,13 @@
 const assert = require('node:assert/strict'), fs = require('node:fs'), vm = require('node:vm');
 const ts = require('./ci/transpile-arkts.cjs');
 let expectedOriginal='prepared original', inputs = [], prepared = 0, pendingRead, precision = false;
-const snapshot = { templateId: 'ai', version: 1, entries: [] };
+const snapshot = { templateId: 'ai', version: 1, entries: [{id:'a',section:'rules',value:'DOMAIN,a.synthetic,Old'},{id:'b',section:'rules',value:'DOMAIN,b.synthetic,Old'}] };
 const intent = { schemaVersion: 1, revision: 'intent', sourceRevision: 'source', operations: [], template: { templateId: 'ai', version: 1, targetGroup: 'Pick' } };
 let published = structuredClone(intent);
 const session = revision => ({ profileId: 'one.yaml', revision, intent: structuredClone(intent), snapshot: { sourceRevision: 'source', sections: [] } });
-const modules = {
+const presentation = { exports: {} };
+vm.runInNewContext(ts.transpileModule(fs.readFileSync('cexing/entry/src/main/ets/lib/TemplateConflictPresentation.ets','utf8')).outputText,presentation);
+const modules = { './TemplateConflictPresentation': presentation.exports,
  'libentry.so': { versionAction: async (root, raw) => {
   if (precision) return JSON.stringify({ error: 'TEMPLATE_UPDATE_PRECISION' });
   assert.equal(root, '/synthetic'); const value = JSON.parse(raw); assert.equal(value.op, 'template-update-preview'); inputs.push(value.source);
@@ -38,7 +40,9 @@ vm.runInNewContext(ts.transpileModule(fs.readFileSync('cexing/entry/src/main/ets
  const older = source.read(session('old-page')); await new Promise(setImmediate);
  const newer = session('new-page'); await source.read(newer); release();
  await assert.rejects(older, /SESSION/); await source.encode(snapshot, newer);
- assert.equal(source.label({ section: 'rules' }), '分流规则');
+ const conflictA={id:'opaque-a',entity:'a',section:'rules',kind:'edit'},conflictB={id:'opaque-b',entity:'b',section:'rules',kind:'edit'};
+ assert.notEqual(source.label(conflictA),source.label(conflictB));assert.match(source.label(conflictA),/a.synthetic/);
+ assert.match(source.detail(conflictA).mine,/a.synthetic/);assert.ok(!source.label(conflictA).includes('opaque-a'));
  const downloaded={original:'downloaded',metadata:{origin:'synthetic',sub:{},updatedAt:1}};
  const candidateSource=sandbox.exports.createTemplateUpdateSource({filesDir:'/synthetic'},'one.yaml',downloaded);
  downloaded.original='caller mutation';expectedOriginal='prepared downloaded';

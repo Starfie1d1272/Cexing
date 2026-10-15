@@ -10,6 +10,24 @@ export interface TemplateUpdateRequest {
   decisions?: Record<string, string>;
 }
 export interface TemplateConflict { id: string; entity: string; section: string; path?: string[]; kind: string; }
+export interface TemplateConflictDetail { title: string; mine: string; template: string; }
+export interface TemplateApplyFailure { kind: string; message: string; }
+// Exact allowlist of shared transaction outcomes; arbitrary exception bodies
+// never become UI text. Saved and unknown outcomes require recovery, not replay.
+export function templateApplyFailure(error: Error): TemplateApplyFailure {
+  const message = error?.message ?? '';
+  if (message === '应用未确认，请重连恢复' || message === '版本发布结果未知，请断开 VPN 后检查') {
+    return { kind: 'unconfirmed', message: '应用未确认，请返回连接页断开后重连恢复' };
+  }
+  if (message === '配置已保存，地区选择待重连恢复') {
+    return { kind: 'saved-recovery', message: '配置已保存，地区选择待重连恢复' };
+  }
+  if (message === '请先在代理面板选择可用节点，再关闭或切换地区策略' ||
+    message === '原手动选项已失效，请先手动选择可用节点再关闭地区策略' || message === 'REGION_PREVIOUS_UNAVAILABLE') {
+    return { kind: 'retry', message: '请先在代理面板选择可用选项，再关闭或切换地区策略' };
+  }
+  return { kind: 'retry', message: '应用失败，请重新预览' };
+}
 export interface TemplateUpdatePreview { ready: boolean; candidate?: TemplateSnapshot; conflicts: TemplateConflict[]; validation?: TemplatePreview; }
 
 export namespace TemplateUpdates {
@@ -37,6 +55,7 @@ export interface TemplateUpdateHost {
   // compare the captured ticket, then use ProfileTransactions. No list Merge.
   apply: (preview: TemplateUpdatePreview) => Promise<string>;
   label: (conflict: TemplateConflict) => string;
+  detail?: (conflict: TemplateConflict) => TemplateConflictDetail;
 }
 
 export class TemplateUpdateModel {
@@ -44,6 +63,7 @@ export class TemplateUpdateModel {
   busy: boolean = false;
   error: string = '';
   result: string = '';
+  recoveryRequired: boolean = false;
   private decisions: Record<string, string> = {};
   private generation: number = 0;
   private open: boolean = true;
@@ -54,9 +74,9 @@ export class TemplateUpdateModel {
   private current(generation: number): boolean { return this.open && this.generation === generation; }
   private emit(): void { if (this.open) { this.changed(); } }
   async refresh(): Promise<void> {
-    if (!this.open || this.busy) { return; }
+    if (!this.open || this.busy || this.recoveryRequired) { return; }
     const generation = ++this.generation;
-    this.busy = true; this.error = ''; this.result = ''; this.preview = null; this.emit();
+    this.busy = true; this.error = ''; this.result = ''; this.recoveryRequired = false; this.preview = null; this.emit();
     try {
       const decisions: Record<string, string> = {};
       for (const id of Object.keys(this.decisions)) { decisions[id] = this.decisions[id]; }
@@ -75,7 +95,7 @@ export class TemplateUpdateModel {
     this.decisions[id] = choice;
     await this.refresh();
   }
-  async reset(): Promise<void> { if (this.busy || !this.open) { return; } this.decisions = {}; this.host.reset?.(); await this.refresh(); }
+  async reset(): Promise<void> { if (this.busy || !this.open || this.recoveryRequired) { return; } this.decisions = {}; this.host.reset?.(); await this.refresh(); }
   async apply(): Promise<void> {
     const preview = this.preview;
     if (!this.open || this.busy || preview === null || !preview.ready || preview.conflicts.length > 0 || preview.candidate === undefined || preview.validation === undefined) { return; }
@@ -84,8 +104,14 @@ export class TemplateUpdateModel {
     try {
       const result = await this.host.apply(preview);
       if (this.current(generation)) { this.result = result; this.preview = null; }
-    } catch (_) {
-      if (this.current(generation)) { this.error = '应用失败，请重新预览'; this.preview = null; }
+    } catch (error) {
+      if (this.current(generation)) {
+        const failure = templateApplyFailure(error as Error);
+        this.recoveryRequired = failure.kind !== 'retry';
+        this.error = failure.kind === 'saved-recovery' ? '' : failure.message;
+        this.result = failure.kind === 'saved-recovery' ? failure.message : '';
+        this.preview = null;
+      }
     } finally { if (this.current(generation)) { this.busy = false; this.emit(); } }
   }
 }

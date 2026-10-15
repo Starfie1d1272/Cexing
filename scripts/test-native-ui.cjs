@@ -516,7 +516,7 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   const pendingRegion = leftRegion.saveRegion(true);
   leftRegion.aboutToDisappear(); finishRegion('saved'); await pendingRegion;
   assert.equal(leftRegion.tabJump, -1, 'late create and enable cannot navigate after leaving');
-  let regionLists = 0, committedRegionEnabled = true;
+  let regionLists = 0, committedRegionEnabled = true, regionFailure = '配置已保存，地区选择待重连恢复';
   const PartialDisable = load('ProfilePage', { ...common,
     '../lib/ConnectionFailure': { ConnectionFailures: {} }, '@kit.CoreFileKit': {}, '@kit.ArkTS': {}, '@kit.BasicServicesKit': {}, './ProfileEditPage': {}, './ProfileTemplatePage': { ProfileTemplateBus: { file: '' } }, './ProfileUpdatePage': { ProfileUpdateBus: { request: null } }, './ProfileProxyEditorPage': { ProfileProxyEditorBus: { file: '' } }, './RuleDnsEditorPage': { RuleDnsEditorBus: { file: '', section: '' } },
     '../lib/CoreApi': { CoreApi: {} },
@@ -527,7 +527,7 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
     '../lib/ProfileTransactions': { ProfileTransactions: { onIdle: () => () => {}, isBusy: () => false,
       setRegionPlan: async () => {
         committedRegionEnabled = false;
-        throw Error('地区策略已关闭，但原选项未恢复');
+        throw Error(regionFailure);
       }
     } },
     '../lib/ProfileStore': { ProfileStore: {
@@ -550,7 +550,15 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   assert.match(fs.readFileSync(path.join(pages, 'ProfilePage.ets'), 'utf8'),
     /this\.ProfileDetail\(p\)\s*\}, \(p: ProfileMeta\) => this\.detailKey\(p\)\)/,
     'detail ForEach must use the revision-aware key');
-  assert.ok(toasts.includes('地区策略已关闭，但原选项未恢复'));
+  assert.ok(toasts.includes('配置已保存，地区选择待重连恢复'));
+  regionFailure = 'private: synthetic-token';
+  await partialDisable.toggleRegion('candidate.yaml');
+  assert.ok(!toasts.some(value => value.includes('synthetic-token')));
+  partialDisable.regionMode='region';partialDisable.regionPreview={eligible:true,nodes:{}};
+  partialDisable.importedFile='candidate.yaml';await partialDisable.saveRegion(false);
+  assert.ok(partialDisable.importError.length>0);assert.ok(!partialDisable.importError.includes('synthetic-token'));
+  regionFailure='原手动选项已失效，请先手动选择可用节点再关闭地区策略';
+  await partialDisable.saveRegion(false);assert.match(partialDisable.importError,/代理面板.*可用选项/);
   active = 'fixture.yaml';
   controller.status = status.Connected; profile.confirmDelete(profiles[0]); dialog.secondaryButton.action();
   assert.equal(deleted, 0, 'running active profile must be protected');
