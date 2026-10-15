@@ -21,6 +21,7 @@ export struct ProfileUpdatePage {
   @Consume('profileRevision') profileRevision: number;
   @State private ready: boolean = false;
   private recovering: boolean = false;
+  private recoveryGeneration: number = 0;
   @State private failed: boolean = false;
   private file: string = '';
   private request: ProfileUpdateRequest | null = null;
@@ -33,6 +34,7 @@ export struct ProfileUpdatePage {
   }
   aboutToDisappear(): void { this.release(); }
   private release(): void {
+    this.recoveryGeneration++;
     if (this.ready) { this.profileRevision++; }
     this.host?.reset?.(); this.host = undefined; this.request = null;
     this.ready = false; this.failed = true;
@@ -91,15 +93,17 @@ export struct ProfileUpdatePage {
     if (!this.visible || !this.ready || this.recovering) { return; }
     if (selection) { this.navStack.pushPath({ name: 'zashboard' }); return; }
     this.recovering = true;
+    const generation = this.recoveryGeneration;
+    const current = (): boolean => this.visible && this.ready && generation === this.recoveryGeneration;
     const context = getContext(this) as common.UIAbilityContext;
     try {
-      const accepted = await ProfileApplyRecovery.reconnect(context, () => this.visible && this.ready);
-      if (!this.visible || !this.ready || accepted === null) { return; }
+      const accepted = await ProfileApplyRecovery.reconnect(context, current);
+      if (!current() || accepted === null) { return; }
       promptAction.showToast({ message: context.resourceManager.getStringByNameSync(
         accepted ? 'apply_feedback_starting' : 'apply_feedback_recovery_failed'), duration: 1800 });
       if (accepted) { this.release(); this.navStack.pop(); }
     } catch (_) {
-      if (this.visible && this.ready) {
+      if (current()) {
         promptAction.showToast({ message: context.resourceManager.getStringByNameSync('apply_feedback_recovery_failed'), duration: 1800 });
       }
     } finally { this.recovering = false; }

@@ -95,6 +95,10 @@ async function idle(model) { for (let i = 0; i < 30 && model.busy; i++) await ne
     let settle; recoverResult = () => new Promise(resolve => { settle = resolve; });
     const before = recoverCalls, pending = p.recover(false); await p.recover(false);
     assert.equal(recoverCalls, before + 1); p.visible = false; settle(true); await pending; assert.equal(pops, 0);
+    p.visible = true; p.ready = true;
+    recoverResult = () => new Promise(resolve => { settle = resolve; });
+    const departed = p.recover(false); p.release(); p.ready = true;
+    settle(true); await departed; assert.equal(pops, 0, 'reentering cannot revive the old navigation session');
     p.visible = true; recoverResult = async current => current(); await p.recover(false);
     assert.equal(pops, 1); assert.equal(p.ready, false);
   }
