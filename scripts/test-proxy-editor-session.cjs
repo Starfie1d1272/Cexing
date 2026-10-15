@@ -5,11 +5,14 @@ const vm = require('node:vm');
 const ts = require('./ci/transpile-arkts.cjs');
 let ticket = { file: 'synthetic.yaml', profileIdentity: 'identity', profileVersion: 'profile-v1',
   activeVersion: 'active-v1', activeFile: 'synthetic.yaml', draftRevision: '' };
-let publishedIntent = null, smartIntent;
+let publishedIntent = null, smartIntent, pairedSource, committedRaw = 'proxies: []';
+let readSource = async () => pairedSource;
 let draft = { intent: null }, saveCalls = 0, applyCalls = 0, revision = 0;
 let read = async () => ({ sourceRevision: 'source-v1', sections: [] });
 let target = async () => ({ item: { id: 'target' }, value: { password: 'synthetic-private' } });
-let save = async (_context, expected, intent) => {
+let save = async (_context, expected, intent, guard, source) => {
+  if (guard) await guard();
+  if (source !== undefined) pairedSource = source ?? undefined;
   assert.equal(expected.draftRevision, ticket.draftRevision);
   ticket = { ...ticket, draftRevision: `draft-${++revision}` }; draft = { intent: intent === null ? null : { ...intent, revision: ticket.draftRevision } };
   return ticket.draftRevision;
@@ -31,8 +34,8 @@ const modules = {
     smartIntent = intent;
     return [{ id: 'renamed-group', choiceId: 'original-group', before: 'url-test', after: 'url-test', override: true }];
   } } },
-  './ProfileStore': { ProfileStore: { getProfileContent: () => 'proxies: []', getEnabledMerge: () => '', readEditDraft: () => draft } },
-  './ProfileTransactions': { ProfileTransactions: { editTicket: () => ({ ...ticket }),
+  './ProfileStore': { ProfileStore: { getProfileContent: () => committedRaw, getEnabledMerge: () => '', readEditDraft: () => draft } },
+  './ProfileTransactions': { ProfileTransactions: { editTicket: () => ({ ...ticket }), readEditSource: (...args) => readSource(...args),
     saveEditDraft: (...args) => { saveCalls++; return save(...args); },
     previewEditDraft: (...args) => preview(...args), applyEditDraft: (...args) => { applyCalls++; return apply(...args); } } },
   './EffectiveVersions': { EffectiveVersions: { read: () => ({ Profiles: { 'synthetic.yaml': {} } }), regionPlan: () => null, editIntent: () => publishedIntent } }
@@ -44,7 +47,7 @@ const Model = sandbox.exports.ProfileProxyEditorModel;
   let finishRead;
   read = () => new Promise(resolve => { finishRead = resolve; });
   const stale = new Model({}, ticket.file); const reading = stale.load();
-  ticket.activeVersion = 'active-v2'; finishRead({ sourceRevision: 'old-source', sections: [] });
+  await new Promise(setImmediate); ticket.activeVersion = 'active-v2'; finishRead({ sourceRevision: 'old-source', sections: [] });
   await assert.rejects(reading, /变化/); assert.equal(stale.snapshot, null);
   read = async () => ({ sourceRevision: 'source-v2', missingFieldRevision: 'absent-hash', sections: [] });
   const model = new Model({}, ticket.file); await model.load();
@@ -142,5 +145,36 @@ const Model = sandbox.exports.ProfileProxyEditorModel;
   let finishApply; apply = () => new Promise(resolve => { finishApply = resolve; });
   const applying = model.apply(); model.cancel(); finishApply('saved');
   assert.equal(await applying, null, 'late transaction completion cannot navigate or claim success');
+  // The actual UI model must use the paired source for every direct read and
+  // retain that pair when undoing a whole-draft reset (compiler ports synthetic).
+  const candidateSource = { original: 'synthetic candidate port 1081', metadata: { origin: '', sub: {}, updatedAt: 1 } };
+  pairedSource = candidateSource; publishedIntent = null;
+  ticket.draftRevision = 'paired'; draft = { intent: { schemaVersion: 1, revision: 'paired', sourceRevision: 'source', operations: [] } };
+  read = async (_ctx, raw) => ({ sourceRevision: 'source', sections: [
+    { section: 'proxies', items: [{ id: 'node', name: 'node', type: 'socks5' }] }] });
+  target = async (_ctx, raw) => ({ item: { id: 'node', revision: 'target' }, name: 'node',
+    value: { port: raw === candidateSource.original ? 1081 : 1080 } });
+  preview = async () => ({ digest: 'paired-preview', changes: [] });
+  const paired = new Model({}, ticket.file); await paired.load();
+  assert.equal((await paired.target('proxies', 'node')).value.port, 1081);
+  assert.equal((await paired.presentTarget('proxies', { item: { id: 'node' }, name: 'node' })).value.port, 1081);
+  await paired.reset(); assert.equal(pairedSource, undefined);
+  assert.equal((await paired.target('proxies', 'node')).value.port, 1080);
+  await paired.undo(); assert.equal(pairedSource.original, candidateSource.original);
+  assert.equal((await paired.target('proxies', 'node')).value.port, 1081, 'undo restores source together with intent');
+  committedRaw = 'changed successful source';
+  await assert.rejects(paired.target('proxies', 'node'), /来源已变化/);
+  committedRaw = 'proxies: []';
+  let finishSource;
+  readSource = () => new Promise(resolve => { finishSource = resolve; });
+  const departed = new Model({}, ticket.file), loadingSource = departed.load();
+  departed.cancel(); finishSource(candidateSource);
+  assert.equal(await loadingSource, false); assert.equal(departed.snapshot, null);
+  readSource = async () => pairedSource;
+  const intactRevision = ticket.draftRevision;
+  save = (...args) => new Promise((resolve, reject) => { finishSave = () => actualSave(...args).then(resolve, reject); });
+  const cancelledSave = paired.save(paired.workingIntent()); paired.cancel();
+  const rejection = assert.rejects(cancelledSave, /取消/); await finishSave().catch(() => {}); await rejection;
+  assert.equal(ticket.draftRevision, intactRevision, 'page cancellation fences the actual save guard');
   console.log('PASS: captured read/draft tickets, private-target cancellation, single-flight saving, stale apply rejection, inert failed preview and late completion');
 })().catch(error => { console.error(error); process.exitCode = 1; });

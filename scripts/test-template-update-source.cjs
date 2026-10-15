@@ -6,7 +6,10 @@ const intent = { schemaVersion: 1, revision: 'intent', sourceRevision: 'source',
 let published = structuredClone(intent), paired, activeVersion='version-successful';
 const session = revision => ({ profileId: 'one.yaml', revision, intent: structuredClone(intent), snapshot: { sourceRevision: 'source', sections: [] } });
 const ticket=()=>({file:'one.yaml',profileIdentity:'identity',profileVersion:'version-successful',activeVersion:activeVersion,activeFile:'one.yaml',draftRevision:intent.revision});
+const presentation = { exports: {}, require: () => ({}) };
+vm.runInNewContext(ts.transpileModule(fs.readFileSync('cexing/entry/src/main/ets/lib/TemplateConflictPresentation.ets', 'utf8')).outputText, presentation);
 const modules = {
+ './TemplateConflictPresentation': presentation.exports,
  './ProfileTransactions':{ProfileTransactions:{editTicket:ticket,readEditSource:async(_ctx,captured,current)=>{assert.deepEqual(captured,ticket());assert.equal(current(),true);return paired}}},
  'libentry.so': { versionAction: async (root, raw) => {
   if (precision) return JSON.stringify({ error: 'TEMPLATE_UPDATE_PRECISION' });
@@ -40,7 +43,7 @@ vm.runInNewContext(ts.transpileModule(fs.readFileSync('cexing/entry/src/main/ets
  const older = source.read(session('old-page')); await new Promise(setImmediate);
  const newer = session('new-page'); await source.read(newer); release();
  await assert.rejects(older, /SESSION/); await source.encode(snapshot, newer);
- assert.equal(source.label({ section: 'rules' }), '分流规则');
+ assert.equal(source.label({ section: 'rules' }), '分流规则 1 · 内容');
  const downloaded={original:'downloaded',metadata:{origin:'synthetic',sub:{},updatedAt:1}};
  const candidateSource=sandbox.exports.createTemplateUpdateSource({filesDir:'/synthetic'},'one.yaml',downloaded);
  downloaded.original='caller mutation';expectedOriginal='prepared downloaded';

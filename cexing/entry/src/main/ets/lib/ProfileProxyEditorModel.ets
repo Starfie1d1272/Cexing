@@ -1,11 +1,13 @@
 import { common } from '@kit.AbilityKit';
 import { ConfigEditor, EditableSnapshot, EditIntent, EditTarget, SmartGroupChange, EditorDraftHost, EditorDraftPreview } from './ConfigEditor';
 import { ProfileStore } from './ProfileStore';
-import { ProfileTransactions, EditTicket, ProfileApplyState } from './ProfileTransactions';
+import { ProfileTransactions, EditTicket, ProfileApplyState, EditorSourceCandidate } from './ProfileTransactions';
 import { MergePreview } from './CoreValidator';
 import { EffectiveVersions, RegionPlan } from './EffectiveVersions';
 import { Settings } from './Settings';
 import { EditorDraftHosts } from './EditorDraftHosts';
+
+interface ProxyEditorHistory { intent: EditIntent | null; source?: EditorSourceCandidate; }
 
 /** UI session over the published #164/#172 APIs. Never writes a sidecar directly. */
 export class ProfileProxyEditorModel {
@@ -18,12 +20,14 @@ export class ProfileProxyEditorModel {
   private file: string;
   private ticket: EditTicket | null = null;
   private original: string = '';
+  private committedOriginal: string | null = null;
   private overlay: string = '';
   private region: RegionPlan | undefined = undefined;
   private generation: number = 0;
   private editor: EditorDraftHost | null = null;
   private confirmed: EditorDraftPreview | null = null;
-  private history: Array<EditIntent | null> = [];
+  private history: ProxyEditorHistory[] = [];
+  private source: EditorSourceCandidate | undefined = undefined;
   private committedRevision: string = '';
   private committedHasIntent: boolean = false;
 
@@ -53,12 +57,22 @@ export class ProfileProxyEditorModel {
     if (JSON.stringify(ProfileTransactions.editTicket(this.context, this.file)) !== JSON.stringify(ticket)) {
       throw new Error('配置或草稿已变化，请重新打开');
     }
+    if (this.ticket !== null && this.ticket.profileIdentity === ticket.profileIdentity &&
+      this.ticket.profileVersion === ticket.profileVersion &&
+      this.committedOriginal !== ProfileStore.getProfileContent(this.context, this.file)) {
+      throw new Error('配置来源已变化，请重新打开');
+    }
   }
 
   async load(): Promise<boolean> {
     const request = ++this.generation;
     const ticket = ProfileTransactions.editTicket(this.context, this.file);
-    const original = ProfileStore.getProfileContent(this.context, this.file);
+    const committedOriginal = ProfileStore.getProfileContent(this.context, this.file);
+    const source = await ProfileTransactions.readEditSource(this.context, ticket, () => request === this.generation);
+    if (request !== this.generation) { return false; }
+    this.check(ticket);
+    if (committedOriginal !== ProfileStore.getProfileContent(this.context, this.file)) { throw new Error('配置来源已变化，请重新打开'); }
+    const original = source?.original ?? committedOriginal;
     if (original === null) { throw new Error('原始配置读取失败'); }
     const overlay = ProfileStore.getEnabledMerge(this.context, this.file);
     const draft = ProfileStore.readEditDraft(this.context, this.file);
@@ -71,10 +85,11 @@ export class ProfileProxyEditorModel {
       undefined, baseline, region);
     if (request !== this.generation) { return false; }
     this.check(ticket);
+    if (committedOriginal !== ProfileStore.getProfileContent(this.context, this.file)) { throw new Error('配置来源已变化，请重新打开'); }
     if (JSON.stringify(this.ticket) !== JSON.stringify(ticket)) { this.history = []; }
     this.committedRevision = committed?.revision ?? ''; this.committedHasIntent = committed !== null;
     this.ticket = ticket;
-    this.original = original;
+    this.original = original; this.source = source; this.committedOriginal = committedOriginal;
     this.overlay = overlay;
     this.region = region;
     this.snapshot = snapshot;
@@ -167,7 +182,7 @@ export class ProfileProxyEditorModel {
     this.check(ticket); return choices;
   }
 
-  async save(intent: EditIntent | null, recordHistory: boolean = true): Promise<boolean> {
+  async save(intent: EditIntent | null, recordHistory: boolean = true, sourceOverride?: EditorSourceCandidate | null): Promise<boolean> {
     if (this.busy || this.ticket === null) { return false; }
     const request = ++this.generation;
     const ticket = this.ticket;
@@ -177,7 +192,10 @@ export class ProfileProxyEditorModel {
     try {
       if (request !== this.generation) { return false; }
       this.check(ticket);
-      const revision = await ProfileTransactions.saveEditDraft(this.context, ticket, intent);
+      const revision = await ProfileTransactions.saveEditDraft(this.context, ticket, intent, async () => {
+        if (request !== this.generation) { throw new Error('编辑已取消'); }
+        this.check(ticket);
+      }, sourceOverride);
       if (request !== this.generation) { return false; }
       // The next identity is derived from this request's acknowledged revision,
       // not from an unrelated later editTicket read after the worker completes.
@@ -185,11 +203,20 @@ export class ProfileProxyEditorModel {
         profileVersion: ticket.profileVersion, activeVersion: ticket.activeVersion,
         activeFile: ticket.activeFile, draftRevision: revision };
       this.check(next);
-      if (recordHistory) { this.history.push(this.intent); }
+      if (recordHistory) { this.history.push({ intent: this.intent, source: this.source }); }
       const saved = intent === null ? null : JSON.parse(JSON.stringify(intent)) as EditIntent;
       if (saved !== null) { saved.revision = revision; }
       this.intent = saved;
       this.ticket = next;
+      if (sourceOverride !== undefined) {
+        this.source = sourceOverride ?? undefined;
+        const original = this.source?.original ?? ProfileStore.getProfileContent(this.context, this.file);
+        if (original === null) { throw new Error('原始配置读取失败'); }
+        const snapshot = await ConfigEditor.list(this.context, original, this.overlay, next.activeVersion,
+          undefined, this.baseline(), this.region);
+        if (request !== this.generation) { return false; }
+        this.check(next); this.original = original; this.snapshot = snapshot;
+      }
       return await this.confirmPreview(next, request);
     } finally { this.busy = false; }
   }
@@ -231,9 +258,10 @@ export class ProfileProxyEditorModel {
 
   async undo(): Promise<boolean> {
     if (this.busy || this.history.length === 0) { return false; }
-    const previous = this.history.pop() ?? null;
+    const previous = this.history.pop();
+    if (previous === undefined) { return false; }
     const ticket = this.ticket;
-    try { return await this.save(previous, false); }
+    try { return await this.save(previous.intent, false, previous.source ?? null); }
     catch (error) { if (this.ticket === ticket) { this.history.push(previous); } throw new Error((error as Error).message); }
   }
 
@@ -241,7 +269,7 @@ export class ProfileProxyEditorModel {
     if (this.busy) { return false; }
     const version = EffectiveVersions.read(this.context)?.Profiles[this.file];
     const intent = version === undefined ? null : EffectiveVersions.editIntent(this.context, version);
-    return await this.save(intent);
+    return await this.save(intent, true, null);
   }
 
   async apply(): Promise<ProfileApplyState | null> {
