@@ -18,10 +18,6 @@ import (
 // Private compare token for editor inputs and the local resources they refer to.
 // Missing/invalid cache bytes are still identifiable; no validation or fetch occurs.
 func editorIdentity(home string, a versionAction, global string) (string, error) {
-	runLock.Lock()
-	defer runLock.Unlock()
-	constant.SetHomeDir(home)
-	homeDir = home
 	request, e := editorReadRequest(home, a, global)
 	if e != nil {
 		return "", errors.New("EDIT_READ_FAILED")
@@ -38,7 +34,15 @@ func editorIdentity(home string, a versionAction, global string) (string, error)
 	if e = yaml.Unmarshal(text, raw); e != nil {
 		return "", errors.New("EDIT_READ_FAILED")
 	}
+	// Authoring may resolve region providers under runLock itself. Hold the
+	// lock only for the following shared home/path snapshot, never recursively.
+	runLock.Lock()
+	defer runLock.Unlock()
+	constant.SetHomeDir(home)
+	homeDir = home
 	h := sha256.New()
+	// Bind the exact authoring projection as well as the cache bytes below.
+	h.Write(text)
 	// Compiler-generated provenance changes on a successful publication; user
 	// changes still receive a new host draft revision and profile/source ticket.
 	identityIntent := a.EditIntent

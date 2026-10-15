@@ -13,7 +13,7 @@ import { suggestProfileName, profileNameFromUrl } from './ProfileName';
 import { EffectiveVersions } from './EffectiveVersions';
 import { RegionChoiceState } from './TemplateRegionEffects';
 import { EditIntent } from './ConfigEditor';
-import { BoundedFileReader } from './BoundedFileReader';
+import { BoundedFileReader, IMPORT_CONFIG_BYTES } from './BoundedFileReader';
 
 const TAG = 'profileStore';
 const ACTIVE_FILE = 'active.txt';
@@ -51,7 +51,14 @@ export interface ProfileUpdateState {
   retryAt: number;
 }
 
-export interface EditDraft { revision: string; intent: EditIntent | null; }
+export interface EditorSourceCandidate { original: string; metadata: ProfileMetaExt; }
+export interface EditDraftSource {
+  profileIdentity: string; profileVersion: string; baseDigest: string; metadata: ProfileMetaExt;
+}
+export interface EditDraft { revision: string; intent: EditIntent | null; source?: EditDraftSource; consumed?: boolean; }
+const DRAFT_HEADER_BYTES: number = 1024 * 1024 + 128 * 1024;
+const DRAFT_PREFIX_BYTES: number = 13;
+const DRAFT_BYTES: number = IMPORT_CONFIG_BYTES + DRAFT_HEADER_BYTES + DRAFT_PREFIX_BYTES;
 
 export namespace ProfileStore {
   function intentDraftPath(context: common.Context, file: string): string {
@@ -59,21 +66,41 @@ export namespace ProfileStore {
     return `${ensureDir(context)}/${file}.intent.json`;
   }
 
-  export function readEditDraft(context: common.Context, file: string): EditDraft {
+  function readDraftRecord(context: common.Context, file: string): EditDraft | null {
     const path = intentDraftPath(context, file);
-    if (!fileIo.accessSync(path)) {
-      const version = EffectiveVersions.read(context)?.Profiles[file];
-      const intent = version !== undefined ? EffectiveVersions.editIntent(context, version) : null;
-      return { revision: intent?.revision ?? '', intent: intent };
+    if (!fileIo.accessSync(path)) { return null; }
+    const size = fileIo.statSync(path).size;
+    const magic = fileIo.readTextSync(path, { length: Math.min(4, size) });
+    let raw = '';
+    if (magic === 'CED2') {
+      const prefix = fileIo.readTextSync(path, { length: DRAFT_PREFIX_BYTES });
+      const length = draftHeaderLength(prefix);
+      if (size > DRAFT_BYTES || size <= DRAFT_PREFIX_BYTES + length) { throw new Error('编辑草稿损坏'); }
+      raw = fileIo.readTextSync(path, { offset: DRAFT_PREFIX_BYTES, length: length });
+    } else {
+      if (size > 1024 * 1024 + 1024) { throw new Error('编辑草稿超限'); }
+      raw = fileIo.readTextSync(path);
     }
-    if (fileIo.statSync(path).size > 1024 * 1024 + 1024) { throw new Error('编辑草稿超限'); }
-    const draft = JSON.parse(fileIo.readTextSync(path)) as EditDraft;
-    if (typeof draft.revision !== 'string' || draft.revision.length === 0 ||
+    const draft = JSON.parse(raw) as EditDraft;
+    if (draft.source !== undefined && (magic !== 'CED2' ||
+      typeof draft.source.profileIdentity !== 'string' || typeof draft.source.profileVersion !== 'string' ||
+      !/^[a-f0-9]{64}$/.test(draft.source.baseDigest) || draft.source.metadata === null ||
+      typeof draft.source.metadata !== 'object')) { throw new Error('编辑草稿损坏'); }
+    if (magic === 'CED2' && (draft.source === undefined || draft.intent === null)) { throw new Error('编辑草稿损坏'); }
+    if ((draft.consumed !== undefined && typeof draft.consumed !== 'boolean') ||
+      (draft.consumed === true && (draft.intent !== null || draft.source !== undefined)) ||
+      typeof draft.revision !== 'string' || draft.revision.length === 0 ||
       draft.intent === undefined || (draft.intent !== null && draft.intent.revision !== draft.revision)) {
       throw new Error('编辑草稿损坏');
     }
+    return draft;
+  }
+
+  export function readEditDraft(context: common.Context, file: string): EditDraft {
+    const draft = readDraftRecord(context, file);
     const version = EffectiveVersions.read(context)?.Profiles[file];
     const applied = version !== undefined ? EffectiveVersions.editIntent(context, version) : null;
+    if (draft === null || draft.consumed === true) { return { revision: applied?.revision ?? '', intent: applied }; }
     if (applied !== null && applied.revision === draft.revision) {
       // The compiler may enrich the applied intent with template Base/Mine.
       // An applied draft is now the successful provenance; an unpublished UUID
@@ -83,11 +110,78 @@ export namespace ProfileStore {
     return draft;
   }
 
+  /** Compact a consumed record before another publication can move its provenance away.
+   * A crash before compaction is recoverable while the current version still owns it. */
+  export async function compactAppliedDraft(context: common.Context, file: string): Promise<void> {
+    const draft = readDraftRecord(context, file);
+    if (draft === null || draft.consumed === true) { return; }
+    const version = EffectiveVersions.read(context)?.Profiles[file];
+    const applied = version !== undefined ? EffectiveVersions.editIntent(context, version) : null;
+    if (applied === null || applied.revision !== draft.revision) { return; }
+    await saveEditDraftAtomic(context, file, { revision: draft.revision, intent: null, consumed: true },
+      draft.revision, async () => {
+        const now = readDraftRecord(context, file);
+        const current = EffectiveVersions.read(context)?.Profiles[file];
+        if (now?.revision !== draft.revision || current?.ID !== version?.ID) { throw new Error('草稿已变化，请重新打开'); }
+      });
+  }
+
   /** Called by the shared transaction gate after strict worker schema checking. */
   export function saveEditDraft(context: common.Context, file: string, draft: EditDraft,
     expected: string): void {
+    if (draft.source !== undefined) { throw new Error('候选草稿必须完整保存'); }
     if (readEditDraft(context, file).revision !== expected) { throw new Error('草稿已变化，请重新打开'); }
     atomicText(intentDraftPath(context, file), JSON.stringify(draft));
+  }
+
+  function draftHeaderLength(prefix: string): number {
+    if (!/^CED2[0-9a-f]{8}\n$/.test(prefix)) { throw new Error('编辑草稿损坏'); }
+    const length = parseInt(prefix.substring(4, 12), 16);
+    if (length <= 0 || length > DRAFT_HEADER_BYTES) { throw new Error('编辑草稿超限'); }
+    return length;
+  }
+
+  /** Read the large private body asynchronously, never as part of a sync ticket. */
+  export async function readEditDraftSource(context: common.Context, file: string,
+    revision: string, current?: () => boolean): Promise<EditorSourceCandidate | undefined> {
+    const before = readEditDraft(context, file);
+    if (before.revision !== revision) { throw new Error('草稿已变化，请重新打开'); }
+    if (before.source === undefined) { return undefined; }
+    const data = await BoundedFileReader.bytes(intentDraftPath(context, file), DRAFT_BYTES, current);
+    const decoder = util.TextDecoder.create('utf-8', { fatal: true });
+    const prefix = decoder.decodeToString(new Uint8Array(data, 0, DRAFT_PREFIX_BYTES));
+    const length = draftHeaderLength(prefix);
+    if (data.byteLength <= DRAFT_PREFIX_BYTES + length) { throw new Error('编辑草稿损坏'); }
+    const header = JSON.parse(decoder.decodeToString(new Uint8Array(data, DRAFT_PREFIX_BYTES, length))) as EditDraft;
+    if (JSON.stringify(header) !== JSON.stringify(before)) { throw new Error('草稿已变化，请重新打开'); }
+    const start = DRAFT_PREFIX_BYTES + length;
+    if (data.byteLength - start > IMPORT_CONFIG_BYTES) { throw new Error('编辑草稿超限'); }
+    const original = await BoundedFileReader.decodeUtf8(data, current, start);
+    if (JSON.stringify(readEditDraft(context, file)) !== JSON.stringify(before)) { throw new Error('草稿已变化，请重新打开'); }
+    return { original: original, metadata: before.source.metadata };
+  }
+
+  /** One atomic private file pairs intent and candidate; failed/late writes leave the old draft. */
+  export async function saveEditDraftAtomic(context: common.Context, file: string, draft: EditDraft,
+    expected: string, guard: () => Promise<void>, original?: string): Promise<void> {
+    if ((draft.source === undefined) !== (original === undefined) ||
+      (draft.source !== undefined && draft.intent === null)) { throw new Error('编辑草稿损坏'); }
+    if (original !== undefined) { BoundedFileReader.checkConfigSize(original); }
+    const header = JSON.stringify(draft);
+    const encodedHeader = util.TextEncoder.create('utf-8').encodeInto(header);
+    if (encodedHeader.byteLength > (original !== undefined ? DRAFT_HEADER_BYTES : 1024 * 1024 + 1024)) { throw new Error('编辑草稿超限'); }
+    const prefix = `CED2${encodedHeader.byteLength.toString(16).padStart(8, '0')}\n`;
+    const path = intentDraftPath(context, file);
+    const temp = `${path}.pending-${util.generateRandomUUID(true)}`;
+    try {
+      const data = util.TextEncoder.create('utf-8').encodeInto(original !== undefined ? prefix + header + original : header);
+      await BoundedFileReader.write(temp, data.buffer as ArrayBuffer);
+      await guard();
+      if (readEditDraft(context, file).revision !== expected) { throw new Error('草稿已变化，请重新打开'); }
+      await fileIo.moveFile(temp, path);
+    } finally {
+      try { if (fileIo.accessSync(temp)) { await fileIo.unlink(temp); } } catch (_) {}
+    }
   }
 
   let pendingImports: string[] = [];

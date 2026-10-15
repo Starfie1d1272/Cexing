@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"os"
@@ -132,6 +134,12 @@ func executeVersionAction(home string, action versionAction) (versionResponse, e
 	case "gc":
 		report := collectProfileVersions(ctx, store, prior)
 		return versionResponse{Storage: &report}, nil
+	case "editor-source-identity":
+		if len(action.Original) > maxConfigBytes {
+			return versionResponse{}, errors.New("EDIT_LIMIT")
+		}
+		sum := sha256.Sum256([]byte(action.Original))
+		return versionResponse{Identity: hex.EncodeToString(sum[:])}, nil
 	case "editor-identity":
 		identity, e := editorIdentity(home, action, global)
 		if e != nil {

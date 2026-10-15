@@ -4,7 +4,7 @@ import { util } from '@kit.ArkTS';
 import { EditIntent } from './ConfigEditor';
 import { fileIo } from '@kit.CoreFileKit';
 import { CoreApi, ConfigApplyResult } from './CoreApi';
-import { ProfileStore, ProfileMetaExt } from './ProfileStore';
+import { ProfileStore, ProfileMetaExt, EditorSourceCandidate } from './ProfileStore';
 import { VpnController, VpnStatus } from './VpnController';
 import { CoreValidator } from './CoreValidator';
 import { MergePreview } from './CoreValidator';
@@ -14,7 +14,7 @@ import { Settings } from './Settings';
 
 export type ProfileApplyState = 'applied' | 'saved';
 
-export interface EditorSourceCandidate { original: string; metadata: ProfileMetaExt; }
+export { EditorSourceCandidate } from './ProfileStore';
 
 export interface EditTicket {
   file: string;
@@ -138,6 +138,13 @@ export namespace ProfileTransactions {
     catch (_) { markUnknown(context); }
   }
 
+  function requireHandledSource(context: common.Context, file: string, applyingRevision?: string): void {
+    const draft = ProfileStore.readEditDraft(context, file);
+    if (draft.source !== undefined && draft.revision !== applyingRevision) {
+      throw new Error('请先应用或撤销当前更新草稿');
+    }
+  }
+
   async function publish(context: common.Context, file: string, original: string,
     overlay: string, metadata: string, select: boolean,
     isCurrent?: (published?: boolean) => boolean, regionOverride?: RegionPlan | null,
@@ -145,6 +152,8 @@ export namespace ProfileTransactions {
     guard?: (published: boolean) => Promise<void>, smartPublication?: SmartPublication): Promise<ProfileApplyState> {
     const epoch = VpnController.configurationEpoch();
     Settings.load(context); await Settings.idle();
+    await ProfileStore.compactAppliedDraft(context, file);
+    requireHandledSource(context, file, intentOverride?.revision);
     const state = EffectiveVersions.read(context);
     const expected = state?.Current?.ID ?? '';
     if (smartPublication !== undefined) { smartPublication.expected = expected; }
@@ -231,6 +240,11 @@ export namespace ProfileTransactions {
             EffectiveVersions.read(context)?.Current?.ID === staged.version.ID && current(true), sameSession);
         if (!(await sameSession()) || !current(true)) { markUnknown(context); throw new Error('应用未确认，请重连恢复'); }
       }
+      try { await ProfileStore.compactAppliedDraft(context, file); } catch (_) {}
+      if (guard !== undefined) {
+        try { await guard(true); } catch (_) { markUnknown(context); throw new Error('应用未确认，请重连恢复'); }
+      }
+      if (!(await sameSession()) || !current(true)) { markUnknown(context); throw new Error('应用未确认，请重连恢复'); }
       return live ? 'applied' : 'saved';
     } catch (e) {
       if (applied && !published && !uncertain && !ProfileStore.isApplyUncertain(context)) {
@@ -274,7 +288,7 @@ export namespace ProfileTransactions {
   }
 
   export async function saveEditDraft(context: common.Context, ticket: EditTicket,
-    intent: EditIntent | null, guard?: () => Promise<void>): Promise<string> {
+    intent: EditIntent | null, guard?: () => Promise<void>, sourceOverride?: EditorSourceCandidate | null): Promise<string> {
     enter(context);
     try {
       checkEditTicket(context, ticket);
@@ -284,16 +298,89 @@ export namespace ProfileTransactions {
       await EffectiveVersions.checkIntent(context, candidate, ticket.activeVersion);
       if (guard !== undefined) { await guard(); }
       checkEditTicket(context, ticket);
-      ProfileStore.saveEditDraft(context, ticket.file, { revision: revision, intent: candidate }, ticket.draftRevision);
+      let source: EditorSourceCandidate | null | undefined = sourceOverride === null ? null :
+        sourceOverride !== undefined ? { original: sourceOverride.original,
+          metadata: JSON.parse(JSON.stringify(sourceOverride.metadata)) as ProfileMetaExt } : undefined;
+      const prior = ProfileStore.readEditDraft(context, ticket.file);
+      if (source === undefined && prior.source !== undefined) {
+        source = await ProfileStore.readEditDraftSource(context, ticket.file, ticket.draftRevision);
+      }
+      if (source !== undefined && source !== null) {
+        if (ProfileStore.prepareContent(source.original) !== source.original) { throw new Error('候选原文已变化，请重新预览'); }
+        const original = ProfileStore.getProfileContent(context, ticket.file);
+        if (original === null) { throw new Error('原始配置不存在'); }
+        const baseDigest = await EffectiveVersions.originalIdentity(context, original, ticket.activeVersion);
+        if (prior.source !== undefined && (prior.source.profileIdentity !== ticket.profileIdentity ||
+          prior.source.profileVersion !== ticket.profileVersion || prior.source.baseDigest !== baseDigest)) {
+          throw new Error('草稿来源已变化，请先处理已有草稿');
+        }
+        const saved = prior.source !== undefined ?
+          await ProfileStore.readEditDraftSource(context, ticket.file, ticket.draftRevision) : undefined;
+        if (saved !== undefined && (saved.original !== source.original ||
+          JSON.stringify(saved.metadata) !== JSON.stringify(source.metadata))) {
+          throw new Error('请先处理已有的更新草稿');
+        }
+        await ProfileStore.saveEditDraftAtomic(context, ticket.file,
+          { revision: revision, intent: candidate, source: { profileIdentity: ticket.profileIdentity,
+            profileVersion: ticket.profileVersion, baseDigest: baseDigest, metadata: source.metadata } },
+          ticket.draftRevision, async () => {
+            if (guard !== undefined) { await guard(); }
+            checkEditTicket(context, ticket);
+          }, source.original);
+      } else {
+        if (guard !== undefined) { await guard(); }
+        checkEditTicket(context, ticket);
+        await ProfileStore.saveEditDraftAtomic(context, ticket.file, { revision: revision, intent: candidate },
+          ticket.draftRevision, async () => {
+            if (guard !== undefined) { await guard(); }
+            checkEditTicket(context, ticket);
+          });
+      }
       return revision;
     } finally { leave(); }
+  }
+
+  async function editSource(context: common.Context, ticket: EditTicket,
+    supplied?: EditorSourceCandidate, current?: () => boolean): Promise<EditorSourceCandidate | undefined> {
+    const draft = ProfileStore.readEditDraft(context, ticket.file);
+    if (draft.source === undefined) { return supplied; }
+    const original = ProfileStore.getProfileContent(context, ticket.file);
+    if (original === null || draft.source.profileIdentity !== ticket.profileIdentity ||
+      draft.source.profileVersion !== ticket.profileVersion || draft.source.baseDigest !==
+      await EffectiveVersions.originalIdentity(context, original, ticket.activeVersion)) {
+      throw new Error('草稿来源已变化，请先处理已有草稿');
+    }
+    const restored = await ProfileStore.readEditDraftSource(context, ticket.file, ticket.draftRevision, current);
+    if (restored === undefined || (supplied !== undefined && (restored.original !== supplied.original ||
+      JSON.stringify(restored.metadata) !== JSON.stringify(supplied.metadata)))) {
+      throw new Error('草稿已变化，请重新打开');
+    }
+    return restored;
+  }
+
+  /** Read a paired source for direct editor readers without entering the publisher. */
+  export async function readEditSource(context: common.Context, ticket: EditTicket,
+    current?: () => boolean): Promise<EditorSourceCandidate | undefined> {
+    const original = ProfileStore.getProfileContent(context, ticket.file);
+    const check = (): void => {
+      if (current !== undefined && !current()) { throw new Error('读取已取消'); }
+      if (original === null || ProfileStore.getProfileContent(context, ticket.file) !== original) {
+        throw new Error('草稿来源已变化，请重新打开');
+      }
+      checkEditTicket(context, ticket);
+    };
+    check();
+    const source = await editSource(context, ticket, undefined, current);
+    check();
+    return source;
   }
 
   export async function previewEditDraft(context: common.Context, ticket: EditTicket, source?: EditorSourceCandidate): Promise<MergePreview> {
     enter(context);
     try {
       checkEditTicket(context, ticket);
-      const original = source?.original ?? ProfileStore.getProfileContent(context, ticket.file);
+      const restored = await editSource(context, ticket, source);
+      const original = restored?.original ?? ProfileStore.getProfileContent(context, ticket.file);
       if (original === null) { throw new Error('原始配置不存在'); }
       const version = EffectiveVersions.read(context)?.Profiles[ticket.file];
       const region = version !== undefined ? EffectiveVersions.regionPlan(context, version) : null;
@@ -312,11 +399,12 @@ export namespace ProfileTransactions {
     enter(context);
     try {
       checkEditTicket(context, ticket);
-      const original = source?.original ?? ProfileStore.getProfileContent(context, ticket.file);
+      const restored = await editSource(context, ticket, source);
+      const original = restored?.original ?? ProfileStore.getProfileContent(context, ticket.file);
       if (original === null) { throw new Error('原始配置不存在'); }
       const intent = ProfileStore.readEditDraft(context, ticket.file).intent;
       return await publish(context, ticket.file, original, ProfileStore.getEnabledMerge(context, ticket.file),
-        source !== undefined ? JSON.stringify(source.metadata) : metadata(context, ticket.file), ProfileStore.getActiveFile(context) === ticket.file,
+        restored !== undefined ? JSON.stringify(restored.metadata) : metadata(context, ticket.file), ProfileStore.getActiveFile(context) === ticket.file,
         (published?: boolean) => { checkEditTicket(context, ticket, published === true); return true; }, undefined, undefined, intent, expectedDigest, guard);
     } finally { leave(); }
   }
@@ -419,7 +507,9 @@ export namespace ProfileTransactions {
     isCurrent?: () => boolean): Promise<ProfileApplyState> {
     enter(context);
     try {
+      requireHandledSource(context, file);
       const downloaded = await ProfileStore.downloadFromOrigin(context, file);
+      requireHandledSource(context, file);
       if (isCurrent !== undefined && !isCurrent()) { throw new Error('更新已取消'); }
       const active = ProfileStore.getActiveFile(context) === file;
       return await publish(context, file, downloaded.content, ProfileStore.getEnabledMerge(context, file),

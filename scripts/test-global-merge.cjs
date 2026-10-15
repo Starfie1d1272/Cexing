@@ -69,7 +69,7 @@ const original = '# untouched 😀\r\nproxies: []\r\nrules: [MATCH,DIRECT]\r\n  
 const local = 'rules: [MATCH,DIRECT]\n';
 const originals = new Map([['one.yaml', original], ['two.yaml', original]]), locals = new Map([['one.yaml', local]]);
 const editDrafts = new Map();
-const store = { updateState: (_, file) => ({ id: file }),
+const store = { compactAppliedDraft: async()=>{}, saveEditDraftAtomic: async (ctx,file,draft,expected,guard) => {await guard();store.saveEditDraft(ctx,file,draft,expected)}, updateState: (_, file) => ({ id: file }),
   readEditDraft: (_, file) => editDrafts.get(file) ?? { revision: '', intent: null },
   saveEditDraft: (_, file, draft, expected) => {
     assert.equal((editDrafts.get(file)?.revision ?? ''), expected);

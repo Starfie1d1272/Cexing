@@ -17,7 +17,7 @@ const modules = {
   return JSON.stringify({ stamp: 'a'.repeat(64), request: { kind: 'subscription', base: snapshot, mine: snapshot, next: snapshot } });
  } },
  './EffectiveVersions': { EffectiveVersions: { read: () => ({ Profiles: { 'one.yaml': { ID: 'version-successful' } } }), globalContent: () => 'global', editIntent: () => published } },
- './ProfileStore': { ProfileStore: { getProfileContent: () => 'original', prepareContent: text => 'prepared ' + text, getEnabledMerge: () => 'local' } },
+ './ProfileStore': { ProfileStore: { readEditDraft:()=>({revision:''}),readEditDraftSource:async()=>undefined,getProfileContent: () => 'original', prepareContent: text => 'prepared ' + text, getEnabledMerge: () => 'local' } },
  './Settings': { Settings: { load: () => ({ ipv6: true }) } },
  './CoreValidator': { CoreValidator: { prepareResources: async () => { prepared++; } } }
 };
