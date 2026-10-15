@@ -55,6 +55,17 @@ export namespace ProfileTransactions {
     releaseConfiguration = VpnController.holdConfiguration();
   }
 
+  /** Reuse the publication gate for local backup snapshots and offline restore. */
+  export async function backupWork(context: common.Context, offline: boolean,
+    action: () => Promise<void>): Promise<void> {
+    enter(context);
+    try {
+      Settings.load(context); await Settings.idle();
+      if (offline && (VpnController.status !== VpnStatus.Disconnected || VpnController.needsStop())) { throw new Error('请先确认断开 VPN'); }
+      await action();
+    } finally { leave(); }
+  }
+
   export async function refreshStorage(context: common.Context): Promise<ProfileStorageReport> {
     enter(context);
     try { return await EffectiveVersions.collect(context, EffectiveVersions.read(context)?.Current?.ID ?? ''); }
@@ -118,6 +129,7 @@ export namespace ProfileTransactions {
     globalOverride?: string, intentOverride?: EditIntent | null, expectedDigest?: string,
     guard?: (published: boolean) => Promise<void>, smartPublication?: SmartPublication): Promise<ProfileApplyState> {
     const epoch = VpnController.configurationEpoch();
+    Settings.load(context); await Settings.idle();
     const state = EffectiveVersions.read(context);
     const expected = state?.Current?.ID ?? '';
     if (smartPublication !== undefined) { smartPublication.expected = expected; }
@@ -316,10 +328,11 @@ export namespace ProfileTransactions {
   export async function restorePrevious(context: common.Context, expectedCurrent: string,
     expectedPrevious: string): Promise<ProfileApplyState> {
     enter(context);
-    const smart = Settings.load(context).smartAutoConvert;
+    let smart = Settings.load(context).smartAutoConvert;
     let preferenceChanged = false;
     const publication: SmartPublication = { committed: false, unresolved: false };
     try {
+      await Settings.idle(); smart = Settings.load(context).smartAutoConvert;
       const state = EffectiveVersions.read(context);
       const previous = state?.Previous;
       if (state?.Current?.ID !== expectedCurrent || previous === null || previous === undefined ||
@@ -360,7 +373,7 @@ export namespace ProfileTransactions {
   export async function ensureActiveSmartPolicy(context: common.Context): Promise<void> {
     enter(context);
     try {
-      await Settings.idle();
+      Settings.load(context); await Settings.idle();
       if (VpnController.status !== VpnStatus.Disconnected) { return; }
       const file = ProfileStore.getActiveFile(context);
       if (file === '') { return; }

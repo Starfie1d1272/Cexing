@@ -1,3 +1,4 @@
+import { BackupJournal, BackupPreferences } from './BackupJournal';
 /*
  * Settings.ets - 应用设置持久化（preferences KV）
  * 覆写类设置在下次 VPN 启动时由 CexingVpnAbility 合并进内核配置。
@@ -40,6 +41,8 @@ export namespace Settings {
   let store: preferences.Preferences | null = null;
   let committed: AppSettings | null = null;
   let tail: Promise<void> = Promise.resolve();
+  let recoveryError: boolean = false;
+  let recoveryChecked: boolean = false;
   let lanWriteFailed: boolean = false;
   let lanRevokeFailed: boolean = false;
   let lanNeedsRevocation: boolean = false;
@@ -82,6 +85,22 @@ export namespace Settings {
   function copy(s: AppSettings): AppSettings { return JSON.parse(JSON.stringify(s)) as AppSettings; }
   function current(context: common.Context): AppSettings {
     if (committed === null) { committed = readPreferences(context); }
+    if (!recoveryChecked && context.filesDir !== undefined) {
+      recoveryChecked = true;
+      if (BackupJournal.exists(context)) {
+        const operation = tail.then(async () => {
+          await reconcileBackup(context, getStore(context));
+          recoveryError = false;
+        });
+        recoveryError = true;
+        tail = operation.catch(() => { recoveryError = true; });
+      } else {
+        // A previous process may have ended after staging a preview or after ack.
+        tail = tail.then(async () => {
+          try { await BackupJournal.call(context, JSON.stringify({ op: 'backup-clean' })); } catch (_) {}
+        });
+      }
+    }
     return committed;
   }
   export function load(context: common.Context): AppSettings {
@@ -111,7 +130,9 @@ export namespace Settings {
     p.putSync('smartAutoConvert', s.smartAutoConvert);
   }
   function enqueue(context: common.Context, action: (p: preferences.Preferences) => Promise<void>): Promise<void> {
+    current(context);
     const operation = tail.then(async () => {
+      if (recoveryError) { throw new Error('备份恢复未确认，请重新打开应用后重试'); }
       const p = getStore(context);
       // Normalize dirty cache left by any failed put/flush before another writer
       // can persist it. Consent has its own strict repair path below.
@@ -153,10 +174,65 @@ export namespace Settings {
     }); } catch (_) { throw new Error('保存失败，请重试'); }
   }
 
+  export function portable(s: AppSettings): BackupPreferences {
+    return { keepAlive: s.keepAlive, ipv6: s.ipv6, logLevel: s.logLevel, mixedPort: s.mixedPort,
+      accessMode: s.accessMode, accessList: s.accessList.slice(), mainGroup: s.mainGroup, mode: s.mode,
+      autoUpdate: s.autoUpdate, autoUpdateIntervalHours: s.autoUpdateIntervalHours,
+      autoRestore: s.autoRestore, logToFile: s.logToFile, smartAutoConvert: s.smartAutoConvert };
+  }
+  function applyPortable(before: AppSettings, value: BackupPreferences): AppSettings {
+    const next = copy(before);
+    next.keepAlive = value.keepAlive; next.ipv6 = value.ipv6; next.logLevel = value.logLevel;
+    next.mixedPort = value.mixedPort; next.accessMode = value.accessMode; next.accessList = value.accessList.slice();
+    next.mainGroup = value.mainGroup; next.mode = value.mode; next.autoUpdate = value.autoUpdate;
+    next.autoUpdateIntervalHours = value.autoUpdateIntervalHours; next.autoRestore = value.autoRestore;
+    next.logToFile = value.logToFile; next.smartAutoConvert = value.smartAutoConvert;
+    validate(next); return next;
+  }
+
+  async function reconcileBackup(context: common.Context, p: preferences.Preferences): Promise<void> {
+    const result = await BackupJournal.call(context, JSON.stringify({ op: 'backup-recover' }));
+    const next = applyPortable(current(context), result.preferences);
+    writeCache(p, next); await p.flush(); committed = next;
+    await BackupJournal.acknowledge(context, result.token);
+  }
+
+  /** Keep all preference writers behind the journal and the single FileStore publication. */
+  export async function restoreBackup(context: common.Context, value: BackupPreferences,
+    arm: (old: BackupPreferences) => Promise<void>, commit: () => Promise<string>,
+    recover: () => Promise<string>, finish: () => Promise<void>): Promise<void> {
+    await enqueue(context, async (p: preferences.Preferences) => {
+      const before = copy(current(context)); const next = applyPortable(before, value);
+      try { await arm(portable(before)); }
+      catch (_) {
+        // The journal may already be durable despite a lost arm reply. Fence
+        // queued writers until the same worker settles and reconciliation ends.
+        recoveryError = true;
+        try {
+          const status = await recover();
+          if (status === 'prior' && !BackupJournal.exists(context)) { recoveryError = false; }
+          else { await reconcileBackup(context, p); recoveryError = false; }
+        } catch (_) { recoveryError = true; }
+        throw new Error(recoveryError ? '备份恢复未确认，请重新打开应用后重试' : '恢复失败，原资料已保留');
+      }
+      let outcome = 'prior';
+      try { writeCache(p, next); await p.flush(); outcome = await commit(); }
+      catch (_) { try { outcome = await recover(); } catch (_) { outcome = 'unknown'; } }
+      if (outcome !== 'prior' && outcome !== 'committed') {
+        recoveryError = true; throw new Error('备份恢复未确认，请重新打开应用后重试');
+      }
+      const selected = outcome === 'committed' ? next : before;
+      try { writeCache(p, selected); await p.flush(); committed = selected; await finish(); }
+      catch (_) { recoveryError = true; throw new Error('备份恢复未确认，请重新打开应用后重试'); }
+      if (outcome !== 'committed') { throw new Error('恢复失败，原资料已保留'); }
+    });
+  }
+
   /** Await the already requested saves before preparing a connection. */
   export async function idle(): Promise<void> {
     let observed: Promise<void>;
     do { observed = tail; await observed; } while (observed !== tail);
+    if (recoveryError) { throw new Error('备份恢复未确认，请重新打开应用后重试'); }
   }
 
   export function isLanPersistenceUncertain(): boolean { return lanNeedsRevocation; }
