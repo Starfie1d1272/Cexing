@@ -6,6 +6,7 @@ const pages = path.join(root, 'cexing/entry/src/main/ets/pages');
 let starts = 0, active = '';
 let pending = null, takes = 0, diskFull = true, saved = '', transactionBusy = false, finishRegion;
 const modules = {
+  '../lib/UiText': { UiText: { get: () => 'draft save failed' } },
   '../lib/GlobalMergeDraft': { GlobalMergeDraft: { read: () => null, save: (_context, text) => {
     if (diskFull) throw Error('disk full'); saved = text;
   } } },
@@ -25,7 +26,7 @@ function load(name) {
   code = code.slice(0, cut >= 0 ? cut : code.indexOf('  build()')) + '\n}';
   code = code.split('\n').map(line => line.trimStart().startsWith('@') ? line.replace(/@\w+(?:\([^\n)]*\))?\s*/g, '') : line).join('\n');
   code = code.replace(/export struct /g, 'export class ').replace('struct Index', 'export class Index');
-  const box = { exports: {}, getContext: () => ({}), NavPathStack: class {}, require: name => modules[name] || {} };
+  const box = { exports: {}, $r: () => '', getContext: () => ({}), NavPathStack: class {}, require: name => modules[name] || {} };
   vm.runInNewContext(ts.transpileModule(code).outputText, box); return box.exports[name];
 }
 const Page = load('ProfilePage'), Editor = load('GlobalMergeEditor'), Index = load('Index');
