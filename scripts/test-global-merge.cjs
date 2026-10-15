@@ -85,6 +85,7 @@ modules['./CoreValidator'] = { CoreValidator: { prepareResources: async () => {}
 modules['./VpnController'] = { VpnController: controller, VpnStatus: status };
 modules['./CoreApi'] = { CoreApi: { isAlive: async () => true, getControllerSession: async () => 'synthetic-session',
   applyConfigText: async text => { applied.push(text); return response; } } };
+modules['./ProfileRegionChoices'] = { ProfileRegionChoices: { selector: () => '', prepare: async () => ({state:{pending:''},observeRemoved:''}), committed: async () => {} } };
 const tx = compile('lib/ProfileTransactions.ets').ProfileTransactions;
 modules['../lib/ProfileTransactions'] = { ProfileTransactions: tx };
 const draft = compile('lib/GlobalMergeDraft.ets').GlobalMergeDraft;
