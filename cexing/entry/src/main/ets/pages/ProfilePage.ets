@@ -5,7 +5,9 @@ import { NativeTheme as UI } from './NativeTheme';
  * 激活=写入 active 标记；若内核运行中则 PUT /configs 热切换，无需重启 VPN
  */
 import { common } from '@kit.AbilityKit';
-import { picker, fileIo } from '@kit.CoreFileKit';
+import { picker } from '@kit.CoreFileKit';
+import { util } from '@kit.ArkTS';
+import { ConnectionFailures } from '../lib/ConnectionFailure';
 import { scanBarcode, scanCore } from '@kit.ScanKit';
 import { ProfileImportInput, ProfileImportCandidate } from '../lib/ProfileImportInput';
 import { BoundedFileReader } from '../lib/BoundedFileReader';
@@ -64,6 +66,8 @@ export struct ProfilePage {
   @State activating: boolean = false;
   @State scanning: boolean = false;
   @State moreActions: boolean = false;
+  @State exporting: boolean = false;
+  private exportGeneration: number = 0;
   @State recoveryNeeded: boolean = false;
   @State recovering: boolean = false;
   @State updateFeedback: Record<string, string> = {};
@@ -142,13 +146,13 @@ export struct ProfilePage {
   }
 
   private onTabVisible(): void {
-    if (this.detailFile.length === 0 && this.currentVisibleTab !== 1) { this.activationRequest++; this.importGeneration++; }
+    if (this.detailFile.length === 0 && this.currentVisibleTab !== 1) { this.cancelExport(); this.activationRequest++; this.importGeneration++; }
     if (this.currentVisibleTab === 1) { this.refresh(); this.acceptExternalImport(); }
   }
 
   private onRootVisible(): void {
     if (this.rootVisible) { this.acceptExternalImport(); }
-    if (this.detailFile.length === 0 && !this.rootVisible) { this.activationRequest++; this.importGeneration++; }
+    if (this.detailFile.length === 0 && !this.rootVisible) { this.cancelExport(); this.activationRequest++; this.importGeneration++; }
   }
 
   private changed(): void {
@@ -292,6 +296,7 @@ export struct ProfilePage {
   }
 
   aboutToDisappear(): void {
+    this.cancelExport();
     this.releaseExternalImport();
     this.pageVisible = false;
     this.importGeneration++;
@@ -562,45 +567,55 @@ export struct ProfilePage {
     } finally { this.acceptExternalImport(); }
   }
 
+  private cancelExport(): void { this.exportGeneration++; this.exporting = false; }
+
+  private exportCurrent(page: number, request: number): boolean {
+    return this.pageVisible && page === this.pageGeneration && request === this.exportGeneration &&
+      (this.detailFile.length > 0 ? this.detailOnTop() : this.rootVisible && this.currentVisibleTab === 1);
+  }
+
   private confirmExport(profile: ProfileMeta): void {
-    const generation = this.pageGeneration;
+    if (this.exporting || !this.pageVisible) { return; }
+    const page = this.pageGeneration;
+    const request = ++this.exportGeneration;
+    this.exporting = true;
     let available = true;
+    const cancel = (): void => {
+      if (!available) { return; }
+      available = false;
+      if (request === this.exportGeneration) { this.cancelExport(); this.acceptExternalImport(); }
+    };
     AlertDialog.show({ title: UiText.get($r('app.string.profile_export')),
       message: UiText.get($r('app.string.profile_export_risk')),
-      primaryButton: { value: UiText.get($r('app.string.profile_cancel')), action: () => { available = false; } },
-      cancel: () => { available = false; },
+      primaryButton: { value: UiText.get($r('app.string.profile_cancel')), action: cancel }, cancel: cancel,
       secondaryButton: { value: UiText.get($r('app.string.profile_export_choose')), action: () => {
-        if (!available || !this.pageVisible || generation !== this.pageGeneration) { return; }
+        if (!available || !this.exportCurrent(page, request)) { return; }
         available = false;
-        this.exportProfile(profile);
+        this.exportProfile(profile, page, request);
       } } });
   }
 
-  private async exportProfile(p: ProfileMeta): Promise<void> {
-    const context = getContext(this) as common.UIAbilityContext;
-    const content = ProfileStore.getProfileContent(context, p.file);
-    if (content === null) {
-      this.toast(UiText.get($r('app.string.profile_read_failed')));
-      return;
-    }
+  private async exportProfile(profile: ProfileMeta, page: number, request: number): Promise<void> {
+    const current = (): boolean => this.exportCurrent(page, request);
     try {
+      if (!current()) { return; }
+      const context = getContext(this) as common.UIAbilityContext;
+      const content = ProfileStore.getProfileContent(context, profile.file);
+      if (content === null) { this.toast(UiText.get($r('app.string.profile_read_failed'))); return; }
       const docPicker = new picker.DocumentViewPicker(context);
-      const opt = new picker.DocumentSaveOptions();
-      opt.newFileNames = [`${p.name}.yaml`];
-      opt.fileSuffixChoices = [UiText.get($r('app.string.profile_yaml_type'))];
-      const uris = await docPicker.save(opt);
-      if (!uris || uris.length === 0) {
-        return;
-      }
-      const uri = uris[0];
-      const f = fileIo.openSync(uri, fileIo.OpenMode.READ_WRITE | fileIo.OpenMode.CREATE | fileIo.OpenMode.TRUNC);
-      fileIo.writeSync(f.fd, content);
-      fileIo.closeSync(f);
-      this.toast(UiText.get($r('app.string.profile_exported')));
-    } catch (e) {
-      const msg = (e as Error).message ?? JSON.stringify(e);
-      Logger.warn(TAG, `export: ${msg}`);
-      this.toast(UiText.get($r('app.string.profile_export_failed')));
+      const options = new picker.DocumentSaveOptions();
+      options.newFileNames = [`${profile.name}.yaml`];
+      options.fileSuffixChoices = [UiText.get($r('app.string.profile_yaml_type'))];
+      const uris = await docPicker.save(options);
+      if (!current() || uris.length === 0) { return; }
+      const bytes = new util.TextEncoder().encodeInto(content);
+      await BoundedFileReader.write(uris[0], bytes.buffer as ArrayBuffer, current);
+      if (current()) { this.toast(UiText.get($r('app.string.profile_exported'))); }
+    } catch (error) {
+      Logger.warn(TAG, 'profile-export ' + JSON.stringify(ConnectionFailures.classify('assets', (error as Error).message ?? '')));
+      if (current()) { this.toast(UiText.get($r('app.string.profile_export_failed'))); }
+    } finally {
+      if (request === this.exportGeneration) { this.exporting = false; this.acceptExternalImport(); }
     }
   }
 
@@ -622,7 +637,7 @@ export struct ProfilePage {
 
   private acceptExternalImport(): void {
     if (!this.pageVisible || this.detailFile.length > 0 || !this.rootVisible ||
-      this.currentVisibleTab !== 1 || this.importing || this.activating || this.scanning ||
+      this.currentVisibleTab !== 1 || this.importing || this.exporting || this.activating || this.scanning ||
       this.showSheet || this.sheetMode !== SHEET_NONE || this.regionBusy || this.recovering ||
       this.updatingFile.length > 0 || this.refreshing || ProfileTransactions.isBusy()) { return; }
     const candidate = ProfileImportInput.take();
@@ -843,14 +858,14 @@ export struct ProfilePage {
   }
 
   @Builder
-  DetailAction(label: string, onTap: () => void) {
+  DetailAction(label: string, onTap: () => void, enabled: boolean = true) {
     Button({ type: ButtonType.Normal }) {
       Row() {
         Text(label).fontSize(16).fontWeight(FontWeight.Medium).layoutWeight(1)
         SymbolGlyph($r('sys.symbol.chevron_right')).accessibilityLevel('no').fontSize(16).fontColor([UI.muted])
       }.padding(18).width('100%')
     }.width('100%').constraintSize({ minHeight: 72 }).borderRadius(24).backgroundColor(UI.surface).fontColor(UI.ink)
-      .accessibilityText(label).onClick(onTap)
+      .enabled(enabled).accessibilityText(label).onClick(onTap)
   }
 
   @Builder
@@ -913,7 +928,7 @@ export struct ProfilePage {
             this.sheetMode = SHEET_RENAME;
             this.showSheet = true;
           })
-          this.DetailAction(UiText.get($r('app.string.profile_export')), () => { this.confirmExport(p); })
+          this.DetailAction(this.exporting ? UiText.get($r('app.string.profile_exporting')) : UiText.get($r('app.string.profile_export')), () => { this.confirmExport(p); }, !this.exporting)
             if (this.isUrlProfile(p.file)) {
             this.DetailAction(UiText.get($r('app.string.profile_copy_url')), () => {
               this.copyOrigin(getContext(this) as common.UIAbilityContext, p.file);

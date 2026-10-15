@@ -1055,6 +1055,10 @@
     {
       "name": "profile_node_region",
       "value": "%s 的地区"
+    },
+    {
+      "name": "profile_exporting",
+      "value": "导出中…"
     }
   ]
 }

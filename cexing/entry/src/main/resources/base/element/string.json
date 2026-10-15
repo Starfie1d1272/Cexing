@@ -1079,6 +1079,10 @@
     {
       "name": "profile_node_region",
       "value": "Region for %s"
+    },
+    {
+      "name": "profile_exporting",
+      "value": "Exporting…"
     }
   ]
 }

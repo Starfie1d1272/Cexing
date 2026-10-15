@@ -14,7 +14,7 @@ vm.runInNewContext(ts.transpileModule(source + '\nexports.RegionOption = RegionS
 assert.equal(new c.exports.RegionOption('未知').value, '未知', 'a user selector named 未知 is not a canonical region label');
 const p=new c.exports.ProfilePage();assert.equal(p.moreActions,false);assert.equal(p.regionNames()[0],'香港','canonical persisted regions must not change with locale');assert.equal(p.regionLabel('香港'),'Hong Kong');assert.equal(p.regionLabel('未知'),'Other regions');assert.equal(p.regionLabel('%s-user'),'%s-user');
 assert.equal(helper.exports.UiText.get({id:'profile_selected'},'%s-user'),'Selected “%s-user”. Applies when VPN starts.');
-p.pageVisible=true;p.pageGeneration=1;p.exportProfile=()=>{exportCount++};const profile={file:'synthetic.yaml',name:'test'};
+p.acceptExternalImport=()=>{};p.pageVisible=true;p.pageGeneration=1;p.rootVisible=true;p.currentVisibleTab=1;p.exportProfile=()=>{exportCount++;p.exporting=false};const profile={file:'synthetic.yaml',name:'test'};
 p.confirmExport(profile);assert.match(dialog.message,/credentials/);const cancelled=dialog;dialog.primaryButton.action();cancelled.secondaryButton.action();assert.equal(exportCount,0);
 p.confirmExport(profile);dialog.secondaryButton.action();dialog.secondaryButton.action();assert.equal(exportCount,1,'one export per explicit consent');
 p.confirmExport(profile);p.pageGeneration++;dialog.secondaryButton.action();assert.equal(exportCount,1,'old confirmation cannot export from a reopened page');
