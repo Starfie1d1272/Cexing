@@ -64,7 +64,8 @@ class ProfileEditorHost implements EditorDraftHost {
     const before = this.input;
     const now = this.capture();
     const oldTicket = before.ticket; const newTicket = now.ticket;
-    if ((!published && before.committedOriginal !== now.committedOriginal) || oldTicket.profileIdentity !== newTicket.profileIdentity || oldTicket.activeFile !== newTicket.activeFile ||
+    if ((!published && before.committedOriginal !== now.committedOriginal) ||
+      (published && this.source !== undefined && now.committedOriginal !== this.source.original) || oldTicket.profileIdentity !== newTicket.profileIdentity || oldTicket.activeFile !== newTicket.activeFile ||
       oldTicket.draftRevision !== newTicket.draftRevision || (!published &&
       (oldTicket.activeVersion !== newTicket.activeVersion || oldTicket.profileVersion !== newTicket.profileVersion))) {
       throw new Error('配置或草稿已变化，请重新打开');

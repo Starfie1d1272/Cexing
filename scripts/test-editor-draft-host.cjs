@@ -1,9 +1,9 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),ts=require('./ci/transpile-arkts.cjs');
-let original='original', projected='', candidateSeen=null;
+let corruptOwnCommit=false, original='original', projected='', candidateSeen=null;
 let draft={revision:'',intent:null},version='v1',settings={ipv6:false},provider='cache1',id=0,writes=0,applies=0,delay,resolve;
 const ticket=()=>({file:'one.yaml',profileIdentity:'source',profileVersion:version,activeVersion:version,activeFile:'one.yaml',draftRevision:draft.revision});
 const versions={read:()=>({Profiles:{'one.yaml':{ID:version}}}),globalContent:()=>'',regionPlan:()=>null,editIntent:()=>null};
-const tx={editTicket:ticket,saveEditDraft:async(_,t,i,guard)=>{if(delay)await new Promise(r=>resolve=r);if(guard)await guard();assert.equal(t.draftRevision,draft.revision);draft={revision:`draft${++id}`,intent:i?{...i,revision:`draft${id}`}:null};writes++},previewEditDraft:async(_,t,source)=>{candidateSeen=source;return ({digest:'digest',changes:[]})},applyEditDraft:async(_,t,d,guard,source)=>{assert.equal(d,'digest');await guard(false);version='v2';if(source)original=source.original;await guard(true);applies++;return 'saved'}};
+const tx={editTicket:ticket,saveEditDraft:async(_,t,i,guard)=>{if(delay)await new Promise(r=>resolve=r);if(guard)await guard();assert.equal(t.draftRevision,draft.revision);draft={revision:`draft${++id}`,intent:i?{...i,revision:`draft${id}`}:null};writes++},previewEditDraft:async(_,t,source)=>{candidateSeen=source;return ({digest:'digest',changes:[]})},applyEditDraft:async(_,t,d,guard,source)=>{assert.equal(d,'digest');await guard(false);version='v2';if(source)original=corruptOwnCommit?'external after commit':source.original;await guard(true);applies++;return 'saved'}};
 const modules={'@kit.ArkTS':{util:{generateRandomUUID:()=>`token${++id}`}},'libentry.so':{versionAction:async(_,json)=>{let a=JSON.parse(json);if(a.expected!==version)return JSON.stringify({error:'stale'});return JSON.stringify({identity:JSON.stringify([a.original,a.metadata,a.overlay,a.globalMerge,a.editIntent,a.overrides,provider])})}},'./ConfigEditor':{ConfigEditor:{list:async(_,value)=>{projected=value;return {sourceRevision:'source',missingFieldRevision:'missing',sections:[]}},target:async()=>({value:{},item:{id:'target'}})}},'./Settings':{Settings:{load:()=>settings,idle:async()=>{}}},'./EffectiveVersions':{EffectiveVersions:versions},'./ProfileStore':{ProfileStore:{prepareContent:x=>x,getProfileContent:()=>original,getEnabledMerge:()=>'',readEditDraft:()=>draft}},'./ProfileTransactions':{ProfileTransactions:tx}};
 const sandbox={exports:{},require:n=>modules[n]??{}};vm.runInNewContext(ts.transpileModule(fs.readFileSync('cexing/entry/src/main/ets/lib/EditorDraftHosts.ets','utf8')).outputText,sandbox);
 (async()=>{
@@ -24,5 +24,8 @@ const sandbox={exports:{},require:n=>modules[n]??{}};vm.runInNewContext(ts.trans
  original='external change';await assert.rejects(candidateHost.apply(receipt),/变化/);original='original';
  s=await candidateHost.load();receipt=await candidateHost.preview(s.revision);
  await candidateHost.apply(receipt);assert.equal(original,'candidate','own successful Original change passes postcommit guard');
+ const nextHost=sandbox.exports.EditorDraftHosts.create({filesDir:'/synthetic'},'one.yaml',{original:'next candidate',metadata:{origin:'synthetic',updatedAt:3,sub:{}}});
+ s=await nextHost.load();receipt=await nextHost.preview(s.revision);corruptOwnCommit=true;
+ await assert.rejects(nextHost.apply(receipt),/变化/,'postcommit guard only permits the exact candidate Original');
  console.log('PASS: production editor host binds profile/draft/settings/provider, delayed save CAS, preview digest, own commit and undo');
 })().catch(e=>{console.error(e);process.exitCode=1});
