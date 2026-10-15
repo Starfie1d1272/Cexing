@@ -14,23 +14,975 @@
     },
     {
       "name": "pasteboard_reason",
-      "value": "用于从剪贴板导入订阅配置"
+      "value": "Import subscription configuration from the clipboard"
     },
     {
       "name": "shortcut_connect",
-      "value": "连接 VPN"
+      "value": "Connect VPN"
     },
     {
       "name": "shortcut_disconnect",
-      "value": "断开连接"
+      "value": "Disconnect"
     },
     {
       "name": "connection_card_name",
-      "value": "策星连接"
+      "value": "Cexing connection"
     },
     {
       "name": "connection_card_description",
-      "value": "查看连接状态，一键连接或断开"
+      "value": "View connection status and connect or disconnect"
+    },
+    {
+      "name": "action_retry",
+      "value": "Retry"
+    },
+    {
+      "name": "action_retrying",
+      "value": "Retrying…"
+    },
+    {
+      "name": "action_cancel",
+      "value": "Cancel"
+    },
+    {
+      "name": "action_settings",
+      "value": "Settings"
+    },
+    {
+      "name": "action_reconnect",
+      "value": "Reconnect"
+    },
+    {
+      "name": "action_connect_vpn",
+      "value": "Connect VPN"
+    },
+    {
+      "name": "action_disconnect",
+      "value": "Disconnect"
+    },
+    {
+      "name": "action_cancel_connect",
+      "value": "Cancel connection"
+    },
+    {
+      "name": "action_retry_disconnect",
+      "value": "Retry disconnect"
+    },
+    {
+      "name": "action_add_profile",
+      "value": "Add subscription"
+    },
+    {
+      "name": "action_manage",
+      "value": "Manage"
+    },
+    {
+      "name": "nav_connection",
+      "value": "Connection"
+    },
+    {
+      "name": "nav_profiles",
+      "value": "Subscriptions"
+    },
+    {
+      "name": "nav_traffic",
+      "value": "Traffic"
+    },
+    {
+      "name": "nav_diagnostics",
+      "value": "Diagnostics"
+    },
+    {
+      "name": "nav_resources",
+      "value": "Resources"
+    },
+    {
+      "name": "nav_panel",
+      "value": "Dashboard"
+    },
+    {
+      "name": "nav_network",
+      "value": "Network settings"
+    },
+    {
+      "name": "nav_core",
+      "value": "Core settings"
+    },
+    {
+      "name": "nav_profile_details",
+      "value": "Subscription details"
+    },
+    {
+      "name": "nav_original",
+      "value": "Original configuration"
+    },
+    {
+      "name": "state_connected",
+      "value": "Connected"
+    },
+    {
+      "name": "state_connecting",
+      "value": "Connecting"
+    },
+    {
+      "name": "state_disconnecting",
+      "value": "Disconnecting"
+    },
+    {
+      "name": "state_disconnected",
+      "value": "Disconnected"
+    },
+    {
+      "name": "state_connect_failed",
+      "value": "Connection failed"
+    },
+    {
+      "name": "state_stop_unknown",
+      "value": "Disconnect unconfirmed"
+    },
+    {
+      "name": "state_not_imported",
+      "value": "Not imported"
+    },
+    {
+      "name": "state_selected",
+      "value": "Selected"
+    },
+    {
+      "name": "state_ready_connect",
+      "value": "Ready to connect"
+    },
+    {
+      "name": "state_system_connecting",
+      "value": "Establishing system connection"
+    },
+    {
+      "name": "state_system_disconnecting",
+      "value": "Ending system session"
+    },
+    {
+      "name": "state_connected_actions",
+      "value": "View traffic or check the connection"
+    },
+    {
+      "name": "state_retry_diagnostics",
+      "value": "Retry or open diagnostics"
+    },
+    {
+      "name": "state_stop_diagnostics",
+      "value": "Retry disconnect or open diagnostics"
+    },
+    {
+      "name": "failure_stop_unknown",
+      "value": "Disconnect unconfirmed. Check system VPN status and retry"
+    },
+    {
+      "name": "failure_prepare_config",
+      "value": "Configuration could not be prepared. Check it and retry"
+    },
+    {
+      "name": "failure_state_unknown",
+      "value": "Connection state is unconfirmed. Retry disconnect first"
+    },
+    {
+      "name": "failure_mode_change",
+      "value": "Mode change failed"
+    },
+    {
+      "name": "failure_mode_save",
+      "value": "Mode changed but could not be saved. Retry"
+    },
+    {
+      "name": "failure_config_read",
+      "value": "Configuration could not be read. Check it and retry"
+    },
+    {
+      "name": "failure_connect_not_started",
+      "value": "Connection did not start. Retry"
+    },
+    {
+      "name": "failure_save",
+      "value": "Could not save. Retry"
+    },
+    {
+      "name": "failure_settings_read",
+      "value": "Could not read settings. Retry"
+    },
+    {
+      "name": "mode_rule",
+      "value": "Rule"
+    },
+    {
+      "name": "mode_global",
+      "value": "Global"
+    },
+    {
+      "name": "mode_direct",
+      "value": "Direct"
+    },
+    {
+      "name": "home_connection_state",
+      "value": "Connection status"
+    },
+    {
+      "name": "home_upload",
+      "value": "↑ Upload"
+    },
+    {
+      "name": "home_download",
+      "value": "↓ Download"
+    },
+    {
+      "name": "home_view_traffic",
+      "value": "View traffic"
+    },
+    {
+      "name": "home_current_profile",
+      "value": "Current subscription"
+    },
+    {
+      "name": "home_check_connection",
+      "value": "Check connection"
+    },
+    {
+      "name": "home_check_description",
+      "value": "Check connection status and local service"
+    },
+    {
+      "name": "home_import_profile",
+      "value": "Import subscription"
+    },
+    {
+      "name": "settings_running",
+      "value": "Running"
+    },
+    {
+      "name": "settings_auto_restore",
+      "value": "Restore when opening the app"
+    },
+    {
+      "name": "settings_background",
+      "value": "Background operation"
+    },
+    {
+      "name": "settings_background_hint",
+      "value": "Keep the session after leaving the page"
+    },
+    {
+      "name": "settings_system_connection",
+      "value": "System and connection"
+    },
+    {
+      "name": "settings_network_hint",
+      "value": "App routing · IPv6"
+    },
+    {
+      "name": "settings_smart_hint",
+      "value": "Statistical strategy · Offline model"
+    },
+    {
+      "name": "settings_advanced",
+      "value": "Advanced"
+    },
+    {
+      "name": "settings_auto_update",
+      "value": "Update subscriptions automatically"
+    },
+    {
+      "name": "settings_update_hint",
+      "value": "Check while VPN is running"
+    },
+    {
+      "name": "settings_interval",
+      "value": "Update interval"
+    },
+    {
+      "name": "settings_log_file",
+      "value": "Record kernel logs"
+    },
+    {
+      "name": "settings_next_start",
+      "value": "Applies on next start"
+    },
+    {
+      "name": "settings_background_enabled",
+      "value": "Background operation enabled"
+    },
+    {
+      "name": "settings_background_denied",
+      "value": "Could not enable background operation"
+    },
+    {
+      "name": "settings_enabled",
+      "value": "Enabled"
+    },
+    {
+      "name": "settings_interval_hint",
+      "value": "Subscription update check interval"
+    },
+    {
+      "name": "settings_saved_next",
+      "value": "Saved. Applies on next connection"
+    },
+    {
+      "name": "settings_reconnect_title",
+      "value": "Reconnect to apply settings?"
+    },
+    {
+      "name": "settings_reconnect_warning",
+      "value": "VPN will briefly disconnect."
+    },
+    {
+      "name": "settings_reconnecting",
+      "value": "Reconnecting"
+    },
+    {
+      "name": "settings_reconnect_apply",
+      "value": "Reconnect to apply"
+    },
+    {
+      "name": "background_acquired",
+      "value": "Background task granted"
+    },
+    {
+      "name": "background_disabled",
+      "value": "Background operation disabled"
+    },
+    {
+      "name": "background_requesting",
+      "value": "Requesting background task"
+    },
+    {
+      "name": "background_failed",
+      "value": "Background task request failed"
+    },
+    {
+      "name": "background_revoked",
+      "value": "System revoked background task"
+    },
+    {
+      "name": "background_user_stopped",
+      "value": "Background task stopped by user"
+    },
+    {
+      "name": "background_suspended",
+      "value": "Background task suspended"
+    },
+    {
+      "name": "background_unknown",
+      "value": "Background task unconfirmed"
+    },
+    {
+      "name": "background_notification_ready",
+      "value": "Live view published"
+    },
+    {
+      "name": "background_notification_failed",
+      "value": "Could not publish live view"
+    },
+    {
+      "name": "background_notification_unknown",
+      "value": "Live view unconfirmed"
+    },
+    {
+      "name": "background_limited",
+      "value": "Background operation limited"
+    },
+    {
+      "name": "background_still_limited",
+      "value": "Background operation still limited"
+    },
+    {
+      "name": "failure_start_detail",
+      "value": "Start failed: %s"
+    },
+    {
+      "name": "home_traffic_description",
+      "value": "Traffic. Upload %s. Download %s"
+    },
+    {
+      "name": "settings_hours",
+      "value": "%d hours"
+    },
+    {
+      "name": "a11y_loading_settings",
+      "value": "Loading settings"
+    },
+    {
+      "name": "a11y_unsaved_settings",
+      "value": "Save settings first"
+    },
+    {
+      "name": "a11y_current_profile",
+      "value": "Current subscription: %s"
+    },
+    {
+      "name": "smart_after_connect",
+      "value": "Connect to view smart selection"
+    },
+    {
+      "name": "smart_connect_first",
+      "value": "Connect VPN first to view Smart groups."
+    },
+    {
+      "name": "state_not_checked",
+      "value": "Not checked"
+    },
+    {
+      "name": "smart_no_evidence",
+      "value": "No prediction evidence yet"
+    },
+    {
+      "name": "state_unavailable",
+      "value": "Status temporarily unavailable"
+    },
+    {
+      "name": "smart_wait_config",
+      "value": "Waiting for runtime configuration"
+    },
+    {
+      "name": "smart_retry_status",
+      "value": "Retry shortly; check the local service if it remains unavailable."
+    },
+    {
+      "name": "smart_wait_predictions",
+      "value": "Waiting for prediction count"
+    },
+    {
+      "name": "smart_not_used",
+      "value": "Smart selection is not used in this configuration"
+    },
+    {
+      "name": "smart_enabled",
+      "value": "Smart selection enabled"
+    },
+    {
+      "name": "smart_profile_strategy",
+      "value": "Set strategies in subscription details."
+    },
+    {
+      "name": "smart_panel_strategy",
+      "value": "View Smart groups and options in the dashboard."
+    },
+    {
+      "name": "smart_choose_strategy",
+      "value": "Choose a strategy for the subscription's group types"
+    },
+    {
+      "name": "smart_model_strategy",
+      "value": "Model strategy"
+    },
+    {
+      "name": "smart_statistics",
+      "value": "Statistical strategy"
+    },
+    {
+      "name": "smart_model_loaded",
+      "value": "Model loaded"
+    },
+    {
+      "name": "smart_model_missing",
+      "value": "Model missing; using statistical strategy"
+    },
+    {
+      "name": "smart_model_invalid",
+      "value": "Model invalid; using statistical strategy"
+    },
+    {
+      "name": "smart_model_loading",
+      "value": "Loading model"
+    },
+    {
+      "name": "smart_model_not_requested",
+      "value": "Model loading not requested"
+    },
+    {
+      "name": "smart_predictions_zero",
+      "value": "0 valid predictions in this process"
+    },
+    {
+      "name": "smart_prediction_evidence",
+      "value": "Valid predictions recorded across all Smart groups in this process; not attributed to a website visit."
+    },
+    {
+      "name": "smart_prediction_none",
+      "value": "No valid predictions recorded. A loaded model still needs eligible samples from an active Smart group."
+    },
+    {
+      "name": "smart_applied",
+      "value": "Applied to the runtime configuration"
+    },
+    {
+      "name": "smart_saved_next",
+      "value": "Saved. Applies on next connection"
+    },
+    {
+      "name": "smart_import_failed",
+      "value": "Import failed. Check the official Model.bin version, checksum and VPN connection"
+    },
+    {
+      "name": "smart_installed_restart",
+      "value": "Model verified and installed. Restart the app to apply"
+    },
+    {
+      "name": "smart_installed",
+      "value": "Model verified and installed. View its strategy status in Smart groups"
+    },
+    {
+      "name": "smart_restart_title",
+      "value": "Restart the app to apply the model?"
+    },
+    {
+      "name": "smart_restart_warning",
+      "value": "VPN will disconnect and the app will restart. Reconnect after opening it."
+    },
+    {
+      "name": "smart_restart",
+      "value": "Restart app"
+    },
+    {
+      "name": "action_open_panel",
+      "value": "Open dashboard"
+    },
+    {
+      "name": "smart_auto_enable",
+      "value": "Enable smart selection automatically"
+    },
+    {
+      "name": "smart_restart_apply",
+      "value": "Restart app to apply model"
+    },
+    {
+      "name": "action_collapse_details",
+      "value": "Hide details"
+    },
+    {
+      "name": "action_details",
+      "value": "Details"
+    },
+    {
+      "name": "smart_current_config",
+      "value": "Current configuration"
+    },
+    {
+      "name": "smart_region_details",
+      "value": "Set region strategies in subscription details."
+    },
+    {
+      "name": "resource_model",
+      "value": "Offline model"
+    },
+    {
+      "name": "smart_bundled_model",
+      "value": "The official model is bundled. Loading and prediction evidence are shown separately; statistical strategy is used when unavailable."
+    },
+    {
+      "name": "smart_official_model",
+      "value": "View official model source"
+    },
+    {
+      "name": "smart_manual_hint",
+      "value": "Import official Model.bin only for manual recovery; the file will be verified."
+    },
+    {
+      "name": "action_working",
+      "value": "Working…"
+    },
+    {
+      "name": "smart_import_recovery",
+      "value": "Import model for recovery"
+    },
+    {
+      "name": "strategy_unavailable",
+      "value": "Strategies temporarily unavailable"
+    },
+    {
+      "name": "strategy_changed",
+      "value": "Strategies changed. Choose again"
+    },
+    {
+      "name": "strategy_updated",
+      "value": "Display strategy updated"
+    },
+    {
+      "name": "strategy_save_failed",
+      "value": "Could not save display strategy. Retry"
+    },
+    {
+      "name": "strategy_display",
+      "value": "Live view display strategy"
+    },
+    {
+      "name": "strategy_auto",
+      "value": "Automatic"
+    },
+    {
+      "name": "action_saving",
+      "value": "Saving…"
+    },
+    {
+      "name": "action_apply",
+      "value": "Apply"
+    },
+    {
+      "name": "resource_read_failed",
+      "value": "Could not inspect resources. Retry"
+    },
+    {
+      "name": "resource_restored",
+      "value": "Restored"
+    },
+    {
+      "name": "resource_ready",
+      "value": "Ready"
+    },
+    {
+      "name": "resource_missing",
+      "value": "Not installed"
+    },
+    {
+      "name": "resource_invalid",
+      "value": "Recovery needed"
+    },
+    {
+      "name": "action_restore",
+      "value": "Restore"
+    },
+    {
+      "name": "resource_geodata",
+      "value": "Network data"
+    },
+    {
+      "name": "a11y_restore_stopped",
+      "value": "Disconnect and confirm shutdown first"
+    },
+    {
+      "name": "a11y_expanded",
+      "value": "Expanded"
+    },
+    {
+      "name": "a11y_collapsed",
+      "value": "Collapsed"
+    },
+    {
+      "name": "smart_group",
+      "value": "%s · %s"
+    },
+    {
+      "name": "smart_predictions",
+      "value": "%d valid predictions in this process (all Smart groups)"
+    },
+    {
+      "name": "smart_source_fallback",
+      "value": "Open %s in your browser"
+    },
+    {
+      "name": "resource_restore_name",
+      "value": "Restore %s"
+    },
+    {
+      "name": "diag_not_checked",
+      "value": "Local service not checked"
+    },
+    {
+      "name": "diag_checking",
+      "value": "Checking…"
+    },
+    {
+      "name": "diag_evidence_failed",
+      "value": "Check evidence could not be saved. Retry export"
+    },
+    {
+      "name": "diag_proxy_unavailable",
+      "value": "Test proxies unavailable. Connect and retry"
+    },
+    {
+      "name": "diag_preparing_export",
+      "value": "Preparing support bundle…"
+    },
+    {
+      "name": "diag_bundle_name",
+      "value": "Cexing support bundle"
+    },
+    {
+      "name": "diag_share_open",
+      "value": "Share sheet opened. Review contents and choose an app"
+    },
+    {
+      "name": "diag_picker_type",
+      "value": "Support bundle|.json"
+    },
+    {
+      "name": "diag_save_cancelled",
+      "value": "Save cancelled. Bundle retained in the app"
+    },
+    {
+      "name": "diag_saved",
+      "value": "Support bundle saved. Review evidence scope before submitting"
+    },
+    {
+      "name": "diag_files_pending",
+      "value": "Existing diagnostic files are pending or retained. Complete save/share or retry later"
+    },
+    {
+      "name": "diag_export_failed",
+      "value": "Bundle save/share incomplete. Retry; historical evidence is retained"
+    },
+    {
+      "name": "diag_reachable",
+      "value": "Local service reachable"
+    },
+    {
+      "name": "diag_timeout",
+      "value": "Check timed out"
+    },
+    {
+      "name": "diag_summary_copied",
+      "value": "Redacted summary copied"
+    },
+    {
+      "name": "diag_copy_failed",
+      "value": "Copy failed. Retry"
+    },
+    {
+      "name": "diag_feedback_failed",
+      "value": "Could not open feedback. Use the GitHub repository issue page"
+    },
+    {
+      "name": "diag_connection_check",
+      "value": "Connection checks"
+    },
+    {
+      "name": "diag_local_service",
+      "value": "Local service"
+    },
+    {
+      "name": "diag_retry_timeout",
+      "value": "Retry the check. If it still times out, disconnect and reconnect."
+    },
+    {
+      "name": "diag_collapse",
+      "value": "Hide technical details"
+    },
+    {
+      "name": "diag_details",
+      "value": "Technical details"
+    },
+    {
+      "name": "diag_check_scope",
+      "value": "These checks cover the local API, configured DNS and selected proxy. Website access and system tunnel forwarding require separate confirmation."
+    },
+    {
+      "name": "diag_check_dns",
+      "value": "Check DNS"
+    },
+    {
+      "name": "diag_read_proxies",
+      "value": "Read test proxy list"
+    },
+    {
+      "name": "diag_choose_proxy",
+      "value": "Choose test proxy"
+    },
+    {
+      "name": "diag_check_proxy",
+      "value": "Check proxy connection"
+    },
+    {
+      "name": "diag_check_delay",
+      "value": "Check proxy latency"
+    },
+    {
+      "name": "diag_bandwidth_not_run",
+      "value": "Bandwidth testing is not performed here."
+    },
+    {
+      "name": "diag_visit_site",
+      "value": "After the local service responds, open a website to confirm access. Use dashboard logs if access fails."
+    },
+    {
+      "name": "diag_kernel_ready",
+      "value": "Kernel reported ready"
+    },
+    {
+      "name": "diag_kernel_waiting",
+      "value": "Waiting for kernel readiness"
+    },
+    {
+      "name": "diag_share",
+      "value": "Share support bundle file"
+    },
+    {
+      "name": "diag_copy_summary",
+      "value": "Copy redacted summary"
+    },
+    {
+      "name": "diag_feedback",
+      "value": "Open GitHub feedback template"
+    },
+    {
+      "name": "diag_check_service",
+      "value": "Check local service"
+    },
+    {
+      "name": "diag_save_bundle",
+      "value": "Save support bundle"
+    },
+    {
+      "name": "diag_evidence_scope",
+      "value": "Evidence scope in this bundle"
+    },
+    {
+      "name": "diag_title_connection",
+      "value": "Proxy connection"
+    },
+    {
+      "name": "diag_title_delay",
+      "value": "Proxy latency"
+    },
+    {
+      "name": "diag_title_bandwidth",
+      "value": "Bandwidth test"
+    },
+    {
+      "name": "diag_credentials_failed",
+      "value": "Connection information unavailable. Reconnect"
+    },
+    {
+      "name": "diag_auth_failed",
+      "value": "Connection authentication failed. Disconnect and reconnect"
+    },
+    {
+      "name": "diag_connect_first",
+      "value": "Not run. Connect VPN first"
+    },
+    {
+      "name": "diag_proxy_first",
+      "value": "Not run. Choose a test proxy first"
+    },
+    {
+      "name": "diag_bandwidth_disabled",
+      "value": "Bandwidth testing is not performed here"
+    },
+    {
+      "name": "diag_skipped",
+      "value": "Check not run. Reason recorded in the bundle"
+    },
+    {
+      "name": "diag_unknown",
+      "value": "Check result unconfirmed. Save a support bundle"
+    },
+    {
+      "name": "diag_fact_host",
+      "value": "App"
+    },
+    {
+      "name": "diag_fact_kernel",
+      "value": "Kernel"
+    },
+    {
+      "name": "diag_fact_current",
+      "value": "Current session"
+    },
+    {
+      "name": "diag_fact_previous",
+      "value": "Previous session"
+    },
+    {
+      "name": "diag_fact_older",
+      "value": "Older session"
+    },
+    {
+      "name": "diag_fact_no_evidence",
+      "value": "No retained evidence"
+    },
+    {
+      "name": "diag_fact_missing",
+      "value": "No evidence retained for this session; first use or rotation possible"
+    },
+    {
+      "name": "diag_fact_invalid",
+      "value": "Evidence file damaged or over limit"
+    },
+    {
+      "name": "diag_fact_unreadable",
+      "value": "Evidence unavailable"
+    },
+    {
+      "name": "diag_fact_environment",
+      "value": "App environment snapshot incomplete"
+    },
+    {
+      "name": "diag_fact_version",
+      "value": "Effective configuration version unconfirmed"
+    },
+    {
+      "name": "diag_fact_retention",
+      "value": "Each source retains current and two prior process sessions; older evidence may be rotated."
+    },
+    {
+      "name": "diag_fact_bandwidth",
+      "value": "Bandwidth testing must be started separately; this page only performs low-traffic checks."
+    },
+    {
+      "name": "diag_last_failure",
+      "value": "Last startup failure: %s"
+    },
+    {
+      "name": "diag_checked_at",
+      "value": "Checked at: %s"
+    },
+    {
+      "name": "diag_passed",
+      "value": "%s check passed"
+    },
+    {
+      "name": "diag_error_code",
+      "value": " (error code %s)"
+    },
+    {
+      "name": "diag_failed",
+      "value": "Check failed%s. Save a support bundle"
+    },
+    {
+      "name": "diag_fact_label",
+      "value": "%s · %s"
+    },
+    {
+      "name": "diag_fact_line",
+      "value": "%s: %s"
+    },
+    {
+      "name": "diag_fact_count",
+      "value": "%s: %d records"
+    },
+    {
+      "name": "diag_fact_losses",
+      "value": "%s: %d dropped, %d export omissions, %d write failures, %d unpersisted, %d rate-limited"
+    },
+    {
+      "name": "diag_fact_checks",
+      "value": "%s: %d check records retained"
+    },
+    {
+      "name": "diag_fact_no_checks",
+      "value": "%s: no retained results; cannot infer whether the check ran"
+    },
+    {
+      "name": "diag_connecting",
+      "value": "Connecting"
+    },
+    {
+      "name": "diag_disconnecting",
+      "value": "Disconnecting"
+    },
+    {
+      "name": "nav_profile_merge",
+      "value": "Subscription overrides"
+    },
+    {
+      "name": "nav_generated",
+      "value": "Generated configuration"
     }
   ]
 }

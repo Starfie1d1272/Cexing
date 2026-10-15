@@ -73,6 +73,8 @@ const host = { filesDir: home, resourceManager: { async getRawFileContent(p) {
   assert.ok(resources[p], 'unknown resource'); return new Uint8Array(resources[p]);
 } } };
 (async () => {
+  assert.equal(await Assets.inspect(host), 'missing');
+  assert.deepEqual(fs.readdirSync(home), [], 'status must not create directories');
   const oldSource = require('node:child_process').execFileSync('git', ['show',
     '2c0c1ed95c06f65770445a82f5afd59adb43376c:clash-openharmony/entry/src/main/ets/lib/ZashboardAssets.ets'],
     { cwd: path.join(__dirname, '..'), encoding: 'utf8' });

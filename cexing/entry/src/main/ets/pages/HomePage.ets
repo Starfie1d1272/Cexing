@@ -1,3 +1,4 @@
+import { UiText } from '../lib/UiText';
 import { common } from '@kit.AbilityKit';
 import { promptAction } from '@kit.ArkUI';
 import { VpnController, VpnStatus } from '../lib/VpnController';
@@ -10,7 +11,7 @@ import { ProfileTransactions } from '../lib/ProfileTransactions';
 import { NativeTheme as UI } from './NativeTheme';
 import { ProfileDetailBus } from './ProfilePage';
 
-const MODE_LABELS: string[] = ['规则', '全局', '直连'];
+const MODE_LABELS: string[] = [UiText.get($r('app.string.mode_rule')), UiText.get($r('app.string.mode_global')), UiText.get($r('app.string.mode_direct'))];
 const MODE_VALUES: string[] = ['rule', 'global', 'direct'];
 
 @Component
@@ -22,7 +23,7 @@ export struct HomePage {
   @Consume('tab') @Watch('onTabVisible') currentVisibleTab: number;
   @State status: VpnStatus = VpnController.status;
   private preparingSmart: boolean = false;
-  @State profileName: string = '未导入';
+  @State profileName: string = UiText.get($r('app.string.state_not_imported'));
   @State hasProfile: boolean = false;
   @State upRate: string = '—';
   @State downRate: string = '—';
@@ -59,7 +60,7 @@ export struct HomePage {
     const message = VpnController.consumeLastStartError();
     if (message.length > 0) {
       this.startFailed = true;
-      promptAction.showToast({ message: `启动失败：${message}`, duration: 3000 });
+      promptAction.showToast({ message: UiText.get($r('app.string.failure_start_detail'), message), duration: 3000 });
     }
   }
 
@@ -110,7 +111,7 @@ export struct HomePage {
     const ctx = getContext(this) as common.UIAbilityContext;
     const file = ProfileStore.getActiveFile(ctx);
     this.hasProfile = file.length > 0;
-    this.profileName = this.hasProfile ? file.replace(/\.(yaml|yml)$/, '') : '未导入';
+    this.profileName = this.hasProfile ? file.replace(/\.(yaml|yml)$/, '') : UiText.get($r('app.string.state_not_imported'));
     const saved = Settings.load(ctx).mode;
     if (MODE_VALUES.indexOf(saved) >= 0) {
       this.mode = saved;
@@ -145,7 +146,7 @@ export struct HomePage {
     this.stopUnknown = !completed;
     if (!completed && this.visible && this.rootVisible &&
       this.currentVisibleTab === 0) {
-      promptAction.showToast({ message: '断开未确认，请检查系统 VPN 状态后重试', duration: 3000 });
+      promptAction.showToast({ message: UiText.get($r('app.string.failure_stop_unknown')), duration: 3000 });
     }
   }
 
@@ -168,7 +169,7 @@ export struct HomePage {
         if (request !== this.stopRequest || !this.visible || !this.rootVisible ||
           this.currentVisibleTab !== 0) { return; }
         this.startFailed = true;
-        promptAction.showToast({ message: '当前配置未能生成，请检查配置后重试' });
+        promptAction.showToast({ message: UiText.get($r('app.string.failure_prepare_config')) });
         return;
       } finally { this.preparingSmart = false; }
       if (request !== this.stopRequest || !this.visible || !this.rootVisible ||
@@ -176,7 +177,7 @@ export struct HomePage {
         ProfileStore.getActiveFile(ctx) !== file) { return; }
       if (VpnController.needsStop()) {
         this.stopUnknown = true;
-        promptAction.showToast({ message: '连接状态待核对，请先重试断开' });
+        promptAction.showToast({ message: UiText.get($r('app.string.failure_state_unknown')) });
         return;
       }
       VpnController.start(ctx);
@@ -190,7 +191,7 @@ export struct HomePage {
   private async changeMode(index: number): Promise<void> {
     const next = MODE_VALUES[index];
     if (this.status === VpnStatus.Connected && !(await CoreApi.patchMode(next))) {
-      promptAction.showToast({ message: '模式切换失败' });
+      promptAction.showToast({ message: UiText.get($r('app.string.failure_mode_change')) });
       return;
     }
     this.mode = next;
@@ -198,22 +199,22 @@ export struct HomePage {
     const settings = Settings.load(ctx);
     settings.mode = next;
     try { await Settings.save(ctx, settings, ['mode']); }
-    catch (_) { promptAction.showToast({ message: '模式已切换，保存失败，请重试' }); }
+    catch (_) { promptAction.showToast({ message: UiText.get($r('app.string.failure_mode_save')) }); }
   }
 
   private label(): string {
-    if (this.status === VpnStatus.Connected) { return '已连接'; }
-    if (this.status === VpnStatus.Connecting) { return '连接中'; }
-    if (this.status === VpnStatus.Disconnecting) { return '断开中'; }
-    return this.stopUnknown ? '断开未确认' : (this.startFailed ? '连接失败' : '未连接');
+    if (this.status === VpnStatus.Connected) { return UiText.get($r('app.string.state_connected')); }
+    if (this.status === VpnStatus.Connecting) { return UiText.get($r('app.string.state_connecting')); }
+    if (this.status === VpnStatus.Disconnecting) { return UiText.get($r('app.string.state_disconnecting')); }
+    return this.stopUnknown ? UiText.get($r('app.string.state_stop_unknown')) : (this.startFailed ? UiText.get($r('app.string.state_connect_failed')) : UiText.get($r('app.string.state_disconnected')));
   }
 
   private stateLine(): string {
-    if (this.status === VpnStatus.Connected) { return '可查看流量或检查连接'; }
-    if (this.status === VpnStatus.Connecting) { return '正在建立系统连接'; }
-    if (this.status === VpnStatus.Disconnecting) { return '正在结束系统会话'; }
-    return this.stopUnknown ? '请重试断开，或前往诊断检查' :
-      (this.startFailed ? '可重试或前往诊断' : '准备连接');
+    if (this.status === VpnStatus.Connected) { return UiText.get($r('app.string.state_connected_actions')); }
+    if (this.status === VpnStatus.Connecting) { return UiText.get($r('app.string.state_system_connecting')); }
+    if (this.status === VpnStatus.Disconnecting) { return UiText.get($r('app.string.state_system_disconnecting')); }
+    return this.stopUnknown ? UiText.get($r('app.string.state_stop_diagnostics')) :
+      (this.startFailed ? UiText.get($r('app.string.state_retry_diagnostics')) : UiText.get($r('app.string.state_ready_connect')));
   }
 
   @Builder
@@ -247,7 +248,7 @@ export struct HomePage {
           .fill(this.status === VpnStatus.Connected ? UI.signal : '#AEBCC3').accessibilityLevel('no')
         Column({ space: 13 }) {
           if (!this.shortWindow) {
-            Text('连接状态').fontSize(12).fontColor(UI.stateMuted).margin({ bottom: 5 })
+            Text(UiText.get($r('app.string.home_connection_state'))).fontSize(12).fontColor(UI.stateMuted).margin({ bottom: 5 })
           }
           Text(this.label()).fontSize(36).fontWeight(600, { enableVariableFontWeight: true }).fontColor(UI.stateInk)
           Row({ space: 8 }) {
@@ -261,23 +262,23 @@ export struct HomePage {
           }
         }.alignItems(HorizontalAlign.Start).padding({ left: 24, right: 24, top: this.shortWindow ? 16 : 24,
           bottom: this.shortWindow ? 16 : 24 }).width('74%')
-      }.width('100%').height(this.stageHeight)
+      }.width('100%').constraintSize({ minHeight: this.stageHeight })
         .onAreaChange((_old: Area, area: Area) => { this.stageWidth = Number(area.width); })
       if (this.status === VpnStatus.Connected) {
         Row({ space: 20 }) {
-          this.Rate(true, '↑ 上传')
-          Divider().vertical(true).height(48).color('#52616A')
-          this.Rate(false, '↓ 下载')
+          this.Rate(true, UiText.get($r('app.string.home_upload')))
+          Divider().vertical(true).constraintSize({ minHeight: 48 }).color('#52616A')
+          this.Rate(false, UiText.get($r('app.string.home_download')))
           SymbolGlyph($r('sys.symbol.chevron_right')).fontSize(14).fontColor([Color.White])
         }.padding({ top: 18, bottom: 18, left: 24, right: 24 }).width('100%').backgroundColor(UI.stage)
-          .accessibilityGroup(true).accessibilityText(`流量 上传 ${this.upRate} 下载 ${this.downRate}`)
+          .accessibilityRole(AccessibilityRoleType.BUTTON).accessibilityGroup(true).accessibilityText(UiText.get($r('app.string.home_traffic_description'), this.upRate, this.downRate))
           .onClick(() => { this.navStack.pushPath({ name: 'traffic' }); })
       } else {
         Row() {
-          Text('流量').fontSize(12).fontColor('#C9D3D9').layoutWeight(1)
+          Text(UiText.get($r('app.string.nav_traffic'))).fontSize(12).fontColor('#C9D3D9').layoutWeight(1)
           SymbolGlyph($r('sys.symbol.chevron_right')).fontSize(14).fontColor([Color.White])
         }.width('100%').padding({ top: 17, bottom: 17, left: 24, right: 24 }).backgroundColor(UI.stage)
-          .accessibilityGroup(true).accessibilityText('查看流量')
+          .accessibilityRole(AccessibilityRoleType.BUTTON).accessibilityGroup(true).accessibilityText(UiText.get($r('app.string.home_view_traffic')))
           .onClick(() => { this.navStack.pushPath({ name: 'traffic' }); })
       }
     }.width(this.wide ? '48%' : '100%').backgroundColor(Color.White)
@@ -290,7 +291,7 @@ export struct HomePage {
       Row({ space: 12 }) {
         SymbolGlyph($r('sys.symbol.chevron_right')).fontSize(18).fontColor([UI.accentText])
         Column({ space: 4 }) {
-          Text('控制面板').fontSize(17).fontWeight(FontWeight.Medium)
+          Text(UiText.get($r('app.string.nav_panel'))).fontSize(17).fontWeight(FontWeight.Medium)
           Text('Zashboard').fontSize(11).fontColor(UI.muted)
         }.alignItems(HorizontalAlign.Start).layoutWeight(1)
       }.width('100%').padding(18)
@@ -304,8 +305,8 @@ export struct HomePage {
     Column({ space: 16 }) {
       if (!this.prioritizePanel) { this.PanelEntry() }
       Row() {
-        Text('当前订阅').fontSize(13).fontColor(UI.muted).layoutWeight(1)
-        Button('管理', { type: ButtonType.Normal }).height(48).fontSize(14)
+        Text(UiText.get($r('app.string.home_current_profile'))).fontSize(13).fontColor(UI.muted).layoutWeight(1)
+        Button(UiText.get($r('app.string.action_manage')), { type: ButtonType.Normal }).constraintSize({ minHeight: 48 }).fontSize(14)
           .backgroundColor(Color.Transparent).fontColor(UI.ink).onClick(() => { this.tabJump = 1; })
       }.width('100%')
       Button({ type: ButtonType.Normal }) {
@@ -315,6 +316,7 @@ export struct HomePage {
           SymbolGlyph($r('sys.symbol.chevron_right')).fontSize(16).fontColor([UI.muted])
         }.padding(18).width('100%')
       }.width('100%').constraintSize({ minHeight: 80 }).borderRadius(24).backgroundColor(UI.surface)
+        .accessibilityText(UiText.get($r('app.string.a11y_current_profile'), this.profileName))
         .onClick(() => {
           const file = ProfileStore.getActiveFile(getContext(this) as common.UIAbilityContext);
           if (file.length === 0) { this.tabJump = 1; return; }
@@ -323,9 +325,11 @@ export struct HomePage {
         })
       Row({ space: 4 }) {
         ForEach(MODE_LABELS, (label: string, index: number) => {
-          Button(label).layoutWeight(1).height(48).fontSize(14)
+          Button(label).layoutWeight(1).constraintSize({ minHeight: 48 }).fontSize(14)
             .backgroundColor(this.mode === MODE_VALUES[index] ? UI.soft : Color.Transparent)
             .fontColor(this.mode === MODE_VALUES[index] ? UI.accentText : UI.muted)
+            .accessibilitySelected(this.mode === MODE_VALUES[index])
+            .accessibilityDescription(this.status === VpnStatus.Connecting || this.status === VpnStatus.Disconnecting ? this.stateLine() : '')
             .enabled(this.status === VpnStatus.Connected || this.status === VpnStatus.Disconnected)
             .onClick(() => this.changeMode(index))
         }, (label: string) => label)
@@ -333,10 +337,10 @@ export struct HomePage {
       Button({ type: ButtonType.Normal }) {
         Row({ space: 12 }) {
           SymbolGlyph($r('sys.symbol.chevron_right')).fontSize(18).fontColor([UI.accentText])
-          Text('检查连接').fontSize(16).fontWeight(FontWeight.Medium).fontColor(UI.ink).layoutWeight(1)
+          Text(UiText.get($r('app.string.home_check_connection'))).fontSize(16).fontWeight(FontWeight.Medium).fontColor(UI.ink).layoutWeight(1)
         }.width('100%').padding({ left: 18, right: 18 })
       }.width('100%').constraintSize({ minHeight: 56 }).borderRadius(20).backgroundColor(UI.surface)
-        .accessibilityText('检查连接状态和本机服务')
+        .accessibilityText(UiText.get($r('app.string.home_check_description')))
         .onClick(() => { this.navStack.pushPath({ name: 'diagnostics' }); })
     }.width(this.wide ? '48%' : '100%').alignItems(HorizontalAlign.Start)
       .margin({ top: this.wide ? 0 : 6 })
@@ -344,15 +348,15 @@ export struct HomePage {
 
   build() {
     Column({ space: 12 }) {
-      Text('连接').fontSize(26).fontWeight(600, { enableVariableFontWeight: true }).fontColor(UI.ink)
+      Text(UiText.get($r('app.string.nav_connection'))).fontSize(26).fontWeight(600, { enableVariableFontWeight: true }).fontColor(UI.ink)
         .width('100%').margin({ top: 16, bottom: 12 })
       Scroll() {
         Column({ space: 20 }) {
           BackgroundNotice({ status: this.status, visible: this.rootVisible && this.currentVisibleTab === 0 })
           if (!this.hasProfile) {
             Column({ space: 18 }) {
-              Text('导入订阅').fontSize(36).fontWeight(FontWeight.Bold).fontColor(UI.ink)
-              Button('添加订阅').width('100%').height(56).backgroundColor(UI.action).fontColor(UI.onAccent)
+              Text(UiText.get($r('app.string.home_import_profile'))).fontSize(36).fontWeight(FontWeight.Bold).fontColor(UI.ink)
+              Button(UiText.get($r('app.string.action_add_profile'))).width('100%').constraintSize({ minHeight: 56 }).backgroundColor(UI.action).fontColor(UI.onAccent)
                 .onClick(() => { this.tabJump = 1; })
             }.padding(24).width('100%').borderRadius(28).backgroundColor(UI.surface)
           } else {
@@ -366,12 +370,13 @@ export struct HomePage {
         }.width('100%').padding({ bottom: 12 })
       }.layoutWeight(1).width('100%').scrollBar(BarState.Off)
       if (this.hasProfile || this.stopUnknown) {
-        Button(this.status === VpnStatus.Disconnected ? (this.stopUnknown ? '重试断开' : '连接 VPN') :
-          (this.status === VpnStatus.Connecting ? '取消连接' :
-            (this.status === VpnStatus.Disconnecting ? '断开中' : '断开连接')))
-          .width('100%').height(56).fontSize(16).fontWeight(FontWeight.Medium)
+        Button(this.status === VpnStatus.Disconnected ? (this.stopUnknown ? UiText.get($r('app.string.action_retry_disconnect')) : UiText.get($r('app.string.action_connect_vpn'))) :
+          (this.status === VpnStatus.Connecting ? UiText.get($r('app.string.action_cancel_connect')) :
+            (this.status === VpnStatus.Disconnecting ? UiText.get($r('app.string.state_disconnecting')) : UiText.get($r('app.string.action_disconnect')))))
+          .width('100%').constraintSize({ minHeight: 56 }).fontSize(16).fontWeight(FontWeight.Medium)
           .backgroundColor(this.status === VpnStatus.Connected ? UI.soft : UI.action)
           .fontColor(this.status === VpnStatus.Connected ? UI.accentText : UI.onAccent)
+          .accessibilityDescription(this.status === VpnStatus.Disconnecting ? this.stateLine() : '')
           .enabled(this.status !== VpnStatus.Disconnecting).onClick(() => this.toggle())
       }
     }.padding({ left: 24, right: 24, bottom: 12 }).width('100%').height('100%')
