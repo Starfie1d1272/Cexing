@@ -269,6 +269,7 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   assert.match(failedRevoke.lanError,/重试/);
 
   let active = 'fixture.yaml', deleted = 0, rejectImport = true;
+  let sourceStates = {}, sourceOrigins = {};
   let importAsync = async (_context, _name, _content, current) => { assert.ok(current()); importedWrites++; return 'candidate.yaml'; };
   let activateResult = async () => 'applied';
   let regionResult = async () => 'saved';
@@ -285,10 +286,10 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
       update: async () => 'applied', rename: () => 'fixture.yaml'
     } },
     '../lib/ProfileStore': { ProfileStore: { list: () => profiles, getMeta: () => ({}),
-      isApplyUncertain: () => uncertainProfile, updateState: () => ({ ...updateState }),
+      isApplyUncertain: () => uncertainProfile, updateState: (_context, file) => ({ ...(sourceStates[file] ?? updateState) }),
       importContent: () => { importedWrites++; return 'candidate.yaml'; },
       importContentAsync: (...args) => importAsync(...args),
-      getActiveFile: () => active, getOrigin: () => '', pendingRegionSelection: () => '',
+      getActiveFile: () => active, getOrigin: (_context, file) => sourceOrigins[file] ?? '', pendingRegionSelection: () => '',
       importFromUrl: async () => { if (rejectImport) throw Error('network'); return 'candidate.yaml'; } } }
   }, { AlertDialog: { show: value => { dialog = value; } }, canIUse: () => true });
   const profile = new Profile(); profile.profileRevision = 0; profile.navStack = { pop() {} };
@@ -449,6 +450,21 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   assert.notEqual(times.lastUpdated('a.yaml'), times.lastUpdated('b.yaml'));
   assert.equal(times.lastUpdated('missing.yaml'), '尚未更新');
   importAsync = async (_context, _name, _content, current) => { assert.ok(current()); importedWrites++; return 'candidate.yaml'; };
+  sourceOrigins = { 'fixture.yaml': 'https://example.invalid/a', 'candidate.yaml': 'https://example.invalid/b' };
+  sourceStates = {
+    'fixture.yaml': { id: 'a', succeededAt: 3000, failedAt: 0 },
+    'candidate.yaml': { id: 'b', succeededAt: 1000, failedAt: 2000 }
+  };
+  const perSource = activationPage().page;
+  assert.equal(perSource.updateTimes['fixture.yaml'], 3000);
+  assert.equal(perSource.updateTimes['candidate.yaml'], 1000);
+  assert.equal(perSource.updateFeedback['fixture.yaml'], undefined);
+  assert.ok(perSource.updateFeedback['candidate.yaml']);
+  sourceStates['candidate.yaml'] = { id: 'b', succeededAt: 4000, failedAt: 0 };
+  perSource.refresh(); assert.equal(perSource.updateFeedback['candidate.yaml'], undefined);
+  assert.equal(perSource.updateTimes['candidate.yaml'], 4000, 'successful source retry clears only its own old failure/time');
+  assert.equal(perSource.updateTimes['fixture.yaml'], 3000);
+  sourceOrigins = {}; sourceStates = {};
   uncertainProfile = true;
   const recovery = activationPage().page;
   assert.equal(recovery.recoveryNeeded, true);
