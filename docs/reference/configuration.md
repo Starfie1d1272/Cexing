@@ -82,3 +82,5 @@ Go 异步读者须用 `FileStore.AcquireReadLease` 覆盖读取生命周期；�
 Preferences 写队列在恢复期间持有 `backup-restore.json` journal：先记录旧/新完整可移植偏好与前后版本快照，再写偏好、发布目标，最后按真实指针对账并 durable flush。丢失响应由同一 worker 的 status 核对；重启时 Settings 在启动/普通写入通过 idle 前，从 journal 和实际 state 选择旧/新偏好。无法确认时保留 journal 并拒绝新启动。LAN 授权与运行连接标志始终来自本机，不从备份迁移。
 
 未发布候选有 `.pending`，journal 存在时 GC 拒绝；导入取消清理候选，冷进程首次加载会清理遗留预览及应用私有传输文件，真实 Current/Previous/Profiles 引用不会被删。Go 读取持有相同读者租约。正常完成后复用版本 GC；清理失败不否认已发布配置。系统 picker 写入失败可能留下未完成的目标文件，界面不报告已保存；应用私有临时文件在 finally 清理，系统文件位置由用户管理。
+
+备份预览绑定 config/original/source/可选 overlay 的精确字节摘要，在 arm 与 commit 均复核，合法 YAML 内容变化也须重新预览。arm 回复丢失即封锁普通设置写入，在同一 worker 顺序确认恢复 journal；无法确认则保留恢复锁，不能让冷恢复覆盖后来保存。prior/target 相同的空备份用持久 committed 位区分完成阶段。运行态手动地区选择和观察值不导出，恢复只从已启用计划建立新的 pending。系统 picker 的迟到返回仅能释放自己的操作门禁。
