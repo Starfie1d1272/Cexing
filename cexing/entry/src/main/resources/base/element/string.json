@@ -2179,6 +2179,950 @@
     {
       "name": "backup_restore_action",
       "value": "Restore"
+    },
+    {
+      "name": "proxy_editor_keep_type",
+      "value": "Keep original type"
+    },
+    {
+      "name": "proxy_editor_conflict",
+      "value": "Changes conflict with the subscription. Reload or undo."
+    },
+    {
+      "name": "proxy_editor_edits_disabled",
+      "value": "Changes disabled"
+    },
+    {
+      "name": "proxy_editor_disable_edits",
+      "value": "Disable changes"
+    },
+    {
+      "name": "proxy_editor_all_sources",
+      "value": "All sources"
+    },
+    {
+      "name": "proxy_editor_delete",
+      "value": "Delete"
+    },
+    {
+      "name": "proxy_editor_delete_failed",
+      "value": "Delete failed. Try again."
+    },
+    {
+      "name": "proxy_editor_delete_confirm",
+      "value": "Delete item?"
+    },
+    {
+      "name": "proxy_editor_refresh",
+      "value": "Refresh"
+    },
+    {
+      "name": "proxy_editor_cancel",
+      "value": "Cancel"
+    },
+    {
+      "name": "proxy_editor_rename_refs",
+      "value": "Renaming also updates references"
+    },
+    {
+      "name": "proxy_editor_enable",
+      "value": "Enable"
+    },
+    {
+      "name": "proxy_editor_enable_edits",
+      "value": "Enable changes"
+    },
+    {
+      "name": "proxy_editor_saved",
+      "value": "Saved"
+    },
+    {
+      "name": "proxy_editor_applied",
+      "value": "Applied"
+    },
+    {
+      "name": "proxy_editor_apply",
+      "value": "Apply"
+    },
+    {
+      "name": "proxy_editor_apply_failed",
+      "value": "Apply failed. Check the configuration and connection, then retry."
+    },
+    {
+      "name": "proxy_editor_search",
+      "value": "Search"
+    },
+    {
+      "name": "proxy_editor_undo",
+      "value": "Undo"
+    },
+    {
+      "name": "proxy_editor_undo_failed",
+      "value": "Undo failed. Try again."
+    },
+    {
+      "name": "proxy_editor_add",
+      "value": "Add"
+    },
+    {
+      "name": "proxy_editor_new_source",
+      "value": "New source"
+    },
+    {
+      "name": "proxy_editor_smart",
+      "value": "Smart selection"
+    },
+    {
+      "name": "proxy_editor_smart_failed",
+      "value": "Smart selection is unavailable. Try again."
+    },
+    {
+      "name": "proxy_editor_update_source",
+      "value": "Update source"
+    },
+    {
+      "name": "proxy_editor_source_updated",
+      "value": "Source updated"
+    },
+    {
+      "name": "proxy_editor_source_invalid",
+      "value": "Source preview failed. Check the URL, path or nodes."
+    },
+    {
+      "name": "proxy_editor_source_status_failed",
+      "value": "Source status is unavailable. Try again."
+    },
+    {
+      "name": "proxy_editor_source_nodes_failed",
+      "value": "Source nodes are unavailable. Try again."
+    },
+    {
+      "name": "proxy_editor_source_settings",
+      "value": "Source settings"
+    },
+    {
+      "name": "proxy_editor_view_status",
+      "value": "View status"
+    },
+    {
+      "name": "proxy_editor_source_not_applied",
+      "value": "This source has not been applied"
+    },
+    {
+      "name": "proxy_editor_smart_unsupported",
+      "value": "This group does not support automatic Smart selection"
+    },
+    {
+      "name": "proxy_editor_groups",
+      "value": "Groups"
+    },
+    {
+      "name": "proxy_editor_group_invalid",
+      "value": "Group preview failed. Check members and sources, or undo."
+    },
+    {
+      "name": "proxy_editor_custom",
+      "value": "Custom"
+    },
+    {
+      "name": "proxy_editor_nodes",
+      "value": "Nodes"
+    },
+    {
+      "name": "proxy_editor_node_invalid",
+      "value": "Node preview failed. Check its fields or undo."
+    },
+    {
+      "name": "proxy_editor_original",
+      "value": "Original subscription"
+    },
+    {
+      "name": "proxy_editor_sources",
+      "value": "Sources"
+    },
+    {
+      "name": "proxy_editor_follow_global",
+      "value": "Follow global setting"
+    },
+    {
+      "name": "proxy_editor_load_failed",
+      "value": "Configuration could not be read. Try again."
+    },
+    {
+      "name": "proxy_editor_reload",
+      "value": "Reload"
+    },
+    {
+      "name": "proxy_editor_retry",
+      "value": "Retry"
+    },
+    {
+      "name": "proxy_editor_item",
+      "value": "Item"
+    },
+    {
+      "name": "proxy_editor_item_changed",
+      "value": "The item changed. Reload or undo."
+    },
+    {
+      "name": "proxy_editor_item_failed",
+      "value": "The item could not be read. Try again."
+    },
+    {
+      "name": "proxy_editor_preview",
+      "value": "Preview"
+    },
+    {
+      "name": "proxy_editor_preview_failed",
+      "value": "Preview did not complete. Try again."
+    },
+    {
+      "name": "proxy_editor_preview_invalid",
+      "value": "Preview failed. Check your changes or undo."
+    },
+    {
+      "name": "proxy_form_reality_key",
+      "value": "Reality public key"
+    },
+    {
+      "name": "proxy_form_reality",
+      "value": "Reality options"
+    },
+    {
+      "name": "proxy_form_move_up",
+      "value": "Move up"
+    },
+    {
+      "name": "proxy_form_move_down",
+      "value": "Move down"
+    },
+    {
+      "name": "proxy_form_import_link",
+      "value": "Import link"
+    },
+    {
+      "name": "proxy_form_cipher",
+      "value": "Cipher"
+    },
+    {
+      "name": "proxy_form_name",
+      "value": "Name"
+    },
+    {
+      "name": "proxy_form_fingerprint",
+      "value": "Client fingerprint"
+    },
+    {
+      "name": "proxy_form_password",
+      "value": "Password"
+    },
+    {
+      "name": "proxy_form_path",
+      "value": "File path"
+    },
+    {
+      "name": "proxy_form_update_interval",
+      "value": "Update interval (seconds)"
+    },
+    {
+      "name": "proxy_form_service",
+      "value": "Service name"
+    },
+    {
+      "name": "proxy_form_server",
+      "value": "Server"
+    },
+    {
+      "name": "proxy_form_server_name",
+      "value": "Server name"
+    },
+    {
+      "name": "proxy_form_url",
+      "value": "Source URL"
+    },
+    {
+      "name": "proxy_form_check_url",
+      "value": "Test URL"
+    },
+    {
+      "name": "proxy_form_check_interval",
+      "value": "Test interval (seconds)"
+    },
+    {
+      "name": "proxy_form_flow",
+      "value": "Flow"
+    },
+    {
+      "name": "proxy_form_add_reality",
+      "value": "Add Reality options"
+    },
+    {
+      "name": "proxy_form_add_member",
+      "value": "Add node or group"
+    },
+    {
+      "name": "proxy_form_add_source",
+      "value": "Add source"
+    },
+    {
+      "name": "proxy_form_remove",
+      "value": "Remove"
+    },
+    {
+      "name": "proxy_form_port",
+      "value": "Port"
+    },
+    {
+      "name": "proxy_form_members",
+      "value": "Members"
+    },
+    {
+      "name": "proxy_form_node_link",
+      "value": "Node link"
+    },
+    {
+      "name": "proxy_form_invalid_link",
+      "value": "The node link is invalid or has unsupported options. Check it or use advanced editing."
+    },
+    {
+      "name": "proxy_form_use_advanced",
+      "value": "Use advanced editing for this field"
+    },
+    {
+      "name": "proxy_form_request_path",
+      "value": "Request path"
+    },
+    {
+      "name": "proxy_form_read",
+      "value": "Read"
+    },
+    {
+      "name": "proxy_form_timeout",
+      "value": "Timeout (milliseconds)"
+    },
+    {
+      "name": "proxy_form_advanced",
+      "value": "Advanced editing"
+    },
+    {
+      "name": "proxy_editor_loaded_count",
+      "value": "Loaded nodes: %d"
+    },
+    {
+      "name": "proxy_editor_change_count",
+      "value": "%s %d → %d"
+    },
+    {
+      "name": "proxy_editor_config",
+      "value": "Configuration"
+    },
+    {
+      "name": "proxy_editor_busy",
+      "value": "Operation in progress"
+    },
+    {
+      "name": "proxy_form_require_name",
+      "value": "Enter a name"
+    },
+    {
+      "name": "proxy_form_require_type",
+      "value": "Choose a type"
+    },
+    {
+      "name": "proxy_form_require_server",
+      "value": "Enter a server"
+    },
+    {
+      "name": "proxy_form_require_cipher",
+      "value": "Choose a cipher"
+    },
+    {
+      "name": "proxy_form_require_password",
+      "value": "Enter a password"
+    },
+    {
+      "name": "proxy_form_require_uuid",
+      "value": "Enter a UUID"
+    },
+    {
+      "name": "proxy_form_require_path",
+      "value": "Enter a file path"
+    },
+    {
+      "name": "proxy_form_require_url",
+      "value": "Enter a source URL"
+    },
+    {
+      "name": "proxy_form_require_number",
+      "value": "Enter a valid number"
+    },
+    {
+      "name": "proxy_form_invalid_port",
+      "value": "Port must be between 1 and 65535"
+    },
+    {
+      "name": "proxy_form_invalid_json",
+      "value": "Advanced fields have invalid JSON"
+    },
+    {
+      "name": "proxy_form_require_object",
+      "value": "Advanced fields must be an object"
+    },
+    {
+      "name": "proxy_form_require_payload",
+      "value": "Enter the node list in advanced editing"
+    },
+    {
+      "name": "proxy_form_require_members",
+      "value": "Add a node or source"
+    },
+    {
+      "name": "proxy_editor_connect_for_source",
+      "value": "Connect this subscription to view source status"
+    },
+    {
+      "name": "proxy_editor_source_update_failed",
+      "value": "Source update failed. Try again."
+    },
+    {
+      "name": "proxy_editor_config_changed",
+      "value": "Configuration changed. Reload it."
+    },
+    {
+      "name": "proxy_form_failed",
+      "value": "Check the fields and try again."
+    },
+    {
+      "name": "proxy_form_remove_member",
+      "value": "Remove %s"
+    },
+    {
+      "name": "proxy_form_move_up_member",
+      "value": "Move %s up"
+    },
+    {
+      "name": "proxy_form_move_down_member",
+      "value": "Move %s down"
+    },
+    {
+      "name": "proxy_editor_title",
+      "value": "Nodes and groups"
+    },
+    {
+      "name": "proxy_editor_template_title",
+      "value": "Routing plan"
+    },
+    {
+      "name": "proxy_editor_rules_title",
+      "value": "Rules and DNS"
+    },
+    {
+      "name": "proxy_editor_source_picker",
+      "value": "Node source"
+    },
+    {
+      "name": "proxy_editor_delete_named",
+      "value": "Delete %s"
+    },
+    {
+      "name": "proxy_editor_smart_named",
+      "value": "Smart selection for %s"
+    },
+    {
+      "name": "proxy_form_uuid",
+      "value": "UUID"
+    },
+    {
+      "name": "proxy_form_host",
+      "value": "Host"
+    },
+    {
+      "name": "proxy_form_tls",
+      "value": "TLS"
+    },
+    {
+      "name": "proxy_form_short_id",
+      "value": "Short ID"
+    },
+    {
+      "name": "proxy_form_alter_id",
+      "value": "Alter ID"
+    },
+    {
+      "name": "proxy_editor_restore_draft",
+      "value": "Discard unapplied changes?"
+    },
+    {
+      "name": "proxy_editor_restore",
+      "value": "Discard changes"
+    },
+    {
+      "name": "proxy_form_udp",
+      "value": "UDP"
+    },
+    {
+      "name": "proxy_form_requires_original",
+      "value": "Use the original configuration editor for this item. Existing values are preserved."
+    },
+    {
+      "name": "proxy_form_open_original",
+      "value": "Edit original configuration"
+    },
+    {
+      "name": "apply_feedback_unconfirmed",
+      "value": "Apply status is unconfirmed. Reconnect to recover."
+    },
+    {
+      "name": "apply_feedback_committed",
+      "value": "Configuration saved. Reconnect to restore the region selection."
+    },
+    {
+      "name": "apply_feedback_selection",
+      "value": "Choose an available node in the proxy panel, then retry."
+    },
+    {
+      "name": "apply_feedback_failed",
+      "value": "The operation did not finish. Preview again."
+    },
+    {
+      "name": "apply_feedback_reconnect",
+      "value": "Reconnect"
+    },
+    {
+      "name": "apply_feedback_panel",
+      "value": "Open proxy panel"
+    },
+    {
+      "name": "apply_feedback_reconnect_title",
+      "value": "Reconnect?"
+    },
+    {
+      "name": "apply_feedback_reconnect_body",
+      "value": "The current connection will be interrupted briefly."
+    },
+    {
+      "name": "apply_feedback_starting",
+      "value": "Connecting"
+    },
+    {
+      "name": "apply_feedback_recovery_failed",
+      "value": "Recovery did not finish. Check the connection and retry."
+    },
+    {
+      "name": "apply_feedback_region_failed",
+      "value": "The region change did not finish. Retry."
+    },
+    {
+      "name": "proxy_editor_disable_node",
+      "value": "Disable"
+    },
+    {
+      "name": "proxy_editor_enable_node",
+      "value": "Enable"
+    },
+    {
+      "name": "proxy_editor_disable_node_risk",
+      "value": "Connections using this node will be rejected."
+    },
+    {
+      "name": "proxy_editor_disable_node_named",
+      "value": "Disable %s"
+    },
+    {
+      "name": "proxy_editor_enable_node_named",
+      "value": "Enable %s"
+    },
+    {
+      "name": "proxy_editor_node_state_failed",
+      "value": "Cannot change node state. Reload and retry."
+    },
+    {
+      "name": "settings_dns_read_failed",
+      "value": "Cannot read subscriptions. Try again."
+    },
+    {
+      "name": "settings_dns_import_first",
+      "value": "Import a subscription on the subscriptions page first."
+    },
+    {
+      "name": "settings_dns_choose",
+      "value": "Choose subscription"
+    },
+    {
+      "name": "rule_unwired",
+      "value": "Editor is unavailable"
+    },
+    {
+      "name": "rule_interval_required",
+      "value": "Enter an update interval"
+    },
+    {
+      "name": "rule_hosts_required",
+      "value": "Enter a hosts name"
+    },
+    {
+      "name": "rule_target",
+      "value": "Target"
+    },
+    {
+      "name": "rule_direct",
+      "value": "Direct"
+    },
+    {
+      "name": "rule_reject",
+      "value": "Reject"
+    },
+    {
+      "name": "rule_providers",
+      "value": "Rule providers"
+    },
+    {
+      "name": "rule_domain",
+      "value": "Exact domain"
+    },
+    {
+      "name": "rule_suffix",
+      "value": "Domain suffix"
+    },
+    {
+      "name": "rule_keyword",
+      "value": "Domain keyword"
+    },
+    {
+      "name": "rule_ipv4",
+      "value": "IPv4 range"
+    },
+    {
+      "name": "rule_ipv6",
+      "value": "IPv6 range"
+    },
+    {
+      "name": "rule_final",
+      "value": "Final rule"
+    },
+    {
+      "name": "rule_remote",
+      "value": "Remote"
+    },
+    {
+      "name": "rule_local",
+      "value": "Local"
+    },
+    {
+      "name": "rule_domain_type",
+      "value": "Domain"
+    },
+    {
+      "name": "rule_ip_range",
+      "value": "IP range"
+    },
+    {
+      "name": "rule_classical",
+      "value": "Mixed rules"
+    },
+    {
+      "name": "rule_text",
+      "value": "Text"
+    },
+    {
+      "name": "rule_real_ip",
+      "value": "Real IP"
+    },
+    {
+      "name": "rule_advanced_fields",
+      "value": "Advanced fields"
+    },
+    {
+      "name": "rule_type",
+      "value": "Type"
+    },
+    {
+      "name": "rule_condition",
+      "value": "Match condition"
+    },
+    {
+      "name": "rule_position",
+      "value": "Insert position"
+    },
+    {
+      "name": "rule_no_resolve",
+      "value": "Do not resolve domains"
+    },
+    {
+      "name": "rule_name",
+      "value": "Name"
+    },
+    {
+      "name": "rule_source",
+      "value": "Source"
+    },
+    {
+      "name": "rule_content",
+      "value": "Content"
+    },
+    {
+      "name": "rule_format",
+      "value": "Format"
+    },
+    {
+      "name": "rule_address",
+      "value": "Resource address"
+    },
+    {
+      "name": "rule_relative_path",
+      "value": "Relative path"
+    },
+    {
+      "name": "rule_interval",
+      "value": "Update interval (seconds)"
+    },
+    {
+      "name": "rule_dns_mode",
+      "value": "Resolution mode"
+    },
+    {
+      "name": "rule_nameservers",
+      "value": "DNS servers, one per line"
+    },
+    {
+      "name": "rule_bootstrap",
+      "value": "Bootstrap DNS servers, one per line"
+    },
+    {
+      "name": "rule_hosts_values",
+      "value": "Addresses, one per line"
+    },
+    {
+      "name": "rule_advanced",
+      "value": "Advanced edit"
+    },
+    {
+      "name": "rule_cancel",
+      "value": "Cancel"
+    },
+    {
+      "name": "rule_preview",
+      "value": "Preview"
+    },
+    {
+      "name": "rule_open_failed",
+      "value": "Cannot open editor. Try again."
+    },
+    {
+      "name": "rule_changed",
+      "value": "Configuration changed. Reopen the editor."
+    },
+    {
+      "name": "rule_not_running",
+      "value": "This subscription is not running"
+    },
+    {
+      "name": "rule_apply_first",
+      "value": "Apply changes first"
+    },
+    {
+      "name": "rule_runtime_changed",
+      "value": "Running configuration changed. Try again."
+    },
+    {
+      "name": "rule_runtime_unknown",
+      "value": "Runtime state unconfirmed"
+    },
+    {
+      "name": "rule_update_failed",
+      "value": "Update failed. Try again."
+    },
+    {
+      "name": "rule_runtime_failed",
+      "value": "Cannot read runtime state yet"
+    },
+    {
+      "name": "rule_validation_failed",
+      "value": "Changes did not validate. Edit or undo them."
+    },
+    {
+      "name": "rule_draft_discarded",
+      "value": "Draft discarded"
+    },
+    {
+      "name": "rule_final_unreadable",
+      "value": "Cannot read the final rule. Try again."
+    },
+    {
+      "name": "rule_final_exists",
+      "value": "A final rule already exists. Edit it instead."
+    },
+    {
+      "name": "rule_applied",
+      "value": "Applied"
+    },
+    {
+      "name": "rule_saved",
+      "value": "Saved"
+    },
+    {
+      "name": "rule_final_order",
+      "value": "Keep the final rule last"
+    },
+    {
+      "name": "rule_view_status",
+      "value": "View status"
+    },
+    {
+      "name": "rule_update",
+      "value": "Update"
+    },
+    {
+      "name": "rule_error_details",
+      "value": "Error details"
+    },
+    {
+      "name": "rule_new_name",
+      "value": "New name"
+    },
+    {
+      "name": "rule_rename",
+      "value": "Rename"
+    },
+    {
+      "name": "rule_default",
+      "value": "Default"
+    },
+    {
+      "name": "rule_recommended",
+      "value": "Recommended"
+    },
+    {
+      "name": "rule_rules",
+      "value": "Rules"
+    },
+    {
+      "name": "rule_delete",
+      "value": "Delete"
+    },
+    {
+      "name": "rule_add",
+      "value": "Add"
+    },
+    {
+      "name": "rule_apply",
+      "value": "Apply"
+    },
+    {
+      "name": "rule_undo",
+      "value": "Undo"
+    },
+    {
+      "name": "rule_discard",
+      "value": "Discard draft"
+    },
+    {
+      "name": "rule_enable",
+      "value": "Enable edits"
+    },
+    {
+      "name": "rule_disable",
+      "value": "Disable edits"
+    },
+    {
+      "name": "rule_retry",
+      "value": "Retry"
+    },
+    {
+      "name": "rule_before",
+      "value": "Before rule %d"
+    },
+    {
+      "name": "rule_count",
+      "value": "%d rules"
+    },
+    {
+      "name": "rule_references",
+      "value": " · Referenced by %d rules"
+    },
+    {
+      "name": "rule_fill_required",
+      "value": "Enter a rule and target"
+    },
+    {
+      "name": "rule_no_resolve_unsupported",
+      "value": "This rule does not support no-resolve"
+    },
+    {
+      "name": "rule_final_required",
+      "value": "The final rule must remain last"
+    },
+    {
+      "name": "rule_order_unchanged",
+      "value": "Rule position unchanged"
+    },
+    {
+      "name": "rule_dns_listener",
+      "value": "DNS listeners are managed by the system"
+    },
+    {
+      "name": "rule_field_unread",
+      "value": "Field version unavailable. Reopen the editor."
+    },
+    {
+      "name": "rule_provider_type_invalid",
+      "value": "Check the rule provider type"
+    },
+    {
+      "name": "rule_interval_invalid",
+      "value": "Update interval must be 0–604800 seconds"
+    },
+    {
+      "name": "rule_http_required",
+      "value": "Enter an HTTP or HTTPS address"
+    },
+    {
+      "name": "rule_path_required",
+      "value": "Enter a relative path inside the private directory"
+    },
+    {
+      "name": "rule_dns_invalid",
+      "value": "Check the DNS servers"
+    },
+    {
+      "name": "rule_dns_delete",
+      "value": "The DNS section cannot be deleted"
+    },
+    {
+      "name": "rule_single_required",
+      "value": "Enter a single rule"
+    },
+    {
+      "name": "rule_hosts_address",
+      "value": "Enter hosts addresses"
+    },
+    {
+      "name": "rule_json_object",
+      "value": "Advanced fields must be a JSON object"
+    },
+    {
+      "name": "rule_apply_unknown",
+      "value": "Apply unconfirmed. Reconnect to recover."
+    },
+    {
+      "name": "rule_busy",
+      "value": "A configuration operation is in progress. Try again shortly."
+    },
+    {
+      "name": "rule_expanded",
+      "value": "Expanded"
+    },
+    {
+      "name": "rule_collapsed",
+      "value": "Collapsed"
+    },
+    {
+      "name": "rule_remove_named",
+      "value": "Delete %s"
+    },
+    {
+      "name": "proxy_editor_smart_type_change",
+      "value": "Smart: %s → %s"
     }
   ]
 }
