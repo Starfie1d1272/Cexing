@@ -84,6 +84,7 @@ export struct ProfilePage {
   @State regionFromImport: boolean = false;
   private pageVisible: boolean = false;
   private pageGeneration: number = 0;
+  private removeIdleListener: (() => void) | null = null;
   private activationRequest: number = 0;
 
   private detailOnTop(): boolean {
@@ -260,11 +261,14 @@ export struct ProfilePage {
     this.pageVisible = true;
     this.pageGeneration++;
     this.selectedFile = this.detailFile;
+    this.removeIdleListener?.();
+    this.removeIdleListener = ProfileTransactions.onIdle(() => { this.acceptExternalImport(); });
     this.refresh();
     this.acceptExternalImport();
   }
 
   aboutToDisappear(): void {
+    this.removeIdleListener?.(); this.removeIdleListener = null;
     this.releaseExternalImport();
     this.pageVisible = false;
     this.importGeneration++;
