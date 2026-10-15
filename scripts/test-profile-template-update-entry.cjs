@@ -17,7 +17,7 @@ const modules = {
   '@kit.ArkTS': { util: { generateRandomUUID: () => `session-${++serial}` } },
   './Settings': { Settings: { load: () => ({}), idle: async () => {} } },
   './CoreValidator': { CoreValidator: { prepareResources: async () => {} } },
-  './ProfileStore': { ProfileStore: { prepareContent: value => value, getProfileContent: () => successfulOriginal, getEnabledMerge: () => '', readEditDraft: () => draft } },
+  './ProfileStore': { ProfileStore: { prepareContent: value => value, getProfileContent: () => successfulOriginal, getEnabledMerge: () => '', readEditDraft: () => draft, readEditDraftSource: async () => undefined } },
   './EffectiveVersions': { EffectiveVersions: { read: () => ({ Profiles: { 'one.yaml': { ID: version } } }),
     globalContent: () => '', regionPlan: () => null, editIntent: () => structuredClone(published) } },
   './ConfigEditor': { ConfigEditor: { list: async () => ({ sourceRevision: 'source', sections: [
