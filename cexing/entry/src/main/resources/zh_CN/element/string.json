@@ -2595,6 +2595,18 @@
     {
       "name": "proxy_editor_node_state_failed",
       "value": "无法修改节点状态，请重新读取"
+    },
+    {
+      "name": "settings_dns_read_failed",
+      "value": "订阅读取失败，请重试"
+    },
+    {
+      "name": "settings_dns_import_first",
+      "value": "请先在订阅页导入订阅"
+    },
+    {
+      "name": "settings_dns_choose",
+      "value": "选择订阅"
     }
   ]
 }
