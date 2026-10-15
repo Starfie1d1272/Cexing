@@ -46,12 +46,13 @@ export struct RuleDnsEditorPage {
   private host: EditorDraftHost | null = null;
   private session: EditorDraftSession | null = null;
   private shown: EditorDraftPreview | null = null;
+  private confirmingDiscard: boolean = false;
 
   aboutToAppear(): void { this.file = RuleDnsEditorBus.file; this.section = RuleDnsEditorBus.section; this.active = this.visible; if (this.active) { this.load(); } }
-  aboutToDisappear(): void { this.active = false; this.epoch++; this.busy = false; }
+  aboutToDisappear(): void { this.active = false; this.epoch++; this.busy = false; this.confirmingDiscard = false; }
   private visibilityChanged(): void {
     if (this.active === this.visible) { return; }
-    this.active = this.visible; this.epoch++; this.busy = false; this.selected = null;
+    this.active = this.visible; this.epoch++; this.busy = false; this.selected = null; this.confirmingDiscard = false;
     if (this.active) { this.load(); }
   }
   private current(epoch: number): boolean { return this.active && this.epoch === epoch; }
@@ -70,6 +71,7 @@ export struct RuleDnsEditorPage {
     this.list();
   }
   private async load(): Promise<void> {
+    this.confirmingDiscard = false;
     const epoch = ++this.epoch; this.busy = true; this.previewReady = false; this.shown = null;
     this.session = null; this.snapshot = null; this.intent = null; this.items = []; this.selected = null;
     this.targets = ['DIRECT', 'REJECT']; this.providers = [];
@@ -147,9 +149,21 @@ export struct RuleDnsEditorPage {
     } }
     finally { if (this.current(epoch)) { this.busy = false; } }
   }
-  private async discardDraft(): Promise<void> {
-    if (this.busy || this.host === null || this.session === null) { return; }
-    const epoch = ++this.epoch; const host = this.host; const revision = this.session.revision; this.busy = true;
+  private discardDraft(): void {
+    if (this.busy || !this.active || this.confirmingDiscard || this.host === null || this.session === null) { return; }
+    const epoch = ++this.epoch; const host = this.host; const revision = this.session.revision;
+    this.confirmingDiscard = true; let used = false;
+    const cancel = (): void => { used = true; if (this.current(epoch)) { this.confirmingDiscard = false; } };
+    AlertDialog.show({ title: UiText.get($r('app.string.rule_discard_confirm_title')),
+      message: UiText.get($r('app.string.rule_discard_confirm_body')), cancel: cancel,
+      primaryButton: { value: UiText.get($r('app.string.proxy_editor_cancel')), action: cancel },
+      secondaryButton: { value: UiText.get($r('app.string.rule_discard')), action: async () => {
+        if (used || !this.current(epoch) || this.busy || this.host !== host || this.session?.revision !== revision) { return; }
+        used = true; this.confirmingDiscard = false; await this.performDiscard(host, revision, epoch);
+      } } });
+  }
+  private async performDiscard(host: EditorDraftHost, revision: string, epoch: number): Promise<void> {
+    this.busy = true;
     try {
       const session = await host.undo(revision);
       if (this.current(epoch)) { this.acceptSession(session); this.previewReady = false; this.shown = null; this.message = UiText.get($r('app.string.rule_draft_discarded')); }
