@@ -13,6 +13,15 @@ import (
 // profiletemplates remains unchanged and does not import the host.
 func editorTemplate(home string) configpipeline.TemplateTransform {
 	return func(ctx context.Context, root *yaml.Node, plan configpipeline.TemplatePlan) error {
+		if plan.Routing != nil {
+			resolved, err := regionProviderNames(home, root, true)
+			if err != nil {
+				return err
+			}
+			routing := *plan.Routing
+			routing.ResolvedProviders = resolved
+			plan.Routing = &routing
+		}
 		if plan.Region != nil {
 			resolved, err := regionProviderNames(home, root)
 			if err != nil {
@@ -52,10 +61,19 @@ func editorReadRequest(home string, action versionAction, global string) (config
 }
 
 func templateServicePlan(p configpipeline.TemplatePlan) profiletemplates.Plan {
-	return profiletemplates.Plan{TemplateID: p.TemplateID, Version: p.Version, TargetGroup: p.TargetGroup, Region: p.Region, ReplaceRules: p.ReplaceRules}
+	return profiletemplates.Plan{TemplateID: p.TemplateID, Version: p.Version, TargetGroup: p.TargetGroup, Region: p.Region, ReplaceRules: p.ReplaceRules, Routing: p.Routing}
 }
 func editorTemplatePrepare(home string) configpipeline.TemplatePrepare {
 	return func(ctx context.Context, root *yaml.Node, plan configpipeline.TemplatePlan) (*configpipeline.TemplateSession, error) {
+		if plan.Routing != nil {
+			resolved, err := regionProviderNames(home, root, true)
+			if err != nil {
+				return nil, err
+			}
+			routing := *plan.Routing
+			routing.ResolvedProviders = resolved
+			plan.Routing = &routing
+		}
 		if plan.Region != nil {
 			resolved, err := regionProviderNames(home, root)
 			if err != nil {

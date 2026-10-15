@@ -129,6 +129,7 @@ func SwitchTemplate(input *EditIntent, next TemplatePlan, pauseDependents bool) 
 		}
 		archived.Region = next.Region
 		archived.ReplaceRules = next.ReplaceRules
+		archived.Routing = next.Routing
 		next = archived
 		delete(intent.TemplateArchives, next.TemplateID)
 	}
@@ -178,7 +179,7 @@ func activeTemplateOperation(intent *EditIntent, op EditOperation) bool {
 	return op.TemplateID == "" || (intent.Template != nil && op.TemplateID == intent.Template.TemplateID)
 }
 func validTemplateOwner(id string) bool {
-	return id == "region" || id == "ai" || id == "automatic"
+	return id == "routing" || id == "region" || id == "ai" || id == "automatic"
 }
 
 // A bounded, credential-free error envelope for the shared worker dispatch.
