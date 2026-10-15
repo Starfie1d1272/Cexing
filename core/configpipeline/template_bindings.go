@@ -183,12 +183,12 @@ func aliasSnapshot(root *yaml.Node, out *EditableSnapshot, bindings map[string]*
 		}
 	}
 }
-func boundEditAnchor(section string, nodes []*yaml.Node, names []string, before string, bindings map[string]*yaml.Node) (int, error) {
+func boundEditAnchor(section string, nodes []*yaml.Node, names []string, before string, bindings map[string]*yaml.Node, aliases map[string]*yaml.Node) (int, error) {
 	if before == "" {
 		return len(names), nil
 	}
 	for i, n := range nodes {
-		if boundID(bindings, n, targetID(section, names[i])) == before {
+		if boundID(bindings, n, targetID(section, names[i])) == before || aliases[before] == n {
 			return i, nil
 		}
 	}
