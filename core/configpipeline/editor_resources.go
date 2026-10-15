@@ -21,7 +21,7 @@ func ApplyProviderResourceEdits(ctx context.Context, root *yaml.Node, intent *Ed
 func prepareRegionResources(ctx context.Context, root *yaml.Node, r Request) (*editPhaseState, int, error) {
 	active := r.Region != nil && !r.Region.Disabled
 	if r.Intent != nil && !r.Intent.Disabled && r.Intent.Template != nil {
-		active = r.Intent.Template.TemplateID == "region"
+		active = r.Intent.Template.TemplateID == "region" || r.Intent.Template.TemplateID == "routing"
 	}
 	if !active || r.Intent == nil || r.Intent.Disabled || len(r.Intent.Operations) == 0 {
 		return nil, 0, nil

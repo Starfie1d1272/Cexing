@@ -16,6 +16,7 @@ type TemplatePlan struct {
 	TargetGroup  string            `json:"targetGroup,omitempty"`
 	Region       *RegionPlan       `json:"region,omitempty"`
 	ReplaceRules bool              `json:"replaceRules,omitempty"`
+	Routing      *RoutingPlan      `json:"routing,omitempty"`
 	Baseline     *TemplateSnapshot `json:"baseline,omitempty"`
 	Mine         *TemplateSnapshot `json:"mine,omitempty"`
 }
@@ -31,7 +32,15 @@ func (p TemplatePlan) Validate() error {
 	if p.Version < 1 {
 		return errors.New("TEMPLATE_VERSION_UNSUPPORTED")
 	}
+	if p.TemplateID != "routing" && p.Routing != nil {
+		return errors.New("TEMPLATE_OPTIONS_INVALID")
+	}
 	switch p.TemplateID {
+	case "routing":
+		if p.Version != 1 || p.Routing == nil || p.Region != nil || p.TargetGroup != "" || p.ReplaceRules {
+			return errors.New("TEMPLATE_OPTIONS_INVALID")
+		}
+		return p.Routing.Validate()
 	case "original":
 		if p.Version != 1 {
 			return errors.New("TEMPLATE_VERSION_UNSUPPORTED")
@@ -40,7 +49,7 @@ func (p TemplatePlan) Validate() error {
 			return errors.New("TEMPLATE_OPTIONS_INVALID")
 		}
 	case "region":
-		if p.Region == nil || p.Region.Disabled || !p.Region.Enable || (p.Region.Mode != "region" && p.Region.Mode != "all") || p.TargetGroup != "" || p.ReplaceRules {
+		if p.Region == nil || p.Region.Disabled || (p.Region.Mode != "region" && p.Region.Mode != "all") || p.TargetGroup != "" || p.ReplaceRules {
 			return errors.New("TEMPLATE_OPTIONS_INVALID")
 		}
 	case "ai", "automatic":

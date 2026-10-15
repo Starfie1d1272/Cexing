@@ -2,6 +2,8 @@ package profiletemplates
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"golang.org/x/text/language"
@@ -35,6 +37,16 @@ func Prepare(ctx context.Context, root *yaml.Node, p Plan) (TemplateSnapshot, ma
 			return TemplateSnapshot{}, nil, errors.New("TEMPLATE_REGION_UNAVAILABLE")
 		}
 	}
+	existingRoutingNodes := map[*yaml.Node]bool{}
+	if p.TemplateID == "routing" {
+		for _, section := range []string{"proxy-groups", "rule-providers"} {
+			if n := field(root, section); n != nil {
+				for _, child := range n.Content {
+					existingRoutingNodes[child] = true
+				}
+			}
+		}
+	}
 	if err := Apply(ctx, root, p); err != nil {
 		return TemplateSnapshot{}, nil, err
 	}
@@ -50,6 +62,46 @@ func Prepare(ctx context.Context, root *yaml.Node, p Plan) (TemplateSnapshot, ma
 		base.Entries = append(base.Entries, Entity{id, section, encoded})
 		targets[TemplateTarget(p.TemplateID, id)] = node
 		return nil
+	}
+	if p.TemplateID == "routing" && p.Routing.Mode == "managed" {
+		for _, section := range []string{"proxy-groups", "rules", "rule-providers"} {
+			nodes := field(root, section)
+			if nodes == nil {
+				return TemplateSnapshot{}, nil, errors.New("ROUTING_CAPTURE_INVALID")
+			}
+			if section == "rule-providers" {
+				for i := 0; i < len(nodes.Content); i += 2 {
+					name := nodes.Content[i].Value
+					if strings.HasPrefix(name, "cexing-") && !existingRoutingNodes[nodes.Content[i+1]] {
+						if err := add("provider/"+name, section, nodes.Content[i+1]); err != nil {
+							return TemplateSnapshot{}, nil, err
+						}
+					}
+				}
+			} else {
+				for _, node := range nodes.Content {
+					id := ""
+					if section == "rules" {
+						parts := strings.Split(node.Value, ",")
+						if parts[0] == "MATCH" {
+							id = "rule/default"
+						} else if parts[0] == "RULE-SET" {
+							id = "rule/" + parts[1]
+						} else {
+							sum := sha256.Sum256([]byte(strings.Join(parts[:len(parts)-1], ",")))
+							id = "rule/" + hex.EncodeToString(sum[:16])
+						}
+					} else if name := field(node, "name"); name != nil && strings.HasPrefix(name.Value, "Cexing / ") && !existingRoutingNodes[node] {
+						id = configpipeline.RoutingOutletEntityID(name.Value)
+					}
+					if id != "" {
+						if err := add(id, section, node); err != nil {
+							return TemplateSnapshot{}, nil, err
+						}
+					}
+				}
+			}
+		}
 	}
 	if p.TemplateID == "ai" || p.TemplateID == "automatic" {
 		rules, err := Rules(p)

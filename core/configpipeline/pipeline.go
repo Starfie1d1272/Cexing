@@ -98,6 +98,9 @@ func (c Compiler) Compile(ctx context.Context, r Request) (Result, error) {
 		}
 		merge(root, patch)
 	}
+	if err := CheckRoutingOverlay(r); err != nil {
+		return Result{}, err
+	}
 	baselines, phase, err := prepareRegionResources(ctx, root, r)
 	if err != nil {
 		return Result{}, err

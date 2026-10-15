@@ -43,20 +43,21 @@ type versionAction struct {
 }
 
 type versionResponse struct {
-	Backup        *backupResponse                    `json:"backup,omitempty"`
-	Storage       *storageReport                     `json:"storage,omitempty"`
-	Identity      string                             `json:"identity,omitempty"`
-	Digest        string                             `json:"digest,omitempty"`
-	SmartPreview  *[]configpipeline.SmartGroupChange `json:"smartPreview,omitempty"`
-	EditError     *configpipeline.IntentError        `json:"editError,omitempty"`
-	Editable      *configpipeline.EditableSnapshot   `json:"editable,omitempty"`
-	EditTarget    *configpipeline.EditTarget         `json:"editTarget,omitempty"`
-	Version       *configpipeline.Version            `json:"version,omitempty"`
-	State         *configpipeline.Snapshot           `json:"state,omitempty"`
-	Receipt       string                             `json:"receipt,omitempty"`
-	Error         string                             `json:"error,omitempty"`
-	MergePreview  *mergePreview                      `json:"mergePreview,omitempty"`
-	RegionPreview *configpipeline.RegionPreview      `json:"regionPreview,omitempty"`
+	RoutingCatalogue *configpipeline.RoutingCatalogue   `json:"routingCatalogue,omitempty"`
+	Backup           *backupResponse                    `json:"backup,omitempty"`
+	Storage          *storageReport                     `json:"storage,omitempty"`
+	Identity         string                             `json:"identity,omitempty"`
+	Digest           string                             `json:"digest,omitempty"`
+	SmartPreview     *[]configpipeline.SmartGroupChange `json:"smartPreview,omitempty"`
+	EditError        *configpipeline.IntentError        `json:"editError,omitempty"`
+	Editable         *configpipeline.EditableSnapshot   `json:"editable,omitempty"`
+	EditTarget       *configpipeline.EditTarget         `json:"editTarget,omitempty"`
+	Version          *configpipeline.Version            `json:"version,omitempty"`
+	State            *configpipeline.Snapshot           `json:"state,omitempty"`
+	Receipt          string                             `json:"receipt,omitempty"`
+	Error            string                             `json:"error,omitempty"`
+	MergePreview     *mergePreview                      `json:"mergePreview,omitempty"`
+	RegionPreview    *configpipeline.RegionPreview      `json:"regionPreview,omitempty"`
 }
 
 func coreVersionAction(home, input string) string {
@@ -185,6 +186,40 @@ func executeVersionAction(home string, action versionAction) (versionResponse, e
 			return editFailure(err)
 		}
 		return versionResponse{Editable: &view}, nil
+	case "routing-catalogue":
+		if len(action.Original) > maxConfigBytes || len(action.Overlay) > maxConfigBytes {
+			return versionResponse{}, errors.New("VERSION_INVALID")
+		}
+		root, err := configpipeline.LayeredMergeSource([]byte(action.Original), []byte(global), []byte(action.Overlay))
+		if err != nil {
+			return editFailure(err)
+		}
+		if err = configpipeline.ApplyProviderResourceEdits(ctx, root, action.EditIntent); err != nil {
+			return editFailure(err)
+		}
+		resolved, err := regionProviderNames(home, root)
+		if err != nil {
+			resolved = nil
+		}
+		assignments := map[string]string{}
+		if action.EditIntent != nil && action.EditIntent.Template != nil && action.EditIntent.Template.Routing != nil {
+			assignments = action.EditIntent.Template.Routing.Assignments
+		}
+		view, err := configpipeline.PreviewRouting(root, resolved, assignments)
+		if err != nil {
+			return editFailure(err)
+		}
+		overlays := [][]byte{}
+		for _, layer := range []string{global, action.Overlay} {
+			if layer != "" {
+				overlays = append(overlays, []byte(layer))
+			}
+		}
+		view.OverlayRulesDigest, err = configpipeline.RoutingOverlayDigest(overlays)
+		if err != nil {
+			return editFailure(err)
+		}
+		return versionResponse{RoutingCatalogue: &view}, nil
 	case "smart-preview":
 		if len(action.Original) > maxConfigBytes || len(action.Overlay) > maxConfigBytes {
 			return versionResponse{}, errors.New("VERSION_INVALID")

@@ -17,11 +17,12 @@ const Version = 1
 // it against the latest original and Merge inputs, never against generated YAML.
 // ResolvedProviders in Region is a transient, locally verified host snapshot.
 type Plan struct {
-	TemplateID   string                     `json:"templateId"`
-	Version      int                        `json:"version"`
-	TargetGroup  string                     `json:"targetGroup,omitempty"`
-	Region       *configpipeline.RegionPlan `json:"region,omitempty"`
-	ReplaceRules bool                       `json:"replaceRules,omitempty"`
+	Routing      *configpipeline.RoutingPlan `json:"routing,omitempty"`
+	TemplateID   string                      `json:"templateId"`
+	Version      int                         `json:"version"`
+	TargetGroup  string                      `json:"targetGroup,omitempty"`
+	Region       *configpipeline.RegionPlan  `json:"region,omitempty"`
+	ReplaceRules bool                        `json:"replaceRules,omitempty"`
 }
 
 type Rule struct {
@@ -43,13 +44,18 @@ func (p Plan) Validate() error {
 	if p.Version != Version {
 		return errors.New("TEMPLATE_VERSION_UNSUPPORTED")
 	}
+	if p.TemplateID != "routing" && p.Routing != nil {
+		return errors.New("TEMPLATE_OPTIONS_INVALID")
+	}
 	switch p.TemplateID {
+	case "routing":
+		return (configpipeline.TemplatePlan{TemplateID: p.TemplateID, Version: p.Version, Routing: p.Routing}).Validate()
 	case "original":
 		if p.TargetGroup != "" || p.Region != nil || p.ReplaceRules {
 			return errors.New("TEMPLATE_OPTIONS_INVALID")
 		}
 	case "region":
-		if p.Region == nil || p.Region.Disabled || !p.Region.Enable || (p.Region.Mode != "region" && p.Region.Mode != "all") || p.TargetGroup != "" || p.ReplaceRules {
+		if p.Region == nil || p.Region.Disabled || (p.Region.Mode != "region" && p.Region.Mode != "all") || p.TargetGroup != "" || p.ReplaceRules {
 			return errors.New("TEMPLATE_OPTIONS_INVALID")
 		}
 	case "ai", "automatic":
@@ -113,6 +119,8 @@ func Apply(ctx context.Context, root *yaml.Node, p Plan) error {
 	switch p.TemplateID {
 	case "original":
 		return nil
+	case "routing":
+		return configpipeline.ApplyRouting(ctx, root, *p.Routing)
 	case "region":
 		return configpipeline.ApplyRegion(ctx, root, *p.Region)
 	}

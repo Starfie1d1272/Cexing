@@ -71,7 +71,7 @@ func EncodeDelta(ctx context.Context, compiler configpipeline.Compiler, request 
 	clean := *intent
 	clean.Disabled = false
 	clean.Operations = []configpipeline.EditOperation{}
-	clean.Template = &configpipeline.TemplatePlan{TemplateID: intent.Template.TemplateID, Version: intent.Template.Version, TargetGroup: intent.Template.TargetGroup, Region: intent.Template.Region, ReplaceRules: intent.Template.ReplaceRules}
+	clean.Template = &configpipeline.TemplatePlan{TemplateID: intent.Template.TemplateID, Version: intent.Template.Version, TargetGroup: intent.Template.TargetGroup, Region: intent.Template.Region, ReplaceRules: intent.Template.ReplaceRules, Routing: intent.Template.Routing}
 	view := request
 	view.Intent = &clean
 	list, err := compiler.EditorList(ctx, view)

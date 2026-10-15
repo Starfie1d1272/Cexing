@@ -57,14 +57,15 @@ func (e *IntentError) Error() string           { return "edit intent " + e.Code 
 func intentError(code string, index int) error { return &IntentError{Code: code, Operation: index} }
 
 type EditableItem struct {
-	ID         string              `json:"id"`
-	Name       string              `json:"name,omitempty"`
-	Disabled   bool                `json:"disabled,omitempty"`
-	SourceName string              `json:"sourceName,omitempty"`
-	Providers  []EditorProviderRef `json:"providers,omitempty"`
-	Revision   string              `json:"revision"`
-	Type       string              `json:"type,omitempty"`
-	Fields     map[string]string   `json:"fields,omitempty"`
+	PreferredInsertion bool                `json:"preferredInsertion,omitempty"`
+	ID                 string              `json:"id"`
+	Name               string              `json:"name,omitempty"`
+	Disabled           bool                `json:"disabled,omitempty"`
+	SourceName         string              `json:"sourceName,omitempty"`
+	Providers          []EditorProviderRef `json:"providers,omitempty"`
+	Revision           string              `json:"revision"`
+	Type               string              `json:"type,omitempty"`
+	Fields             map[string]string   `json:"fields,omitempty"`
 }
 type EditableSection struct {
 	Section string         `json:"section"`
@@ -316,7 +317,7 @@ func CheckEditIntent(intent *EditIntent) error {
 		return nil
 	}
 	data, err := json.Marshal(intent)
-	if err != nil || len(data) > MaxIntentBytes || len(intent.Operations) > MaxIntentOperations || len(intent.SmartGroups) > 512 || len(intent.TemplateArchives) > 3 {
+	if err != nil || len(data) > MaxIntentBytes || len(intent.Operations) > MaxIntentOperations || len(intent.SmartGroups) > 512 || len(intent.TemplateArchives) > 4 {
 		return intentError("limit", -1)
 	}
 	if intent.SchemaVersion != 1 || intent.Revision == "" || intent.SourceRevision == "" || intent.Operations == nil {
@@ -757,6 +758,7 @@ func (c Compiler) Editable(ctx context.Context, r Request) (EditableSnapshot, er
 	}
 	out, err := snapshotEditable(root)
 	aliasSnapshot(root, &out, sessionTargets(session))
+	markRoutingInsertion(&out, session)
 	return out, err
 }
 func (c Compiler) EditTarget(ctx context.Context, r Request, section, id string) (EditTarget, error) {
@@ -916,6 +918,7 @@ func (c Compiler) EditorList(ctx context.Context, r Request) (EditableSnapshot, 
 		return EditableSnapshot{}, err
 	}
 	aliasSnapshot(root, &out, sessionTargets(session))
+	markRoutingInsertion(&out, session)
 	for si := range out.Sections {
 		section := out.Sections[si].Section
 		nodes, names, err := editNodes(root, section)
