@@ -90,6 +90,9 @@ function route(visible = true) { const p = new update.ProfileUpdatePage(); p.pro
  await resumed.updateProfile({ file: 'one.yaml' }); assert.equal(downloads, previousDownloads);
  assert.equal(pagePaths.join(','), 'profileTemplateUpdate'); assert.equal(update.ProfileUpdateBus.request.source, candidate);
  assert.equal(original, 'successful original');
+ reset(); pendingSource = true;
+ await profile().retryAutomatic({ file: 'one.yaml', active: true });
+ assert.equal(downloads, previousDownloads); assert.equal(pagePaths.join(','), 'profileTemplateUpdate', 'explicit retry also resumes the pending review');
  reset(); pendingSource = true; releaseSource = true; const leftResume = profile();
  const restoring = leftResume.updateProfile({ file: 'one.yaml' }); await new Promise(setImmediate);
  leftResume.pageVisible = false; leftResume.pageGeneration++; releaseSource(); await restoring;

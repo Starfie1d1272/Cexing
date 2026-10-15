@@ -286,7 +286,7 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
       ensureActiveSmartPolicy: () => smartPrepare(),
       update: async () => { if (updateFailure) throw Error(updateFailure); return 'applied'; }, rename: () => 'fixture.yaml'
     } },
-    '../lib/ProfileStore': { ProfileStore: { list: () => profiles, getMeta: () => ({}),
+    '../lib/ProfileStore': { ProfileStore: { list: () => profiles, getMeta: () => ({}), readEditDraft: () => ({ revision: '', intent: null }),
       isApplyUncertain: () => uncertainProfile, updateState: (_context, file) => ({ ...(sourceStates[file] ?? updateState) }),
       importContent: () => { importedWrites++; return 'candidate.yaml'; },
       importContentAsync: (...args) => importAsync(...args),

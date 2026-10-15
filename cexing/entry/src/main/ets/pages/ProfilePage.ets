@@ -530,6 +530,9 @@ export struct ProfilePage {
     if (this.updatingFile.length > 0 || !p.active) { return; }
     const page = this.pageGeneration;
     const context = getContext(this) as common.UIAbilityContext;
+    try {
+      if (ProfileStore.readEditDraft(context, p.file).source !== undefined) { await this.updateFile(p.file); return; }
+    } catch (_) { this.toast(UiText.get($r('app.string.profile_update_incomplete'))); return; }
     const paths = this.navStack.getAllPathName();
     this.updatingFile = p.file;
     try {
