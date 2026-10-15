@@ -37,3 +37,6 @@
 生产 EditorDraftHost 工厂须在既有串行 gate 内比较来源/草稿/选择、两层 Merge、设置/provider 身份及编译 digest。地区模板还须复用既有 pending/previous-selection 行为，成功后只消费一次明确选择；关闭模板按既有规则恢复原选择。仅创建组不能报告地区流量已使用新入口。
 
 ProfilePage 的唯一入口所有者只需要提供稳定 profileId 和该共同 Host；TemplateWizard 不自行创建另一个保存器，也不接管 VPN 生命周期。
+## 模板应用后的恢复
+
+模板向导及更新比较页消费共同 `ProfileApplyFeedback`，未知和已提交待恢复状态阻止再次预览/应用，并提供实际 `ProfileApplyRecovery.reconnect` 操作；选择失效则沿既有代理面板处理。重连须确认中断，页面离开、订阅或会话变化使旧确认失效。停止/重建复用原 `ProfileRecovery`，启动接受只导航到连接页，不由模板页面清除持久未知标记；确认解除仍由现有内核/成功版本恢复链负责。

@@ -1,6 +1,7 @@
 /* Template UI owns a draft only. The host must use ProfileTransactions and the
  * existing effective version; it never writes settings or publishes YAML here. */
 import { TemplatePlan as EditorTemplatePlan } from './ConfigEditor';
+import { ProfileApplyFeedback, ProfileApplyFailureKind } from './ProfileApplyFeedback';
 
 export type TemplatePlan = EditorTemplatePlan;
 export interface TemplateInputs {
@@ -24,6 +25,7 @@ export interface TemplateWizardHost {
 }
 
 export interface TemplateWizardView {
+  applyFailure?: ProfileApplyFailureKind | '';
   templateId: string;
   target: string;
   busy: boolean;
@@ -38,6 +40,7 @@ export interface TemplateWizardView {
 }
 
 export class TemplateWizardModel {
+  applyFailure: ProfileApplyFailureKind | '' = '';
   inputs: TemplateInputs = { groups: [], selectors: [], current: { templateId: 'original', version: 1 } };
   templateId: string = 'original';
   target: string = '';
@@ -54,18 +57,22 @@ export class TemplateWizardModel {
   constructor(host: TemplateWizardHost, changed: () => void) { this.host = host; this.changed = changed; }
 
   snapshot(): TemplateWizardView {
-    return { templateId: this.templateId, target: this.target, busy: this.busy,
+    return { applyFailure: this.applyFailure, templateId: this.templateId, target: this.target, busy: this.busy,
       ready: this.ready, error: this.error, result: this.result,
       summary: this.preview?.summary ?? '', hasPreview: this.preview !== null,
       groups: this.inputs.groups, selectors: this.inputs.selectors, labels: this.inputs.labels };
   }
 
   close(): void { this.open = false; this.epoch++; }
+  needsRepair(): boolean { return this.applyFailure !== '' && this.applyFailure !== 'failed'; }
+  setApplyFailure(kind: ProfileApplyFailureKind | ''): void {
+    this.epoch++; this.busy = false; this.applyFailure = kind; this.preview = null; this.error = ''; this.result = ''; this.emit();
+  }
   private emit(): void { if (this.open) { this.changed(); } }
   private current(epoch: number): boolean { return this.open && this.epoch === epoch; }
 
   async load(): Promise<void> {
-    if (!this.open || this.busy) { return; }
+    if (!this.open || this.busy || this.needsRepair()) { return; }
     const epoch = ++this.epoch;
     this.busy = true;
     this.emit();
@@ -83,7 +90,7 @@ export class TemplateWizardModel {
   }
 
   choose(templateId: string, target: string): void {
-    if (!this.open || !this.ready || this.busy) { return; }
+    if (!this.open || !this.ready || this.busy || this.needsRepair()) { return; }
     if (!['original', 'region', 'ai', 'automatic'].includes(templateId)) { return; }
     this.epoch++;
     this.templateId = templateId;
@@ -108,7 +115,7 @@ export class TemplateWizardModel {
   }
 
   async inspect(): Promise<void> {
-    if (!this.open || !this.ready || this.busy) { return; }
+    if (!this.open || !this.ready || this.busy || this.needsRepair()) { return; }
     if (this.templateId !== 'original' && this.target === '') { this.error = '请选择出口'; this.emit(); return; }
     const epoch = ++this.epoch;
     this.busy = true;
@@ -125,7 +132,7 @@ export class TemplateWizardModel {
   }
 
   async apply(confirmed: boolean = false): Promise<void> {
-    if (!this.open || !this.ready || this.busy || this.preview === null) { return; }
+    if (!this.open || !this.ready || this.busy || this.preview === null || this.needsRepair()) { return; }
     if ((this.templateId === 'automatic' || this.preview.inactiveEdits === true) && !confirmed) { return; }
     const epoch = ++this.epoch;
     const preview = this.preview;
@@ -139,8 +146,12 @@ export class TemplateWizardModel {
       this.inputs.current = plan;
       this.result = result;
       this.preview = null;
-    } catch (_) {
-      if (this.current(epoch)) { this.error = '应用失败，请重新预览后重试'; this.preview = null; }
+    } catch (error) {
+      if (this.current(epoch)) {
+        this.applyFailure = ProfileApplyFeedback.classify((error as Error)?.message ?? '');
+        this.error = this.applyFailure === 'failed' ? '应用失败，请重新预览后重试' : '';
+        this.preview = null;
+      }
     } finally { if (this.current(epoch)) { this.busy = false; this.emit(); } }
   }
 }

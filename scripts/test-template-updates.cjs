@@ -2,7 +2,10 @@ const assert = require('node:assert/strict'), fs = require('node:fs'), vm = requ
 const ts = require('./ci/transpile-arkts.cjs');
 const source = fs.readFileSync('cexing/entry/src/main/ets/lib/TemplateUpdates.ets', 'utf8');
 let workerInput;
+const feedbackBox={exports:{},require:()=>({})};
+vm.runInNewContext(ts.transpileModule(fs.readFileSync('cexing/entry/src/main/ets/lib/ProfileApplyFeedback.ets','utf8')).outputText,feedbackBox);
 const sandbox = { exports: {}, require: name => {
+ if(name==='./ProfileApplyFeedback')return feedbackBox.exports;
  if (name === 'libentry.so') return { versionAction: async (_home, input) => {
   workerInput = JSON.parse(input); return JSON.stringify({ ready: false, conflicts: [{ id: 'conflict', entity: 'ai/web', section: 'rules', kind: 'edit' }] });
  } };

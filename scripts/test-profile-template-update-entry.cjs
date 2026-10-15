@@ -11,10 +11,12 @@ let draft = { revision: 'published', intent: structuredClone(published) };
 const ticket = () => ({ file: 'one.yaml', profileIdentity: 'source', profileVersion: version,
   activeVersion: version, activeFile: 'one.yaml', draftRevision: draft.revision });
 const modules = {
+  './VpnController': { VpnController: { status: 0 }, VpnStatus: { Connected: 2 } },
+  './ProfileRegionChoices': { ProfileRegionChoices: { selector: () => '', read: () => ({ pending: '' }) } },
   '@kit.ArkTS': { util: { generateRandomUUID: () => `session-${++serial}` } },
   './Settings': { Settings: { load: () => ({}), idle: async () => {} } },
   './CoreValidator': { CoreValidator: { ...require('./ci/semantic-fixture.cjs').CoreValidator, prepareResources: async () => {} } },
-  './ProfileStore': { ProfileStore: { prepareContent: value => value, getProfileContent: () => 'synthetic', getEnabledMerge: () => '', readEditDraft: () => draft } },
+  './ProfileStore': { ProfileStore: { isApplyUncertain: () => false, getActiveFile: () => 'one.yaml', prepareContent: value => value, getProfileContent: () => 'synthetic', getEnabledMerge: () => '', readEditDraft: () => draft } },
   './EffectiveVersions': { EffectiveVersions: { read: () => ({ Profiles: { 'one.yaml': { ID: version } } }),
     globalContent: () => '', regionPlan: () => null, editIntent: () => structuredClone(published) } },
   './ConfigEditor': { ConfigEditor: { list: async () => ({ sourceRevision: 'source', sections: [
