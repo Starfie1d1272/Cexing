@@ -138,7 +138,7 @@ const Page = sandbox.exports.ProfileProxyEditorPage; sandbox.exports.ProfileProx
   statePage.model.nodeTarget = () => { reads++; return new Promise(resolve => { finishNode = resolve; }); };
   statePage.model.save = async next => { states++; intent.operations = JSON.parse(JSON.stringify(next.operations)); return true; };
   const stateRow = statePage.rows[0];
-  await statePage.toggleNode(stateRow); const cancelledState = dialog; cancelledState.primaryButton.action(); await cancelledState.secondaryButton.action();
+  await statePage.toggleNode(stateRow); assert.ok(dialog.title.includes(stateRow.label), 'pause confirmation identifies the affected node'); const cancelledState = dialog; cancelledState.primaryButton.action(); await cancelledState.secondaryButton.action();
   assert.equal(reads, 0, 'cancelled pause confirmation cannot be replayed');
   await statePage.toggleNode(stateRow); const staleState = dialog; statePage.section = 'proxy-groups'; await staleState.secondaryButton.action();
   assert.equal(reads, 0, 'switching section invalidates a node confirmation'); statePage.section = 'proxies';

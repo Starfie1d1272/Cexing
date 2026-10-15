@@ -357,7 +357,7 @@ export struct ProfileProxyEditorPage {
       await this.save(ProxyIntentEdits.enableNode(this.model.workingIntent(), row.id, row.added)); return;
     }
     let used = false;
-    AlertDialog.show({ title: this.t('proxy_editor_disable_node'), message: this.t('proxy_editor_disable_node_risk'),
+    AlertDialog.show({ title: this.t('proxy_editor_disable_node_named', row.label), message: this.t('proxy_editor_disable_node_risk'),
       primaryButton: { value: this.t('proxy_editor_cancel'), action: () => { used = true; } },
       secondaryButton: { value: this.t('proxy_editor_disable_node'), action: async () => {
         if (used || !this.current(epoch) || this.busy || this.model === null || this.section !== 'proxies') { return; }

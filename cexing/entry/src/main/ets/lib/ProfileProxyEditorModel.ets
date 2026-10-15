@@ -122,7 +122,8 @@ export class ProfileProxyEditorModel {
       ticket.activeVersion, undefined, intent, this.region);
     if (request !== this.generation) { return null; }
     this.check(ticket);
-    const item = snapshot.sections.find((part) => part.section === 'proxies')?.items.find((entry) => entry.name === added.name);
+    const name = added.name ?? String((added.value as Record<string, Object>)?.['name'] ?? '');
+    const item = snapshot.sections.find((part) => part.section === 'proxies')?.items.find((entry) => entry.name === name);
     if (item === undefined) { throw new Error('NODE_OPERATION_CHANGED'); }
     const target = await ConfigEditor.target(this.context, this.original, this.overlay,
       ticket.activeVersion, 'proxies', item.id, undefined, intent, this.region);

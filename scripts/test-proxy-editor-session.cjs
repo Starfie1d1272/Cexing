@@ -92,6 +92,8 @@ const Model = sandbox.exports.ProfileProxyEditorModel;
     return { item: { id, revision: 'compiler-new-revision' }, value: { password: 'synthetic' } };
   };
   assert.equal((await model.nodeTarget('caller-add-id', true)).item.revision, 'compiler-new-revision');
+  model.intent.operations[0].name = undefined;
+  assert.equal((await model.nodeTarget('caller-add-id', true)).item.id, 'compiler-node', 'standard add value name remains compiler-resolved');
   await assert.rejects(model.nodeTarget('missing-add', true), /NODE_OPERATION_CHANGED/);
   let finishAddedList; read = () => new Promise(resolve => { finishAddedList = resolve; });
   const lateAdded = model.nodeTarget('caller-add-id', true); model.cancel(); finishAddedList({ sections: [] });
