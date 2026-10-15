@@ -89,6 +89,7 @@ const versions = { EffectiveVersions: {
   discard: async (_, version) => { staged.delete(version.Path); }
 } };
 const store = { ProfileStore: {
+  compactAppliedDraft: async()=>{},
   updateState: (_, file) => ({id:file}), readEditDraft: () => editDraft,
   runtimeRegionChoice: (_,file,id) => runtimeChoices.get(id) ?? null,
   saveRuntimeRegionChoice: (_,file,id,state) => { runtimeChoices.set(id,structuredClone(state)); pendingRegionSelector=state.pending;previousRegionChoice=state.previous?.name??'';previousRegionObserved=state.previous?.observed??''; },

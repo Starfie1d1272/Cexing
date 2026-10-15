@@ -21,6 +21,7 @@ import (
 // Private inputs use the same original/Merge/settings projection as the common
 // editor. No URL/provider fetch, candidate file, stage or successful pointer.
 type templateUpdateSourceInput struct {
+	ResolvedDraft  bool                               `json:"resolvedDraft,omitempty"`
 	ProfileID      string                             `json:"profileId"`
 	ProfileVersion string                             `json:"profileVersion"`
 	Original       string                             `json:"original"`
@@ -99,7 +100,22 @@ func templateUpdateSource(home string, input templateUpdateSourceInput) (templat
 	base, mine := successful.Template.Baseline, successful.Template.Mine
 	// Successful provenance is authoritative for unchanged personal operations.
 	// Provider refresh cannot rewrite the historical side of the comparison.
-	if base == nil || mine == nil || !reflect.DeepEqual(intent.Operations, successful.Operations) {
+	if input.ResolvedDraft {
+		// A paired draft was already rebased onto input.Original. Reconstruct its
+		// current authoring Base/Mine there; applying its new guards to the old
+		// successful Original would make a valid closed review unreopenable.
+		encoded, _ := json.Marshal(intent)
+		enabled, e := configpipeline.DecodeEditIntent(encoded)
+		if e != nil {
+			return templateUpdateSourceReply{}, fail
+		}
+		enabled.Disabled = false
+		compiled, _, e := compileLayeredMergeWithIntent(home, input.Original, input.GlobalMerge, input.Overlay, input.Overrides, false, nil, enabled)
+		if e != nil || compiled.EditIntent == nil || compiled.EditIntent.Template == nil || compiled.EditIntent.Template.Baseline == nil || compiled.EditIntent.Template.Mine == nil {
+			return templateUpdateSourceReply{}, fail
+		}
+		base, mine = compiled.EditIntent.Template.Baseline, compiled.EditIntent.Template.Mine
+	} else if base == nil || mine == nil || !reflect.DeepEqual(intent.Operations, successful.Operations) {
 		oldOriginal, e := read("original.yaml", maxConfigBytes)
 		if e != nil {
 			return templateUpdateSourceReply{}, fail
@@ -143,7 +159,7 @@ func templateUpdateSource(home string, input templateUpdateSourceInput) (templat
 	token, _ := json.Marshal(struct {
 		Input   templateUpdateSourceInput
 		Request profiletemplates.UpdateRequest
-	}{Input: templateUpdateSourceInput{ProfileID: input.ProfileID, ProfileVersion: input.ProfileVersion, Original: input.Original, GlobalMerge: input.GlobalMerge, Overlay: input.Overlay, Overrides: input.Overrides, Intent: input.Intent}, Request: request})
+	}{Input: templateUpdateSourceInput{ResolvedDraft: input.ResolvedDraft, ProfileID: input.ProfileID, ProfileVersion: input.ProfileVersion, Original: input.Original, GlobalMerge: input.GlobalMerge, Overlay: input.Overlay, Overrides: input.Overrides, Intent: input.Intent}, Request: request})
 	encodedRequest, _ := json.Marshal(request)
 	if !safeTemplateJSON(encodedRequest) {
 		return templateUpdateSourceReply{}, errors.New("TEMPLATE_UPDATE_PRECISION")

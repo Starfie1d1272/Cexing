@@ -4,7 +4,7 @@ import core from 'libentry.so';
 import { ConfigEditor, EditIntent, EditTarget, EditorDraftHost, EditorDraftSession, EditorDraftPreview } from './ConfigEditor';
 import { Settings } from './Settings';
 import { EffectiveVersions, RegionPlan } from './EffectiveVersions';
-import { ProfileStore } from './ProfileStore';
+import { ProfileStore, ProfileMetaExt } from './ProfileStore';
 import { ProfileTransactions, EditTicket, EditorSourceCandidate } from './ProfileTransactions';
 
 export { EditorSourceCandidate } from './ProfileTransactions';
@@ -14,6 +14,15 @@ interface HostInput {
   settings: string; region: RegionPlan | null; intent: EditIntent | null;
 }
 interface HostReply { identity?: string; error?: string; }
+function sameInput(a: HostInput, b: HostInput): boolean {
+  // Compare large immutable strings directly; do not serialize three copies of
+  // the full Original merely to fence an asynchronous read.
+  return a.committedOriginal === b.committedOriginal && a.projectionOriginal === b.projectionOriginal &&
+    a.original === b.original && a.metadata === b.metadata && a.overlay === b.overlay &&
+    a.global === b.global && a.settings === b.settings && JSON.stringify(a.ticket) === JSON.stringify(b.ticket) &&
+    JSON.stringify(a.region) === JSON.stringify(b.region) && JSON.stringify(a.intent) === JSON.stringify(b.intent);
+}
+
 function cloneSession(value: EditorDraftSession): EditorDraftSession {
   return JSON.parse(JSON.stringify(value)) as EditorDraftSession;
 }
@@ -33,7 +42,8 @@ class ProfileEditorHost implements EditorDraftHost {
   constructor(context: common.Context, file: string, source?: EditorSourceCandidate) {
     this.context = context; this.file = file;
     if (source !== undefined) {
-      this.source = JSON.parse(JSON.stringify(source)) as EditorSourceCandidate;
+      this.source = { original: source.original,
+        metadata: JSON.parse(JSON.stringify(source.metadata)) as ProfileMetaExt };
       this.source.original = ProfileStore.prepareContent(this.source.original);
       if (JSON.stringify(this.source.metadata).length > 65536) { throw new Error('配置资料超限'); }
     }
@@ -86,7 +96,7 @@ class ProfileEditorHost implements EditorDraftHost {
     const identity = await this.stamp(now);
     // Recheck synchronous inputs after the worker await, including draft/source/settings.
     const after = this.capture();
-    if (identity !== this.identity || JSON.stringify(now) !== JSON.stringify(after)) {
+    if (identity !== this.identity || !sameInput(now, after)) {
       throw new Error('配置或资源已变化，请重新打开');
     }
     return now;
@@ -95,10 +105,28 @@ class ProfileEditorHost implements EditorDraftHost {
     const generation = ++this.generation;
     Settings.load(this.context); await Settings.idle();
     this.projectionOriginal = ProfileStore.getProfileContent(this.context, this.file) ?? '';
+    const draft = ProfileStore.readEditDraft(this.context, this.file);
+    if (draft.source !== undefined) {
+      const ticket = ProfileTransactions.editTicket(this.context, this.file);
+      const restored = await ProfileStore.readEditDraftSource(this.context, this.file, draft.revision,
+        () => generation === this.generation);
+      const digest = await EffectiveVersions.originalIdentity(this.context, this.projectionOriginal, ticket.activeVersion);
+      if (JSON.stringify(ticket) !== JSON.stringify(ProfileTransactions.editTicket(this.context, this.file)) ||
+        this.projectionOriginal !== ProfileStore.getProfileContent(this.context, this.file) ||
+        restored === undefined || draft.source.profileIdentity !== ticket.profileIdentity ||
+        draft.source.profileVersion !== ticket.profileVersion || draft.source.baseDigest !== digest) {
+        throw new Error('草稿来源已变化，请先处理已有草稿');
+      }
+      if (this.source !== undefined && (this.source.original !== restored.original ||
+        JSON.stringify(this.source.metadata) !== JSON.stringify(restored.metadata))) {
+        throw new Error('请先处理已有的更新草稿');
+      }
+      this.source = restored; this.resolved = true;
+    }
     const input = this.capture(); const stamp = await this.stamp(input);
     const snapshot = await ConfigEditor.list(this.context, input.projectionOriginal, input.overlay,
       input.ticket.activeVersion, input.global, input.intent ?? undefined, input.region ?? undefined);
-    if (generation !== this.generation || JSON.stringify(input) !== JSON.stringify(this.capture()) ||
+    if (generation !== this.generation || !sameInput(input, this.capture()) ||
       stamp !== await this.stamp(input)) { throw new Error('配置已变化，请重新打开'); }
     this.input = input; this.identity = stamp; this.shown = null;
     this.session = { profileId: this.file, revision: util.generateRandomUUID(true), intent: input.intent, snapshot: snapshot };
@@ -112,7 +140,7 @@ class ProfileEditorHost implements EditorDraftHost {
   }
   async save(intent: EditIntent, expectedRevision: string): Promise<EditorDraftSession> {
     const input = await this.check(expectedRevision);
-    await ProfileTransactions.saveEditDraft(this.context, input.ticket, intent, async () => { await this.check(expectedRevision); });
+    await ProfileTransactions.saveEditDraft(this.context, input.ticket, intent, async () => { await this.check(expectedRevision); }, this.source);
     this.resolved = true;
     return await this.load();
   }
@@ -136,8 +164,8 @@ class ProfileEditorHost implements EditorDraftHost {
     const input = await this.check(expectedRevision);
     const version = EffectiveVersions.read(this.context)?.Profiles[this.file];
     const committed = version !== undefined ? EffectiveVersions.editIntent(this.context, version) : null;
-    await ProfileTransactions.saveEditDraft(this.context, input.ticket, committed, async () => { await this.check(expectedRevision); });
-    this.resolved = false;
+    await ProfileTransactions.saveEditDraft(this.context, input.ticket, committed, async () => { await this.check(expectedRevision); }, null);
+    this.source = undefined; this.resolved = false;
     return await this.load();
   }
 }

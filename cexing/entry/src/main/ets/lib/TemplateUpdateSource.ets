@@ -13,7 +13,7 @@ import { describeTemplateConflict } from './TemplateConflictPresentation';
 interface SourceInput {
   profileId: string; profileVersion: string; original: string; globalMerge: string;
   overlay: string; overrides: string; intent: EditIntent; action: string;
-  stamp?: string; candidate?: TemplateSnapshot;
+  stamp?: string; candidate?: TemplateSnapshot; resolvedDraft?: boolean;
 }
 interface SourceReply { request?: TemplateUpdateRequest; stamp?: string; intent?: EditIntent; error?: string; }
 
@@ -53,12 +53,16 @@ export function createTemplateUpdateSource(context: common.Context, profileId: s
         throw new Error('TEMPLATE_UPDATE_SESSION');
       }
       const version = EffectiveVersions.read(context)?.Profiles[profileId];
-      const original = candidateOriginal ?? ProfileStore.getProfileContent(context, profileId);
+      const draft = ProfileStore.readEditDraft(context, profileId);
+      const restored = await ProfileStore.readEditDraftSource(context, profileId, draft.revision);
+      const original = candidateOriginal ?? restored?.original ?? ProfileStore.getProfileContent(context, profileId);
       if (version === undefined || original === null) { throw new Error('TEMPLATE_UPDATE_SOURCE_CHANGED'); }
       const input: SourceInput = { profileId: profileId, profileVersion: version.ID,
         original: ProfileStore.prepareContent(original), globalMerge: EffectiveVersions.globalContent(context),
         overlay: ProfileStore.getEnabledMerge(context, profileId), overrides: JSON.stringify(Settings.load(context)),
-        intent: JSON.parse(JSON.stringify(session.intent)) as EditIntent, action: 'read' };
+        intent: JSON.parse(JSON.stringify(session.intent)) as EditIntent, action: 'read',
+        resolvedDraft: restored !== undefined && session.intent.revision === draft.revision &&
+          (candidateOriginal === undefined || candidateOriginal === restored.original) };
       await CoreValidator.prepareResources(context);
       if (epoch !== generation) { throw new Error('TEMPLATE_UPDATE_SESSION'); }
       const reply = await call(input);
