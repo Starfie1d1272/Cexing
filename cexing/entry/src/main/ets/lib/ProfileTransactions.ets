@@ -38,9 +38,24 @@ export namespace ProfileTransactions {
   let uncertain = false;
   let releaseConfiguration: (() => void) | null = null;
 
-  function leave(): void { releaseConfiguration?.(); releaseConfiguration = null; busy = false; }
+  function leave(): void { releaseConfiguration?.(); releaseConfiguration = null; busy = false; notifyIdle(); }
 
   export function isBusy(): boolean { return busy; }
+
+  let idleListeners: Array<() => void> = [];
+  /** Settlement only: no success claim. Unsubscribe when the observer leaves. */
+  export function onIdle(listener: () => void): () => void {
+    idleListeners.push(listener);
+    return (): void => { idleListeners = idleListeners.filter((entry: () => void) => entry !== listener); };
+  }
+
+  function notifyIdle(): void {
+    const listeners = idleListeners.slice();
+    for (const listener of listeners) {
+      try { listener(); } catch (_) { /* An observer cannot change the transaction result. */ }
+    }
+  }
+
 
   function enter(context: common.Context): void {
     if (busy) { throw new Error('已有配置操作正在进行，请稍后重试'); }
