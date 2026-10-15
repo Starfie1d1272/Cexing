@@ -1,3 +1,4 @@
+const uiFixture = require('./ci/ui-fixtures.cjs');
 const assert = require('node:assert/strict'), fs = require('node:fs'), vm = require('node:vm');
 const ts = require('./ci/transpile-arkts.cjs');
 const snapshot = version => ({ templateId: 'ai', version, entries: [] });
@@ -22,7 +23,7 @@ const modules = { './CoreValidator': require('./ci/semantic-fixture.cjs'), './Ed
  assert.equal(request.base.version, 1); assert.equal(request.next.version, 2);
  return resolved ? { ready: true, candidate: snapshot(2), conflicts: [] } : { ready: false, conflicts: [{ id: 'conflict', section: 'rules', entity: 'ai/web', kind: 'edit' }] };
 } } } };
-const sandbox = { exports: {}, require: name => { assert.ok(name in modules, name); return modules[name]; } };
+const sandbox = { exports: {}, ...uiFixture.globals, require: name => { if (name.endsWith('/UiText')) return uiFixture.module; assert.ok(name in modules, name); return modules[name]; } };
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('cexing/entry/src/main/ets/lib/TemplateUpdateHost.ets', 'utf8')).outputText, sandbox);
 (async () => {
  const create = sandbox.exports.createTemplateUpdateHost, host = create({}, 'one.yaml', undefined, source);

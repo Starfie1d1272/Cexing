@@ -1,3 +1,4 @@
+import { UiText } from '../lib/UiText';
 import { common } from '@kit.AbilityKit';
 import { EffectiveVersions } from '../lib/EffectiveVersions';
 import { ProfileTransactions } from '../lib/ProfileTransactions';
@@ -21,29 +22,29 @@ export struct ProfileStorageDetails {
   private async refresh(): Promise<void> {
     if (!this.active || this.working) { return; }
     const generation = ++this.generation;
-    this.working = true; this.failure = '';
+    this.working = true; this.failure = ''; this.summary = '';
     const context = getContext(this) as common.UIAbilityContext;
     try {
       await ProfileTransactions.refreshStorage(context);
       if (!this.active || generation !== this.generation) { return; }
       const report = EffectiveVersions.storageReport(context);
-      if (report === null) { this.summary = ''; this.failure = '暂无统计，请重试'; return; }
-      this.summary = report.complete ? `${report.versions} 个版本 · ${(report.bytes / 1048576).toFixed(1)} MiB` : '';
-      if (!report.complete) { this.failure = '暂无法整理，请稍后重试'; }
+      if (report === null) { this.summary = ''; this.failure = UiText.get($r('app.string.storage_no_stats')); return; }
+      this.summary = report.complete ? UiText.get($r('app.string.storage_summary'), report.versions, (report.bytes / 1048576).toFixed(1)) : '';
+      if (!report.complete) { this.failure = UiText.get($r('app.string.storage_incomplete')); }
     } catch (_) {
-      if (this.active && generation === this.generation) { this.failure = '暂无法统计，请稍后重试'; }
+      if (this.active && generation === this.generation) { this.failure = UiText.get($r('app.string.storage_stats_failed')); }
     } finally { if (generation === this.generation) { this.working = false; } }
   }
   build() {
     Column({ space: 8 }) {
-      Button(this.expanded ? '收起存储详情' : '存储详情').width('100%').height(48).onClick(() => {
+      Button(this.expanded ? UiText.get($r('app.string.storage_collapse')) : UiText.get($r('app.string.storage_details'))).width('100%').constraintSize({ minHeight: 48 }).accessibilityDescription(this.expanded ? UiText.get($r('app.string.storage_expanded')) : UiText.get($r('app.string.storage_collapsed'))).onClick(() => {
         this.expanded = !this.expanded;
         if (this.expanded) { this.refresh(); } else { this.generation++; this.working = false; }
       })
       if (this.expanded) {
         if (this.summary !== '') { Text(this.summary).fontSize(14).fontColor(UI.ink) }
         if (this.failure !== '') { Text(this.failure).fontSize(14).fontColor(UI.muted) }
-        Button(this.working ? '正在统计' : '刷新').width('100%').height(48).enabled(!this.working).onClick(() => this.refresh())
+        Button(this.working ? UiText.get($r('app.string.storage_working')) : UiText.get($r('app.string.storage_refresh'))).width('100%').constraintSize({ minHeight: 48 }).enabled(!this.working).accessibilityDescription(this.working ? UiText.get($r('app.string.storage_working')) : '').onClick(() => this.refresh())
       }
     }.width('100%').padding(14).backgroundColor(UI.surface).borderRadius(24)
   }

@@ -1,3 +1,4 @@
+import { UiText } from '../lib/UiText';
 import { createTemplateUpdateSource } from '../lib/TemplateUpdateSource';
 import { TemplateUpdateReview } from './TemplateUpdateReview';
 import { TemplateUpdateSource } from '../lib/TemplateUpdateHost';
@@ -63,14 +64,14 @@ export struct TemplateWizard {
       const preview = model.preview;
       const automatic = model.templateId === 'automatic';
       const message = preview.inactiveEdits === true ? (automatic ?
-        '将替换订阅规则，并启用已停用的个人修改。' : '将同时启用已停用的个人修改。') :
-        '本地网络直连，其余流量使用所选出口。';
+        UiText.get($r('app.string.template_replace_reenable')) : UiText.get($r('app.string.template_reenable'))) :
+        UiText.get($r('app.string.template_auto_scope'));
       const confirmation = ++this.confirmationGeneration;
       this.confirming = true;
       try {
-        const answer = await promptAction.showDialog({ title: automatic ? '替换订阅分流规则？' : '应用分流方案？',
+        const answer = await promptAction.showDialog({ title: automatic ? UiText.get($r('app.string.template_replace_title')) : UiText.get($r('app.string.template_apply_title')),
           message: message,
-          buttons: [{ text: '取消', color: $r('app.color.ui_muted') }, { text: automatic ? '替换并应用' : '应用', color: $r('app.color.ui_accent_text') }] });
+          buttons: [{ text: UiText.get($r('app.string.template_cancel')), color: $r('app.color.ui_muted') }, { text: automatic ? UiText.get($r('app.string.template_replace_apply')) : UiText.get($r('app.string.template_apply')), color: $r('app.color.ui_accent_text') }] });
         if (!this.visible || answer.index !== 1 || this.model !== model || model.preview !== preview) { return; }
       } catch (_) { return; }
       finally { if (confirmation === this.confirmationGeneration) { this.confirming = false; } }
@@ -79,11 +80,25 @@ export struct TemplateWizard {
   }
   @Builder
   option(id: string, label: string) {
-    Button(label).height(44).width('100%')
-      .backgroundColor(this.view.templateId === id ? UI.action : UI.soft)
+    Button(label).constraintSize({ minHeight: 44 }).width('100%')
+      .accessibilitySelected(this.view.templateId === id).backgroundColor(this.view.templateId === id ? UI.action : UI.soft)
       .fontColor(this.view.templateId === id ? UI.onAccent : UI.ink)
       .enabled(this.view.ready === true && this.view.busy === false)
       .onClick(() => this.model?.choose(id, ''))
+  }
+  private displayMessage(message: string): string {
+    if (message === '') { return ''; }
+    if (message === '方案读取失败，请重试') { return UiText.get($r('app.string.template_read_failed')); }
+    if (message === '请选择出口') { return UiText.get($r('app.string.template_choose_exit')); }
+    if (message === '方案未通过校验，请检查出口和订阅资源') { return UiText.get($r('app.string.template_validation_failed')); }
+    if (message === '应用失败，请重新预览后重试') { return UiText.get($r('app.string.template_apply_failed')); }
+    if (message === '无法比较，请重新预览') { return UiText.get($r('app.string.template_compare_failed')); }
+    if (message === '应用失败，请重新预览') { return UiText.get($r('app.string.template_update_failed')); }
+    if (message === '部分高级字段需通过高级编辑修改') { return UiText.get($r('app.string.template_advanced_required')); }
+    if (message === '方案已应用') { return UiText.get($r('app.string.template_applied')); }
+    if (message === '已保存，启用后生效') { return UiText.get($r('app.string.template_saved')); }
+    if (message === '更新已应用') { return UiText.get($r('app.string.template_update_applied')); }
+    return UiText.get($r('app.string.template_result_unknown'));
   }
   build() {
     if (this.reviewingUpdate) {
@@ -92,43 +107,43 @@ export struct TemplateWizard {
     } else {
     Column({ space: 12 }) {
       Row() {
-        Text('分流方案').fontSize(22).fontWeight(FontWeight.Bold).fontColor(UI.ink)
+        Text(UiText.get($r('app.string.template_title'))).fontSize(22).fontWeight(FontWeight.Bold).fontColor(UI.ink)
         Blank()
-        Button('返回').backgroundColor(UI.soft).fontColor(UI.ink).onClick(() => this.close())
+        Button(UiText.get($r('app.string.template_back'))).backgroundColor(UI.soft).fontColor(UI.ink).onClick(() => this.close())
       }.width('100%')
       Scroll() {
       Column({ space: 12 }) {
       if (this.updateAvailable) {
-        Button('更新方案').backgroundColor(UI.soft).fontColor(UI.ink)
+        Button(UiText.get($r('app.string.template_update'))).backgroundColor(UI.soft).fontColor(UI.ink)
           .enabled(this.view.ready && !this.view.busy).onClick(() => { this.reviewingUpdate = true; })
       }
-      this.option('original', '保持订阅原样')
-      this.option('region', '按地区智能选择')
-      this.option('ai', 'AI 专用出口')
-      this.option('automatic', '自动分流')
+      this.option('original', UiText.get($r('app.string.template_original')))
+      this.option('region', UiText.get($r('app.string.template_region')))
+      this.option('ai', UiText.get($r('app.string.template_ai')))
+      this.option('automatic', UiText.get($r('app.string.template_automatic')))
       if (this.view.templateId !== 'original' && this.view.ready === true) {
-        Text(this.view.templateId === 'region' ? '原策略组' : '出口').fontSize(14).fontColor(UI.muted)
+        Text(this.view.templateId === 'region' ? UiText.get($r('app.string.template_selector')) : UiText.get($r('app.string.template_exit'))).fontSize(14).fontColor(UI.muted)
         Select((this.view.templateId === 'region' ? this.view.selectors :
           this.view.groups).map((name: string): SelectOption => { return { value: this.view.labels?.[name] ?? name }; }))
           .selected(Math.max(0, (this.view.templateId === 'region' ? this.view.selectors : this.view.groups).indexOf(this.view.target)))
-          .value(this.view.labels?.[this.view.target] ?? (this.view.target || '请选择')).width('100%').enabled(this.view.busy === false)
+          .accessibilityText(this.view.templateId === 'region' ? UiText.get($r('app.string.template_selector')) : UiText.get($r('app.string.template_exit'))).value(this.view.labels?.[this.view.target] ?? (this.view.target || UiText.get($r('app.string.template_choose')))).width('100%').enabled(this.view.busy === false)
           .onSelect((index: number) => this.model?.choose(this.view.templateId,
             (this.view.templateId === 'region' ? this.view.selectors : this.view.groups)[index] ?? ''))
       }
       if (this.view.templateId === 'ai') {
-        Text('常用 AI 服务使用所选出口，其余流量沿用订阅。').fontSize(13).fontColor(UI.muted)
+        Text(UiText.get($r('app.string.template_ai_scope'))).fontSize(13).fontColor(UI.muted)
       }
       if (this.view.templateId === 'ai' && this.view.ready) {
         AiProbeStatus({ revision: this.aiRevision })
       }
       if (this.view.templateId === 'automatic') {
-        Text('本地网络直连，其余流量使用所选出口。').fontSize(13).fontColor(UI.muted)
+        Text(UiText.get($r('app.string.template_auto_scope'))).fontSize(13).fontColor(UI.muted)
       }
       if (this.view.error.length > 0) {
-        Text(this.view.error).fontSize(14).fontColor(UI.error)
+        Text(this.displayMessage(this.view.error)).fontSize(14).fontColor(UI.error)
       }
       if (this.view.result.length > 0) {
-        Text(this.view.result).fontSize(14).fontColor(UI.accentText)
+        Text(this.displayMessage(this.view.result)).fontSize(14).fontColor(UI.accentText)
       }
       if (this.view.hasPreview) {
         Text(this.view.summary).fontSize(14).fontColor(UI.muted)
@@ -136,10 +151,10 @@ export struct TemplateWizard {
       }.width('100%')
       }.width('100%').layoutWeight(1)
       if (this.view.ready !== true && this.view.busy === false) {
-        Button('重试').onClick(() => this.model?.load())
+        Button(UiText.get($r('app.string.template_retry'))).onClick(() => this.model?.load())
       }
-      Button(this.view.busy ? '处理中' : this.view.hasPreview ? '应用方案' : '预览')
-        .width('100%').height(48).backgroundColor(UI.action).fontColor(UI.onAccent)
+      Button(this.view.busy ? UiText.get($r('app.string.template_working')) : this.view.hasPreview ? UiText.get($r('app.string.template_apply_plan')) : UiText.get($r('app.string.template_preview')))
+        .width('100%').constraintSize({ minHeight: 48 }).backgroundColor(UI.action).fontColor(UI.onAccent)
         .enabled(this.view.ready === true && this.view.busy === false)
         .onClick(() => { if (this.model?.preview) { this.apply(); } else { this.model?.inspect(); } })
     }.width('100%').height('100%').padding(20).backgroundColor(UI.surface)

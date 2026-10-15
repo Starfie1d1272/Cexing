@@ -1,3 +1,4 @@
+const uiFixture = require('./ci/ui-fixtures.cjs');
 // Real wizard adapter + real shared production Host; platform/transaction I/O
 // is synthetic. Go transaction/compiler tests and Full remain separate evidence.
 const assert = require('node:assert/strict'), fs = require('node:fs'), vm = require('node:vm');
@@ -38,7 +39,7 @@ const modules = { './CoreValidator': require('./ci/semantic-fixture.cjs'),
  } }
 };
 function load(file) {
- const sandbox = { exports: {}, require: name => { assert.ok(name in modules, name); return modules[name]; } };
+ const sandbox = { exports: {}, ...uiFixture.globals, require: name => { if (name.endsWith('/UiText')) return uiFixture.module; assert.ok(name in modules, name); return modules[name]; } };
  vm.runInNewContext(ts.transpileModule(fs.readFileSync(`cexing/entry/src/main/ets/lib/${file}.ets`, 'utf8')).outputText, sandbox);
  return sandbox.exports;
 }
