@@ -6,7 +6,7 @@ const root = process.argv[2] || path.resolve(__dirname, '..');
 let pending = null, finishDownload, failDownload, gate = 0, checks = 0;
 let state = { Current: { ID: 'active' }, Profiles: {} }, serial = 0;
 const controller = { status: 0, holdConfiguration: () => { gate++; return () => { gate--; }; }, configurationEpoch: () => 1 };
-const store = { compactAppliedDraft: async () => {}, isApplyUncertain: () => false, getActiveFile: () => '', getEnabledMerge: () => '', prepareContent: value => value,
+const store = { readEditDraft: () => ({ revision: '', intent: null }), compactAppliedDraft: async () => {}, isApplyUncertain: () => false, getActiveFile: () => '', getEnabledMerge: () => '', prepareContent: value => value,
   downloadFromOrigin: () => new Promise((resolve, reject) => { finishDownload = resolve; failDownload = reject; }) };
 const versions = { read: () => state, regionPlan: () => null, editIntent: () => null, stage: async () => ({ version: { ID: `version-${++serial}`, Path: 'synthetic-stage' }, receipt: 'receipt' }),
   verify: async () => 'receipt', commit: async (_context, version) => { state.Profiles['other.yaml'] = version; }, discard: async () => {} };

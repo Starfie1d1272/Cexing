@@ -4,7 +4,7 @@ const ui=require('./ui-fixtures.cjs'),ts=require('./transpile-arkts.cjs'),home=p
 let loseCommitAck=false,failCommit=false,serial=0;const replies=new Map();
 const lines=readline.createInterface({input:process.stdin});lines.on('line',line=>{const r=JSON.parse(line);const resolve=replies.get(r.id);replies.delete(r.id);resolve(r.reply)});
 const action=input=>input.op==='commit'&&failCommit?Promise.resolve(JSON.stringify({error:'VERSION_COMMIT_FAILED'})):new Promise(resolve=>{const id=++serial;replies.set(id,resolve);process.stdout.write(JSON.stringify({id,input:JSON.stringify(input)})+'\n')});
-let failWrite=false,writeHook=null;
+let failWrite=false,writeHook=null,readHook=null,beforeAction=null,afterAction=null;
 const io={OpenMode:{READ_ONLY:0,READ_WRITE:2,CREATE:64,TRUNC:512},
  accessSync:p=>fs.existsSync(p),mkdirSync:(p)=>fs.mkdirSync(p,{recursive:true}),
  statSync:p=>{const s=fs.statSync(p);return {size:s.size,mtime:s.mtimeMs}},
@@ -13,20 +13,38 @@ const io={OpenMode:{READ_ONLY:0,READ_WRITE:2,CREATE:64,TRUNC:512},
  readTextSync:(p,o)=>{if(p.endsWith('.intent.json')&&fs.statSync(p).size>2*1024*1024)assert.ok(o&&o.length<=2*1024*1024,'sync ticket must not read candidate body');const b=fs.readFileSync(p);return b.subarray(o?.offset??0,o?.length===undefined?b.length:(o?.offset??0)+o.length).toString('utf8')},
  listFileSync:p=>fs.readdirSync(p),moveFileSync:(a,b)=>fs.renameSync(a,b),unlinkSync:p=>fs.unlinkSync(p),
  open:async(p,flags)=>({fd:fs.openSync(p,flags===0?'r':'w+')}),close:async f=>fs.closeSync(f.fd),
- read:async(fd,b,o)=>fs.readSync(fd,new Uint8Array(b),0,b.byteLength,o?.offset??null),
+ read:async(fd,b,o)=>{const n=fs.readSync(fd,new Uint8Array(b),0,b.byteLength,o?.offset??null);if(readHook){const hook=readHook;readHook=null;await hook()}return n},
  write:async(fd,b,o)=>{if(failWrite)throw Error('synthetic disk full');const n=fs.writeSync(fd,new Uint8Array(b),0,Math.min(b.byteLength,4096),o?.offset??null);if(writeHook){const hook=writeHook;writeHook=null;await hook()}return n},
  fsync:async fd=>fs.fsyncSync(fd),moveFile:async(a,b)=>fs.promises.rename(a,b),unlink:async p=>fs.promises.unlink(p)};
 const settings={smartAutoConvert:false,mixedPort:7890,logLevel:'info',allowLan:false,ipv6:false,mode:'rule',logToFile:false};
-function runtime(){
+function runtime(options={}){
  const modules={'@kit.ArkTS':{util:{generateRandomUUID:()=>crypto.randomUUID(),TextEncoder:{create:()=>({encodeInto:s=>new TextEncoder().encode(s)})},TextDecoder:{create:(_,o)=>{const d=new TextDecoder('utf-8',o);return {decodeToString:(b,opt)=>d.decode(b,opt)}}}}},
- '@kit.CoreFileKit':{fileIo:io},'@kit.NetworkKit':{http:{}},'libentry.so':{versionAction:async(_,s)=>{const input=JSON.parse(s),reply=await action(input);if(input.op==='commit'&&loseCommitAck){failWrite=true;throw Error('synthetic lost commit reply')}return reply}},
+ '@kit.CoreFileKit':{fileIo:io},'@kit.NetworkKit':{http:{}},'libentry.so':{versionAction:async(_,s)=>{const input=JSON.parse(s);if(beforeAction)await beforeAction(input);const reply=await action(input);if(afterAction)await afterAction(input,reply);if(input.op==='commit'&&loseCommitAck){failWrite=true;throw Error('synthetic lost commit reply')}return reply}},
  './UiText':ui.module,'./Settings':{Settings:{load:()=>settings,idle:async()=>{},setSmartAutoConvert:async(_,v)=>{settings.smartAutoConvert=v}}},'./Logger':{Logger:{info(){},warn(){},error(){}}},
  './CoreValidator':{CoreValidator:{...require('./semantic-fixture.cjs').CoreValidator,prepareResources:async()=>{}}},'./VpnController':{VpnStatus:{Disconnected:0,Connected:2},VpnController:{status:0,holdConfiguration:()=>()=>{},configurationEpoch:()=>0}},'./CoreApi':{CoreApi:{}}};
- function load(name){const key='./'+name;if(modules[key])return modules[key];const box={exports:{},setTimeout,...ui.globals,require:n=>{if(n.startsWith('./'))return load(n.slice(2));assert.ok(n in modules,n);return modules[n]}};modules[key]=box.exports;vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(base,name+'.ets'),'utf8')).outputText,box,{filename:name});modules[key]=box.exports;return box.exports}
- return {store:load('ProfileStore').ProfileStore,versions:load('EffectiveVersions').EffectiveVersions,hosts:load('EditorDraftHosts').EditorDraftHosts,editor:load('ConfigEditor').ConfigEditor,tx:load('ProfileTransactions').ProfileTransactions,updateSource:load('TemplateUpdateSource').createTemplateUpdateSource,updateHost:load('TemplateUpdateHost').createTemplateUpdateHost};
+ Object.assign(modules,options.modules??{});
+ function load(name){
+  const relative=name.startsWith('lib/')||name.startsWith('pages/')?'../'+name:name;
+  const filename=path.resolve(base,relative+'.ets');
+  const key='./'+path.relative(base,filename).replace(/\\/g,'/').replace(/\.ets$/,'');
+  if(modules[key])return modules[key];
+  let source=fs.readFileSync(filename,'utf8');if(options.transform)source=options.transform(key,source);
+  const box={exports:{},setTimeout,...ui.globals,...options.globals,require:n=>{
+   if(n.startsWith('.'))return load(path.relative(base,path.resolve(path.dirname(filename),n)));
+   assert.ok(n in modules,n);return modules[n];
+  }};
+  modules[key]=box.exports;
+  vm.runInNewContext(ts.transpileModule(source).outputText,box,{filename});modules[key]=box.exports;return box.exports;
+ }
+
+ return {load,store:load('ProfileStore').ProfileStore,versions:load('EffectiveVersions').EffectiveVersions,hosts:load('EditorDraftHosts').EditorDraftHosts,editor:load('ConfigEditor').ConfigEditor,tx:load('ProfileTransactions').ProfileTransactions,updateSource:load('TemplateUpdateSource').createTemplateUpdateSource,updateHost:load('TemplateUpdateHost').createTemplateUpdateHost};
 }
 const ctx={filesDir:home},file='one.yaml',original='proxies: [{name: synthetic, type: direct}]\ndns: {enable: true, nameserver: [192.0.2.1]}\nrules: ["MATCH,DIRECT"]\n',candidate=original.replace('192.0.2.1','192.0.2.2'),metadata={origin:'https://example.invalid/synthetic',sub:{upload:0,download:0,total:0,expire:0},updatedAt:2};
-async function run(){
+async function run(phase=process.argv[3]){
+ if(phase.startsWith('rules-')){
+  await require('./candidate-rule-page-lifecycle.cjs').run({runtime,action,ctx,file,phase});return;
+ }
+ if(!['save','cold-reopen','cold-apply','consumed','template-save','template-reopen','template-apply'].includes(phase))throw Error('Unknown candidate fixture phase: '+phase);
  let r=runtime();
  if(phase.startsWith('template-')){
   const regionOriginal='proxies: [{name: US-one, type: direct}, {name: HK-one, type: direct}]\nproxy-groups: [{name: Pick, type: select, proxies: [US-one, HK-one]}]\nrules: ["MATCH,Pick"]\n';
@@ -66,12 +84,22 @@ async function run(){
   const personal={schemaVersion:1,revision:'prior',sourceRevision:oldView.sourceRevision,operations:[{id:'prior-personal',kind:'update',section:'dns',target:oldTarget.item.id,preconditions:{enable:oldTarget.item.fields.enable},patch:{enable:false}}]};
   prior=await ordinary.save(personal,prior.revision);
   const privateBefore=fs.readFileSync(path.join(home,'profiles',file+'.intent.json'));
+  assert.equal(await r.tx.readEditSource(ctx,r.tx.editTicket(ctx,file)),undefined,'no saved candidate returns undefined');
   const host=r.hosts.create(ctx,file,{original:candidate,metadata});let s=await host.load();
   assert.deepEqual(fs.readFileSync(path.join(home,'profiles',file+'.intent.json')),privateBefore,'open/cancel must not undo a previous private draft');
   const view=await r.editor.list(ctx,candidate,'',staged.version.ID);const dns=view.sections.find(s=>s.section==='dns');assert.ok(dns?.items.length,JSON.stringify(view));
   const target=await r.editor.target(ctx,candidate,'',staged.version.ID,'dns',dns.items[0].id);
   const intent={schemaVersion:1,revision:'resolved',sourceRevision:view.sourceRevision,operations:[...personal.operations,{id:'dns-personal',kind:'update',section:'dns',target:target.item.id,preconditions:{nameserver:target.item.fields.nameserver},patch:{nameserver:['192.0.2.3']}}]};
   s=await host.save(intent,s.revision);await host.preview(s.revision);
+  // Both manual and scheduled update callers must preserve a pending pair.
+  const beforeUpdate=fs.readFileSync(path.join(home,'profile-versions','state.json'));
+  const beforePair=fs.readFileSync(path.join(home,'profiles',file+'.intent.json'));
+  let downloaded=0;r.store.downloadFromOrigin=async()=>{downloaded++;return {content:original+'# downloaded\n',meta:metadata}};
+  await assert.rejects(r.tx.update(ctx,file),/先应用或撤销/);
+  await assert.rejects(r.tx.update(ctx,file,()=>true),/先应用或撤销/);
+  assert.equal(downloaded,0,'defer before network I/O');assert.deepEqual(fs.readFileSync(path.join(home,'profile-versions','state.json')),beforeUpdate);
+  assert.deepEqual(fs.readFileSync(path.join(home,'profiles',file+'.intent.json')),beforePair);
+
   await assert.rejects(r.editor.list(ctx,original,'',staged.version.ID,'',s.intent),/EDIT_INTENT_FAILED/,'resolved intent must truly conflict with the old Original');assert.equal(r.store.getProfileContent(ctx,file),original);
   // A closed page is a fresh module graph with no sourceOverride.
   r=runtime();const reopened=r.hosts.create(ctx,file);const again=await reopened.load();await reopened.preview(again.revision);
@@ -105,6 +133,18 @@ async function run(){
   const host=r.hosts.create(ctx,file),s=await host.load();await host.preview(s.revision);assert.equal(r.store.getProfileContent(ctx,file),candidate);assert.equal(r.store.readEditDraft(ctx,file).source,undefined);
   const previous=r.tx.previewPrevious(ctx);await r.tx.restorePrevious(ctx,previous.currentId,previous.previousId);
   const restored=await r.hosts.create(ctx,file).load();assert.equal(restored.intent,null,'consumed candidate must not resurrect after restoring another version');assert.equal(r.store.readEditDraft(ctx,file).source,undefined);
+  const updated=original+'# normal update after handling candidate\n';let downloaded=0;
+  r.store.downloadFromOrigin=async()=>{downloaded++;return {content:updated,meta:metadata}};
+  assert.equal(await r.tx.update(ctx,file),'saved');assert.equal(downloaded,1);assert.equal(r.store.getProfileContent(ctx,file),updated);
+
  }
 }
-run().then(()=>{lines.close();process.exit(0)},e=>{console.error(e);process.exit(1)});
+// Page fixtures may load actual modules and add platform/UI hooks. Keep the
+// shared Store/Tx/Compiler/Host real; hooks only control scheduling and I/O faults.
+module.exports={runtime,runPhase:run,ctx,home,phase,file,action,io,settings,close:()=>lines.close(),hooks:{
+ get failWrite(){return failWrite},set failWrite(v){failWrite=v},
+ get write(){return writeHook},set write(v){writeHook=v},get read(){return readHook},set read(v){readHook=v},
+ get beforeAction(){return beforeAction},set beforeAction(v){beforeAction=v},
+ get afterAction(){return afterAction},set afterAction(v){afterAction=v}
+}};
+if(require.main===module)run().then(()=>{lines.close();process.exit(0)},e=>{console.error(e);process.exit(1)});
