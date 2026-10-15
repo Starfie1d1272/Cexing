@@ -44,7 +44,11 @@ export function createTemplateWizardHost(context: common.Context, profileId: str
       if (epoch !== generation) { throw new Error('TEMPLATE_CANCELLED'); }
       session = loaded;
       const items = loaded.snapshot.sections.find(section => section.section === 'proxy-groups')?.items ?? [];
-      const groups = items.filter(item => typeof item.name === 'string' && item.name.length > 0);
+      // Template precedes personal operations. Only source-defined groups are
+      // eligible; show the final name while retaining the pre-rename value.
+      const groups = items.filter(item => typeof item.sourceName === 'string' && item.sourceName.length > 0);
+      const labels: Record<string, string> = {};
+      groups.forEach(item => { labels[item.sourceName ?? ''] = item.name ?? item.sourceName ?? ''; });
       const saved = published();
       const regionVersion = EffectiveVersions.read(context)?.Profiles[profileId];
       const legacy = regionVersion !== undefined ? EffectiveVersions.regionPlan(context, regionVersion) : null;
@@ -52,8 +56,8 @@ export function createTemplateWizardHost(context: common.Context, profileId: str
       if (loaded.intent?.disabled === true) { current = { templateId: 'original', version: 1 }; }
       else if (loaded.intent?.template === undefined && saved?.template === undefined && legacy !== null &&
         legacy.enable && legacy.disabled !== true) { current = { templateId: 'region', version: 1, region: legacy }; }
-      return { groups: groups.map(item => item.name ?? ''),
-        selectors: groups.filter(item => item.type === 'select').map(item => item.name ?? ''), current: current };
+      return { groups: groups.map(item => item.sourceName ?? ''), labels: labels,
+        selectors: groups.filter(item => item.type === 'select').map(item => item.sourceName ?? ''), current: current };
     },
     preview: async (plan: TemplatePlan): Promise<TemplatePreview> => {
       const epoch = ++generation; receipt = null;

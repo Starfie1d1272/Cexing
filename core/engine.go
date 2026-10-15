@@ -211,6 +211,7 @@ func coreStartTun(fd int, configJson string, overridesJson string) (result error
 	kernelDiagnostic("controller_listen", "success", nil, nil)
 	stage = "config_apply"
 	executor.ApplyConfig(cfg, true)
+	observeAIProbeConfig(configJson)
 	applyLogOverride(overridesJson)
 	activeOverrides = overridesJson
 	kernelDiagnostic("config_apply", "completed", nil, nil)
