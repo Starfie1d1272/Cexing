@@ -75,7 +75,7 @@ func TestCollectBlocksReadersCandidatesUnknownAndUnexpectedFiles(t *testing.T) {
 	release()
 	original := []byte("proxies: []\n")
 	digest := sha256.Sum256(original)
-	pending, err := s.Stage(context.Background(), Result{Original: original, YAML: original, Digest: hex.EncodeToString(digest[:]), ProfileID: "c.yaml", Metadata: "{}"}, choice)
+	pending, err := s.Stage(context.Background(), Result{Original: original, YAML: original, Digest: hex.EncodeToString(digest[:]), ProfileID: "c.yaml", Metadata: "{}"})
 	if err != nil {
 		t.Fatal(err)
 	}
