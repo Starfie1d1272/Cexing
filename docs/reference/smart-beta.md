@@ -4,7 +4,7 @@
 
 ## 启用
 
-「设置 → Smart」的自动转换默认开启，可随时关闭。配置事务对生成的运行副本，在 Merge 后、平台投影与 Mihomo 校验前，默认仅把 `url-test` 组改为 `smart`，`load-balance` 保留原算法，仅启用的 `EditIntent.SmartGroups` 明确选择转换时改为 Smart；组名、节点/提供者成员、Selector/Fallback、手选入口和规则引用保留。生成组请求离线 LightGBM 模型，关闭训练 CSV 收集和 ASN 偏好；模型缺失或无效时 Smart 使用统计策略。关闭开关会经同一事务从原始订阅与 Merge 重新生成原组类型；订阅更新、切换与下次启动重新应用当前开关。原始 YAML 不修改。
+「设置 → Smart」的自动转换默认开启，可随时关闭。配置事务对生成的运行副本，在 Merge 后、平台投影与 Mihomo 校验前，默认仅把 `url-test` 组改为 `smart`，`load-balance` 保留原算法，仅启用的 `EditIntent.SmartGroups` 明确选择转换时改为 Smart；组名、节点/提供者成员、Selector/Fallback、手选入口和规则引用保留。生成组请求离线 LightGBM 模型，关闭训练 CSV 收集和 ASN 偏好；模型缺失或无效时 Smart 使用统计策略。关闭自动转换会经同一事务从原始订阅与 Merge 重新生成，未显式覆盖的组恢复原类型；已启用的逐组选择仍优先于默认开关。订阅更新、切换与下次启动重新应用这些意图。原始 YAML 不修改。
 
 已有 `smart` 组保持原有参数。没有可转换组的纯 Selector 配置不自动新增组；地区模板另行预览和确认。页面的开关是生成策略意图，运行中的实际 Smart 组与模型加载、预测次数以 Controller 状态为准。
 
