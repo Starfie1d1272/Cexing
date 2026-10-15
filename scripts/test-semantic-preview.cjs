@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs'), vm = require('node:vm');
 const ts = require('./ci/transpile-arkts.cjs');
 const source = fs.readFileSync('cexing/entry/src/main/ets/lib/CoreValidator.ets', 'utf8');
-const context = { exports: {}, ...uiFixture.globals, require: key => key.endsWith('/UiText') ? uiFixture.module : {} };
+const context = { exports: {}, ...uiFixture.globals, require: key => key.endsWith('/UiText') ? uiFixture.module : key.endsWith('/ProfileApplyFeedback') ? require('./ci/semantic-fixture.cjs') : {} };
 vm.runInNewContext(ts.transpileModule(source).outputText, context);
 const api = context.exports.CoreValidator;
 const base = { section: 'rules', before: 5, after: 5, contentChanged: true, kind: 'modified' };
@@ -23,3 +23,5 @@ assert.match(api.describeMergeFailure(Error('版本发布结果未知，请断�
 assert.ok(!api.describeMergeFailure(Error('https://private.invalid/?token=synthetic'), { id: 'app.string.editor_preview_failed' }).includes('private'));
 
 assert.match(api.describeMergeFailure(Error('备份恢复未确认，请重新打开应用后重试'), { id: 'app.string.editor_preview_failed' }), /重新打开应用/);
+
+assert.match(api.describeMergeFailure(Error('配置已保存，地区选择待重连恢复'), { id: 'app.string.editor_apply_failed' }), /配置已保存.*连接页.*重新连接/);

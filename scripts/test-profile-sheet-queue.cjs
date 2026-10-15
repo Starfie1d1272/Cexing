@@ -6,6 +6,7 @@ const pages = path.join(root, 'cexing/entry/src/main/ets/pages');
 let starts = 0, active = '';
 let pending = null, takes = 0, diskFull = true, saved = '', transactionBusy = false, finishRegion;
 const modules = {
+  '../lib/ProfileApplyFeedback': require('./ci/semantic-fixture.cjs'),
   '../lib/UiText': { UiText: { get: () => 'draft save failed' } },
   '../lib/GlobalMergeDraft': { GlobalMergeDraft: { read: () => null, save: (_context, text) => {
     if (diskFull) throw Error('disk full'); saved = text;

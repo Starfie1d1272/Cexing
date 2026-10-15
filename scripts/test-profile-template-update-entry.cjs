@@ -13,7 +13,7 @@ const ticket = () => ({ file: 'one.yaml', profileIdentity: 'source', profileVers
 const modules = {
   '@kit.ArkTS': { util: { generateRandomUUID: () => `session-${++serial}` } },
   './Settings': { Settings: { load: () => ({}), idle: async () => {} } },
-  './CoreValidator': { CoreValidator: { prepareResources: async () => {} } },
+  './CoreValidator': { CoreValidator: { ...require('./ci/semantic-fixture.cjs').CoreValidator, prepareResources: async () => {} } },
   './ProfileStore': { ProfileStore: { prepareContent: value => value, getProfileContent: () => 'synthetic', getEnabledMerge: () => '', readEditDraft: () => draft } },
   './EffectiveVersions': { EffectiveVersions: { read: () => ({ Profiles: { 'one.yaml': { ID: version } } }),
     globalContent: () => '', regionPlan: () => null, editIntent: () => structuredClone(published) } },

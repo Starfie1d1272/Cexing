@@ -3123,6 +3123,14 @@
     {
       "name": "proxy_editor_smart_type_change",
       "value": "Smart：%s → %s"
+    },
+    {
+      "name": "merge_committed_recovery",
+      "value": "配置已保存。请到连接页断开后重新连接，恢复地区选择。"
+    },
+    {
+      "name": "merge_open_connection",
+      "value": "前往连接页恢复"
     }
   ]
 }

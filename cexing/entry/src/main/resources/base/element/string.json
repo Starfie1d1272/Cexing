@@ -3123,6 +3123,14 @@
     {
       "name": "proxy_editor_smart_type_change",
       "value": "Smart: %s → %s"
+    },
+    {
+      "name": "merge_committed_recovery",
+      "value": "Configuration saved. Open Connection, disconnect and reconnect to restore the region selection."
+    },
+    {
+      "name": "merge_open_connection",
+      "value": "Open Connection to recover"
     }
   ]
 }

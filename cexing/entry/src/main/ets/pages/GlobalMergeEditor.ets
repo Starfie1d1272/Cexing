@@ -1,3 +1,4 @@
+import { ProfileApplyFeedback } from '../lib/ProfileApplyFeedback';
 import { UiText } from '../lib/UiText';
 import { common } from '@kit.AbilityKit';
 import { promptAction } from '@kit.ArkUI';
@@ -16,6 +17,7 @@ export struct GlobalMergeEditor {
   @State busy: boolean = false;
   @State loadFailed: boolean = false;
   @State summary: string = '';
+  @State committedPending: boolean = false;
   private dirty: boolean = false;
 
   aboutToAppear(): void {
@@ -25,6 +27,8 @@ export struct GlobalMergeEditor {
       this.globalEnabled = current.length > 0;
       this.editedText = GlobalMergeDraft.read(context) ?? current;
       this.loadFailed = false;
+      this.committedPending = ProfileApplyFeedback.recovery(context) === 'committed-pending';
+      if (this.committedPending) { this.summary = UiText.get($r('app.string.merge_committed_recovery')); }
     } catch (_) { this.loadFailed = true; }
   }
 
@@ -54,7 +58,7 @@ export struct GlobalMergeEditor {
   }
 
   private async preview(): Promise<void> {
-    if (this.busy || this.loadFailed || !this.saveDraft()) { return; }
+    if (this.busy || this.loadFailed || this.committedPending || !this.saveDraft()) { return; }
     this.busy = true;
     this.summary = '';
     try {
@@ -66,7 +70,7 @@ export struct GlobalMergeEditor {
   }
 
   private async apply(): Promise<void> {
-    if (this.busy || this.loadFailed || !this.saveDraft()) { return; }
+    if (this.busy || this.loadFailed || this.committedPending || !this.saveDraft()) { return; }
     this.busy = true;
     try {
       const result = await ProfileTransactions.applyGlobalMerge(
@@ -75,8 +79,18 @@ export struct GlobalMergeEditor {
       this.profileRevision++;
       this.toast(result === 'applied' ? UiText.get($r('app.string.editor_global_applied')) : UiText.get($r('app.string.editor_global_saved')));
       this.summary = UiText.get($r('app.string.editor_other_profiles'));
-    } catch (e) { this.summary = this.safeFailure(e, $r('app.string.editor_apply_failed')); }
+    } catch (e) {
+      this.committedPending = ProfileApplyFeedback.classify((e as Error).message ?? '') === 'committed-pending';
+      if (this.committedPending) { this.globalEnabled = this.editedText.length > 0; this.profileRevision++; }
+      this.summary = this.safeFailure(e, $r('app.string.editor_apply_failed'));
+    }
     finally { this.busy = false; }
+  }
+
+  private recoverCommitted(): void {
+    if (this.busy || !this.committedPending || !this.saveDraft()) { return; }
+    this.onClose();
+    AppStorage.setOrCreate('connectionEntryRequest', (AppStorage.get<number>('connectionEntryRequest') ?? 0) + 1);
   }
 
   private safeFailure(error: Object, fallback: Resource): string {
@@ -102,22 +116,26 @@ export struct GlobalMergeEditor {
       TextArea({ text: $$this.editedText, placeholder: UiText.get($r('app.string.editor_yaml_placeholder')) })
         .width('100%').layoutWeight(1).fontSize(14).fontFamily('HarmonyOS Sans Mono')
         .backgroundColor(UI.paper).borderRadius(12).padding(12).accessibilityText(UiText.get($r('app.string.editor_global')))
-        .accessibilityDescription(this.loadFailed ? UiText.get($r('app.string.editor_read_blocked')) : (this.busy ? UiText.get($r('app.string.editor_working')) : '')).enabled(!this.busy && !this.loadFailed).onChange((value: string) => this.changeText(value))
+        .accessibilityDescription(this.loadFailed ? UiText.get($r('app.string.editor_read_blocked')) : (this.busy ? UiText.get($r('app.string.editor_working')) : '')).enabled(!this.busy && !this.loadFailed && !this.committedPending).onChange((value: string) => this.changeText(value))
       if (this.summary.length > 0) {
         Scroll() { Text(this.summary).fontSize(13).fontColor(UI.muted).width('100%') }
           .width('100%').constraintSize({ maxHeight: 120 }).scrollBar(BarState.Auto)
+      }
+      if (this.committedPending) {
+        Button(UiText.get($r('app.string.merge_open_connection'))).constraintSize({ minHeight: 44 }).width('100%')
+          .enabled(!this.busy).onClick(() => this.recoverCommitted())
       }
       Row({ space: 8 }) {
         Button(UiText.get($r('app.string.editor_close'))).layoutWeight(1).constraintSize({ minHeight: 44 }).backgroundColor(UI.soft).fontColor(UI.ink)
           .enabled(!this.busy).onClick(() => this.close())
         Button(UiText.get($r('app.string.editor_save_draft'))).layoutWeight(1).constraintSize({ minHeight: 44 }).backgroundColor(UI.soft).fontColor(UI.ink)
-          .accessibilityDescription(this.loadFailed ? UiText.get($r('app.string.editor_read_blocked')) : (this.busy ? UiText.get($r('app.string.editor_working')) : '')).enabled(!this.busy && !this.loadFailed).onClick(() => { if (this.saveDraft()) { this.toast(UiText.get($r('app.string.editor_draft_saved'))); } })
+          .accessibilityDescription(this.loadFailed ? UiText.get($r('app.string.editor_read_blocked')) : (this.busy ? UiText.get($r('app.string.editor_working')) : '')).enabled(!this.busy && !this.loadFailed && !this.committedPending).onClick(() => { if (this.saveDraft()) { this.toast(UiText.get($r('app.string.editor_draft_saved'))); } })
         Button(UiText.get($r('app.string.editor_preview'))).layoutWeight(1).constraintSize({ minHeight: 44 }).backgroundColor(UI.soft).fontColor(UI.ink)
-          .accessibilityDescription(this.loadFailed ? UiText.get($r('app.string.editor_read_blocked')) : (this.busy ? UiText.get($r('app.string.editor_working')) : '')).enabled(!this.busy && !this.loadFailed).onClick(() => this.preview())
+          .accessibilityDescription(this.loadFailed ? UiText.get($r('app.string.editor_read_blocked')) : (this.busy ? UiText.get($r('app.string.editor_working')) : '')).enabled(!this.busy && !this.loadFailed && !this.committedPending).onClick(() => this.preview())
       }.width('100%')
       Button(this.busy ? UiText.get($r('app.string.editor_working')) : UiText.get($r('app.string.editor_apply_global'))).width('100%').constraintSize({ minHeight: 48 })
         .backgroundColor(UI.action).fontColor(UI.onAccent)
-        .accessibilityDescription(this.loadFailed ? UiText.get($r('app.string.editor_read_blocked')) : (this.busy ? UiText.get($r('app.string.editor_working')) : '')).enabled(!this.busy && !this.loadFailed).onClick(() => this.apply())
+        .accessibilityDescription(this.loadFailed ? UiText.get($r('app.string.editor_read_blocked')) : (this.busy ? UiText.get($r('app.string.editor_working')) : '')).enabled(!this.busy && !this.loadFailed && !this.committedPending).onClick(() => this.apply())
     }.width('100%').height('100%').padding(20).backgroundColor(UI.surface)
   }
 }

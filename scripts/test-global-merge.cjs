@@ -59,7 +59,7 @@ function compile(file, page = false) {
   if (page) src = src.slice(0, src.indexOf('  build()')) + '\n}';
   src = src.split('\n').map(line => line.trimStart().startsWith('@') ? line.replace(/@\w+(?:\([^\n)]*\))?\s*/g, '') : line).join('\n').replace(/export struct /g, 'export class ');
   const sandbox = { exports: {}, getContext: () => ctx, require: n => { assert.ok(n in modules, n); return modules[n]; } };
-  Object.assign(sandbox, uiFixture.globals); modules['../lib/UiText'] = uiFixture.module; modules['../lib/CoreValidator'] = require('./ci/semantic-fixture.cjs');
+  Object.assign(sandbox, uiFixture.globals); modules['../lib/UiText'] = uiFixture.module; modules['../lib/CoreValidator'] = require('./ci/semantic-fixture.cjs'); modules['../lib/ProfileApplyFeedback'] = require('./ci/semantic-fixture.cjs');
 vm.runInNewContext(ts.transpileModule(src, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, sandbox);
   return sandbox.exports;
 }

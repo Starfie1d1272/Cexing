@@ -1,3 +1,4 @@
+import { ProfileApplyFeedback } from './ProfileApplyFeedback';
 import { UiText } from './UiText';
 /* Offline validation on the existing C++ single worker; never applies config. */
 import { common } from '@kit.AbilityKit';
@@ -71,6 +72,7 @@ export namespace CoreValidator {
     if (error === null || error === undefined) { return UiText.get(fallback); }
     const message = (error as Error).message ?? '';
     if (message === '备份恢复未确认，请重新打开应用后重试') { return UiText.get($r('app.string.failure_recovery_restart')); }
+    if (ProfileApplyFeedback.classify(message) === 'committed-pending') { return UiText.get($r('app.string.merge_committed_recovery')); }
     if (message.includes('未确认') || message.includes('结果未知')) { return UiText.get($r('app.string.editor_unknown')); }
     if (message.startsWith('请先启用订阅')) { return UiText.get($r('app.string.editor_enable_first')); }
     if (message === 'Invalid packaged GeoData') { return UiText.get($r('app.string.merge_update_package')); }

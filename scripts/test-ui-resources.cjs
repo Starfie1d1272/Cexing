@@ -24,8 +24,10 @@ locale = 'base'; assert.equal(c.exports.UiText.get({ id: 'action_retry' }), 'Ret
 assert.equal(c.exports.UiText.get({ id: 'a11y_current_profile' }, '%s-user'), 'Current subscription: %s-user');
 assert.deepEqual(calls.at(-1).args, ['%s-user']);
 const semanticContext = { exports: {}, $r: id => ({ id: id.replace(/^app\.string\./, '') }),
-  require: key => key.endsWith('/UiText') ? c.exports : {} };
+  require: key => key.endsWith('/UiText') ? c.exports : key.endsWith('/ProfileApplyFeedback') ? require('./ci/semantic-fixture.cjs') : {} };
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('cexing/entry/src/main/ets/lib/CoreValidator.ets', 'utf8')).outputText, semanticContext);
 assert.equal(semanticContext.exports.CoreValidator.describeMergeChange({ section: 'rules', before: 5, after: 5, reordered: true }), 'Rules: reordered');
 assert.equal(semanticContext.exports.CoreValidator.describeMergePreview({ digest: 'opaque', changes: [], platformChanges: [{}] }), 'Items using device constraints: 1');
 console.log('PASS: matching locale resources/format arguments and actual platform string boundary, without user-text reformatting');
+
+assert.equal(semanticContext.exports.CoreValidator.describeMergeFailure(Error('配置已保存，地区选择待重连恢复'), { id: 'editor_apply_failed' }), 'Configuration saved. Open Connection, disconnect and reconnect to restore the region selection.');
