@@ -882,7 +882,6 @@ export struct ProfilePage {
             Button(this.updatingFile === p.file ? UiText.get($r('app.string.profile_updating')) : UiText.get($r('app.string.profile_update')))
               .width('100%').constraintSize({ minHeight: 56 }).backgroundColor(UI.action).fontColor(UI.onAccent).enabled(this.updatingFile.length === 0)
               .onClick(() => this.updateProfile(p))
-          })
           }
           Button(this.moreActions ? UiText.get($r('app.string.profile_less')) : UiText.get($r('app.string.profile_more')))
             .constraintSize({ minHeight: 48 }).width('100%')
@@ -918,7 +917,8 @@ export struct ProfilePage {
             if (this.isUrlProfile(p.file)) {
             this.DetailAction(UiText.get($r('app.string.profile_copy_url')), () => {
               this.copyOrigin(getContext(this) as common.UIAbilityContext, p.file);
-              }
+            })
+            }
           Button(UiText.get($r('app.string.profile_remove'))).width('100%').constraintSize({ minHeight: 48 }).backgroundColor(Color.Transparent)
             .fontColor(UI.error).onClick(() => this.confirmDelete(p))
           }
