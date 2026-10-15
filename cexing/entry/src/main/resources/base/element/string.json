@@ -3131,6 +3131,14 @@
     {
       "name": "merge_open_connection",
       "value": "Open Connection to recover"
+    },
+    {
+      "name": "rule_discard_confirm_title",
+      "value": "Discard all unapplied changes?"
+    },
+    {
+      "name": "rule_discard_confirm_body",
+      "value": "This removes all unapplied changes and the pending update source for this subscription."
     }
   ]
 }

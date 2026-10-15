@@ -37,6 +37,9 @@ func editorReadRequest(home string, action versionAction, global string) (config
 		if err != nil {
 			return configpipeline.Request{}, err
 		}
+		if err := configpipeline.ApplyProviderResourceEdits(context.Background(), root, action.EditIntent); err != nil {
+			return configpipeline.Request{}, err
+		}
 		resolved, err := regionProviderNames(home, root)
 		if err != nil {
 			return configpipeline.Request{}, err

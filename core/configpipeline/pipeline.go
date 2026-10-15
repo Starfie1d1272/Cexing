@@ -98,6 +98,10 @@ func (c Compiler) Compile(ctx context.Context, r Request) (Result, error) {
 		}
 		merge(root, patch)
 	}
+	baselines, phase, err := prepareRegionResources(ctx, root, r)
+	if err != nil {
+		return Result{}, err
+	}
 	// A selected template owns its region choice; do not also apply legacy region.
 	if r.Region != nil && !r.Region.Disabled && (r.Intent == nil || r.Intent.Disabled || r.Intent.Template == nil) {
 		if err := ApplyRegion(ctx, root, *r.Region); err != nil {
@@ -108,7 +112,7 @@ func (c Compiler) Compile(ctx context.Context, r Request) (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
-	if err := applyBoundEditIntent(ctx, root, r.Intent, sessionTargets(session), nil); err != nil {
+	if err := applyEditIntentPhase(ctx, root, r.Intent, sessionTargets(session), nil, baselines, phase); err != nil {
 		return Result{}, err
 	}
 	var mine *TemplateSnapshot
