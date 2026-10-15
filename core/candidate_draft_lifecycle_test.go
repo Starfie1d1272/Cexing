@@ -21,6 +21,19 @@ func TestCandidateDraftLifecycleActualHostAndCompiler(t *testing.T) {
 	if _, e := os.Stat("../scripts/ci/node_modules/typescript"); e != nil {
 		t.Skip("scripts/ci dependencies required for ArkTS integration")
 	}
+	// Region validation may initialize LightGBM's process-wide sync.Once with a
+	// missing-model fixture. Keep every dispatcher call in a separate Go
+	// process so later real-model forwarding gates start with untouched state.
+	if os.Getenv("CEXING_CANDIDATE_DRAFT_CHILD") != "1" {
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+		defer cancel()
+		cmd := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestCandidateDraftLifecycleActualHostAndCompiler$", "-test.v")
+		cmd.Env = append(os.Environ(), "CEXING_CANDIDATE_DRAFT_CHILD=1")
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("candidate lifecycle child: %v\n%s", err, out)
+		}
+		return
+	}
 	home := t.TempDir()
 	if e := os.WriteFile(filepath.Join(home, "geoip.metadb"), []byte("synthetic"), 0600); e != nil {
 		t.Fatal(e)
