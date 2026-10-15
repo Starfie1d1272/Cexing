@@ -599,7 +599,7 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   assert.ok(!partialDisable.importError.includes('synthetic-token'));
 
   regionFailureMessage = '原手动选项已失效，请先手动选择可用节点再关闭地区策略';
-  await partialDisable.saveRegion(false); assert.match(partialDisable.importError, /代理面板.*可用选项/);
+  await partialDisable.saveRegion(false); assert.equal(partialDisable.importError, uiFixture.module.UiText.get({ id: 'app.string.apply_feedback_selection' }));
   active = 'fixture.yaml';
   controller.status = status.Connected; profile.confirmDelete(profiles[0]); dialog.secondaryButton.action();
   assert.equal(deleted, 0, 'running active profile must be protected');

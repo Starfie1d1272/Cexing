@@ -11,7 +11,9 @@ export namespace RuleDnsText {
     if (kind === 'selection-required') { return UiText.get($r('app.string.apply_feedback_selection')); }
     if (message === '请输入更新间隔' || message === UiText.get($r('app.string.rule_interval_required'))) { return UiText.get($r('app.string.rule_interval_required')); }
     if (message === '请输入 hosts 名称' || message === UiText.get($r('app.string.rule_hosts_required'))) { return UiText.get($r('app.string.rule_hosts_required')); }
-    if (message === '配置已变化，请重新打开' || message === UiText.get($r('app.string.rule_changed'))) { return UiText.get($r('app.string.rule_changed')); }
+    if (['配置已变化，请重新打开', '配置或草稿已变化，请重新打开', '配置或资源已变化，请重新打开',
+      '草稿已变化，请重新打开', '草稿来源已变化，请先处理已有草稿', '请先处理已有的更新草稿'].includes(message) ||
+      message === UiText.get($r('app.string.rule_changed'))) { return UiText.get($r('app.string.rule_changed')); }
     if (message === '已有最终规则，请编辑它' || message === UiText.get($r('app.string.rule_final_exists'))) { return UiText.get($r('app.string.rule_final_exists')); }
     if (message === '请填写规则与目标' || message === UiText.get($r('app.string.rule_fill_required'))) { return UiText.get($r('app.string.rule_fill_required')); }
     if (message === '此规则不支持 no-resolve' || message === UiText.get($r('app.string.rule_no_resolve_unsupported'))) { return UiText.get($r('app.string.rule_no_resolve_unsupported')); }
