@@ -4,7 +4,7 @@ const assert = require('node:assert/strict'), fs = require('node:fs'), vm = requ
 const ts = require('./ci/transpile-arkts.cjs'), { resourceContext } = require('./ci/mock-profile-resources.cjs');
 let ticket, download, rejectDownload, downloads = 0, normalUpdates = 0, writes = 0, applies = 0, editorSource, comparedSource, releaseLoad;
 let published = { template: { templateId: 'ai', version: 1, targetGroup: 'Pick' } }, original = 'successful original';
-let draft, revision = 0, checked, pagePaths = [], toasts = [];
+let draft, revision = 0, checked, pagePaths = [], toasts = [], queuedShare = null;
 const candidate = { original: 'downloaded original', metadata: { origin: 'https://example.invalid/synthetic', sub: {}, updatedAt: 1 } };
 const context = { ...resourceContext(), filesDir: '/synthetic' };
 const tx = { editTicket: () => structuredClone(ticket), isBusy: () => false, onIdle: () => () => {}, update: async () => { normalUpdates++; return 'saved'; } };
@@ -23,7 +23,7 @@ const sourceFactory = (_ctx, file, source) => { assert.equal(file, 'one.yaml'); 
   encode: async (_value, session) => structuredClone(session.intent), label: () => 'synthetic' }; };
 const mods = {
  '@kit.ArkUI': { promptAction: { showToast: value => toasts.push(value.message) } },
- '../lib/ProfileImportInput': { ProfileImportInput: { take: () => null, release() {} } },
+ '../lib/ProfileImportInput': { ProfileImportInput: { take: () => { const value = queuedShare; queuedShare = null; return value; }, release() {} } },
  '../lib/ProfileTransactions': { ProfileTransactions: tx }, '../lib/EditorDraftHosts': { EditorDraftHosts: editorFactory },
  '../lib/TemplateUpdateSource': { createTemplateUpdateSource: sourceFactory },
  '../lib/EffectiveVersions': { EffectiveVersions: { read: () => ({ Profiles: { 'one.yaml': { ID: 'v1' } } }), editIntent: () => published } },
@@ -41,7 +41,7 @@ function page(name) {
 }
 const update = page('ProfileUpdatePage'); mods['./ProfileUpdatePage'] = update;
 const profileExports = page('ProfilePage'); const Profile = profileExports.ProfilePage;
-function reset() { original = 'successful original'; ticket = { file: 'one.yaml', profileIdentity: 'identity', profileVersion: 'v1', activeVersion: 'v1', activeFile: 'one.yaml', draftRevision: 'published' };
+function reset() { queuedShare = null; original = 'successful original'; ticket = { file: 'one.yaml', profileIdentity: 'identity', profileVersion: 'v1', activeVersion: 'v1', activeFile: 'one.yaml', draftRevision: 'published' };
  draft = { schemaVersion: 1, revision: 'published', sourceRevision: 'source', operations: [], template: { templateId: 'ai', version: 1, targetGroup: 'Pick' } }; revision = 0; update.ProfileUpdateBus.request = null; pagePaths = []; releaseLoad = null; }
 function profile() { const p = new Profile(); p.pageVisible = true; p.rootVisible = true; p.currentVisibleTab = 1; p.pageGeneration = 1; p.profileRevision = 0;
  p.navStack = { getAllPathName: () => pagePaths.slice(), pushPath: value => pagePaths.push(value.name) }; p.refresh = () => {}; p.toast = value => toasts.push(value); p.isUrlProfile = () => true; return p; }
@@ -51,12 +51,15 @@ function route(visible = true) { const p = new update.ProfileUpdatePage(); p.pro
  reset(); const p = profile(), reading = p.updateProfile({ file: 'one.yaml' }); await p.updateProfile({ file: 'one.yaml' }); assert.equal(downloads, 1);
  assert.equal(original, 'successful original'); download({ content: candidate.original, meta: candidate.metadata }); await reading;
  assert.equal(pagePaths.join(','), 'profileTemplateUpdate'); assert.equal(normalUpdates, 0); assert.equal(applies, 0);
+ queuedShare = { kind: 'url', value: 'https://example.invalid/queued' }; p.acceptExternalImport();
+ assert.ok(queuedShare); assert.equal(p.showSheet, false, 'a routed review owns the UI before its visibility callback');
  const screen = route(false); assert.equal(screen.request.source.original, candidate.original); assert.equal(update.ProfileUpdateBus.request, null);
  screen.visible = true; screen.visibilityChanged(); assert.equal(screen.ready, true); assert.equal(editorSource, comparedSource);
  let preview = await screen.host.preview({}); assert.equal(writes, 1); assert.equal(original, 'successful original'); assert.equal(applies, 0);
  screen.host.reset(); preview = await screen.host.preview({}); assert.equal(writes, 2, 'own acknowledged draft can be re-previewed');
  const host = screen.host; await host.apply(preview); assert.equal(original, candidate.original); assert.equal(applies, 1); assert.equal(pagePaths.length, 0);
  assert.equal(screen.host, undefined); assert.equal(screen.profileRevision, 1); assert.equal(toasts.at(-1), '订阅已更新');
+ p.onRootVisible(); assert.equal(queuedShare, null); assert.equal(p.inputUrl, 'https://example.invalid/queued');
  reset(); const changed = profile(), pending = changed.updateProfile({ file: 'one.yaml' }); ticket.profileVersion = 'foreign'; download({ content: candidate.original, meta: candidate.metadata }); await pending;
  assert.equal(update.ProfileUpdateBus.request, null); assert.equal(pagePaths.length, 0);
  reset(); const gone = profile(), late = gone.updateProfile({ file: 'one.yaml' }); gone.pageVisible = false; gone.pageGeneration++; download({ content: candidate.original, meta: candidate.metadata }); await late;
