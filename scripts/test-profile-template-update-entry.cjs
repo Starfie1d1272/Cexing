@@ -46,7 +46,7 @@ function load(name, page = false) {
   let source = fs.readFileSync(`cexing/entry/src/main/ets/${page ? 'pages' : 'lib'}/${name}.ets`, 'utf8');
   if (page) { const marker = source.includes('  @Builder') ? '  @Builder' : '  build()'; source = source.slice(0, source.indexOf(marker)) + '\n}';
     source = source.split('\n').map(line => line.trimStart().startsWith('@') ? line.replace(/@\w+(?:\([^\n)]*\))?\s*/g, '') : line).join('\n').replace('export struct ', 'export class '); }
-  const sandbox = { exports: {}, getContext: () => ({ ...resourceContext(), filesDir: '/synthetic' }), require: path => {
+  const sandbox = { exports: {}, ...uiFixture.globals, getContext: () => ({ ...resourceContext(), filesDir: '/synthetic' }), require: path => {
     if (modules[path]) return modules[path];
     const library = path.replace('../lib/', './'); if (modules[library]) return modules[library];
     if (path === '@kit.ArkUI') return { promptAction: { showToast: value => assert.ok(['订阅已更新', '正在连接', '恢复未完成，请重试'].includes(value.message), value.message) } };

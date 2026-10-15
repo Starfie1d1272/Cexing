@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"testing"
 	"time"
 )
@@ -15,6 +16,28 @@ import (
 // Runs actual ArkTS host/transaction/store modules against the real Go dispatcher.
 // Platform file APIs are backed by a temporary filesystem; no listeners or fetch.
 func TestCandidateDraftLifecycleActualHostAndCompiler(t *testing.T) {
+	phases := []string{"save", "cold-reopen", "cold-apply", "consumed", "template-save", "template-reopen", "template-apply"}
+	// #211 supplies the actual rule page fixture. Its combined tree must run
+	// all four stages through this same real worker, not a temporary hook.
+	if _, err := os.Stat("../scripts/ci/candidate-rule-page-lifecycle.cjs"); err == nil {
+		phases = append(phases, "rules-save", "rules-reopen", "rules-modify", "rules-apply")
+	} else if !os.IsNotExist(err) {
+		t.Fatal(err)
+	}
+	runCandidateDraftFixture(t, "../scripts/ci/candidate-draft-lifecycle.cjs", phases)
+}
+
+func TestPairedEditSourceActualReader(t *testing.T) {
+	runCandidateDraftFixture(t, "../scripts/ci/paired-edit-source.cjs", []string{"seed", "read-source"})
+}
+
+// Shared real-worker runner for page/model fixtures. Each caller is isolated
+// from other Go tests; phases share files and open independent Node processes.
+func runCandidateDraftFixture(t *testing.T, script string, phases []string) {
+	t.Helper()
+	if len(phases) == 0 {
+		t.Fatal("candidate fixture requires phases")
+	}
 	if _, e := exec.LookPath("node"); e != nil {
 		t.Skip("Node required for ArkTS integration")
 	}
@@ -27,21 +50,22 @@ func TestCandidateDraftLifecycleActualHostAndCompiler(t *testing.T) {
 	if os.Getenv("CEXING_CANDIDATE_DRAFT_CHILD") != "1" {
 		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 		defer cancel()
-		cmd := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestCandidateDraftLifecycleActualHostAndCompiler$", "-test.v")
+		cmd := exec.CommandContext(ctx, os.Args[0], "-test.run=^"+regexp.QuoteMeta(t.Name())+"$", "-test.v")
 		cmd.Env = append(os.Environ(), "CEXING_CANDIDATE_DRAFT_CHILD=1")
 		if out, err := cmd.CombinedOutput(); err != nil {
 			t.Fatalf("candidate lifecycle child: %v\n%s", err, out)
 		}
+		t.Logf("real candidate fixture stages passed: %v", phases)
 		return
 	}
 	home := t.TempDir()
 	if e := os.WriteFile(filepath.Join(home, "geoip.metadb"), []byte("synthetic"), 0600); e != nil {
 		t.Fatal(e)
 	}
-	for _, phase := range []string{"save", "cold-reopen", "cold-apply", "consumed", "template-save", "template-reopen", "template-apply"} {
+	for _, phase := range phases {
 		ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 		defer cancel()
-		cmd := exec.CommandContext(ctx, "node", "../scripts/ci/candidate-draft-lifecycle.cjs", home, phase)
+		cmd := exec.CommandContext(ctx, "node", script, home, phase)
 		input, e := cmd.StdinPipe()
 		if e != nil {
 			t.Fatal(e)

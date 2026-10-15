@@ -96,8 +96,6 @@ Go-only `Compiler.EditorResourceSource` 仅复用既有 editSource/boundEditSour
 
 成功提交后调用 committed，重连调用 resume。消费状态沿用 `.region-select.json` 并绑定 versionId，旧 pending/previous 仅在来源缺少新字段时迁移。同 selector 的更新保留已消费请求；移除/换组先恢复原手动选项，离线不推断未观察的 reload fallback，后来的手动选择优先。控制面读写受原事务门禁、active version、epoch 和 session 约束；失败不撤销已提交事实。无可恢复选项时在发布前拒绝，并提供手动选择的修复操作。
 
-地区生成需要 provider 成员时，编译器先在双层 Merge 的私有 root 上执行同一 intent 中的 provider 声明操作，再解析本地有效缓存并生成地区实体，最后执行其余个人操作。provider 操作不会在第二阶段重放；所有原始目标 guard 在第一阶段前保存，跨 provider rename 引用改写仍按原始基线严格核对。宿主缓存投影使用 `ApplyProviderResourceEdits`，不提前执行尚未生成的组/规则编辑；最终输出继续走原有完整验证和发布事务。
-
 ### 候选草稿的关闭与恢复
 
 候选 Original、metadata、已解决 intent 与同一个草稿 revision 必须成对保存；页面关闭不调用 undo，也不通过重新下载恢复。普通 `EditorDraftHosts.create(context,file).load()` 自动恢复已有候选，`TemplateUpdateSource` 无显式 override 时使用同一持久来源。相同 override 可继续，其他候选不能覆盖尚未处理的草稿。显式 undo 才清候选，成功 apply 的已消费 revision 只投影成功 provenance。
@@ -107,3 +105,14 @@ Go-only `Compiler.EditorResourceSource` 仅复用既有 editSource/boundEditSour
 事务通过 `ProfileStore.saveEditDraftAtomic` 异步短写循环、fsync、关闭、再次核对 guard/revision 后原子替换同一个文件。失败或迟到保存保留旧记录；冷进程直接读取该完整文件，未完成临时文件不参与恢复。成功来源或字节已变时拒绝沿用旧绑定，保留草稿供冲突处理。`readEditDraftSource(context,file,revision,current?)` 提供有界异步候选读取，页面不得把只含绑定的同步头当作候选正文。
 
 已消费草稿会压缩为小标记；读取该标记始终投影当前成功意图。提交后压缩失败不否认已提交事实，但下一次发布前必须先完成压缩，避免恢复旧版本后旧候选重新出现。模板比较对恢复的已解决候选在其配对原文上重建 authoring Base/Mine，不把新的前置条件重投到旧成功 Original；仍使用共同编译器和收据流程。地区 authoring 资源解析与身份缓存读取不递归获取同一运行锁，身份同时绑定实际投影和资源字节。
+
+### 直接读取者与联测入口
+
+节点、规则等直接调用 ConfigEditor 的模型先捕获 `EditTicket`，再调用 `ProfileTransactions.readEditSource(context,ticket,current?)`。有候选时使用其 Original/metadata，无候选返回 undefined；该只读封装复用同一私有来源读取，前后比较完整 ticket 和成功原文字节，并把取消传给有界异步正文读取，不进入发布门禁或写草稿。保存仍经现有事务，不另建来源库。
+
+未应用候选保留期间，手动/后台订阅更新在下载前拒绝；同一订阅的其他版本发布也不能绕过，只有该草稿的正常 apply 可发布。应用或显式撤销后更新重新放行。因此正常更新不会先改变成功版本、再把配对草稿留成无法打开/撤销的旧来源。
+
+页面联测复用 `runCandidateDraftFixture(t,script,phases)`：真实 Go worker 在独立进程运行，各 Node 阶段共享私有文件。Node fixture 可 require `scripts/ci/candidate-draft-lifecycle.cjs`，使用 runtime/load、action、ctx/file、I/O/worker调度 hooks；实际 Store/Tx/Host/Compiler 不替换。runtime 支持 lib/pages 相对模块解析与页面源码 transform、平台/UI globals。规则组提供 `candidate-rule-page-lifecycle.cjs` 后，标准 runner 自动加 rules-save/reopen/modify/apply 四阶段并打印实际通过列表，缺少其分支时原七阶段仍全部保留；联合验收须核对四阶段实际执行，不能把仅接口分支的成功记为页面通过。
+地区生成需要 provider 成员时，编译器先在双层 Merge 的私有 root 上执行同一 intent 中的 provider 声明操作，再解析本地有效缓存并生成地区实体，最后执行其余个人操作。provider 操作不会在第二阶段重放；所有原始目标 guard 在第一阶段前保存，跨 provider rename 引用改写仍按原始基线严格核对。宿主缓存投影使用 `ApplyProviderResourceEdits`，不提前执行尚未生成的组/规则编辑；最终输出继续走原有完整验证和发布事务。
+
+分阶段执行保留原始操作序号及节点身份。延后执行的新增/更新只承接原顺序中晚于该写入的 provider 改名；mapping 只转换此次 patch 写入的引用字段，不重新改写整棵 root。改名之后才写入的旧名不会被“修复”，仍由完整引用校验拒绝。规则因资源改名改变文本时，原始目标/锚点 alias 跟随原节点，替换/删除同步迁移或清空；所有投影均作用于私有 root，不改持久 intent。
