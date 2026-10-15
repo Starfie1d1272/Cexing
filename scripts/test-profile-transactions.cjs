@@ -10,12 +10,14 @@ const js = ts.transpileModule(source, { compilerOptions: {
 } }).outputText;
 const originals = { 'old.yaml': 'proxies: [old]', 'new.yaml': 'proxies: [new]' };
 const staged = new Map();
-const regionPlans = new Map();
+const regionPlans = new Map(), regionChoices = new Map(), runtimeChoices = new Map(), intents = new Map();
+let editDraft={revision:"",intent:null};
 const state = { Current: { ID: 'version-old', Path: '/versions/old', ProfileID: 'old.yaml' },
   Previous: null, Profiles: {} };
 state.Profiles['old.yaml'] = state.Current;
 let id = 0;
 let response = 'applied';
+let responses = [];
 let commitHook = null, afterCommitHook = null, clearUnknownMarker = false, switchRestoreAt = -1;
 const smartVersionOverrides = new Map();
 let session = 'synthetic-session';
@@ -43,13 +45,15 @@ const core = { CoreApi: {
   applyConfigText: async () => {
     applies++;
     if (applies === switchRestoreAt) session = 'third-session';
-    const result = pending ? await new Promise(resolve => { resolveApply = resolve; }) : response;
+    const result = pending ? await new Promise(resolve => { resolveApply = resolve; }) : (responses.shift() ?? response);
     if (result === 'applied' && reloadFallbackChoice !== '') { currentProxyChoice = reloadFallbackChoice; }
     return result;
   }
 } };
 const versions = { EffectiveVersions: {
   read: () => state,
+  editIntent: (_,v) => intents.get(v.ID) ?? null,
+  regionChoice: (_,v) => regionChoices.get(v.ID) ?? null,
   smartConversion: (_, version) => smartVersionOverrides.has(version.ID) ? smartVersionOverrides.get(version.ID) : smartCurrent,
   original: (_, version) => originals[version.ProfileID],
   overlay: () => '',
@@ -61,10 +65,10 @@ const versions = { EffectiveVersions: {
     return { digest: "synthetic", changes: [{ section: "hosts", before: 0, after: 1 }] };
   },
   regionPlan: (_, version) => regionPlans.get(version.ID) ?? null,
-  stage: async (_, name, original, overlay, metadata, expected, regionPlan) => {
+  stage: async (_, name, original, overlay, metadata, expected, regionPlan, global, intent, regionChoice) => {
     assert.equal(expected, state.Current?.ID ?? '');
     const version = { ID: `version-${++id}`, Path: `/versions/${id}`, ProfileID: name };
-    staged.set(version.Path, { version, original, overlay, metadata, regionPlan, smartPolicy:smartAutoConvert });
+    staged.set(version.Path, { version, original, overlay, metadata, regionPlan, intent, regionChoice, smartPolicy:smartAutoConvert });
     return { version, receipt: '' };
   },
   verify: async () => '',
@@ -74,6 +78,7 @@ const versions = { EffectiveVersions: {
     assert.equal(expected, state.Current?.ID ?? '');
     const entry = staged.get(version.Path);
     regionPlans.set(version.ID, entry.regionPlan);
+    regionChoices.set(version.ID, entry.regionChoice); intents.set(version.ID,entry.intent);
     originals[version.ProfileID] = entry.original;
     state.Profiles[version.ProfileID] = version;
     if (active) { state.Previous = state.Current; state.Current = version; }
@@ -84,6 +89,9 @@ const versions = { EffectiveVersions: {
   discard: async (_, version) => { staged.delete(version.Path); }
 } };
 const store = { ProfileStore: {
+  updateState: (_, file) => ({id:file}), readEditDraft: () => editDraft,
+  runtimeRegionChoice: (_,file,id) => runtimeChoices.get(id) ?? null,
+  saveRuntimeRegionChoice: (_,file,id,state) => { runtimeChoices.set(id,structuredClone(state)); pendingRegionSelector=state.pending;previousRegionChoice=state.previous?.name??'';previousRegionObserved=state.previous?.observed??''; },
   pendingRegionSelection: () => pendingRegionSelector,
   setPendingRegionSelection: (_, __, selector) => { pendingRegionSelector = selector; },
   clearPendingRegionSelection: () => { pendingRegionSelector = ''; },
@@ -109,12 +117,14 @@ const settings = { Settings: {
   idle: async () => {},
   setSmartAutoConvert: (_, enabled) => { smartAutoConvert = enabled; }
 } };
+let regionModule;
 const context = { exports: {}, require: name => {
   if (name === '@kit.CoreFileKit') return { fileIo: { readTextSync: name => {
     if (name.endsWith('/source.json')) return JSON.stringify({ Metadata: JSON.stringify({ origin: '', sub: {}, updatedAt: 1 }) });
     const entry = staged.get(name);
     return entry.original + entry.overlay;
   } } };
+  if (name.endsWith('ProfileRegionChoices')) return regionModule;
   if (name.endsWith('CoreApi')) return core;
   if (name.endsWith('ProfileStore')) return store;
   if (name.endsWith('Settings')) return settings;
@@ -128,6 +138,11 @@ const context = { exports: {}, require: name => {
     } } };
   return {};
 } };
+const effectContext={exports:{}};
+vm.runInNewContext(ts.transpileModule(fs.readFileSync('cexing/entry/src/main/ets/lib/TemplateRegionEffects.ets','utf8')).outputText,effectContext);
+const regionContext={exports:{},require:name=>name.endsWith('TemplateRegionEffects')?effectContext.exports:context.require(name)};
+vm.runInNewContext(ts.transpileModule(fs.readFileSync('cexing/entry/src/main/ets/lib/ProfileRegionChoices.ets','utf8')).outputText,regionContext);
+regionModule=regionContext.exports;
 vm.runInNewContext(js, context);
 const tx = context.exports.ProfileTransactions;
 (async () => {
@@ -197,7 +212,7 @@ const tx = context.exports.ProfileTransactions;
   reloadFallbackChoice = 'Other';
   const beforePartialDisable = state.Current.ID;
   await assert.rejects(tx.setRegionPlan({}, 'new.yaml', { ...region, enable: false }),
-    /地区策略已关闭，但原选项未恢复/);
+    /地区选择待重连恢复/);
   assert.notEqual(state.Current.ID, beforePartialDisable,
     'failed Controller restore must not hide a committed disable');
   assert.equal(regionPlans.get(state.Current.ID).enable, false);
@@ -210,17 +225,13 @@ const tx = context.exports.ProfileTransactions;
     'reconnect retry must restore the original choice');
   assert.equal(currentProxyChoice, 'Original');
   assert.equal(previousRegionChoice, '');
-  previousRegionChoice = 'Original';
-  previousRegionObserved = 'Other';
+  runtimeChoices.set(state.Current.ID,{pending:'',previous:{selector:'Main',name:'Original',observed:'Other'}});
+  previousRegionChoice = 'Original'; previousRegionObserved = 'Other';
   currentProxyChoice = 'Manual';
-  assert.equal(await tx.applyPendingRegionSelection({}), false,
-    'reconnect must not overwrite a later manual choice');
-  assert.equal(currentProxyChoice, 'Manual');
-  assert.equal(previousRegionChoice, 'Original', 'uncertain user intent must not erase restore evidence');
-  currentProxyChoice = 'Other';
   assert.equal(await tx.applyPendingRegionSelection({}), true,
-    'the recorded reload fallback can be retried later');
-  assert.equal(previousRegionChoice, '');
+    'manual outcome consumes the automatic request without overwriting the user');
+  assert.equal(currentProxyChoice, 'Manual');
+  assert.equal(previousRegionChoice, '', 'confirmed manual choice cancels old automatic restoration');
   currentProxyChoice = 'Original';
   assert.equal(await tx.setRegionPlan({}, 'new.yaml', region), 'applied');
   response = 'rejected';
@@ -240,7 +251,7 @@ const tx = context.exports.ProfileTransactions;
   assert.equal(smartCurrent, true);
   assert.equal(await tx.setRegionPlan({}, 'old.yaml', region, true), 'saved');
   assert.equal(state.Current.ProfileID, 'old.yaml', 'create and enable must select the imported profile');
-  assert.equal(pendingRegionSelector, 'Main', 'offline selection intent must survive until Controller is ready');
+  assert.equal(regionChoices.get(state.Current.ID).pending, 'Main', 'offline selection intent must survive until Controller is ready');
   controller.VpnController.status = 2;
   selectAccepted = false;
   assert.equal(await tx.applyPendingRegionSelection({}), false);
@@ -272,6 +283,14 @@ const tx = context.exports.ProfileTransactions;
   assert.equal(state.Current.ID, rejectId, 'rejected restore preserves the current pointer');
   assert.equal(smartAutoConvert,beforeRejectedPreference,'confirmed rejection restores the prior Smart preference');
   response = 'applied';
+  responses = ['applied', 'unknown']; failCommit = true;
+  const beforeRollbackFailure = state.Current.ID;
+  await assert.rejects(tx.update({}, 'old.yaml'), /应用未确认/);
+  assert.equal(state.Current.ID, beforeRollbackFailure);
+  await assert.rejects(tx.activate({}, 'new.yaml'), /重连恢复/);
+  failCommit = false; controller.VpnController.status = 0; uncertain = false;
+  await tx.activate({}, 'old.yaml');
+  controller.VpnController.status = 2;
   const beforeUnknownApply = smartAutoConvert, beforeUnknownPointer = state.Current.ID;
   response='unknown';
   await assert.rejects(tx.setSmartAutoConvert({},!beforeUnknownApply),/应用未确认/);
@@ -331,5 +350,35 @@ const tx = context.exports.ProfileTransactions;
   await assert.rejects(oldResult, /应用未确认/);
   assert.equal(state.Current.ID, priorSessionVersion, 'old runtime result cannot publish into a new session');
   await assert.rejects(tx.activate({}, 'new.yaml'), /重连恢复/);
+  // Candidate Original is inert until the existing publisher commits the same
+  // Original, metadata, intent and initial region choice in one version.
+  controller.VpnController.status=0; uncertain=false; pending=false;
+  await tx.activate({},'old.yaml');
+  const candidate={original:'proxies: [candidate]',metadata:{origin:'synthetic',sub:{},updatedAt:7}};
+  editDraft={revision:'candidate-draft',intent:{schemaVersion:1,revision:'candidate-draft',sourceRevision:'s',operations:[],template:{templateId:'region',version:1,region}}};
+  const originalBefore=originals['old.yaml'];
+  const ticket=tx.editTicket({},'old.yaml');
+  await tx.previewEditDraft({},ticket,candidate);assert.equal(originals['old.yaml'],originalBefore);
+  failCommit=true;await assert.rejects(tx.applyEditDraft({},ticket,undefined,undefined,candidate),/commit failure/);
+  assert.equal(originals['old.yaml'],originalBefore);failCommit=false;
+  await tx.applyEditDraft({},ticket,undefined,undefined,candidate);
+  assert.equal(originals['old.yaml'],candidate.original);
+  const success=staged.get(state.Current.Path);assert.equal(JSON.parse(success.metadata).updatedAt,7);
+  assert.equal(success.intent.template.templateId,'region');assert.equal(success.regionChoice.pending,'Main');
+  controller.VpnController.status=2;currentProxyChoice='Original';
+  await tx.applyPendingRegionSelection({});assert.equal(currentProxyChoice,'Cexing Smart Main');
+  // Same-selector rebase preserves a later manual choice and consumed pending.
+  const beforeMissingChoice=state.Current.ID;
+  runtimeChoices.set(beforeMissingChoice,{pending:'',previous:undefined});
+  editDraft={revision:'missing-choice',intent:{schemaVersion:1,revision:'missing-choice',sourceRevision:'s',operations:[],template:{templateId:'original',version:1}}};
+  await assert.rejects(tx.applyEditDraft({},tx.editTicket({},'old.yaml')),/请先在代理面板选择可用节点/);
+  assert.equal(state.Current.ID,beforeMissingChoice,'unrestorable manual choice is refused before publication');
+  runtimeChoices.set(beforeMissingChoice,{pending:'',previous:{selector:'Main',name:'Original',observed:'Original'}});
+  currentProxyChoice='Manual';await tx.update({},'old.yaml');assert.equal(currentProxyChoice,'Manual');
+  assert.equal(regionChoices.get(state.Current.ID).pending,'');
+  // Removing a template uses the same restoration path as a legacy region plan.
+  editDraft={revision:'remove-template',intent:{schemaVersion:1,revision:'remove-template',sourceRevision:'s',operations:[],template:{templateId:'original',version:1}}};
+  await tx.applyEditDraft({},tx.editTicket({},'old.yaml'));
+  assert.equal(currentProxyChoice,'Manual');assert.equal(regionChoices.get(state.Current.ID).previous,undefined);
   console.log('PASS: rejected, unknown, staged pointer, merge reapply and concurrent profile transactions');
 })().catch(error => { console.error(error); process.exitCode = 1; });

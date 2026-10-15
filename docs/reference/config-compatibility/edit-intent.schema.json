@@ -4,30 +4,235 @@
   "title": "Private per-subscription EditIntent v1",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schemaVersion", "revision", "sourceRevision", "operations"],
+  "required": [
+    "schemaVersion",
+    "revision",
+    "sourceRevision",
+    "operations"
+  ],
   "properties": {
-    "schemaVersion": {"const": 1},
-    "revision": {"type": "string", "minLength": 1},
-    "sourceRevision": {"type": "string", "minLength": 1},
-    "disabled": {"type": "boolean"},
-    "smartGroups": {"type": "object", "maxProperties": 512, "additionalProperties": {"type": "boolean"}},
+    "schemaVersion": {
+      "const": 1
+    },
+    "revision": {
+      "type": "string",
+      "minLength": 1
+    },
+    "sourceRevision": {
+      "type": "string",
+      "minLength": 1
+    },
+    "disabled": {
+      "type": "boolean"
+    },
+    "smartGroups": {
+      "type": "object",
+      "maxProperties": 512,
+      "additionalProperties": {
+        "type": "boolean"
+      }
+    },
     "operations": {
-      "type": "array", "maxItems": 512,
+      "type": "array",
+      "maxItems": 512,
       "items": {
-        "type": "object", "additionalProperties": false,
-        "required": ["id", "kind", "section"],
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "kind",
+          "section"
+        ],
         "properties": {
-          "id": {"type": "string", "minLength": 1},
-          "kind": {"enum": ["add", "update", "delete", "move", "rename"]},
-          "section": {"enum": ["proxies", "proxy-providers", "proxy-groups", "rules", "rule-providers", "dns", "hosts"]},
-          "target": {"type": "string"},
-          "expected": {"type": "string"},
-          "preconditions": {"type": "object", "additionalProperties": {"type": "string"}},
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "kind": {
+            "enum": [
+              "add",
+              "update",
+              "delete",
+              "move",
+              "rename",
+              "disable"
+            ]
+          },
+          "section": {
+            "enum": [
+              "proxies",
+              "proxy-providers",
+              "proxy-groups",
+              "rules",
+              "rule-providers",
+              "dns",
+              "hosts"
+            ]
+          },
+          "target": {
+            "type": "string"
+          },
+          "expected": {
+            "type": "string"
+          },
+          "preconditions": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
           "value": {},
-          "patch": {"type": "object"},
-          "remove": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
-          "before": {"type": "string"},
-          "name": {"type": "string"}
+          "patch": {
+            "type": "object"
+          },
+          "remove": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "uniqueItems": true
+          },
+          "before": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "template": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "templateId",
+        "version"
+      ],
+      "properties": {
+        "templateId": {
+          "enum": [
+            "original",
+            "region",
+            "ai",
+            "automatic"
+          ]
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "targetGroup": {
+          "type": "string"
+        },
+        "region": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mode",
+            "selector",
+            "enable"
+          ],
+          "properties": {
+            "mode": {
+              "enum": [
+                "region",
+                "all"
+              ]
+            },
+            "selector": {
+              "type": "string"
+            },
+            "enable": {
+              "type": "boolean"
+            },
+            "disabled": {
+              "type": "boolean"
+            },
+            "assignments": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "replaceRules": {
+          "type": "boolean"
+        },
+        "baseline": {
+          "$ref": "#/$defs/templateSnapshot"
+        },
+        "mine": {
+          "$ref": "#/$defs/templateSnapshot"
+        }
+      },
+      "dependentRequired": {
+        "baseline": [
+          "mine"
+        ],
+        "mine": [
+          "baseline"
+        ]
+      }
+    }
+  },
+  "$defs": {
+    "templateSnapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "templateId",
+        "version",
+        "entries"
+      ],
+      "properties": {
+        "templateId": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_./-]{0,127}$"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "entries": {
+          "type": "array",
+          "maxItems": 512,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "section",
+              "value"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_./-]{0,127}$"
+              },
+              "section": {
+                "enum": [
+                  "proxies",
+                  "proxy-providers",
+                  "proxy-groups",
+                  "rules",
+                  "rule-providers",
+                  "dns",
+                  "hosts"
+                ]
+              },
+              "value": {}
+            }
+          }
+        },
+        "deleted": {
+          "type": "array",
+          "maxItems": 512,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_./-]{0,127}$"
+          }
         }
       }
     }

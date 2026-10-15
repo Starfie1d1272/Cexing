@@ -11,6 +11,8 @@ import { util } from '@kit.ArkTS';
 import { Logger } from './Logger';
 import { suggestProfileName, profileNameFromUrl } from './ProfileName';
 import { EffectiveVersions } from './EffectiveVersions';
+import { RegionChoiceState } from './TemplateRegionEffects';
+import { EditIntent } from './ConfigEditor';
 import { BoundedFileReader } from './BoundedFileReader';
 
 const TAG = 'profileStore';
@@ -49,7 +51,45 @@ export interface ProfileUpdateState {
   retryAt: number;
 }
 
+export interface EditDraft { revision: string; intent: EditIntent | null; }
+
 export namespace ProfileStore {
+  function intentDraftPath(context: common.Context, file: string): string {
+    if (!/^[^/\\\u0000-\u001f]{1,128}\.ya?ml$/i.test(file)) { throw new Error('无效的配置文件名'); }
+    return `${ensureDir(context)}/${file}.intent.json`;
+  }
+
+  export function readEditDraft(context: common.Context, file: string): EditDraft {
+    const path = intentDraftPath(context, file);
+    if (!fileIo.accessSync(path)) {
+      const version = EffectiveVersions.read(context)?.Profiles[file];
+      const intent = version !== undefined ? EffectiveVersions.editIntent(context, version) : null;
+      return { revision: intent?.revision ?? '', intent: intent };
+    }
+    if (fileIo.statSync(path).size > 1024 * 1024 + 1024) { throw new Error('编辑草稿超限'); }
+    const draft = JSON.parse(fileIo.readTextSync(path)) as EditDraft;
+    if (typeof draft.revision !== 'string' || draft.revision.length === 0 ||
+      draft.intent === undefined || (draft.intent !== null && draft.intent.revision !== draft.revision)) {
+      throw new Error('编辑草稿损坏');
+    }
+    const version = EffectiveVersions.read(context)?.Profiles[file];
+    const applied = version !== undefined ? EffectiveVersions.editIntent(context, version) : null;
+    if (applied !== null && applied.revision === draft.revision) {
+      // The compiler may enrich the applied intent with template Base/Mine.
+      // An applied draft is now the successful provenance; an unpublished UUID
+      // keeps its own content and is never silently rebased here.
+      return { revision: draft.revision, intent: applied };
+    }
+    return draft;
+  }
+
+  /** Called by the shared transaction gate after strict worker schema checking. */
+  export function saveEditDraft(context: common.Context, file: string, draft: EditDraft,
+    expected: string): void {
+    if (readEditDraft(context, file).revision !== expected) { throw new Error('草稿已变化，请重新打开'); }
+    atomicText(intentDraftPath(context, file), JSON.stringify(draft));
+  }
+
   let pendingImports: string[] = [];
   /** One stable identity per imported source; rename moves this sidecar too.
    * Legacy global lastAutoUpdateMs is intentionally not attributed to any source.
@@ -399,6 +439,10 @@ export namespace ProfileStore {
     if (fileIo.accessSync(updatePath)) {
       try { await fileIo.unlink(updatePath); } catch (_) { /* orphan schedule is not effective */ }
     }
+    const intentPath = intentDraftPath(context, file);
+    if (fileIo.accessSync(intentPath)) {
+      try { await fileIo.unlink(intentPath); } catch (_) { /* inert orphan */ }
+    }
     clearPendingRegionSelection(context, file);
     clearPreviousRegionSelection(context, file);
     try { clearDraft(context, file); } catch (_) { /* non-effective draft */ }
@@ -449,6 +493,24 @@ export namespace ProfileStore {
     const entry = JSON.parse(fileIo.readTextSync(p)) as Record<string, Object>;
     if (entry['enabled'] !== true) { return ''; }
     return getMergeDraft(context, file);
+  }
+
+  /** Runtime consumption belongs only to this exact immutable version. */
+  export function runtimeRegionChoice(context: common.Context, file: string, versionId: string): RegionChoiceState | null {
+    const p = `${ensureDir(context)}/${file}.region-select.json`;
+    if (!fileIo.accessSync(p)) { return null; }
+    const raw = JSON.parse(fileIo.readTextSync(p)) as Record<string, Object>;
+    if (raw['versionId'] !== versionId) { return null; }
+    const state = raw['state'] as RegionChoiceState;
+    if (state === undefined || typeof state.pending !== 'string' ||
+      (state.previous !== undefined && (typeof state.previous.selector !== 'string' ||
+      typeof state.previous.name !== 'string'))) { throw new Error('地区选择记录损坏'); }
+    return state;
+  }
+
+  export function saveRuntimeRegionChoice(context: common.Context, file: string,
+    versionId: string, state: RegionChoiceState): void {
+    atomicText(`${ensureDir(context)}/${file}.region-select.json`, JSON.stringify({ versionId: versionId, state: state }));
   }
 
   export function pendingRegionSelection(context: common.Context, file: string): string {
@@ -765,7 +827,7 @@ export namespace ProfileStore {
     }
     // Reset the new source before publishing its raw file. A leftover sidecar
     // must either be neutralized or make import fail, never silently reactivate.
-    for (const suffix of ['.url', '.merge.json', '.region-select.json', '.region-previous.json']) {
+    for (const suffix of ['.intent.json', '.url', '.merge.json', '.region-select.json', '.region-previous.json']) {
       const stale = `${d}/${file}${suffix}`;
       if (fileIo.accessSync(stale)) { fileIo.unlinkSync(stale); }
     }

@@ -16,7 +16,7 @@ let unlinkResolve;
 let unlinkReject;
 let delayDelete = false;
 let failMetaMove = false;
-let effectiveState = null;
+let effectiveState = null, publishedIntent = null;
 let invalidPointer = false, renameMoves = 0;
 const io = {
   open: async name => { data.set(name, ''); asyncBuffers.set(name, Buffer.alloc(0)); return { fd: name }; },
@@ -61,6 +61,7 @@ const context = { exports: {}, require: name => {
   if (name.endsWith('Logger')) return { Logger: { info() {}, warn() {}, error() {} } };
   if (name.endsWith('ProfileName')) return {};
   if (name.endsWith('EffectiveVersions')) return { EffectiveVersions: {
+    editIntent: () => publishedIntent,
     read: () => { if (invalidPointer) throw Error('invalid pointer'); return effectiveState; },
     original: (_, version) => data.get(`/files/profile-versions/${version.ID}/original.yaml`)
   } };
@@ -85,8 +86,11 @@ const ctx = { filesDir: '/files' };
   store.saveMergeDraft(ctx, second, 'hosts: {synthetic.example: 192.0.2.1}');
   assert.equal(store.getMergeDraft(ctx, second), 'hosts: {synthetic.example: 192.0.2.1}');
   const identity = store.updateState(ctx, second).id;
+  store.saveEditDraft(ctx, second, { revision: 'draft-1', intent: { schemaVersion: 1, revision: 'draft-1', sourceRevision: 's', operations: [] } }, '');
+  assert.throws(() => store.saveEditDraft(ctx, second, { revision: 'old', intent: null }, ''), /草稿已变化/);
   const renamed = store.renameProfile(ctx, second, 'renamed');
   assert.equal(store.updateState(ctx, renamed).id, identity);
+  assert.equal(store.readEditDraft(ctx, renamed).revision, 'draft-1');
   assert.equal(store.getMergeDraft(ctx, renamed), 'hosts: {synthetic.example: 192.0.2.1}');
   const collisionSource = store.importContent(ctx, 'collision-source', 'proxies: [untouched]');
   const sourceBase = `/files/profiles/${collisionSource}`;
@@ -161,6 +165,11 @@ const ctx = { filesDir: '/files' };
   assert.equal(store.getMeta(ctx)[renamed].origin, meta.origin);
   data.delete(`/files/profiles/${renamed}`);
   assert.ok(store.list(ctx).some(profile => profile.file === renamed), 'restored immutable sources remain visible without legacy files');
+  publishedIntent = { schemaVersion:1, revision:'draft-1', sourceRevision:'s', operations:[],
+    template:{templateId:'ai',version:1,targetGroup:'Main',baseline:{templateId:'ai',version:1,entries:[]},mine:{templateId:'ai',version:1,entries:[],deleted:['ai/openai']}} };
+  assert.equal(store.readEditDraft(ctx,renamed).intent.template.mine.deleted[0],'ai/openai','successful generated provenance supersedes the already-applied sidecar');
+  store.saveEditDraft(ctx,renamed,{revision:'unapplied',intent:{schemaVersion:1,revision:'unapplied',sourceRevision:'s',operations:[]}},'draft-1');
+  assert.equal(store.readEditDraft(ctx,renamed).intent.template,undefined,'unapplied private draft remains isolated');
   invalidPointer = true;
   assert.throws(() => store.getActiveFile(ctx), /invalid pointer/);
   console.log('PASS: unique imports, uppercase YAML listing/rename, awaited deletion and effective-version precedence');
