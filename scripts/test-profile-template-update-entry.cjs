@@ -2,6 +2,7 @@
 // worker responses are synthetic; real compiler/publication lives in Go tests.
 const assert = require('node:assert/strict'), fs = require('node:fs'), vm = require('node:vm');
 const ts = require('./ci/transpile-arkts.cjs');
+const uiFixture = require('./ci/ui-fixtures.cjs');
 let serial = 0, version = 'v1', writes = 0, applies = 0, reads = 0, encodes = 0;
 const snapshot = { templateId: 'ai', version: 1, entries: [] };
 let published = { schemaVersion: 1, revision: 'published', sourceRevision: 'source', operations: [],
@@ -42,7 +43,8 @@ function load(name, page = false) {
   let source = fs.readFileSync(`cexing/entry/src/main/ets/${page ? 'pages' : 'lib'}/${name}.ets`, 'utf8');
   if (page) { const marker = source.includes('  @Builder') ? '  @Builder' : '  build()'; source = source.slice(0, source.indexOf(marker)) + '\n}';
     source = source.split('\n').map(line => line.trimStart().startsWith('@') ? line.replace(/@\w+(?:\([^\n)]*\))?\s*/g, '') : line).join('\n').replace('export struct ', 'export class '); }
-  const sandbox = { exports: {}, getContext: () => ({ filesDir: '/synthetic' }), require: path => {
+  const sandbox = { exports: {}, ...uiFixture.globals, getContext: () => ({ filesDir: '/synthetic' }), require: path => {
+    if (path.endsWith('/UiText')) return uiFixture.module;
     if (modules[path]) return modules[path];
     if (path === '@kit.ArkUI') return { promptAction: {} };
     if (path.startsWith('@') || path === './NativeTheme') return {};
