@@ -73,7 +73,7 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
     '../lib/ProfileStore': { ProfileStore: { getActiveFile: () => activeHomeFile } },
     '../lib/Settings': { Settings: { load: () => ({ mode: 'rule' }) } },
     '../lib/AppRuntime': { AppRuntime: { cancelRestore: () => cancelRestore++ } },
-    '../lib/ProfileTransactions': { ProfileTransactions: { isBusy: () => false, ensureActiveSmartPolicy: () => smartPrepare() } },
+    '../lib/ProfileTransactions': { ProfileTransactions: { onIdle: () => () => {}, isBusy: () => false, ensureActiveSmartPolicy: () => smartPrepare() } },
     './ProfilePage': { ProfileDetailBus: { current: '' } }
   }, { Date: { now: () => now }, setInterval: cb => { tick = cb; return 1; },
     clearInterval: () => timerCleared++, AlertDialog: { show: value => { dialog = value; } } });
@@ -192,7 +192,7 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
       '../lib/ProfileStore': { ProfileStore: { getActiveFile: ()=>'fixture.yaml' } },
       '../lib/Settings': { Settings: { load: ()=>({mode:'rule'}) } },
       '../lib/AppRuntime': { AppRuntime: { cancelRestore() {} } },
-      '../lib/ProfileTransactions': { ProfileTransactions: { isBusy: () => false, ensureActiveSmartPolicy: async()=>{preparations++;} } },
+      '../lib/ProfileTransactions': { ProfileTransactions: { onIdle: () => () => {}, isBusy: () => false, ensureActiveSmartPolicy: async()=>{preparations++;} } },
       './ProfilePage': { ProfileDetailBus: { current:'' } }
     }, { getContext: ()=>real.context, setInterval:()=>1, clearInterval() {} });
     const actualHome = new ActualHome();actualHome.rootVisible=true;actualHome.currentVisibleTab=0;
@@ -271,7 +271,7 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
     '@kit.CoreFileKit': {}, '@kit.ArkTS': {}, '@kit.BasicServicesKit': {}, './ProfileEditPage': {}, './ProfileTemplatePage': { ProfileTemplateBus: { file: '' } }, './ProfileProxyEditorPage': { ProfileProxyEditorBus: { file: '' } }, './RuleDnsEditorPage': { RuleDnsEditorBus: { file: '', section: '' } },
     '../lib/CoreApi': { CoreApi: {} },
     '../lib/EffectiveVersions': { EffectiveVersions: { read: () => null } },
-    '../lib/ProfileTransactions': { ProfileTransactions: { isBusy: () => false,
+    '../lib/ProfileTransactions': { ProfileTransactions: { onIdle: () => () => {}, isBusy: () => false,
       remove: async () => { deleted++; }, activate: (...args) => activateResult(...args),
       setRegionPlan: (...args) => regionResult(...args),
       ensureActiveSmartPolicy: () => smartPrepare(),
@@ -522,7 +522,7 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
       read: () => ({ Profiles: { 'candidate.yaml': {} } }),
       regionPlan: () => ({ mode: 'region', selector: 'Main', assignments: {}, enable: committedRegionEnabled })
     } },
-    '../lib/ProfileTransactions': { ProfileTransactions: { isBusy: () => false,
+    '../lib/ProfileTransactions': { ProfileTransactions: { onIdle: () => () => {}, isBusy: () => false,
       setRegionPlan: async () => {
         committedRegionEnabled = false;
         throw Error('地区策略已关闭，但原选项未恢复');
@@ -556,7 +556,7 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   let failDraft = true;
   const Edit = load('ProfileEditPage', { ...common,
     '../lib/ProfileStore': { ProfileStore: { writeDraft: () => { if (failDraft) throw Error('disk full'); } } },
-    '../lib/ProfileTransactions': { ProfileTransactions: { isBusy: () => false, edit: async () => 'applied' } }
+    '../lib/ProfileTransactions': { ProfileTransactions: { onIdle: () => () => {}, isBusy: () => false, edit: async () => 'applied' } }
   });
   const editor = new Edit(); editor.persistDraft('synthetic');
   assert.equal(editor.dirty, true); assert.equal(editor.draftPersisted, false, 'failed draft write cannot claim recovery');
