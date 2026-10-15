@@ -9,6 +9,7 @@ import { Settings } from './Settings';
 import { EditorSourceCandidate } from './EditorDraftHosts';
 import { CoreValidator } from './CoreValidator';
 import { describeTemplateConflict } from './TemplateConflictPresentation';
+import { ProfileTransactions, EditTicket } from './ProfileTransactions';
 
 interface SourceInput {
   profileId: string; profileVersion: string; original: string; globalMerge: string;
@@ -27,6 +28,13 @@ export function createTemplateUpdateSource(context: common.Context, profileId: s
   let stamp = '';
   let generation = 0;
   let comparison: TemplateUpdateRequest | null = null;
+  let ticket: EditTicket | null = null;
+  const check = (expected: EditTicket, epoch: number): void => {
+    if (epoch !== generation) { throw new Error('TEMPLATE_UPDATE_SESSION'); }
+    if (JSON.stringify(expected) !== JSON.stringify(ProfileTransactions.editTicket(context, profileId))) {
+      throw new Error('TEMPLATE_UPDATE_SOURCE_CHANGED');
+    }
+  };
   const call = async (input: SourceInput): Promise<SourceReply> => {
     const text = JSON.stringify({ op: 'template-update-preview', source: input });
     if (text.length > 50 * 1024 * 1024) { throw new Error('TEMPLATE_UPDATE_LIMIT'); }
@@ -37,6 +45,7 @@ export function createTemplateUpdateSource(context: common.Context, profileId: s
     return reply;
   };
   return {
+    cancel: (): void => { generation++; comparison = null; captured = null; ticket = null; revision = ''; stamp = ''; },
     available: (templateId: string, target: string): boolean => {
       try {
         const version = EffectiveVersions.read(context)?.Profiles[profileId];
@@ -48,42 +57,49 @@ export function createTemplateUpdateSource(context: common.Context, profileId: s
     },
     read: async (session: EditorDraftSession): Promise<TemplateUpdateRequest> => {
       const epoch = ++generation;
-      captured = null; comparison = null; stamp = ''; revision = '';
+      captured = null; comparison = null; ticket = null; stamp = ''; revision = '';
       if (session.profileId !== profileId || session.intent?.template === undefined) {
         throw new Error('TEMPLATE_UPDATE_SESSION');
       }
+      const expected = ProfileTransactions.editTicket(context, profileId);
+      if (expected.draftRevision !== session.intent.revision) { throw new Error('TEMPLATE_UPDATE_SESSION'); }
+      const restored = await ProfileTransactions.readEditSource(context, expected, () => epoch === generation);
+      check(expected, epoch);
       const version = EffectiveVersions.read(context)?.Profiles[profileId];
-      const draft = ProfileStore.readEditDraft(context, profileId);
-      const restored = await ProfileStore.readEditDraftSource(context, profileId, draft.revision);
+      if (restored !== undefined && candidateOriginal !== undefined && candidateOriginal !== restored.original) {
+        throw new Error('TEMPLATE_UPDATE_SOURCE_CHANGED');
+      }
       const original = candidateOriginal ?? restored?.original ?? ProfileStore.getProfileContent(context, profileId);
-      if (version === undefined || original === null) { throw new Error('TEMPLATE_UPDATE_SOURCE_CHANGED'); }
+      if (version === undefined || version.ID !== expected.profileVersion || original === null) { throw new Error('TEMPLATE_UPDATE_SOURCE_CHANGED'); }
       const input: SourceInput = { profileId: profileId, profileVersion: version.ID,
         original: ProfileStore.prepareContent(original), globalMerge: EffectiveVersions.globalContent(context),
         overlay: ProfileStore.getEnabledMerge(context, profileId), overrides: JSON.stringify(Settings.load(context)),
         intent: JSON.parse(JSON.stringify(session.intent)) as EditIntent, action: 'read',
-        resolvedDraft: restored !== undefined && session.intent.revision === draft.revision &&
+        resolvedDraft: restored !== undefined && session.intent.revision === expected.draftRevision &&
           (candidateOriginal === undefined || candidateOriginal === restored.original) };
       await CoreValidator.prepareResources(context);
-      if (epoch !== generation) { throw new Error('TEMPLATE_UPDATE_SESSION'); }
+      check(expected, epoch);
       const reply = await call(input);
-      if (epoch !== generation) { throw new Error('TEMPLATE_UPDATE_SESSION'); }
+      check(expected, epoch);
       if (reply.request === undefined || typeof reply.stamp !== 'string' || reply.stamp.length !== 64) {
         throw new Error('TEMPLATE_UPDATE_SOURCE_CHANGED');
       }
-      captured = input; revision = session.revision; stamp = reply.stamp;
+      captured = input; ticket = expected; revision = session.revision; stamp = reply.stamp;
       comparison = JSON.parse(JSON.stringify(reply.request)) as TemplateUpdateRequest;
       return reply.request;
     },
     encode: async (candidate: TemplateSnapshot, session: EditorDraftSession): Promise<EditIntent> => {
-      if (captured === null || session.revision !== revision || session.profileId !== profileId ||
+      if (captured === null || ticket === null || session.revision !== revision || session.profileId !== profileId ||
         JSON.stringify(session.intent) !== JSON.stringify(captured.intent)) {
         throw new Error('TEMPLATE_UPDATE_SESSION');
       }
       const epoch = generation;
+      const expected = ticket; check(expected, epoch);
       const input = JSON.parse(JSON.stringify(captured)) as SourceInput;
       input.action = 'encode'; input.stamp = stamp;
       input.candidate = JSON.parse(JSON.stringify(candidate)) as TemplateSnapshot;
       const reply = await call(input);
+      check(expected, epoch);
       if (epoch !== generation || reply.intent === undefined) { throw new Error('TEMPLATE_UPDATE_VALIDATION'); }
       return reply.intent;
     },

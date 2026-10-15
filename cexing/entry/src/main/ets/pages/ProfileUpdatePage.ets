@@ -1,4 +1,3 @@
-import { ProfileApplyRecovery } from '../lib/ProfileApplyRecovery';
 import { common } from '@kit.AbilityKit';
 import { promptAction } from '@kit.ArkUI';
 import { EditorDraftHosts, EditorSourceCandidate } from '../lib/EditorDraftHosts';
@@ -20,8 +19,6 @@ export struct ProfileUpdatePage {
   @Consume('nav') navStack: NavPathStack;
   @Consume('profileRevision') profileRevision: number;
   @State private ready: boolean = false;
-  private recovering: boolean = false;
-  private recoveryGeneration: number = 0;
   @State private failed: boolean = false;
   private file: string = '';
   private request: ProfileUpdateRequest | null = null;
@@ -34,7 +31,6 @@ export struct ProfileUpdatePage {
   }
   aboutToDisappear(): void { this.release(); }
   private release(): void {
-    this.recoveryGeneration++;
     if (this.ready) { this.profileRevision++; }
     this.host?.reset?.(); this.host = undefined; this.request = null;
     this.ready = false; this.failed = true;
@@ -89,29 +85,9 @@ export struct ProfileUpdatePage {
     } catch (_) { this.failed = true; }
   }
 
-  private async recover(selection: boolean): Promise<void> {
-    if (!this.visible || !this.ready || this.recovering) { return; }
-    if (selection) { this.navStack.pushPath({ name: 'zashboard' }); return; }
-    this.recovering = true;
-    const generation = this.recoveryGeneration;
-    const current = (): boolean => this.visible && this.ready && generation === this.recoveryGeneration;
-    const context = getContext(this) as common.UIAbilityContext;
-    try {
-      const accepted = await ProfileApplyRecovery.reconnect(context, current);
-      if (!current() || accepted === null) { return; }
-      promptAction.showToast({ message: context.resourceManager.getStringByNameSync(
-        accepted ? 'apply_feedback_starting' : 'apply_feedback_recovery_failed'), duration: 1800 });
-      if (accepted) { this.release(); this.navStack.pop(); }
-    } catch (_) {
-      if (current()) {
-        promptAction.showToast({ message: context.resourceManager.getStringByNameSync('apply_feedback_recovery_failed'), duration: 1800 });
-      }
-    } finally { this.recovering = false; }
-  }
-
   build() {
     if (this.ready && this.host !== undefined) {
-      TemplateUpdateReview({ onRecovery: (selection: boolean) => this.recover(selection), profileId: this.file, host: this.host, onClose: () => {
+      TemplateUpdateReview({ profileId: this.file, host: this.host, onClose: () => {
         this.release(); if (this.visible) { this.navStack.pop(); }
       } })
     } else if (this.failed) {

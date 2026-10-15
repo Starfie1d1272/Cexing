@@ -1,13 +1,13 @@
 const assert = require('node:assert/strict'), fs = require('node:fs'), vm = require('node:vm');
 const ts = require('./ci/transpile-arkts.cjs');
 let expectedOriginal='prepared original', inputs = [], prepared = 0, pendingRead, precision = false;
-const snapshot = { templateId: 'ai', version: 1, entries: [{id:'a',section:'rules',value:'DOMAIN,a.synthetic,Old'},{id:'b',section:'rules',value:'DOMAIN,b.synthetic,Old'}] };
+const snapshot = { templateId: 'ai', version: 1, entries: [] };
 const intent = { schemaVersion: 1, revision: 'intent', sourceRevision: 'source', operations: [], template: { templateId: 'ai', version: 1, targetGroup: 'Pick' } };
-let published = structuredClone(intent);
+let published = structuredClone(intent), paired, activeVersion='version-successful';
 const session = revision => ({ profileId: 'one.yaml', revision, intent: structuredClone(intent), snapshot: { sourceRevision: 'source', sections: [] } });
-const presentation = { exports: {} };
-vm.runInNewContext(ts.transpileModule(fs.readFileSync('cexing/entry/src/main/ets/lib/TemplateConflictPresentation.ets','utf8')).outputText,presentation);
-const modules = { './TemplateConflictPresentation': presentation.exports,
+const ticket=()=>({file:'one.yaml',profileIdentity:'identity',profileVersion:'version-successful',activeVersion:activeVersion,activeFile:'one.yaml',draftRevision:intent.revision});
+const modules = {
+ './ProfileTransactions':{ProfileTransactions:{editTicket:ticket,readEditSource:async(_ctx,captured,current)=>{assert.deepEqual(captured,ticket());assert.equal(current(),true);return paired}}},
  'libentry.so': { versionAction: async (root, raw) => {
   if (precision) return JSON.stringify({ error: 'TEMPLATE_UPDATE_PRECISION' });
   assert.equal(root, '/synthetic'); const value = JSON.parse(raw); assert.equal(value.op, 'template-update-preview'); inputs.push(value.source);
@@ -40,13 +40,16 @@ vm.runInNewContext(ts.transpileModule(fs.readFileSync('cexing/entry/src/main/ets
  const older = source.read(session('old-page')); await new Promise(setImmediate);
  const newer = session('new-page'); await source.read(newer); release();
  await assert.rejects(older, /SESSION/); await source.encode(snapshot, newer);
- const conflictA={id:'opaque-a',entity:'a',section:'rules',kind:'edit'},conflictB={id:'opaque-b',entity:'b',section:'rules',kind:'edit'};
- assert.notEqual(source.label(conflictA),source.label(conflictB));assert.match(source.label(conflictA),/a.synthetic/);
- assert.match(source.detail(conflictA).mine,/a.synthetic/);assert.ok(!source.label(conflictA).includes('opaque-a'));
+ assert.equal(source.label({ section: 'rules' }), '分流规则');
  const downloaded={original:'downloaded',metadata:{origin:'synthetic',sub:{},updatedAt:1}};
  const candidateSource=sandbox.exports.createTemplateUpdateSource({filesDir:'/synthetic'},'one.yaml',downloaded);
  downloaded.original='caller mutation';expectedOriginal='prepared downloaded';
  await candidateSource.read(session('candidate'));await candidateSource.encode(snapshot,session('candidate'));
+ paired={original:'paired',metadata:{origin:'synthetic',sub:{},updatedAt:2}};expectedOriginal='prepared paired';
+ await source.read(session('restored'));assert.equal(inputs.at(-1).resolvedDraft,true);
+ activeVersion='foreign-version';await assert.rejects(source.encode(snapshot,session('restored')),/SOURCE_CHANGED/);activeVersion='version-successful';
+ await assert.rejects(candidateSource.read(session('candidate')),/SOURCE_CHANGED/);
+ paired=undefined;
  precision = true; await assert.rejects(source.read(session('precise')), /PRECISION/);
  console.log('PASS: real update source uses existing worker/context/provenance, binds candidate encoding and rejects changed/late sessions');
 })().catch(error => { console.error(error); process.exitCode = 1; });

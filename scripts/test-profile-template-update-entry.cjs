@@ -12,6 +12,7 @@ let draft = { revision: 'published', intent: structuredClone(published) };
 const ticket = () => ({ file: 'one.yaml', profileIdentity: 'source', profileVersion: version,
   activeVersion: version, activeFile: 'one.yaml', draftRevision: draft.revision });
 const modules = {
+  './ProfileApplyFeedback': { ProfileApplyFeedback: { ...require('./ci/load-profile-feedback.cjs').ProfileApplyFeedback, recovery: () => '' } },
   './ProfileApplyRecovery': { ProfileApplyRecovery: { reconnect: async (_context, current) => { recoverCalls++; return recoverResult(current); } } },
   './UiText': uiFixture.module,
   '@kit.ArkTS': { util: { generateRandomUUID: () => `session-${++serial}` } },
@@ -22,7 +23,7 @@ const modules = {
     globalContent: () => '', regionPlan: () => null, editIntent: () => structuredClone(published) } },
   './ConfigEditor': { ConfigEditor: { list: async () => ({ sourceRevision: 'source', sections: [
     { section: 'proxy-groups', items: [{ id: 'group', name: 'Pick', sourceName: 'Pick', type: 'select' }] }] }) } },
-  './ProfileTransactions': { ProfileTransactions: { editTicket: ticket,
+  './ProfileTransactions': { ProfileTransactions: { editTicket: ticket, readEditSource: async () => undefined,
     saveEditDraft: async (_context, captured, intent, guard) => { await guard(); assert.equal(captured.draftRevision, draft.revision);
       draft = { revision: `draft-${++serial}`, intent: structuredClone(intent) }; draft.intent.revision = draft.revision; writes++; return draft.revision; },
     previewEditDraft: async () => ({ digest: 'compiler-digest', changes: [{ section: 'rules', before: 1, after: 2 }] }),
@@ -85,22 +86,5 @@ async function idle(model) { for (let i = 0; i < 30 && model.busy; i++) await ne
   const checkedCandidate = await candidateHost.preview({}); assert.equal(successfulOriginal, 'synthetic', 'real shared factory cannot publish during candidate preview');
   await candidateHost.apply(checkedCandidate); assert.equal(successfulOriginal, 'downloaded synthetic');
   assert.equal(applies, 2); assert.equal(paths.length, 0); assert.equal(downloaded.host, undefined);
-  // Real wrapper callbacks use shared recovery; hidden/duplicate/late work cannot navigate.
-  for (const RecoveryPage of [Page, update.ProfileUpdatePage]) {
-    const p = new RecoveryPage(); let pops = 0, panels = 0;
-    p.visible = true; p.ready = true; p.profileRevision = 0;
-    p.navStack = { pop: () => pops++, pushPath: path => { assert.equal(path.name, 'zashboard'); panels++; } };
-    await p.recover(true); assert.equal(panels, 1);
-    recoverResult = async () => null; await p.recover(false); assert.equal(pops, 0); assert.equal(p.ready, true);
-    let settle; recoverResult = () => new Promise(resolve => { settle = resolve; });
-    const before = recoverCalls, pending = p.recover(false); await p.recover(false);
-    assert.equal(recoverCalls, before + 1); p.visible = false; settle(true); await pending; assert.equal(pops, 0);
-    p.visible = true; p.ready = true;
-    recoverResult = () => new Promise(resolve => { settle = resolve; });
-    const departed = p.recover(false); p.release(); p.ready = true;
-    settle(true); await departed; assert.equal(pops, 0, 'reentering cannot revive the old navigation session');
-    p.visible = true; recoverResult = async current => current(); await p.recover(false);
-    assert.equal(pops, 1); assert.equal(p.ready, false);
-  }
   console.log('PASS: production template entry -> default update Source/Host -> inert save/preview -> original receipt apply and route release (synthetic platform/worker)');
 })().catch(error => { console.error(error); process.exitCode = 1; });

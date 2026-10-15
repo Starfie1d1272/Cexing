@@ -1,7 +1,7 @@
-import { ProfileApplyFeedback } from './ProfileApplyFeedback';
 import { common } from '@kit.AbilityKit';
 import core from 'libentry.so';
 import { TemplatePreview } from './TemplateWizardModel';
+import { ProfileApplyFeedback, ProfileApplyFailureKind } from './ProfileApplyFeedback';
 
 // Private compiler snapshots only, never log/support-export these values.
 export interface TemplateEntity { id: string; section: string; value: Object; }
@@ -12,22 +12,6 @@ export interface TemplateUpdateRequest {
 }
 export interface TemplateConflict { id: string; entity: string; section: string; path?: string[]; kind: string; }
 export interface TemplateConflictDetail { title: string; mine: string; template: string; }
-export interface TemplateApplyFailure { kind: string; message: string; }
-// Exact allowlist of shared transaction outcomes; arbitrary exception bodies
-// never become UI text. Saved and unknown outcomes require recovery, not replay.
-export function templateApplyFailure(error: Error): TemplateApplyFailure {
-  const kind = ProfileApplyFeedback.classify(error?.message ?? '');
-  if (kind === 'unconfirmed') {
-    return { kind: 'unconfirmed', message: '应用未确认，请返回连接页断开后重连恢复' };
-  }
-  if (kind === 'committed-pending') {
-    return { kind: 'saved-recovery', message: '配置已保存，地区选择待重连恢复' };
-  }
-  if (kind === 'selection-required') {
-    return { kind: 'retry', message: '请先在代理面板选择可用选项，再关闭或切换地区策略' };
-  }
-  return { kind: 'retry', message: '应用失败，请重新预览' };
-}
 export interface TemplateUpdatePreview { ready: boolean; candidate?: TemplateSnapshot; conflicts: TemplateConflict[]; validation?: TemplatePreview; }
 
 export namespace TemplateUpdates {
@@ -59,11 +43,11 @@ export interface TemplateUpdateHost {
 }
 
 export class TemplateUpdateModel {
+  applyFailure: ProfileApplyFailureKind | '' = '';
   preview: TemplateUpdatePreview | null = null;
   busy: boolean = false;
   error: string = '';
   result: string = '';
-  recoveryRequired: boolean = false;
   private decisions: Record<string, string> = {};
   private generation: number = 0;
   private open: boolean = true;
@@ -71,12 +55,17 @@ export class TemplateUpdateModel {
   private changed: () => void;
   constructor(host: TemplateUpdateHost, changed: () => void) { this.host = host; this.changed = changed; }
   close(): void { this.open = false; this.generation++; this.host.reset?.(); }
+  needsRepair(): boolean { return this.applyFailure !== '' && this.applyFailure !== 'failed'; }
+  setApplyFailure(kind: ProfileApplyFailureKind | ''): void {
+    this.generation++; this.busy = false; this.applyFailure = kind; this.preview = null;
+    this.error = ''; this.result = ''; this.emit();
+  }
   private current(generation: number): boolean { return this.open && this.generation === generation; }
   private emit(): void { if (this.open) { this.changed(); } }
   async refresh(): Promise<void> {
-    if (!this.open || this.busy || this.recoveryRequired) { return; }
+    if (!this.open || this.busy || this.needsRepair()) { return; }
     const generation = ++this.generation;
-    this.busy = true; this.error = ''; this.result = ''; this.recoveryRequired = false; this.preview = null; this.emit();
+    this.busy = true; this.error = ''; this.result = ''; this.preview = null; this.emit();
     try {
       const decisions: Record<string, string> = {};
       for (const id of Object.keys(this.decisions)) { decisions[id] = this.decisions[id]; }
@@ -95,10 +84,10 @@ export class TemplateUpdateModel {
     this.decisions[id] = choice;
     await this.refresh();
   }
-  async reset(): Promise<void> { if (this.busy || !this.open || this.recoveryRequired) { return; } this.decisions = {}; this.host.reset?.(); await this.refresh(); }
+  async reset(): Promise<void> { if (this.busy || !this.open || this.needsRepair()) { return; } this.decisions = {}; this.host.reset?.(); await this.refresh(); }
   async apply(): Promise<void> {
     const preview = this.preview;
-    if (!this.open || this.busy || preview === null || !preview.ready || preview.conflicts.length > 0 || preview.candidate === undefined || preview.validation === undefined) { return; }
+    if (!this.open || this.busy || this.needsRepair() || preview === null || !preview.ready || preview.conflicts.length > 0 || preview.candidate === undefined || preview.validation === undefined) { return; }
     const generation = ++this.generation;
     this.busy = true; this.error = ''; this.emit();
     try {
@@ -106,10 +95,8 @@ export class TemplateUpdateModel {
       if (this.current(generation)) { this.result = result; this.preview = null; }
     } catch (error) {
       if (this.current(generation)) {
-        const failure = templateApplyFailure(error as Error);
-        this.recoveryRequired = failure.kind !== 'retry';
-        this.error = failure.kind === 'saved-recovery' ? '' : failure.message;
-        this.result = failure.kind === 'saved-recovery' ? failure.message : '';
+        this.applyFailure = ProfileApplyFeedback.classify((error as Error)?.message ?? '');
+        this.error = this.applyFailure === 'failed' ? '应用失败，请重新预览' : '';
         this.preview = null;
       }
     } finally { if (this.current(generation)) { this.busy = false; this.emit(); } }
