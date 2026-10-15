@@ -3195,6 +3195,14 @@
     {
       "name": "template_conflict_new",
       "value": "New template: %s"
+    },
+    {
+      "name": "profile_last_updated",
+      "value": "Updated %s"
+    },
+    {
+      "name": "profile_not_updated",
+      "value": "Not updated yet"
     }
   ]
 }

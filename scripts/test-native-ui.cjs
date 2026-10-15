@@ -269,6 +269,7 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   assert.match(failedRevoke.lanError,/重试/);
 
   let active = 'fixture.yaml', deleted = 0, rejectImport = true;
+  let importAsync = async (_context, _name, _content, current) => { assert.ok(current()); importedWrites++; return 'candidate.yaml'; };
   let activateResult = async () => 'applied';
   let regionResult = async () => 'saved';
   const profiles = [{ file: 'fixture.yaml', name: 'Fixture', active: true },
@@ -286,6 +287,7 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
     '../lib/ProfileStore': { ProfileStore: { list: () => profiles, getMeta: () => ({}),
       isApplyUncertain: () => uncertainProfile, updateState: () => ({ ...updateState }),
       importContent: () => { importedWrites++; return 'candidate.yaml'; },
+      importContentAsync: (...args) => importAsync(...args),
       getActiveFile: () => active, getOrigin: () => '', pendingRegionSelection: () => '',
       importFromUrl: async () => { if (rejectImport) throw Error('network'); return 'candidate.yaml'; } } }
   }, { AlertDialog: { show: value => { dialog = value; } }, canIUse: () => true });
@@ -430,6 +432,23 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   assert.equal(importedWrites, 1); assert.equal(damagedFile.importing, false);
   assert.ok(!toasts.some(value => value.includes('private-uri')));
   console.log('PASS: shared async file helper, repeated import, late read suppression and safe failure');
+  readYaml = async () => 'proxies: []';
+  let finishImportWrite, importCurrent;
+  importAsync = (_context, _name, _content, current) => { importCurrent = current; return new Promise(resolve => { finishImportWrite = resolve; }); };
+  const writingFile = activationPage().page;
+  const writing = writingFile.importFile('file://docs/writing.yaml');
+  await new Promise(setImmediate); assert.equal(writingFile.importing, true);
+  writingFile.aboutToDisappear(); assert.equal(importCurrent(), false);
+  finishImportWrite('candidate.yaml'); await writing;
+  assert.equal(writingFile.importedFile, '', 'late async persistence cannot reopen an import sheet');
+  importAsync = async () => { throw Error('private disk failure'); };
+  const failedWrite = activationPage().page; await failedWrite.importFile('file://docs/io.yaml');
+  assert.equal(failedWrite.importedFile, ''); assert.equal(failedWrite.importing, false);
+  assert.ok(!toasts.some(value => value.includes('private disk')));
+  const times = activationPage().page; times.updateTimes = { 'a.yaml': 1000, 'b.yaml': 2000 };
+  assert.notEqual(times.lastUpdated('a.yaml'), times.lastUpdated('b.yaml'));
+  assert.equal(times.lastUpdated('missing.yaml'), '尚未更新');
+  importAsync = async (_context, _name, _content, current) => { assert.ok(current()); importedWrites++; return 'candidate.yaml'; };
   uncertainProfile = true;
   const recovery = activationPage().page;
   assert.equal(recovery.recoveryNeeded, true);

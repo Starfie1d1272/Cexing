@@ -73,6 +73,7 @@ export struct ProfilePage {
   @State recoveryNeeded: boolean = false;
   @State recovering: boolean = false;
   @State updateFeedback: Record<string, string> = {};
+  @State updateTimes: Record<string, number> = {};
   private sharedFileUri: string = '';
   private externalImport: ProfileImportCandidate | null = null;
   private importGeneration: number = 0;
@@ -322,14 +323,16 @@ export struct ProfilePage {
     this.metas = ProfileStore.getMeta(context);
     this.recoveryNeeded = ProfileStore.isApplyUncertain(context);
     const feedback: Record<string, string> = {};
+    const times: Record<string, number> = {};
     for (const p of this.profiles) {
       if (!this.isUrlProfile(p.file)) { continue; }
       try {
         const state = ProfileStore.updateState(context, p.file);
+        times[p.file] = Math.max(state.succeededAt, (this.metas[p.file]?.updatedAt ?? 0) * 1000);
         if (state.failedAt > state.succeededAt) { feedback[p.file] = UiText.get($r('app.string.profile_auto_failed')); }
       } catch (_) { feedback[p.file] = UiText.get($r('app.string.profile_update_unavailable')); }
     }
-    this.updateFeedback = feedback;
+    this.updateFeedback = feedback; this.updateTimes = times;
     if (this.selectedFile.length > 0 && !this.profiles.some((p: ProfileMeta) => p.file === this.selectedFile)) {
       this.selectedFile = '';
       if (this.detailOnTop()) { this.navStack.pop(); }
@@ -343,6 +346,12 @@ export struct ProfilePage {
   private metaStamp(file: string): number {
     const m = this.metas[file];
     return m !== undefined ? m.updatedAt : 0;
+  }
+
+  private lastUpdated(file: string): string {
+    const stamp = this.updateTimes[file] ?? 0;
+    return stamp > 0 ? UiText.get($r('app.string.profile_last_updated'), new Date(stamp).toLocaleString()) :
+      UiText.get($r('app.string.profile_not_updated'));
   }
 
   private detailKey(p: ProfileMeta): string {
@@ -788,7 +797,8 @@ export struct ProfilePage {
       if (!current()) { return; }
       const seg = uri.split('/').pop() ?? `file_${Date.now()}`;
       const name = decodeURIComponent(seg).replace(/\.(yaml|yml)$/i, '');
-      const file = ProfileStore.importContent(context, name, content);
+      const file = await ProfileStore.importContentAsync(context, name, content, current);
+      if (!current()) { return; }
       this.finishImport(file);
     } catch (e) {
       if (this.pageVisible && page === this.pageGeneration && request === this.importGeneration) {
@@ -908,6 +918,7 @@ export struct ProfilePage {
           Text(p.name).fontSize(28).fontWeight(FontWeight.Bold).fontColor(UI.ink).width('100%')
           Text(this.isUrlProfile(p.file) ? UiText.get($r('app.string.profile_url_type')) : UiText.get($r('app.string.profile_local_type'))).fontSize(14).fontColor(UI.muted).width('100%')
           Text(this.subText(p)).fontSize(14).fontColor(UI.muted).width('100%')
+          if (this.isUrlProfile(p.file)) { Text(this.lastUpdated(p.file)).fontSize(14).fontColor(UI.muted).width('100%') }
           if (this.updateFeedback[p.file] !== undefined) {
             Text(this.updateFeedback[p.file]).fontSize(14).fontColor(UI.error).width('100%')
             if (p.active) {

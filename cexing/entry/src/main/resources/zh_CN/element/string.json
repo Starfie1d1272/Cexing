@@ -3195,6 +3195,14 @@
     {
       "name": "template_conflict_new",
       "value": "新模板：%s"
+    },
+    {
+      "name": "profile_last_updated",
+      "value": "最后更新 %s"
+    },
+    {
+      "name": "profile_not_updated",
+      "value": "尚未更新"
     }
   ]
 }
