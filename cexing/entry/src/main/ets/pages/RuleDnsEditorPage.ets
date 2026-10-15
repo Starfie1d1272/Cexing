@@ -1,9 +1,10 @@
+import { CoreValidator } from '../lib/CoreValidator';
 import { util } from '@kit.ArkTS';
-import { RegionPlan } from '../lib/EffectiveVersions';
+import { EditorDraftHosts } from '../lib/EditorDraftHosts';
 import { common } from '@kit.AbilityKit';
 import { NativeTheme as UI } from './NativeTheme';
 import { RuleDnsEditForm } from './RuleDnsEditForm';
-import { ConfigEditor, EditIntent, EditOperation, EditableSnapshot, EditableSection, EditableItem, EditTarget } from '../lib/ConfigEditor';
+import { EditIntent, EditOperation, EditableSnapshot, EditableSection, EditableItem, EditTarget, EditorDraftHost, EditorDraftSession, EditorDraftPreview } from '../lib/ConfigEditor';
 import { RuleDnsForms } from '../lib/RuleDnsForms';
 import { VpnController, VpnStatus } from '../lib/VpnController';
 import { RuleProviderStatus } from '../lib/RuleProviderStatus';
@@ -28,8 +29,6 @@ export struct RuleDnsEditorPage {
   @State previewReady: boolean = false;
   @State targets: string[] = ['DIRECT', 'REJECT'];
   @State providers: string[] = [];
-  @State choiceSection: string = '';
-  @State choices: EditableItem[] = [];
   @State rename: string = '';
   @State providerState: string = '';
   @State providerError: string = '';
@@ -37,14 +36,14 @@ export struct RuleDnsEditorPage {
   private active: boolean = false;
   private epoch: number = 0;
   private file: string = '';
-  private original: string = '';
-  private localOverlay: string = '';
   private ticket: EditTicket | null = null;
   private snapshot: EditableSnapshot | null = null;
   private intent: EditIntent | null = null;
   private undo: EditIntent | null = null;
   private liveProviderName: string = '';
-  private region: RegionPlan | null = null;
+  private host: EditorDraftHost | null = null;
+  private session: EditorDraftSession | null = null;
+  private shown: EditorDraftPreview | null = null;
 
   aboutToAppear(): void { this.file = RuleDnsEditorBus.file; this.section = RuleDnsEditorBus.section; this.active = this.visible; if (this.active) { this.load(); } }
   aboutToDisappear(): void { this.active = false; this.epoch++; this.busy = false; }
@@ -58,81 +57,38 @@ export struct RuleDnsEditorPage {
     this.items = (this.snapshot?.sections.find((part: EditableSection) => part.section === this.section)?.items ?? []).slice();
     this.additions = []; this.selected = null; this.isNew = false;
   }
-  private async load(): Promise<void> {
-    const epoch = ++this.epoch; this.busy = true; this.previewReady = false;
-    this.ticket = null; this.snapshot = null; this.intent = null; this.items = []; this.additions = []; this.selected = null; this.undo = null;
-    this.targets = ['DIRECT', 'REJECT']; this.providers = []; this.choices = [];
-    const context = getContext(this) as common.UIAbilityContext;
-    try {
-      const ticket = ProfileTransactions.editTicket(context, this.file);
-      const original = ProfileStore.getProfileContent(context, this.file);
-      if (original === null) { throw new Error('原始配置不存在'); }
-      const overlay = ProfileStore.getEnabledMerge(context, this.file);
-      const draft = ProfileStore.readEditDraft(context, this.file).intent;
-      const version = EffectiveVersions.read(context)?.Profiles[this.file];
-      const region = version !== undefined ? EffectiveVersions.regionPlan(context, version) : null;
-      const viewIntent = draft === null ? undefined : JSON.parse(JSON.stringify(draft)) as EditIntent;
-      if (viewIntent !== undefined) { viewIntent.disabled = false; }
-      const view = await ConfigEditor.list(context, original, overlay, ticket.activeVersion, undefined, viewIntent, region ?? undefined);
-      if (!this.current(epoch)) { return; }
-      this.ticket = ticket; this.original = original; this.localOverlay = overlay; this.region = region; this.snapshot = view;
-      this.intent = draft ?? { schemaVersion: 1, revision: ticket.draftRevision || 'new-draft', sourceRevision: view.sourceRevision, operations: [] };
-      this.targets = ['DIRECT', 'REJECT'].concat(view.sections.find((part: EditableSection) => part.section === 'proxy-groups')?.items.map((item: EditableItem) => item.name ?? '').filter((name: string) => name !== '') ?? []);
-      this.providers = view.sections.find((part: EditableSection) => part.section === 'rule-providers')?.items.map((item: EditableItem) => item.name ?? '').filter((name: string) => name !== '') ?? [];
-      this.choiceSection = ''; this.list(); this.message = '';
-    } catch (_) { if (this.current(epoch)) { this.message = '无法打开编辑，请重试'; } }
-    finally { if (this.current(epoch)) { this.busy = false; } }
-  }
-  private viewIntent(): EditIntent | undefined {
-    if (this.intent === null) { return undefined; }
-    const view = JSON.parse(JSON.stringify(this.intent)) as EditIntent;
-    view.disabled = false;
-    return view;
-  }
-  private async refreshList(context: common.UIAbilityContext, epoch: number): Promise<void> {
-    if (this.ticket === null) { return; }
-    const snapshot = await ConfigEditor.list(context, this.original, this.localOverlay, this.ticket.activeVersion,
-      undefined, this.viewIntent(), this.region ?? undefined);
-    if (!this.current(epoch)) { return; }
-    this.snapshot = snapshot;
-    const groups = snapshot.sections.find((part: EditableSection) => part.section === 'proxy-groups')?.items ?? [];
-    const providers = snapshot.sections.find((part: EditableSection) => part.section === 'rule-providers')?.items ?? [];
+  private acceptSession(session: EditorDraftSession): void {
+    this.session = session; this.snapshot = session.snapshot;
+    this.intent = session.intent ?? { schemaVersion: 1, revision: session.revision, sourceRevision: session.snapshot.sourceRevision, operations: [] };
+    const groups = session.snapshot.sections.find((part: EditableSection) => part.section === 'proxy-groups')?.items ?? [];
+    const providers = session.snapshot.sections.find((part: EditableSection) => part.section === 'rule-providers')?.items ?? [];
     this.targets = ['DIRECT', 'REJECT'].concat(groups.map((item: EditableItem) => item.name ?? '').filter((name: string) => name !== ''));
     this.providers = providers.map((item: EditableItem) => item.name ?? '').filter((name: string) => name !== '');
+    this.ticket = ProfileTransactions.editTicket(getContext(this) as common.UIAbilityContext, this.file);
     this.list();
   }
-
-  private async open(item: EditableItem): Promise<void> {
-    if (this.busy || !this.active || this.ticket === null) { return; }
-    const epoch = ++this.epoch; this.busy = true;
+  private async load(): Promise<void> {
+    const epoch = ++this.epoch; this.busy = true; this.previewReady = false; this.shown = null;
+    this.session = null; this.snapshot = null; this.intent = null; this.items = []; this.selected = null;
+    this.targets = ['DIRECT', 'REJECT']; this.providers = [];
+    const host = EditorDraftHosts.create(getContext(this) as common.UIAbilityContext, this.file);
+    this.host = host;
     try {
-      const value = await ConfigEditor.target(getContext(this) as common.UIAbilityContext,
-        this.original, this.localOverlay, this.ticket.activeVersion, this.section, item.id, undefined, this.viewIntent(), this.region ?? undefined);
+      const session = await host.load();
+      if (!this.current(epoch)) { return; }
+      this.acceptSession(session); this.message = '';
+    } catch (error) { if (this.current(epoch)) { this.message = (error as Error).message || '无法打开编辑，请重试'; } }
+    finally { if (this.current(epoch)) { this.busy = false; } }
+  }
+  private async open(item: EditableItem): Promise<void> {
+    if (this.busy || !this.active || this.session === null || this.host === null) { return; }
+    const epoch = ++this.epoch; const host = this.host; const revision = this.session.revision; this.busy = true;
+    try {
+      const value = await host.target(this.section, item.id, revision);
       if (!this.current(epoch)) { return; }
       this.liveProviderName = value.name ?? '';
       this.selected = value; this.isNew = false; this.providerState = ''; this.providerError = ''; this.showProviderError = false;
     } catch (_) { if (this.current(epoch)) { this.message = '配置已变化，请重新打开'; } }
-    finally { if (this.current(epoch)) { this.busy = false; } }
-  }
-  private choose(section: string): void {
-    if (this.busy) { return; }
-    this.choiceSection = section;
-    this.choices = this.snapshot?.sections.find((part: EditableSection) => part.section === section)?.items ?? [];
-  }
-  private async pick(item: EditableItem): Promise<void> {
-    if (this.busy || this.ticket === null) { return; }
-    const epoch = ++this.epoch; const section = this.choiceSection; this.busy = true;
-    try {
-      const value = await ConfigEditor.target(getContext(this) as common.UIAbilityContext,
-        this.original, this.localOverlay, this.ticket.activeVersion, section, item.id, undefined, this.viewIntent(), this.region ?? undefined);
-      if (!this.current(epoch)) { return; }
-      const name = value.name ?? '';
-      if (name !== '') {
-        if (section === 'proxy-groups' && !this.targets.includes(name)) { this.targets = this.targets.concat([name]); }
-        if (section === 'rule-providers' && !this.providers.includes(name)) { this.providers = this.providers.concat([name]); }
-      }
-      this.choices = []; this.choiceSection = '';
-    } catch (_) { if (this.current(epoch)) { this.message = '无法读取此选项，请重试'; } }
     finally { if (this.current(epoch)) { this.busy = false; } }
   }
   private intentIdentity(intent: EditIntent | null): string {
@@ -172,27 +128,30 @@ export struct RuleDnsEditorPage {
     this.isNew = true; this.insertionBefore = this.items[0]?.id ?? '';
   }
   private async preview(next: EditIntent | null): Promise<void> {
-    if (this.busy || !this.active || this.ticket === null) { return; }
-    const epoch = ++this.epoch; const ticket = this.ticket; this.busy = true; this.previewReady = false;
-    const context = getContext(this) as common.UIAbilityContext;
+    if (this.busy || !this.active || this.session === null || this.host === null) { return; }
+    const epoch = ++this.epoch; const host = this.host; const revision = this.session.revision;
+    this.busy = true; this.previewReady = false; this.shown = null;
     try {
-      await ProfileTransactions.saveEditDraft(context, ticket, next);
+      const session = next === null ? await host.undo(revision) : await host.save(next, revision);
       if (!this.current(epoch)) { return; }
-      // Only this successful, still-current save authorizes capturing its new ticket.
-      this.ticket = ProfileTransactions.editTicket(context, this.file);
-      this.intent = ProfileStore.readEditDraft(context, this.file).intent;
-      const result = await ProfileTransactions.previewEditDraft(context, this.ticket);
+      this.acceptSession(session);
+      const preview = await host.preview(session.revision);
       if (!this.current(epoch)) { return; }
-      await this.refreshList(context, epoch);
-      if (!this.current(epoch)) { return; }
-      this.previewReady = true;
-      const sections = result.changes.map((change) => change.section).filter((name: string) => ['rules', 'rule-providers', 'dns', 'hosts'].includes(name));
-      const labels = sections.map((name: string) => name === 'rules' ? '规则' : name === 'rule-providers' ? '规则源' : name === 'dns' ? 'DNS' : 'hosts');
-      this.message = labels.length > 0 ? `${labels.join(' / ')} 已校验` : result.changes.length > 0 ? '变更已校验' : '没有变更';
+      this.shown = preview; this.previewReady = true;
+      this.message = CoreValidator.describeMergePreview(preview.changes);
     } catch (error) { if (this.current(epoch)) {
       const message = (error as Error).message;
       this.message = /未确认|恢复|变化|正在进行|不存在/.test(message) ? message : '变更未通过校验，可修改或撤销';
     } }
+    finally { if (this.current(epoch)) { this.busy = false; } }
+  }
+  private async discardDraft(): Promise<void> {
+    if (this.busy || this.host === null || this.session === null) { return; }
+    const epoch = ++this.epoch; const host = this.host; const revision = this.session.revision; this.busy = true;
+    try {
+      const session = await host.undo(revision);
+      if (this.current(epoch)) { this.acceptSession(session); this.previewReady = false; this.shown = null; this.message = '已撤销草稿'; }
+    } catch (error) { if (this.current(epoch)) { this.message = (error as Error).message; } }
     finally { if (this.current(epoch)) { this.busy = false; } }
   }
   private edit(operation: EditOperation): void {
@@ -212,19 +171,21 @@ export struct RuleDnsEditorPage {
     this.preview(RuleDnsDraft.put(this.intent, operation));
   }
   private async apply(): Promise<void> {
-    if (this.busy || !this.previewReady || this.ticket === null || !this.active) { return; }
-    const epoch = ++this.epoch; const ticket = this.ticket; this.busy = true;
+    if (this.busy || !this.previewReady || this.host === null || this.shown === null || !this.active) { return; }
+    const epoch = ++this.epoch; const host = this.host; const preview = this.shown; this.busy = true;
     try {
-      const state = await ProfileTransactions.applyEditDraft(getContext(this) as common.UIAbilityContext, ticket);
+      const state = await host.apply(preview);
       if (!this.current(epoch)) { return; }
-      this.message = state === 'applied' ? '已应用' : '已保存'; this.previewReady = false;
-      this.ticket = ProfileTransactions.editTicket(getContext(this) as common.UIAbilityContext, this.file);
+      const session = await host.load();
+      if (!this.current(epoch)) { return; }
+      this.acceptSession(session); this.message = state === 'applied' ? '已应用' : '已保存'; this.previewReady = false; this.shown = null;
     } catch (error) { if (this.current(epoch)) { this.previewReady = false; this.message = (error as Error).message; } }
     finally { if (this.current(epoch)) { this.busy = false; } }
   }
   private move(from: number, to: number): void {
     if (this.busy || this.section !== 'rules' || from === to || from < 0 || to < 0 ||
       from >= this.items.length || to >= this.items.length) { return; }
+    if (this.items.some((entry: EditableItem) => entry.type === undefined)) { this.message = '无法读取最终规则，请重试'; return; }
     const item = this.items[from];
     const final = this.items.find((entry: EditableItem) => entry.type === 'MATCH')?.id ?? '';
     if (item.type === 'MATCH' || item.id === final || (final !== '' && to >= this.items.findIndex((entry: EditableItem) => entry.id === final))) { this.message = '最终规则保持在末尾'; return; }
@@ -246,15 +207,6 @@ export struct RuleDnsEditorPage {
   build() {
     Column({ space: 12 }) {
       if (this.selected !== null) {
-        if (this.section === 'rules') {
-          Row({ space: 12 }) {
-            Button('选择策略组').enabled(!this.busy).onClick(() => this.choose('proxy-groups'))
-            Button('选择规则源').enabled(!this.busy).onClick(() => this.choose('rule-providers'))
-          }
-          ForEach(this.choices, (item: EditableItem, index: number) => {
-            Button(`${item.type ?? '选项'} ${index + 1}`).enabled(!this.busy).onClick(() => this.pick(item))
-          }, (item: EditableItem) => item.id)
-        }
         if (this.section === 'rule-providers' && !this.isNew) {
           Row({ space: 8 }) {
             Button('查看状态').enabled(!this.busy).onClick(() => this.provider(false))
@@ -301,6 +253,7 @@ export struct RuleDnsEditorPage {
         if (this.section !== 'dns') { Button('新增').enabled(!this.busy).onClick(() => this.add()) }
         if (this.previewReady) { Button('应用').enabled(!this.busy).onClick(() => this.apply()) }
         if (this.undo !== null) { Button('撤销').enabled(!this.busy).onClick(() => this.preview(this.undo)) }
+        if ((this.intent?.operations.length ?? 0) > 0) { Button('撤销草稿').enabled(!this.busy).onClick(() => this.discardDraft()) }
         Button(this.intent?.disabled === true ? '启用修改' : '停用修改').enabled(!this.busy).onClick(() => {
           if (this.intent !== null) { const next = JSON.parse(JSON.stringify(this.intent)) as EditIntent; next.disabled = !next.disabled; this.preview(next); }
         })
