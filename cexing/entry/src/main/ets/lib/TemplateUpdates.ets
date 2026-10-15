@@ -11,6 +11,7 @@ export interface TemplateUpdateRequest {
   decisions?: Record<string, string>;
 }
 export interface TemplateConflict { id: string; entity: string; section: string; path?: string[]; kind: string; }
+export interface TemplateConflictDetail { title: string; mine: string; template: string; }
 export interface TemplateUpdatePreview { ready: boolean; candidate?: TemplateSnapshot; conflicts: TemplateConflict[]; validation?: TemplatePreview; }
 
 export namespace TemplateUpdates {
@@ -32,12 +33,15 @@ export namespace TemplateUpdates {
 
 export interface TemplateUpdateHost {
   reset?: () => void;
+  discardRevision?: () => string;
+  discard?: (revision: string) => Promise<void>;
   // Captures Base/Mine/Next and the existing source/draft/active ticket once.
   preview: (decisions: Record<string, string>) => Promise<TemplateUpdatePreview>;
   // Compile a delta over the latest template through the common EditIntent;
   // compare the captured ticket, then use ProfileTransactions. No list Merge.
   apply: (preview: TemplateUpdatePreview) => Promise<string>;
   label: (conflict: TemplateConflict) => string;
+  detail?: (conflict: TemplateConflict) => TemplateConflictDetail;
 }
 
 export class TemplateUpdateModel {

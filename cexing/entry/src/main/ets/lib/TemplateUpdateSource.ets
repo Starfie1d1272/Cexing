@@ -8,6 +8,7 @@ import { ProfileStore } from './ProfileStore';
 import { Settings } from './Settings';
 import { EditorSourceCandidate } from './EditorDraftHosts';
 import { CoreValidator } from './CoreValidator';
+import { describeTemplateConflict } from './TemplateConflictPresentation';
 import { ProfileTransactions, EditTicket } from './ProfileTransactions';
 
 interface SourceInput {
@@ -26,6 +27,7 @@ export function createTemplateUpdateSource(context: common.Context, profileId: s
   let revision = '';
   let stamp = '';
   let generation = 0;
+  let comparison: TemplateUpdateRequest | null = null;
   let ticket: EditTicket | null = null;
   const check = (expected: EditTicket, epoch: number): void => {
     if (epoch !== generation) { throw new Error('TEMPLATE_UPDATE_SESSION'); }
@@ -43,7 +45,7 @@ export function createTemplateUpdateSource(context: common.Context, profileId: s
     return reply;
   };
   return {
-    cancel: (): void => { generation++; captured = null; ticket = null; revision = ''; stamp = ''; },
+    cancel: (): void => { generation++; comparison = null; captured = null; ticket = null; revision = ''; stamp = ''; },
     available: (templateId: string, target: string): boolean => {
       try {
         const version = EffectiveVersions.read(context)?.Profiles[profileId];
@@ -55,7 +57,7 @@ export function createTemplateUpdateSource(context: common.Context, profileId: s
     },
     read: async (session: EditorDraftSession): Promise<TemplateUpdateRequest> => {
       const epoch = ++generation;
-      captured = null; ticket = null; stamp = ''; revision = '';
+      captured = null; comparison = null; ticket = null; stamp = ''; revision = '';
       if (session.profileId !== profileId || session.intent?.template === undefined) {
         throw new Error('TEMPLATE_UPDATE_SESSION');
       }
@@ -83,6 +85,7 @@ export function createTemplateUpdateSource(context: common.Context, profileId: s
         throw new Error('TEMPLATE_UPDATE_SOURCE_CHANGED');
       }
       captured = input; ticket = expected; revision = session.revision; stamp = reply.stamp;
+      comparison = JSON.parse(JSON.stringify(reply.request)) as TemplateUpdateRequest;
       return reply.request;
     },
     encode: async (candidate: TemplateSnapshot, session: EditorDraftSession): Promise<EditIntent> => {
@@ -101,9 +104,12 @@ export function createTemplateUpdateSource(context: common.Context, profileId: s
       return reply.intent;
     },
     label: (conflict: TemplateConflict): string => {
+      if (comparison !== null) { return describeTemplateConflict(comparison, conflict).title; }
       const labels: Record<string, string> = { 'rules': '分流规则', 'proxy-groups': '策略组', 'proxies': '节点',
         'proxy-providers': '节点来源', 'rule-providers': '规则来源', 'dns': 'DNS', 'hosts': '域名映射' };
       return labels[conflict.section] ?? '个人修改';
-    }
+    },
+    detail: (conflict: TemplateConflict) => comparison !== null ? describeTemplateConflict(comparison, conflict) : {
+      title: '个人修改', mine: '请重新预览', template: '请重新预览' }
   };
 }

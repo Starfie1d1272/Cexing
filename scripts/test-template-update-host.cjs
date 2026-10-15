@@ -2,6 +2,7 @@ const uiFixture = require('./ci/ui-fixtures.cjs');
 const assert = require('node:assert/strict'), fs = require('node:fs'), vm = require('node:vm');
 const ts = require('./ci/transpile-arkts.cjs');
 const snapshot = version => ({ templateId: 'ai', version, entries: [] });
+let undos = 0;
 let resolved = false, reads = 0, saves = 0, applies = 0, revision = 0, checked, badDigest = false;
 let draft = { schemaVersion: 1, revision: 'intent', sourceRevision: 'source', disabled: true,
  operations: [{ id: 'personal', kind: 'delete', section: 'rules', target: 'private-id' }], smartGroups: { 'private-group': false },
@@ -9,6 +10,7 @@ let draft = { schemaVersion: 1, revision: 'intent', sourceRevision: 'source', di
 const originalPersonal = JSON.stringify({ operations: draft.operations, smartGroups: draft.smartGroups, disabled: draft.disabled });
 const session = () => ({ profileId: 'one.yaml', revision: `draft-${revision}`, intent: structuredClone(draft), snapshot: { sourceRevision: 'source', sections: [] } });
 const editor = {
+ undo: async expected => { assert.equal(expected, `draft-${revision}`); undos++; revision++; return session(); },
  load: async () => session(),
  save: async (intent, expected) => { assert.equal(expected, `draft-${revision}`); saves++; draft = structuredClone(intent); revision++; return session(); },
  preview: async expected => { assert.equal(expected, `draft-${revision}`); checked = { revision: expected, digest: 'digest', changes: { digest: badDigest ? 'wrong' : 'digest', changes: [{ section: 'rules', before: 8, after: 9 }] }, opaque: 'original receipt' }; return checked; },
@@ -40,6 +42,19 @@ vm.runInNewContext(ts.transpileModule(fs.readFileSync('cexing/entry/src/main/ets
  badDigest = true; await assert.rejects(host.preview({}), /VALIDATION/);
  await assert.rejects(host.apply(result), /STALE/); assert.equal(applies, 1);
  badDigest = false; await host.preview({}); assert.equal(reads, 4); // failed validation permits a fresh retry
+ const failedReceipt = await host.preview({});
+ const oldRevision = host.discardRevision();
+ revision++; await assert.rejects(host.discard(oldRevision)); assert.equal(undos, 0);
+ await assert.rejects(host.apply(failedReceipt), /STALE/);
+ await host.preview({}); badDigest = true;
+ await assert.rejects(host.preview({}), /VALIDATION/);
+ const savedRevision = host.discardRevision(); assert.ok(savedRevision);
+ await host.discard(savedRevision); assert.equal(undos, 1);
+ await assert.rejects(host.discard(savedRevision), /STALE/); assert.equal(undos, 1);
+ badDigest = false;
+ const unreadable = create({}, 'one.yaml', editor, { ...source, read: async () => { throw Error('TEMPLATE_UPDATE_PRECISION'); } });
+ await assert.rejects(unreadable.preview({}), /PRECISION/);
+ assert.ok(unreadable.discardRevision()); await unreadable.discard(unreadable.discardRevision()); assert.equal(undos, 2);
  const wrong = create({}, 'other.yaml', editor, source); await assert.rejects(wrong.preview({}), /SESSION/);
  console.log('PASS: actual update Host retains personal edits, gates unresolved/unvalidated drafts, preserves opaque receipt and consumes once');
 })().catch(error => { console.error(error); process.exitCode = 1; });

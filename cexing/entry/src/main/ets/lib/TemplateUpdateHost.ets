@@ -3,7 +3,7 @@ import { EditorDraftHosts } from './EditorDraftHosts';
 import { common } from '@kit.AbilityKit';
 import { EditIntent, EditorDraftHost, EditorDraftSession, EditorDraftPreview } from './ConfigEditor';
 import { TemplateConflict, TemplateSnapshot, TemplateUpdateHost, TemplateUpdatePreview,
-  TemplateUpdateRequest, TemplateUpdates } from './TemplateUpdates';
+  TemplateUpdateRequest, TemplateUpdates, TemplateConflictDetail } from './TemplateUpdates';
 
 /** Compiler-owned private data conversion. These callbacks must use the common
  * template schema/aliases, never a list Merge or a second persistence service. */
@@ -13,6 +13,7 @@ export interface TemplateUpdateSource {
   read: (session: EditorDraftSession) => Promise<TemplateUpdateRequest>;
   encode: (candidate: TemplateSnapshot, session: EditorDraftSession) => Promise<EditIntent>;
   label: (conflict: TemplateConflict) => string;
+  detail?: (conflict: TemplateConflict) => TemplateConflictDetail;
 }
 
 /** Consume the shared draft transaction exactly once for a resolved upgrade.
@@ -21,14 +22,27 @@ export function createTemplateUpdateHost(context: common.Context, profileId: str
   suppliedEditor: EditorDraftHost | undefined, source: TemplateUpdateSource): TemplateUpdateHost {
   const editor = suppliedEditor ?? EditorDraftHosts.create(context, profileId);
   let session: EditorDraftSession | null = null;
+  let discardSession: EditorDraftSession | null = null;
   let request: TemplateUpdateRequest | null = null;
   let receipt: EditorDraftPreview | null = null;
   let offered: TemplateUpdatePreview | null = null;
   let fingerprint = '';
   let generation = 0;
   return {
-    reset: (): void => { generation++; source.cancel?.(); session = null; request = null; receipt = null; offered = null; },
+    reset: (): void => { generation++; source.cancel?.(); discardSession = null; session = null; request = null; receipt = null; offered = null; },
+    discardRevision: (): string => discardSession?.revision ?? '',
+    discard: async (revision: string): Promise<void> => {
+      if (discardSession === null || revision.length === 0 || discardSession.revision !== revision) {
+        throw new Error('TEMPLATE_UPDATE_STALE');
+      }
+      // Never reload a newer draft to delete it: undo checks this exact session.
+      generation++; source.cancel?.(); receipt = null; offered = null;
+      session = null; discardSession = null; request = null;
+      await editor.undo(revision);
+    },
     label: (conflict: TemplateConflict): string => source.label(conflict),
+    detail: (conflict: TemplateConflict): TemplateConflictDetail => source.detail?.(conflict) ?? {
+      title: source.label(conflict), mine: '我的修改', template: '新模板的修改' },
     preview: async (decisions: Record<string, string>): Promise<TemplateUpdatePreview> => {
       const epoch = ++generation; receipt = null; offered = null;
       try {
@@ -37,9 +51,10 @@ export function createTemplateUpdateHost(context: common.Context, profileId: str
         if (epoch !== generation || loaded.profileId !== profileId || loaded.revision.length === 0) {
           throw new Error('TEMPLATE_UPDATE_SESSION');
         }
+        discardSession = loaded;
         const inputs = await source.read(loaded);
         if (epoch !== generation) { throw new Error('TEMPLATE_UPDATE_CANCELLED'); }
-        session = loaded;
+        session = loaded; discardSession = loaded;
         request = JSON.parse(JSON.stringify(inputs)) as TemplateUpdateRequest;
       }
       const captured = session;
@@ -61,7 +76,7 @@ export function createTemplateUpdateHost(context: common.Context, profileId: str
       }
       const next = await editor.save(intent, captured.revision);
       if (epoch !== generation || next.profileId !== profileId) { throw new Error('TEMPLATE_UPDATE_SESSION'); }
-      session = next;
+      session = next; discardSession = next;
       const checked = await editor.preview(next.revision);
       if (epoch !== generation || checked.revision !== next.revision || checked.digest.length === 0 ||
         checked.changes.digest !== checked.digest) { throw new Error('TEMPLATE_UPDATE_VALIDATION'); }
@@ -79,7 +94,7 @@ export function createTemplateUpdateHost(context: common.Context, profileId: str
         throw new Error('TEMPLATE_UPDATE_STALE');
       }
       const checked = receipt;
-      receipt = null; offered = null; session = null; request = null;
+      receipt = null; offered = null; session = null; discardSession = null; request = null;
       // The transaction owns its atomic source/draft/settings/provider checks.
       // Passing the original object preserves its complete opaque receipt.
       const result = await editor.apply(checked);

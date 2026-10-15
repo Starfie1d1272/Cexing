@@ -61,7 +61,7 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
       if (value) externalActive = value; return value; },
       release: value => { if (value && externalActive === value) externalActive = null; },
       hasPending: () => externalPending !== null,
-      parseText: value => value.startsWith('https://') ? { kind: 'url', value } : null } }, '@kit.CoreFileKit': {}, '@kit.ShareKit': {}, '@kit.ArkData': {},
+      parseText: value => value.startsWith('https://') ? { kind: 'url', value } : null } }, '../lib/ConnectionFailure': { ConnectionFailures: {} }, '@kit.CoreFileKit': {}, '@kit.ShareKit': {}, '@kit.ArkData': {},
     '../lib/DiagnosticExportSnapshots': {},
     '../lib/ProfileRecovery': { ProfileRecovery: { reconnect: (...args) => reconnectProfile(...args) } },
     '../lib/AutoUpdater': { AutoUpdater: { retry: (...args) => autoRetry(...args) } },
@@ -269,24 +269,28 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   assert.match(failedRevoke.lanError,/重试/);
 
   let active = 'fixture.yaml', deleted = 0, rejectImport = true;
+  let sourceStates = {}, sourceOrigins = {};
+  let importAsync = async (_context, _name, _content, current) => { assert.ok(current()); importedWrites++; return 'candidate.yaml'; };
   let activateResult = async () => 'applied';
   let regionResult = async () => 'saved';
+  let updateFailure = '';
   const profiles = [{ file: 'fixture.yaml', name: 'Fixture', active: true },
     { file: 'candidate.yaml', name: 'Candidate', active: false }];
   const Profile = load('ProfilePage', { ...common,
-    '@kit.CoreFileKit': {}, '@kit.ArkTS': {}, '@kit.BasicServicesKit': {}, './ProfileEditPage': {}, './ProfileTemplatePage': { ProfileTemplateBus: { file: '' } }, './ProfileProxyEditorPage': { ProfileProxyEditorBus: { file: '' } }, './RuleDnsEditorPage': { RuleDnsEditorBus: { file: '', section: '' } },
+    '../lib/ConnectionFailure': { ConnectionFailures: {} }, '@kit.CoreFileKit': {}, '@kit.ArkTS': {}, '@kit.BasicServicesKit': {}, './ProfileEditPage': {}, './ProfileTemplatePage': { ProfileTemplateBus: { file: '' } }, './ProfileUpdatePage': { ProfileUpdateBus: { request: null } }, './ProfileProxyEditorPage': { ProfileProxyEditorBus: { file: '' } }, './RuleDnsEditorPage': { RuleDnsEditorBus: { file: '', section: '' } },
     '../lib/CoreApi': { CoreApi: {} },
     '../lib/EffectiveVersions': { EffectiveVersions: { read: () => null } },
     '../lib/ProfileTransactions': { ProfileTransactions: { onIdle: () => () => {}, isBusy: () => false,
       remove: async () => { deleted++; }, activate: (...args) => activateResult(...args),
       setRegionPlan: (...args) => regionResult(...args),
       ensureActiveSmartPolicy: () => smartPrepare(),
-      update: async () => 'applied', rename: () => 'fixture.yaml'
+      update: async () => { if (updateFailure) throw Error(updateFailure); return 'applied'; }, rename: () => 'fixture.yaml'
     } },
-    '../lib/ProfileStore': { ProfileStore: { list: () => profiles, getMeta: () => ({}),
-      isApplyUncertain: () => uncertainProfile, updateState: () => ({ ...updateState }),
+    '../lib/ProfileStore': { ProfileStore: { list: () => profiles, getMeta: () => ({}), readEditDraft: () => ({ revision: '', intent: null }),
+      isApplyUncertain: () => uncertainProfile, updateState: (_context, file) => ({ ...(sourceStates[file] ?? updateState) }),
       importContent: () => { importedWrites++; return 'candidate.yaml'; },
-      getActiveFile: () => active, getOrigin: () => '', pendingRegionSelection: () => '',
+      importContentAsync: (...args) => importAsync(...args),
+      getActiveFile: () => active, getOrigin: (_context, file) => sourceOrigins[file] ?? '', pendingRegionSelection: () => '',
       importFromUrl: async () => { if (rejectImport) throw Error('network'); return 'candidate.yaml'; } } }
   }, { AlertDialog: { show: value => { dialog = value; } }, canIUse: () => true });
   const profile = new Profile(); profile.profileRevision = 0; profile.navStack = { pop() {} };
@@ -430,6 +434,38 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   assert.equal(importedWrites, 1); assert.equal(damagedFile.importing, false);
   assert.ok(!toasts.some(value => value.includes('private-uri')));
   console.log('PASS: shared async file helper, repeated import, late read suppression and safe failure');
+  readYaml = async () => 'proxies: []';
+  let finishImportWrite, importCurrent;
+  importAsync = (_context, _name, _content, current) => { importCurrent = current; return new Promise(resolve => { finishImportWrite = resolve; }); };
+  const writingFile = activationPage().page;
+  const writing = writingFile.importFile('file://docs/writing.yaml');
+  await new Promise(setImmediate); assert.equal(writingFile.importing, true);
+  writingFile.aboutToDisappear(); assert.equal(importCurrent(), false);
+  finishImportWrite('candidate.yaml'); await writing;
+  assert.equal(writingFile.importedFile, '', 'late async persistence cannot reopen an import sheet');
+  importAsync = async () => { throw Error('private disk failure'); };
+  const failedWrite = activationPage().page; await failedWrite.importFile('file://docs/io.yaml');
+  assert.equal(failedWrite.importedFile, ''); assert.equal(failedWrite.importing, false);
+  assert.ok(!toasts.some(value => value.includes('private disk')));
+  const times = activationPage().page; times.updateTimes = { 'a.yaml': 1000, 'b.yaml': 2000 };
+  assert.notEqual(times.lastUpdated('a.yaml'), times.lastUpdated('b.yaml'));
+  assert.equal(times.lastUpdated('missing.yaml'), '尚未更新');
+  importAsync = async (_context, _name, _content, current) => { assert.ok(current()); importedWrites++; return 'candidate.yaml'; };
+  sourceOrigins = { 'fixture.yaml': 'https://example.invalid/a', 'candidate.yaml': 'https://example.invalid/b' };
+  sourceStates = {
+    'fixture.yaml': { id: 'a', succeededAt: 3000, failedAt: 0 },
+    'candidate.yaml': { id: 'b', succeededAt: 1000, failedAt: 2000 }
+  };
+  const perSource = activationPage().page;
+  assert.equal(perSource.updateTimes['fixture.yaml'], 3000);
+  assert.equal(perSource.updateTimes['candidate.yaml'], 1000);
+  assert.equal(perSource.updateFeedback['fixture.yaml'], undefined);
+  assert.ok(perSource.updateFeedback['candidate.yaml']);
+  sourceStates['candidate.yaml'] = { id: 'b', succeededAt: 4000, failedAt: 0 };
+  perSource.refresh(); assert.equal(perSource.updateFeedback['candidate.yaml'], undefined);
+  assert.equal(perSource.updateTimes['candidate.yaml'], 4000, 'successful source retry clears only its own old failure/time');
+  assert.equal(perSource.updateTimes['fixture.yaml'], 3000);
+  sourceOrigins = {}; sourceStates = {};
   uncertainProfile = true;
   const recovery = activationPage().page;
   assert.equal(recovery.recoveryNeeded, true);
@@ -514,6 +550,12 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   const rejectedRegion = regionPage();
   await rejectedRegion.saveRegion(true);
   assert.equal(rejectedRegion.tabJump, -1, 'rejected create and enable stays on profiles');
+  for (const [failure, expected] of [['配置已保存，地区选择待重连恢复', '配置已保存，地区选择待重连恢复'],
+    ['应用未确认，请重连恢复', '应用未确认，请重连恢复'], ['private: synthetic-update-token', '更新未完成，请重试']]) {
+    updateFailure = failure; const updating = activationPage().page; updating.rootVisible = true;
+    await updating.updateProfile(profiles[0]); assert.equal(toasts.at(-1), expected);
+  }
+  updateFailure = '';
   let finishRegion;
   regionResult = () => new Promise(resolve => { finishRegion = resolve; });
   const leftRegion = regionPage();
@@ -523,7 +565,7 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   let regionLists = 0, committedRegionEnabled = true;
   let regionFailureMessage = '地区策略已关闭，但原选项未恢复';
   const PartialDisable = load('ProfilePage', { ...common,
-    '@kit.CoreFileKit': {}, '@kit.ArkTS': {}, '@kit.BasicServicesKit': {}, './ProfileEditPage': {}, './ProfileTemplatePage': { ProfileTemplateBus: { file: '' } }, './ProfileProxyEditorPage': { ProfileProxyEditorBus: { file: '' } }, './RuleDnsEditorPage': { RuleDnsEditorBus: { file: '', section: '' } },
+    '../lib/ConnectionFailure': { ConnectionFailures: {} }, '@kit.CoreFileKit': {}, '@kit.ArkTS': {}, '@kit.BasicServicesKit': {}, './ProfileEditPage': {}, './ProfileTemplatePage': { ProfileTemplateBus: { file: '' } }, './ProfileUpdatePage': { ProfileUpdateBus: { request: null } }, './ProfileProxyEditorPage': { ProfileProxyEditorBus: { file: '' } }, './RuleDnsEditorPage': { RuleDnsEditorBus: { file: '', section: '' } },
     '../lib/CoreApi': { CoreApi: {} },
     '../lib/EffectiveVersions': { EffectiveVersions: {
       read: () => ({ Profiles: { 'candidate.yaml': {} } }),
@@ -563,6 +605,8 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   await partialDisable.saveRegion(false); assert.equal(partialDisable.importError, '地区策略未完成，请重试');
   assert.ok(!partialDisable.importError.includes('synthetic-token'));
 
+  regionFailureMessage = '原手动选项已失效，请先手动选择可用节点再关闭地区策略';
+  await partialDisable.saveRegion(false); assert.equal(partialDisable.importError, uiFixture.module.UiText.get({ id: 'app.string.apply_feedback_selection' }));
   active = 'fixture.yaml';
   controller.status = status.Connected; profile.confirmDelete(profiles[0]); dialog.secondaryButton.action();
   assert.equal(deleted, 0, 'running active profile must be protected');

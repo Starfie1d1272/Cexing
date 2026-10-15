@@ -134,6 +134,9 @@ export struct TemplateWizard {
   }
   private displayMessage(message: string): string {
     if (message === '') { return ''; }
+    if (message === '应用未确认，请返回连接页断开后重连恢复') { return UiText.get($r('app.string.apply_feedback_unconfirmed')); }
+    if (message === '配置已保存，地区选择待重连恢复') { return UiText.get($r('app.string.apply_feedback_committed')); }
+    if (message === '请先在代理面板选择可用选项，再关闭或切换地区策略') { return UiText.get($r('app.string.apply_feedback_selection')); }
     if (message === '方案读取失败，请重试') { return UiText.get($r('app.string.template_read_failed')); }
     if (message === '请选择出口') { return UiText.get($r('app.string.template_choose_exit')); }
     if (message === '方案未通过校验，请检查出口和订阅资源') { return UiText.get($r('app.string.template_validation_failed')); }

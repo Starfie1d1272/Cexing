@@ -4,6 +4,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('nod
 const ts=require('./ci/transpile-arkts.cjs'),ui=require('./ci/ui-fixtures.cjs');
 const {resourceContext}=require('./ci/mock-profile-resources.cjs');
 const ctx=resourceContext(),flush=()=>new Promise(setImmediate);
+let discardDialog;
 let unknown,active,status,session,epoch,choice,dialog,dialogs,stopOK,startOK,pendingShare,events,toasts,stopHold;
 const reset=()=>{unknown=true;active='one.yaml';status=2;session='initial';epoch=1;choice={pending:''};
  dialog=null;dialogs=0;stopOK=true;startOK=true;pendingShare=false;events=[];toasts=[];stopHold=null;};
@@ -36,7 +37,7 @@ function page(name){let source=fs.readFileSync(`cexing/entry/src/main/ets/pages/
  const cut=source.includes('  @Builder')?source.indexOf('  @Builder'):source.indexOf('  build()');
  source=(source.slice(0,cut)+'\n}').split('\n').map(line=>line.trimStart().startsWith('@')?
  line.replace(/@\w+(?:\([^\n)]*\))?\s*/g,''):line).join('\n').replace('export struct ','export class ');
- const box={exports:{},...ui.globals,getContext:()=>ctx,require:key=>pageMods[key]??{}};
+ const box={exports:{},...ui.globals,AlertDialog:{show: options => { discardDialog=options; }},getContext:()=>ctx,require:key=>pageMods[key]??{}};
  vm.runInNewContext(ts.transpileModule(source).outputText,box);return box.exports[name];}
 const classes=[page('TemplateWizard'),page('TemplateUpdateReview')];
 function make(Page){const p=new Page();p.profileId='one.yaml';p.tabJump=-1;p.closed=0;p.reads=0;p.applies=0;
@@ -78,6 +79,21 @@ function make(Page){const p=new Page();p.profileId='one.yaml';p.tabJump=-1;p.clo
   reset();unknown=false;p=make(Page);await flush();p.model.setApplyFailure('selection-required');p.repairSelection();
   assert.equal(p.route,'zashboard');assert.deepEqual(events,[]);p.aboutToDisappear();
  }
+ // Actual comparison page: candidate-only drafts have zero personal edits.
+ reset(); unknown=false; status=0;
+ let discards=0, closed=0, rev='draft-zero';
+ const p=make(classes[1]); await flush();
+ p.activeHost.discardRevision=()=>rev;
+ p.activeHost.discard=async expected=>{assert.equal(expected,rev);discards++;rev='';};
+ p.onClose=()=>closed++;
+ p.discardDraft(); const first=discardDialog; p.discardDraft(); assert.equal(discardDialog,first);
+ first.primaryButton.action(); await first.secondaryButton.action(); assert.equal(discards,0);
+ p.discardDraft(); const late=discardDialog; p.aboutToDisappear(); await late.secondaryButton.action(); assert.equal(discards,0);
+ p.aboutToAppear(); await flush(); p.discardDraft(); const stale=discardDialog; rev='foreign';
+ await stale.secondaryButton.action(); assert.equal(discards,0);
+ stale.cancel(); p.discardDraft(); const confirmed=discardDialog;
+ await confirmed.secondaryButton.action(); await confirmed.secondaryButton.action();
+ assert.equal(discards,1); assert.equal(closed,1);
  for(const [Model,method] of [[wizardModel.TemplateWizardModel,'inspect'],[updates.TemplateUpdateModel,'refresh']]){
   let calls=0;const m=new Model({load:async()=>({groups:[],selectors:[],current:{templateId:'original',version:1}}),preview:async()=>{calls++;},apply:async()=>{calls++;},label:()=>''},()=>{});
   m.setApplyFailure('unconfirmed');await m[method]();await m.apply();assert.equal(calls,0);
