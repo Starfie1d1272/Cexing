@@ -113,6 +113,7 @@ Go-only `Compiler.EditorResourceSource` 仅复用既有 editSource/boundEditSour
 未应用候选保留期间，手动/后台订阅更新在下载前拒绝；同一订阅的其他版本发布也不能绕过，只有该草稿的正常 apply 可发布。应用或显式撤销后更新重新放行。因此正常更新不会先改变成功版本、再把配对草稿留成无法打开/撤销的旧来源。
 
 页面联测复用 `runCandidateDraftFixture(t,script,phases)`：真实 Go worker 在独立进程运行，各 Node 阶段共享私有文件。Node fixture 可 require `scripts/ci/candidate-draft-lifecycle.cjs`，使用 runtime/load、action、ctx/file、I/O/worker调度 hooks；实际 Store/Tx/Host/Compiler 不替换。runtime 支持 lib/pages 相对模块解析与页面源码 transform、平台/UI globals。规则组提供 `candidate-rule-page-lifecycle.cjs` 后，标准 runner 自动加 rules-save/reopen/modify/apply 四阶段并打印实际通过列表，缺少其分支时原七阶段仍全部保留；联合验收须核对四阶段实际执行，不能把仅接口分支的成功记为页面通过。
+
 地区生成需要 provider 成员时，编译器先在双层 Merge 的私有 root 上执行同一 intent 中的 provider 声明操作，再解析本地有效缓存并生成地区实体，最后执行其余个人操作。provider 操作不会在第二阶段重放；所有原始目标 guard 在第一阶段前保存，跨 provider rename 引用改写仍按原始基线严格核对。宿主缓存投影使用 `ApplyProviderResourceEdits`，不提前执行尚未生成的组/规则编辑；最终输出继续走原有完整验证和发布事务。
 
 分阶段执行保留原始操作序号及节点身份。延后执行的新增/更新只承接原顺序中晚于该写入的 provider 改名；mapping 只转换此次 patch 写入的引用字段，不重新改写整棵 root。改名之后才写入的旧名不会被“修复”，仍由完整引用校验拒绝。规则因资源改名改变文本时，原始目标/锚点 alias 跟随原节点，替换/删除同步迁移或清空；所有投影均作用于私有 root，不改持久 intent。
