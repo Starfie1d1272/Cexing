@@ -1,3 +1,4 @@
+import { ProfileApplyFeedback } from '../lib/ProfileApplyFeedback';
 import { UiText } from '../lib/UiText';
 import { NativeTheme as UI } from './NativeTheme';
 /*
@@ -8,7 +9,7 @@ import { common } from '@kit.AbilityKit';
 import { promptAction } from '@kit.ArkUI';
 import { ProfileStore } from '../lib/ProfileStore';
 import { ProfileTransactions } from '../lib/ProfileTransactions';
-import { MergeChange } from '../lib/CoreValidator';
+import { CoreValidator } from '../lib/CoreValidator';
 import { Logger } from '../lib/Logger';
 
 const TAG = 'profileEdit';
@@ -42,6 +43,7 @@ export struct ProfileEditPage {
   @State showMergeSheet: boolean = false;
   @State mergeText: string = '';
   @State mergeBusy: boolean = false;
+  @State mergeCommittedPending: boolean = false;
   @State mergeSummary: string = '';
   @State mergeLoadFailed: boolean = false;
   private persistedMergeText: string = '';
@@ -62,6 +64,9 @@ export struct ProfileEditPage {
       this.mergeText = ProfileStore.getMergeDraft(context, this.file);
       this.persistedMergeText = this.mergeText;
       this.mergeLoadFailed = false;
+      this.mergeCommittedPending = ProfileStore.getActiveFile(context) === this.file &&
+        ProfileApplyFeedback.recovery(context) === 'committed-pending';
+      if (this.mergeCommittedPending) { this.mergeSummary = UiText.get($r('app.string.merge_committed_recovery')); }
     } catch (_) {
       this.mergeText = '';
       this.mergeLoadFailed = true;
@@ -181,9 +186,7 @@ export struct ProfileEditPage {
   }
 
   private safeFailure(error: Object, fallback: Resource): string {
-    const message = (error as Error).message ?? '';
-    if (message.startsWith('请先启用订阅')) { return UiText.get($r('app.string.editor_enable_first')); }
-    return message.includes('未确认') || message.includes('结果未知') ? UiText.get($r('app.string.editor_unknown')) : UiText.get(fallback);
+    return CoreValidator.describeMergeFailure(error, fallback);
   }
 
   private saveHelp(): void {
@@ -242,7 +245,7 @@ export struct ProfileEditPage {
   }
 
   private async previewMerge(): Promise<void> {
-    if (this.mergeBusy) { return; }
+    if (this.mergeBusy || this.mergeCommittedPending) { return; }
     if (this.mergeLoadFailed) { this.toast(UiText.get($r('app.string.original_merge_read_failed'))); return; }
     if (this.dirty) { this.toast(UiText.get($r('app.string.original_save_before_preview'))); return; }
     this.mergeBusy = true;
@@ -250,9 +253,7 @@ export struct ProfileEditPage {
     try {
       const context = getContext(this) as common.UIAbilityContext;
       const result = await ProfileTransactions.saveMergeDraft(context, this.file, this.mergeText);
-      this.mergeSummary = result.changes.map((change: MergeChange) =>
-        `${change.section}: ${change.before} → ${change.after}`).join(' · ');
-      if (this.mergeSummary.length === 0) { this.mergeSummary = UiText.get($r('app.string.editor_no_diff')); }
+      this.mergeSummary = CoreValidator.describeMergePreview(result);
       this.toast(UiText.get($r('app.string.editor_draft_saved')));
     } catch (e) {
       this.toast(this.safeFailure(e, $r('app.string.editor_preview_failed')));
@@ -260,7 +261,7 @@ export struct ProfileEditPage {
   }
 
   private async applyMerge(): Promise<void> {
-    if (this.mergeBusy || this.mergeLoadFailed) { return; }
+    if (this.mergeBusy || this.mergeLoadFailed || this.mergeCommittedPending) { return; }
     if (this.dirty) { this.toast(UiText.get($r('app.string.original_save_before_apply'))); return; }
     this.mergeBusy = true;
     try {
@@ -269,8 +270,19 @@ export struct ProfileEditPage {
       this.toast(result === 'applied' ? UiText.get($r('app.string.original_merge_applied')) : UiText.get($r('app.string.original_merge_saved')));
       this.profileRevision++;
     } catch (e) {
+      this.mergeCommittedPending = ProfileApplyFeedback.classify((e as Error).message ?? '') === 'committed-pending';
+      if (this.mergeCommittedPending) {
+        this.profileRevision++;
+        this.mergeSummary = this.safeFailure(e, $r('app.string.editor_apply_failed'));
+      }
       this.toast(this.safeFailure(e, $r('app.string.editor_apply_failed')));
     } finally { this.mergeBusy = false; }
+  }
+
+  private recoverCommittedMerge(): void {
+    if (this.mergeBusy || !this.mergeCommittedPending || !this.prepareToLeave()) { return; }
+    this.showMergeSheet = false;
+    AppStorage.setOrCreate('connectionEntryRequest', (AppStorage.get<number>('connectionEntryRequest') ?? 0) + 1);
   }
 
   @Builder
@@ -295,21 +307,26 @@ export struct ProfileEditPage {
       }
       TextArea({ text: $$this.mergeText, placeholder: UiText.get($r('app.string.editor_yaml_placeholder')) })
         .width('100%').layoutWeight(1).fontSize(14).fontFamily('HarmonyOS Sans Mono')
-        .enabled(!this.mergeBusy && !this.mergeLoadFailed)
+        .enabled(!this.mergeBusy && !this.mergeLoadFailed && !this.mergeCommittedPending)
         .backgroundColor(UI.paper).borderRadius(12).padding(12)
       if (this.mergeSummary.length > 0) {
-        Text(this.mergeSummary).fontSize(13).fontColor(UI.muted)
+        Scroll() { Text(this.mergeSummary).fontSize(13).fontColor(UI.muted).width('100%') }
+          .width('100%').constraintSize({ maxHeight: 120 }).scrollBar(BarState.Auto)
+      }
+      if (this.mergeCommittedPending) {
+        Button(UiText.get($r('app.string.merge_open_connection'))).constraintSize({ minHeight: 44 }).width('100%')
+          .enabled(!this.mergeBusy).onClick(() => this.recoverCommittedMerge())
       }
       Row({ space: 12 }) {
         Button(UiText.get($r('app.string.editor_close'))).constraintSize({ minHeight: 44 }).layoutWeight(1).backgroundColor(UI.soft).fontColor(UI.ink)
           .enabled(!this.mergeBusy).onClick(() => { this.closeMerge(); })
         Button(this.mergeBusy ? UiText.get($r('app.string.original_previewing')) : UiText.get($r('app.string.editor_preview')))
           .constraintSize({ minHeight: 44 }).layoutWeight(1).backgroundColor(UI.action).fontColor(UI.onAccent)
-          .enabled(!this.mergeBusy && !this.mergeLoadFailed && !this.dirty).onClick(() => { this.previewMerge(); })
+          .enabled(!this.mergeBusy && !this.mergeLoadFailed && !this.dirty && !this.mergeCommittedPending).onClick(() => { this.previewMerge(); })
       }.width('100%')
       Button(this.mergeBusy ? UiText.get($r('app.string.editor_working')) : UiText.get($r('app.string.original_apply_merge')))
         .constraintSize({ minHeight: 44 }).width('100%').backgroundColor(UI.action).fontColor(UI.onAccent)
-        .enabled(!this.mergeBusy && !this.mergeLoadFailed && !this.dirty)
+        .enabled(!this.mergeBusy && !this.mergeLoadFailed && !this.dirty && !this.mergeCommittedPending)
         .onClick(() => { this.applyMerge(); })
     }.width('100%').height('100%').padding(20).backgroundColor(UI.surface)
   }

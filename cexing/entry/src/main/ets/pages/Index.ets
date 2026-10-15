@@ -14,10 +14,14 @@ import { NetworkSettingsPage } from './NetworkSettingsPage';
 import { OverridePage } from './OverridePage';
 import { ProfileEditPage, ProfileEditBus } from './ProfileEditPage';
 import { ProfileGeneratedPage } from './ProfileGeneratedPage';
+import { RuleDnsEditorPage } from './RuleDnsEditorPage';
+import { ProfileProxyEditorPage } from './ProfileProxyEditorPage';
+import { ProfileTemplatePage } from './ProfileTemplatePage';
 
 @Entry
 @Component
 struct Index {
+  @StorageLink('profileImportRequest') @Watch('openImportEntry') importRequest: number = 0;
   @StorageLink('connectionEntryRequest') @Watch('openConnectionEntry') entryRequest: number = 0;
   @Provide('nav') navStack: NavPathStack = new NavPathStack();
   @Provide('profileRevision') profileRevision: number = 0;
@@ -28,8 +32,21 @@ struct Index {
   @State windowWidth: number = 390;
   @State private fontScale: number = 1;
   @State private smartVisible: boolean = false;
+  @State private ruleDnsVisible: boolean = false;
+  @State private templateVisible: boolean = false;
+  @State private proxyEditorVisible: boolean = false;
   @State private zashboardVisible: boolean = false;
   @State private resourcesVisible: boolean = false;
+
+  aboutToAppear(): void {
+    if (this.importRequest > 0) { this.openImportEntry(); }
+  }
+
+  private openImportEntry(): void {
+    // Keep routed editors mounted; their close/back guard owns unsaved data.
+    this.currentTab = 1;
+    this.currentVisibleTab = 1;
+  }
 
   private openConnectionEntry(): void {
     this.navStack.clear();
@@ -69,6 +86,18 @@ struct Index {
       NavDestination() { OverridePage() }.title(UiText.get($r('app.string.nav_core')))
     } else if (name === 'profileDetail') {
       NavDestination() { ProfilePage({ detailFile: ProfileDetailBus.current }) }.title(UiText.get($r('app.string.nav_profile_details')))
+    } else if (name === 'profileTemplate') {
+      NavDestination() { ProfileTemplatePage({ visible: this.templateVisible }) }.title($r('app.string.proxy_editor_template_title'))
+        .onShown(() => { this.templateVisible = true; })
+        .onHidden(() => { this.templateVisible = false; })
+    } else if (name === 'profileProxyEditor') {
+      NavDestination() { ProfileProxyEditorPage({ visible: this.proxyEditorVisible }) }.title($r('app.string.proxy_editor_title'))
+        .onShown(() => { this.proxyEditorVisible = true; })
+        .onHidden(() => { this.proxyEditorVisible = false; })
+    } else if (name === 'ruleDnsEditor') {
+      NavDestination() { RuleDnsEditorPage({ visible: this.ruleDnsVisible }) }.title($r('app.string.proxy_editor_rules_title'))
+        .onShown(() => { this.ruleDnsVisible = true; })
+        .onHidden(() => { this.ruleDnsVisible = false; })
     } else if (name === 'profileMerge') {
       NavDestination() { ProfileEditPage({ mergeOnly: true }) }.title(UiText.get($r('app.string.nav_profile_merge')))
         .onBackPressed(() => ProfileEditBus.shouldBlockBack())

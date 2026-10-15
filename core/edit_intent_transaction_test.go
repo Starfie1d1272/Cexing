@@ -60,21 +60,25 @@ rules: ["MATCH,Main"]
 		t.Fatal("unrelated source update must rebase", err)
 	}
 	action.Original = strings.Replace(original, "port: 1080", "port: 2080", 1)
-	if result, e := executeVersionAction(home, action); e == nil && result.Error == "" {
+	conflict, err := executeVersionAction(home, action)
+	if err == nil && (conflict.Error == "" || conflict.EditError == nil || conflict.EditError.Code != "conflict") {
 		t.Fatal("same-field update conflict accepted")
+	}
+	if conflict.Version != nil {
+		t.Fatal("conflict returned a candidate")
 	}
 	state, err := executeVersionAction(home, versionAction{Op: "read"})
 	if err != nil || state.State.Current.ID != staged.Version.ID {
 		t.Fatal("failed compile changed pointer", err)
 	}
 	action.Op = "edit-check"
-	rawAction, _ := json.Marshal(action)
-	var request map[string]any
-	json.Unmarshal(rawAction, &request)
-	request["editIntent"] = json.RawMessage(`{"schemaVersion":1,"revision":"r","sourceRevision":"s","operations":[],"unknown":true}`)
-	rawAction, _ = json.Marshal(request)
-	response := coreVersionAction(home, string(rawAction))
-	if !strings.Contains(response, "EDIT_INTENT_FAILED") {
-		t.Fatal("unknown field accepted", response)
+	wire, _ := json.Marshal(action)
+	var envelope map[string]json.RawMessage
+	_ = json.Unmarshal(wire, &envelope)
+	envelope["editIntent"] = json.RawMessage(`{"schemaVersion":1,"revision":"r","sourceRevision":"s","operations":[],"unknown":true}`)
+	wire, _ = json.Marshal(envelope)
+	var rejected versionResponse
+	if err := json.Unmarshal([]byte(coreVersionAction(home, string(wire))), &rejected); err != nil || rejected.Error == "" || rejected.EditError == nil {
+		t.Fatal("unknown field accepted at the strict worker boundary", err)
 	}
 }
