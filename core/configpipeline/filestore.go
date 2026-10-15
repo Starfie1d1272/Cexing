@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 )
 
 // FileStore publishes a single atomic state.json pointer after core activation.
@@ -99,8 +100,22 @@ func (s FileStore) StageWithRegionChoice(ctx context.Context, r Result, choice *
 	if err := os.MkdirAll(s.Root, 0700); err != nil {
 		return Version{}, err
 	}
+	root, err := os.OpenRoot(s.Root)
+	if err != nil {
+		return Version{}, err
+	}
+	guard, err := lockGC(root, syscall.LOCK_SH)
+	root.Close()
+	if err != nil {
+		return Version{}, errors.New("GC_BUSY")
+	}
+	defer guard.Close()
 	dir, err := os.MkdirTemp(s.Root, "version-")
 	if err != nil {
+		return Version{}, err
+	}
+	if err := writeSync(filepath.Join(dir, ".pending"), []byte("1")); err != nil {
+		_ = os.RemoveAll(dir)
 		return Version{}, err
 	}
 	complete := false
@@ -155,6 +170,16 @@ func (s FileStore) Commit(ctx context.Context, state Snapshot) error {
 
 // Publish also permits clearing the selected version after a confirmed stop.
 func (s FileStore) Publish(ctx context.Context, state Snapshot) error {
+	root, err := os.OpenRoot(s.Root)
+	if err != nil {
+		return err
+	}
+	guard, err := lockGC(root, syscall.LOCK_SH)
+	root.Close()
+	if err != nil {
+		return errors.New("GC_BUSY")
+	}
+	defer guard.Close()
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -204,9 +229,20 @@ func (s FileStore) Publish(ctx context.Context, state Snapshot) error {
 		return err
 	}
 	_ = syncDir(s.Root) // power-loss durability is filesystem/platform dependent
+	s.finishPublished(state)
 	return nil
 }
 func (s FileStore) Discard(ctx context.Context, v Version) error {
+	root, err := os.OpenRoot(s.Root)
+	if err != nil {
+		return err
+	}
+	guard, err := lockGC(root, syscall.LOCK_SH)
+	root.Close()
+	if err != nil {
+		return errors.New("GC_BUSY")
+	}
+	defer guard.Close()
 	if err := ctx.Err(); err != nil {
 		return err
 	}

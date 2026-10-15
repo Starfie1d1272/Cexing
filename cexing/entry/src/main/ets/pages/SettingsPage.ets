@@ -1,3 +1,4 @@
+import { ProfileStorageDetails } from './ProfileStorageDetails';
 import { UiText } from '../lib/UiText';
 import { SettingsReconnectButton } from './SettingsReconnectButton';
 import { NativeTheme as UI } from './NativeTheme';
@@ -374,6 +375,7 @@ export struct SettingsPage {
             }
           }
         }, (group: SettingGroup) => group.title)
+        ListItem() { ProfileStorageDetails() }
       }
       .width('100%')
       .layoutWeight(1)
