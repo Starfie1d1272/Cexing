@@ -54,7 +54,7 @@ func coreVersionAction(home, input string) string {
 		return coreDiagnosticAction(home, input)
 	}
 	if diagnostic.Op == "template-update-preview" {
-		return coreTemplateUpdateAction(input)
+		return coreTemplateUpdateAction(input, home)
 	}
 	var action versionAction
 	if len(input) > maxConfigBytes*6+2*1024*1024 || json.Unmarshal([]byte(input), &action) != nil ||

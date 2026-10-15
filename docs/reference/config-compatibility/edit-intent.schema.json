@@ -54,7 +54,8 @@
               "update",
               "delete",
               "move",
-              "rename"
+              "rename",
+              "disable"
             ]
           },
           "section": {
@@ -117,7 +118,8 @@
           ]
         },
         "version": {
-          "const": 1
+          "type": "integer",
+          "minimum": 1
         },
         "targetGroup": {
           "type": "string"

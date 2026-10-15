@@ -361,3 +361,62 @@ func TestIntentCrossObjectRenameUsesOriginalBaseline(t *testing.T) {
 		t.Fatal("real upstream change admitted")
 	}
 }
+
+func TestDisableProxyRetainsAllReferencesAndUndo(t *testing.T) {
+	source := []byte("proxies: [{name: node, type: direct, x-future: {keep: true}}, {name: other, type: direct, dialer-proxy: node}]\nproxy-groups: [{name: group, type: select, proxies: [node, other]}]\nrules: ['DOMAIN,synthetic,node', 'MATCH,group']\n")
+	target := editTarget(t, source, "proxies", 0)
+	intent := editPlan(t, source, EditOperation{ID: "disable", Kind: "disable", Section: "proxies", Target: target.Item.ID, Expected: target.Item.Revision})
+	c := editCompiler()
+	result, err := c.Compile(context.Background(), Request{Original: source, Intent: intent})
+	if err != nil {
+		t.Fatal(err)
+	}
+	root, err := parse(result.YAML)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if field(field(root, "proxies").Content[0], "type").Value != "reject" || !strings.Contains(string(result.YAML), "dialer-proxy: node") || !strings.Contains(string(result.YAML), "DOMAIN,synthetic,node") {
+		t.Fatal("disable lost references or did not fail closed")
+	}
+	list, err := c.EditorList(context.Background(), Request{Original: source, Intent: intent})
+	if err != nil || !list.Sections[0].Items[0].Disabled {
+		t.Fatal("disabled state missing", err)
+	}
+	intent.Operations = []EditOperation{}
+	undo, err := c.Compile(context.Background(), Request{Original: source, Intent: intent})
+	if err != nil || !strings.Contains(string(undo.YAML), "x-future:") {
+		t.Fatal("undo did not rebuild original advanced fields", err)
+	}
+	intent.Operations = []EditOperation{{ID: "disable", Kind: "disable", Section: "proxies", Target: target.Item.ID, Expected: target.Item.Revision}}
+	if _, err = c.Compile(context.Background(), Request{Original: []byte(strings.Replace(string(source), "keep: true", "keep: false", 1)), Intent: intent}); err == nil {
+		t.Fatal("upstream change silently disabled")
+	}
+}
+
+func TestRuleSummaryTypesUseParserWhitelistWithoutPayload(t *testing.T) {
+	source := []byte("rules: ['DOMAIN,private.synthetic,DIRECT', 'AND,((DOMAIN,private.synthetic),(NETWORK,TCP)),DIRECT', 'MATCH,DIRECT', 'PRIVATE-TYPE,private.synthetic,DIRECT']\n")
+	c := Compiler{}
+	ctx := context.Background()
+	r := Request{Original: source}
+	for _, read := range []func(context.Context, Request) (EditableSnapshot, error){c.Editable, c.EditorList} {
+		view, err := read(ctx, r)
+		if err != nil {
+			t.Fatal(err)
+		}
+		rules := view.Sections[3].Items
+		want := []string{"DOMAIN", "AND", "MATCH", ""}
+		for i, item := range rules {
+			if item.Type != want[i] {
+				t.Fatal("rule metadata missing or unsafe", i, item.Type)
+			}
+		}
+		encoded, _ := json.Marshal(view)
+		if strings.Contains(string(encoded), "private.synthetic") || strings.Contains(string(encoded), "PRIVATE-TYPE") {
+			t.Fatal("private rule payload leaked in summary")
+		}
+		explicit, err := c.EditTarget(ctx, r, "rules", rules[2].ID)
+		if err != nil || explicit.Item.Type != "MATCH" {
+			t.Fatal("explicit target metadata diverged", err)
+		}
+	}
+}
