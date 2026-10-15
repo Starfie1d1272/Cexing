@@ -1,3 +1,4 @@
+const uiFixture = require('./ci/ui-fixtures.cjs');
 // 用法：source scripts/env.sh && node scripts/test-vpn-startup.cjs
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -10,7 +11,7 @@ const failureSource = fs.readFileSync(path.join(__dirname, '../cexing/entry/src/
 const failureCode = ts.transpileModule(failureSource, { compilerOptions: {
   module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020
 } }).outputText;
-const failureModule = { exports: {} };
+const failureModule = { exports: {}, ...uiFixture.globals, require: key => { assert.ok(key.endsWith('/UiText')); return uiFixture.module; } };
 vm.runInNewContext(failureCode, failureModule);
 const failures = failureModule.exports.ConnectionFailures;
 const phaseModule = {exports:{}};
@@ -157,6 +158,7 @@ async function testExtension(failStop = false, lateCreate = false, protection = 
   let prepared = 0;
   let brokenPointer = false;
   let modelPrepared = 0;
+  let geoPrepared = 0;
   const files = new Map();
   const pending = new Promise(resolve => { complete = resolve; });
   const connection = { create: () => lateCreate ? new Promise(resolve => { completeCreate = resolve; }) : Promise.resolve(32), protectProcessNet: protection === 'missing' ? undefined : async () => { if (protection === 'failed') throw Error('synthetic protection failed'); },
@@ -168,10 +170,11 @@ async function testExtension(failStop = false, lateCreate = false, protection = 
     '@kit.CoreFileKit': { fileIo: { accessSync: () => false, openSync: path => ({ fd: path }),
       writeSync: (fd, value) => files.set(fd, value), closeSync() {},
       renameSync: (from, to) => files.set(to, files.get(from)), OpenMode: {} } },
-    'libentry.so': { __esModule: true, default: { initCore: async () => { assert.ok(prepared > 0, 'Prepare static assets before Controller initialization'); assert.ok(modelPrepared > 0, 'Prepare verified model before core initialization'); return ''; }, startTun: () => pending,
+    'libentry.so': { __esModule: true, default: { initCore: async () => { assert.ok(prepared > 0, 'Prepare static assets before Controller initialization'); assert.ok(modelPrepared > 0, 'Prepare verified model before core initialization'); assert.ok(geoPrepared > 0, 'Repair verified GeoData before core initialization'); return ''; }, startTun: () => pending,
       stopCore: async () => { stopCount++; if (failNative) throw Error('synthetic native stop failure'); } } },
     '../lib/CoreApi': { CoreApi: { bindContext() {} } },
     '../lib/ZashboardAssets': { ZashboardAssets: { prepare: async () => { prepared++; return { directory: '', error: 'synthetic missing panel' }; } } },
+    '../lib/GeoDataAssets': { GeoDataAssets: { inspect: async () => 'invalid', restore: async (_, token, permit) => { assert.ok(!token.cancelled); geoPrepared++; } } },
     '../lib/SmartModelAssets': { SmartModelAssets: { prepare: async () => { modelPrepared++; return { state: 'missing', message: 'synthetic model absent' }; } } },
     '../lib/Logger': logger, '../lib/VpnPhases': phaseModule.exports, '../lib/ConnectionFailure': failureModule.exports,
     '../lib/ProfileStore': { ProfileStore: { getActiveContent: () => 'proxies: []' } },

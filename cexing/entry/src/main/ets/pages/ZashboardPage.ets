@@ -1,3 +1,4 @@
+import { UiText } from '../lib/UiText';
 import { NativeTheme as UI } from './NativeTheme';
 import { webview } from '@kit.ArkWeb';
 import { ZashboardPolicy } from '../lib/ZashboardPolicy';
@@ -62,7 +63,7 @@ export struct ZashboardPage {
   private changed(view: ZashboardSessionView | null, error: string): void {
     if (!this.active) { return; }
     this.releaseWeb();
-    this.error = error;
+    this.error = error === '' ? '' : UiText.get($r('app.string.panel_unavailable'));
     if (view === null) { return; }
     // One render without Web releases the old component before creating the next controller.
     this.reopenTimer = setTimeout(() => {
@@ -78,7 +79,7 @@ export struct ZashboardPage {
 
   private reopen(): void {
     this.releaseWeb();
-    this.error = '正在准备控制面板…';
+    this.error = UiText.get($r('app.string.panel_preparing'));
     const context = getContext(this) as common.UIAbilityContext;
     this.session.start(context, (view: ZashboardSessionView | null, error: string) => this.changed(view, error));
   }
@@ -89,11 +90,10 @@ export struct ZashboardPage {
       if (!this.validSession()) {
         Scroll() {
           Column({ space: 20 }) {
-            Text('打开控制面板').fontSize(24).fontWeight(600, { enableVariableFontWeight: true }).fontColor(UI.ink)
-            Text(this.error || '正在准备控制面板…').fontSize(16).fontColor(UI.muted)
-            Button('重新打开').width('100%').height(56).backgroundColor(UI.action).fontColor(UI.onAccent)
+            Text(UiText.get($r('app.string.panel_open'))).fontSize(24).fontWeight(600, { enableVariableFontWeight: true }).fontColor(UI.ink)
+            Text(this.error || UiText.get($r('app.string.panel_preparing'))).fontSize(16).fontColor(UI.muted)
+            Button(UiText.get($r('app.string.panel_reopen'))).width('100%').constraintSize({ minHeight: 56 }).backgroundColor(UI.action).fontColor(UI.onAccent)
               .onClick(() => this.reopen())
-            Text('返回连接页不会断开 VPN。').fontSize(13).fontColor(UI.muted)
           }.padding(24).width('100%').constraintSize({ maxWidth: 760 })
             .borderRadius(24).backgroundColor(UI.surface).alignItems(HorizontalAlign.Start)
         }.width('100%').layoutWeight(1)
@@ -101,7 +101,7 @@ export struct ZashboardPage {
         if (this.error !== '') {
           Column({ space: 12 }) {
             Text(this.error).fontSize(14).fontColor(UI.error).width('100%')
-            Button('重试').width('100%').height(48).backgroundColor(UI.soft).fontColor(UI.accentText)
+            Button(UiText.get($r('app.string.action_retry'))).width('100%').constraintSize({ minHeight: 48 }).backgroundColor(UI.soft).fontColor(UI.accentText)
               .onClick(() => this.reopen())
           }.width('100%').alignItems(HorizontalAlign.Start)
         }
@@ -120,7 +120,7 @@ export struct ZashboardPage {
             .multiWindowAccess(false)
             .onControllerAttached(() => {
               try { this.controller.removeCache(true); }
-              catch (_) { this.releaseWeb(); this.error = '缓存清理失败，请重新打开。'; }
+              catch (_) { this.releaseWeb(); this.error = UiText.get($r('app.string.panel_cache_failed')); }
             })
             .onInterceptRequest((event) => {
               const target = event.request.getRequestUrl();
@@ -137,12 +137,12 @@ export struct ZashboardPage {
             .onLoadIntercept((event) => !this.allowedNavigation(event.data.getRequestUrl()))
             .onOverrideUrlLoading((request) => !this.allowedNavigation(request.getRequestUrl()))
             .onConsole(() => true)
-            .onRenderExited(() => { this.releaseWeb(); this.error = '控制面板已退出，请重新打开。'; })
+            .onRenderExited(() => { this.releaseWeb(); this.error = UiText.get($r('app.string.panel_exited')); })
             .onErrorReceive((event) => {
-              if (event.request.isMainFrame()) { this.error = '加载失败，请重新打开；VPN 继续运行。'; }
+              if (event.request.isMainFrame()) { this.error = UiText.get($r('app.string.panel_load_failed')); }
             })
             .onHttpErrorReceive((event) => {
-              if (event.request.isMainFrame()) { this.error = '服务暂不可用，请重新打开。'; }
+              if (event.request.isMainFrame()) { this.error = UiText.get($r('app.string.panel_service_failed')); }
             })
             .width('100%')
             .layoutWeight(1)

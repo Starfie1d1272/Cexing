@@ -47,6 +47,10 @@ assert.equal(glass.NativeMaterial.contentInset(), 92);
 for (const [width, expected] of [[0, 0], [160, 128], [360, 328], [390, 358], [699, 472], [700, 472], [960, 472]]) {
   assert.equal(glass.NativeMaterial.barWidth(width), expected);
 }
+for (const scale of [1, 1.3, 1.75]) {
+  assert.equal(glass.NativeMaterial.contentInset(scale), 92 + (scale - 1) * 40);
+  assert.equal(glass.NativeMaterial.fontGrowth(scale), (scale - 1) * 40);
+}
 function luminance(hex) {
   const values = hex.slice(1).match(/../g).map(v => parseInt(v, 16) / 255)
     .map(v => v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);

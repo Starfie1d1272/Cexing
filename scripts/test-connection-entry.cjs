@@ -1,3 +1,4 @@
+const uiFixture = require('./ci/ui-fixtures.cjs');
 // Production entry intents execute without a second confirmation. Device authorization is separate.
 const assert=require('node:assert/strict'), fs=require('node:fs'), path=require('node:path'), vm=require('node:vm');
 const ts=require('./ci/transpile-arkts.cjs');
@@ -128,19 +129,19 @@ async function tests(){
     .replace('struct ConnectionCard', 'class ConnectionCard');
   cardSource += '\nexports.Card = ConnectionCard;';
   let time = 100000;
-  const cardHost = { exports: {}, Date: { now: () => time }, postCardAction() {} };
+  const cardHost = { exports: {}, ...uiFixture.globals, Date: { now: () => time }, postCardAction() {} };
   vm.runInNewContext(ts.transpileModule(cardSource).outputText, cardHost);
   const widget = new cardHost.exports.Card();
   widget.aboutToAppear(); assert.equal(widget.fresh, false);
-  assert.equal(widget.statusText(), '策星 VPN');
+  assert.equal(uiFixture.module.UiText.get(widget.statusText()), '策星 VPN');
   widget.label = '已连接'; widget.action = 'disconnect';
-  assert.equal(widget.buttonText(), '断开');
+  assert.equal(uiFixture.module.UiText.get(widget.buttonText()), '断开');
   widget.verifiedAt = time; widget.refreshFreshness(); assert.equal(widget.fresh, true);
-  assert.equal(widget.statusText(), '已连接');
+  assert.equal(uiFixture.module.UiText.get(widget.statusText()), '已连接');
   time += 60001; widget.refreshFreshness(); assert.equal(widget.fresh, false, 'stopped runtime heartbeat expires');
-  assert.equal(widget.statusText(), '已连接', 'the stale caption marks this as the last observation');
+  assert.equal(uiFixture.module.UiText.get(widget.statusText()), '已连接', 'the stale caption marks this as the last observation');
   widget.label = '未连接'; widget.action = 'connect';
-  assert.equal(widget.buttonText(), '连接');
+  assert.equal(uiFixture.module.UiText.get(widget.buttonText()), '连接');
   widget.verifiedAt = time + 1; widget.refreshFreshness(); assert.equal(widget.fresh, false, 'future timestamp cannot claim current status');
   console.log('PASS: one-tap intents, cold recovery, stale/repeated preparation, profile gate and historical card protection');
 }

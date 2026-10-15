@@ -1,3 +1,4 @@
+import { UiText } from '../lib/UiText';
 import { common } from '@kit.AbilityKit';
 import { fileIo } from '@kit.CoreFileKit';
 import { EffectiveVersions } from '../lib/EffectiveVersions';
@@ -25,13 +26,13 @@ export struct ProfileGeneratedPage {
       const context = getContext(this) as common.UIAbilityContext;
       const version = EffectiveVersions.read(context)?.Profiles[file];
       if (version === undefined) {
-        if (request === this.generation) { this.error = '尚无生成配置，请先启用订阅'; }
+        if (request === this.generation) { this.error = UiText.get($r('app.string.generated_missing')); }
         return;
       }
       const content = await fileIo.readText(version.Path);
       if (request === this.generation) { this.content = content; }
     } catch (_) {
-      if (request === this.generation) { this.error = '生成配置读取失败，请重试'; }
+      if (request === this.generation) { this.error = UiText.get($r('app.string.generated_read_failed')); }
     } finally {
       if (request === this.generation) { this.loading = false; }
     }
@@ -39,12 +40,12 @@ export struct ProfileGeneratedPage {
 
   build() {
     Column({ space: 12 }) {
-      Text('已保存的生成配置 · 只读').fontSize(13).fontColor(UI.muted).width('100%')
+      Text(UiText.get($r('app.string.generated_readonly'))).fontSize(13).fontColor(UI.muted).width('100%')
       if (this.loading) {
         LoadingProgress().width(36).height(36)
       } else if (this.error.length > 0) {
         Text(this.error).fontSize(15).fontColor(UI.error).width('100%')
-        Button('重试').onClick(() => { this.load(); })
+        Button(UiText.get($r('app.string.action_retry'))).onClick(() => { this.load(); })
       } else {
         Scroll() {
           Text(this.content).fontSize(14).fontFamily('HarmonyOS Sans Mono')
