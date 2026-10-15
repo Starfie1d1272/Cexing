@@ -5,7 +5,11 @@ import { NativeTheme as UI } from './NativeTheme';
  */
 import { common } from '@kit.AbilityKit';
 import { picker, fileIo } from '@kit.CoreFileKit';
-import { util } from '@kit.ArkTS';
+import { scanBarcode, scanCore } from '@kit.ScanKit';
+import { ProfileImportInput, ProfileImportCandidate } from '../lib/ProfileImportInput';
+import { BoundedFileReader } from '../lib/BoundedFileReader';
+import { ProfileRecovery } from '../lib/ProfileRecovery';
+import { AutoUpdater } from '../lib/AutoUpdater';
 import { promptAction } from '@kit.ArkUI';
 import { pasteboard } from '@kit.BasicServicesKit';
 import { ProfileStore, ProfileMeta, ProfileMetaExt } from '../lib/ProfileStore';
@@ -16,6 +20,9 @@ import { CoreApi } from '../lib/CoreApi';
 import { AppRuntime } from '../lib/AppRuntime';
 import { Logger } from '../lib/Logger';
 import { ProfileEditBus } from './ProfileEditPage';
+import { RuleDnsEditorBus } from './RuleDnsEditorPage';
+import { ProfileProxyEditorBus } from './ProfileProxyEditorPage';
+import { ProfileTemplateBus } from './ProfileTemplatePage';
 import { GlobalMergeEditor } from './GlobalMergeEditor';
 
 const TAG = 'profile';
@@ -29,6 +36,7 @@ const SHEET_READY = 4;
 const SHEET_PASTE = 5;
 const SHEET_REGION = 6;
 const SHEET_GLOBAL = 7;
+const SHEET_SHARED_FILE = 8;
 const REGION_NAMES: string[] = ['香港', '台湾', '日本', '新加坡', '美国', '韩国', '英国', '德国', '未知'];
 
 class RegionSelectOption {
@@ -42,6 +50,7 @@ export class ProfileDetailBus {
 
 @Component
 export struct ProfilePage {
+  @StorageLink('profileImportRequest') @Watch('acceptExternalImport') importRequest: number = 0;
   @Prop detailFile: string = '';
   @Consume('profileRevision') @Watch('refresh') profileRevision: number;
   @Consume('nav') navStack: NavPathStack;
@@ -52,6 +61,13 @@ export struct ProfilePage {
   @State metas: Record<string, ProfileMetaExt> = {};
   @State importing: boolean = false;
   @State activating: boolean = false;
+  @State scanning: boolean = false;
+  @State recoveryNeeded: boolean = false;
+  @State recovering: boolean = false;
+  @State updateFeedback: Record<string, string> = {};
+  private sharedFileUri: string = '';
+  private externalImport: ProfileImportCandidate | null = null;
+  private importGeneration: number = 0;
   @State updatingFile: string = '';
   @State refreshing: boolean = false;
   @State showSheet: boolean = false;
@@ -72,6 +88,28 @@ export struct ProfilePage {
   private pageVisible: boolean = false;
   private pageGeneration: number = 0;
   private activationRequest: number = 0;
+
+  private openTemplate(file: string): void {
+    const paths = this.navStack.getAllPathName();
+    if (paths[paths.length - 1] === 'profileTemplate') { return; }
+    ProfileTemplateBus.file = file;
+    this.navStack.pushPath({ name: 'profileTemplate' });
+  }
+
+  private openProxyEditor(file: string): void {
+    const paths = this.navStack.getAllPathName();
+    if (paths[paths.length - 1] === 'profileProxyEditor') { return; }
+    ProfileProxyEditorBus.file = file;
+    this.navStack.pushPath({ name: 'profileProxyEditor' });
+  }
+
+  private openRuleDns(file: string): void {
+    const paths = this.navStack.getAllPathName();
+    if (paths[paths.length - 1] === 'ruleDnsEditor') { return; }
+    RuleDnsEditorBus.file = file;
+    RuleDnsEditorBus.section = 'rules';
+    this.navStack.pushPath({ name: 'ruleDnsEditor' });
+  }
 
   private detailOnTop(): boolean {
     const paths = this.navStack.getAllPathName();
@@ -95,19 +133,20 @@ export struct ProfilePage {
   // 'applied' or 'saved'; rejection and unknown outcomes must not enter here.
   private finishActivationNavigation(request: number, page: number, tab: number, paths: string[]): void {
     this.profileRevision++;
-    if (!this.activationPageCurrent(request, page, tab, paths)) { return; }
+    if (!this.activationPageCurrent(request, page, tab, paths) || this.showSheet || ProfileImportInput.hasPending()) { return; }
     this.refresh();
     if (this.detailOnTop()) { this.navStack.pop(); }
     this.tabJump = 0;
   }
 
   private onTabVisible(): void {
-    if (this.detailFile.length === 0 && this.currentVisibleTab !== 1) { this.activationRequest++; }
-    if (this.currentVisibleTab === 1) { this.refresh(); }
+    if (this.detailFile.length === 0 && this.currentVisibleTab !== 1) { this.activationRequest++; this.importGeneration++; }
+    if (this.currentVisibleTab === 1) { this.refresh(); this.acceptExternalImport(); }
   }
 
   private onRootVisible(): void {
-    if (this.detailFile.length === 0 && !this.rootVisible) { this.activationRequest++; }
+    if (this.rootVisible) { this.acceptExternalImport(); }
+    if (this.detailFile.length === 0 && !this.rootVisible) { this.activationRequest++; this.importGeneration++; }
   }
 
   private changed(): void {
@@ -116,6 +155,7 @@ export struct ProfilePage {
   }
 
   private finishImport(file: string): void {
+    this.releaseExternalImport();
     this.changed();
     this.importedFile = file;
     this.importError = '';
@@ -154,7 +194,7 @@ export struct ProfilePage {
       this.toast(enable ? (pending ? '地区策略已创建，连接后选择新入口' : '地区入口已选择') :
         '地区策略已创建，可稍后启用');
     } catch (e) { this.importError = (e as Error).message ?? '地区策略未保存'; }
-    finally { this.regionBusy = false; }
+    finally { this.regionBusy = false; this.acceptExternalImport(); }
   }
 
   private regionCanCreate(): boolean {
@@ -171,24 +211,32 @@ export struct ProfilePage {
   }
 
   private async editRegion(file: string): Promise<void> {
-    this.regionFromImport = false;
-    this.importedFile = file;
-    this.importError = '';
+    if (this.regionBusy || this.showSheet || this.sheetMode !== SHEET_NONE) { return; }
+    const page = this.pageGeneration; const request = ++this.importGeneration;
+    const tab = this.currentVisibleTab; const paths = this.navStack.getAllPathName();
+    const current = (): boolean => this.pageVisible && page === this.pageGeneration &&
+      request === this.importGeneration && tab === this.currentVisibleTab && this.samePath(paths);
+    this.regionBusy = true;
     const existing = this.savedRegion(file);
-    this.regionMode = existing?.mode ?? 'region';
-    this.regionAssignments = existing?.assignments ?? {};
-    this.regionSelector = existing?.selector ?? '';
+    const mode = existing?.mode ?? 'region';
+    const assignments: Record<string, string> = existing?.assignments ?? {};
+    let selector = existing?.selector ?? '';
     try {
       const context = getContext(this) as common.UIAbilityContext;
-      if (this.regionSelector === '') {
+      if (selector === '') {
         const probe: RegionPlan = { mode: 'region', selector: '', enable: false, assignments: {} };
         const first = await ProfileTransactions.previewRegion(context, file, probe);
-        this.regionSelector = first.selectors[0] ?? '';
+        if (!current()) { return; }
+        selector = first.selectors[0] ?? '';
       }
-      await this.refreshRegionPreview();
-      this.sheetMode = SHEET_REGION;
-      this.showSheet = true;
-    } catch (_) { this.toast('当前订阅无法创建地区策略'); }
+      const preview = await ProfileTransactions.previewRegion(context, file,
+        { mode: mode, selector: selector, enable: false, assignments: assignments });
+      if (!current()) { return; }
+      this.regionFromImport = false; this.importedFile = file; this.importError = '';
+      this.regionMode = mode; this.regionAssignments = assignments; this.regionSelector = selector;
+      this.regionPreview = preview; this.sheetMode = SHEET_REGION; this.showSheet = true;
+    } catch (_) { if (current()) { this.toast('当前订阅无法创建地区策略'); } }
+    finally { this.regionBusy = false; this.acceptExternalImport(); }
   }
 
   private async toggleRegion(file: string): Promise<void> {
@@ -238,10 +286,13 @@ export struct ProfilePage {
     this.pageGeneration++;
     this.selectedFile = this.detailFile;
     this.refresh();
+    this.acceptExternalImport();
   }
 
   aboutToDisappear(): void {
+    this.releaseExternalImport();
     this.pageVisible = false;
+    this.importGeneration++;
     this.pageGeneration++;
     this.activationRequest++;
   }
@@ -250,6 +301,16 @@ export struct ProfilePage {
     const context = getContext(this) as common.UIAbilityContext;
     this.profiles = ProfileStore.list(context);
     this.metas = ProfileStore.getMeta(context);
+    this.recoveryNeeded = ProfileStore.isApplyUncertain(context);
+    const feedback: Record<string, string> = {};
+    for (const p of this.profiles) {
+      if (!this.isUrlProfile(p.file)) { continue; }
+      try {
+        const state = ProfileStore.updateState(context, p.file);
+        if (state.failedAt > state.succeededAt) { feedback[p.file] = '自动更新失败'; }
+      } catch (_) { feedback[p.file] = '更新记录不可用'; }
+    }
+    this.updateFeedback = feedback;
     if (this.selectedFile.length > 0 && !this.profiles.some((p: ProfileMeta) => p.file === this.selectedFile)) {
       this.selectedFile = '';
       if (this.detailOnTop()) { this.navStack.pop(); }
@@ -359,7 +420,7 @@ export struct ProfilePage {
       if (this.activationPageCurrent(request, page, tab, paths) && this.showSheet) {
         this.importError = this.activationError(error as Error);
       }
-    } finally { this.activating = false; }
+    } finally { this.activating = false; this.acceptExternalImport(); }
   }
 
   private async activate(p: ProfileMeta): Promise<void> {
@@ -379,9 +440,69 @@ export struct ProfilePage {
       this.finishActivationNavigation(request, page, tab, paths);
     } catch (e) {
       if (this.activationPageCurrent(request, page, tab, paths)) {
-        this.toast((e as Error).message ?? '切换失败');
+        this.refresh();
+        this.toast(this.recoveryNeeded ? '应用未确认，请重连恢复' : this.activationError(e as Error));
       }
-    } finally { this.activating = false; }
+    } finally { this.activating = false; this.acceptExternalImport(); }
+  }
+
+  private confirmRecovery(): void {
+    if (this.recovering) { return; }
+    const page = this.pageGeneration;
+    const request = ++this.activationRequest;
+    const tab = this.currentVisibleTab;
+    const paths = this.navStack.getAllPathName();
+    const context = getContext(this) as common.UIAbilityContext;
+    const session = VpnController.trafficSession();
+    const file = ProfileStore.getActiveFile(context);
+    let consumed = false;
+    AlertDialog.show({ title: '重新连接？', message: '当前连接会暂时中断。',
+      primaryButton: { value: '取消', action: () => { consumed = true; } },
+      secondaryButton: { value: '重新连接', action: () => {
+        if (consumed || !this.activationPageCurrent(request, page, tab, paths) ||
+          VpnController.trafficSession() !== session || ProfileStore.getActiveFile(context) !== file) { return; }
+        consumed = true;
+        this.recoverProfile(page, request, tab, paths);
+      } } });
+  }
+
+  private async recoverProfile(page: number, request: number, tab: number, paths: string[]): Promise<void> {
+    if (this.recovering || !this.activationPageCurrent(request, page, tab, paths)) { return; }
+    const current = (): boolean => this.activationPageCurrent(request, page, tab, paths);
+    this.recovering = true;
+    try {
+      const context = getContext(this) as common.UIAbilityContext;
+      const accepted = await ProfileRecovery.reconnect(context, current);
+      if (!current()) { return; }
+      this.refresh();
+      if (accepted) { this.finishActivationNavigation(request, page, tab, paths); }
+      else { this.toast('连接未开始，请重试'); }
+    } catch (_) {
+      if (current()) { this.refresh(); this.toast('恢复未完成，请重试或前往连接页检查'); }
+    } finally { this.recovering = false; this.acceptExternalImport(); }
+  }
+
+  private async retryAutomatic(p: ProfileMeta): Promise<void> {
+    if (this.updatingFile.length > 0 || !p.active) { return; }
+    const page = this.pageGeneration;
+    const context = getContext(this) as common.UIAbilityContext;
+    const paths = this.navStack.getAllPathName();
+    this.updatingFile = p.file;
+    try {
+      const before = ProfileStore.updateState(context, p.file);
+      await AutoUpdater.retry(context);
+      if (!this.pageVisible || page !== this.pageGeneration || !this.samePath(paths) ||
+        ProfileStore.getActiveFile(context) !== p.file) { return; }
+      this.changed();
+      const after = ProfileStore.updateState(context, p.file);
+      if (after.id === before.id && after.succeededAt > before.succeededAt && after.failedAt === 0) {
+        this.toast('已更新');
+      } else { this.toast('未能更新，请检查网络及自动更新设置'); }
+    } catch (_) {
+      if (this.pageVisible && page === this.pageGeneration && this.samePath(paths)) {
+        this.refresh(); this.toast('更新未完成，请重试');
+      }
+    } finally { this.updatingFile = ''; this.acceptExternalImport(); }
   }
 
   private async updateProfile(p: ProfileMeta): Promise<void> {
@@ -395,9 +516,11 @@ export struct ProfilePage {
       this.toast(result === 'applied' ? '已更新并应用' : '已更新，启用或启动后生效');
       this.changed();
     } catch (e) {
-      this.toast(`更新失败: ${(e as Error).message}`);
+      this.refresh();
+      this.toast(this.recoveryNeeded ? '应用未确认，请重连恢复' : '更新失败，请检查网络后重试');
     } finally {
       this.updatingFile = '';
+      this.acceptExternalImport();
     }
   }
 
@@ -434,7 +557,7 @@ export struct ProfilePage {
       this.changed();
     } catch (e) {
       this.toast(`重命名失败: ${(e as Error).message ?? JSON.stringify(e)}`);
-    }
+    } finally { this.acceptExternalImport(); }
   }
 
   private async exportProfile(p: ProfileMeta): Promise<void> {
@@ -465,73 +588,146 @@ export struct ProfilePage {
     }
   }
 
+  private releaseExternalImport(): void {
+    ProfileImportInput.release(this.externalImport);
+    this.externalImport = null;
+  }
+
+  private cancelImport(): void {
+    this.importGeneration++;
+    this.activationRequest++;
+    this.releaseExternalImport();
+    this.inputUrl = '';
+    this.sharedFileUri = '';
+    this.showSheet = false;
+    this.sheetMode = SHEET_NONE;
+    this.acceptExternalImport();
+  }
+
+  private acceptExternalImport(): void {
+    if (!this.pageVisible || this.detailFile.length > 0 || !this.rootVisible ||
+      this.currentVisibleTab !== 1 || this.importing || this.activating || this.scanning ||
+      this.showSheet || this.sheetMode !== SHEET_NONE || this.regionBusy || this.recovering ||
+      this.updatingFile.length > 0 || this.refreshing || ProfileTransactions.isBusy()) { return; }
+    const candidate = ProfileImportInput.take();
+    if (candidate === null) { return; }
+    this.externalImport = candidate;
+    this.importGeneration++;
+    this.importError = '';
+    if (candidate.kind === 'url') {
+      this.inputUrl = candidate.value;
+      this.sheetMode = SHEET_URL;
+    } else {
+      this.sharedFileUri = candidate.value;
+      this.sheetMode = SHEET_SHARED_FILE;
+    }
+    this.showSheet = true;
+  }
+
+  private scanInput(): void {
+    if (this.scanning || this.importing || this.activating) { return; }
+    if (!canIUse('SystemCapability.Multimedia.Scan.ScanBarcode')) {
+      this.toast('当前设备不支持扫码，请使用链接或文件导入'); return;
+    }
+    const page = this.pageGeneration;
+    const tab = this.currentVisibleTab;
+    const paths = this.navStack.getAllPathName();
+    const request = ++this.importGeneration;
+    this.scanning = true;
+    this.showSheet = false;
+    this.sheetMode = SHEET_NONE;
+    const context = getContext(this) as common.UIAbilityContext;
+    try {
+      scanBarcode.startScanForResult(context, {
+        scanTypes: [scanCore.ScanType.QR_CODE], enableMultiMode: false, enableAlbum: true
+      }, (error, result) => {
+        try {
+        if (!this.pageVisible || page !== this.pageGeneration || request !== this.importGeneration ||
+          tab !== this.currentVisibleTab || !this.samePath(paths)) { return; }
+        if (error) {
+          // Cancellation/denied camera does not start another action. Album and
+          // ordinary import remain available on the next user request.
+          return;
+        }
+        const candidate = ProfileImportInput.parseText(result.originalValue);
+        if (candidate === null) { this.toast('未识别到订阅链接，请使用链接或文件导入'); return; }
+        this.inputUrl = candidate.value;
+        this.importError = '';
+        this.sheetMode = SHEET_URL;
+        this.showSheet = true;
+        } finally { this.scanning = false; this.acceptExternalImport(); }
+      });
+    } catch (_) {
+      this.scanning = false;
+      this.toast('扫码未能打开，请使用链接或文件导入');
+      this.acceptExternalImport();
+    }
+  }
+
   private async importUrl(): Promise<void> {
     const url = this.inputUrl.trim();
     if (url.length === 0) {
       return;
     }
     if (this.importing) { return; }
+    const context = getContext(this) as common.UIAbilityContext;
+    const existing = this.profiles.find((p: ProfileMeta) => ProfileStore.getOrigin(context, p.file) === url);
+    if (existing !== undefined) {
+      this.finishImport(existing.file); return;
+    }
     this.importError = '';
     this.importing = true;
-    const context = getContext(this) as common.UIAbilityContext;
+    const page = this.pageGeneration;
+    const request = ++this.importGeneration;
     try {
       const file = await ProfileStore.importFromUrl(context, url);
+      if (!this.pageVisible || page !== this.pageGeneration || request !== this.importGeneration) { return; }
       this.inputUrl = '';
       this.finishImport(file);
-    } catch (e) {
-      this.importError = '导入失败，请检查输入与网络后重试';
+    } catch (_) {
+      if (this.pageVisible && page === this.pageGeneration && request === this.importGeneration) {
+        this.importError = '导入失败，请检查输入与网络后重试';
+      }
     } finally {
       this.importing = false;
+      this.acceptExternalImport();
     }
   }
 
-  private async importFile(): Promise<void> {
+  private async importFile(sharedUri: string = ''): Promise<void> {
+    if (this.importing) { return; }
+    this.importing = true;
+    const page = this.pageGeneration;
+    const request = ++this.importGeneration;
     const context = getContext(this) as common.UIAbilityContext;
     try {
-      const docPicker = new picker.DocumentViewPicker(context);
-      const uris = await docPicker.select({
-        maxSelectNumber: 1,
-        selectMode: picker.DocumentSelectMode.FILE,
-        fileSuffixFilters: ['.yaml', '.yml']
-      });
+      let uris: string[] = [sharedUri];
+      if (sharedUri.length === 0) {
+        const docPicker = new picker.DocumentViewPicker(context);
+        uris = await docPicker.select({
+          maxSelectNumber: 1,
+          selectMode: picker.DocumentSelectMode.FILE,
+          fileSuffixFilters: ['.yaml', '.yml']
+        });
+      }
       if (!uris || uris.length === 0) {
         return;
       }
+      if (!this.pageVisible || page !== this.pageGeneration || request !== this.importGeneration) { return; }
       const uri = uris[0];
-      const f = fileIo.openSync(uri, fileIo.OpenMode.READ_ONLY);
-      // 循环读完整文件（readSync 单次可能短读，也避免固定 2MB 上限截断大订阅）
-      const chunks: Uint8Array[] = [];
-      let total = 0;
-      while (true) {
-        const buf = new ArrayBuffer(1024 * 1024);
-        const len = fileIo.readSync(f.fd, buf);
-        if (len <= 0) {
-          break;
-        }
-        chunks.push(new Uint8Array(buf.slice(0, len)));
-        total += len;
-        if (total > 32 * 1024 * 1024) {
-          fileIo.closeSync(f);
-          throw new Error('配置文件超过 32MB 上限');
-        }
-      }
-      fileIo.closeSync(f);
-      const merged = new Uint8Array(total);
-      let off = 0;
-      for (const c of chunks) {
-        merged.set(c, off);
-        off += c.length;
-      }
-      const content = util.TextDecoder.create('utf-8').decodeToString(merged);
+      const current = (): boolean => this.pageVisible && page === this.pageGeneration &&
+        request === this.importGeneration;
+      const content = await BoundedFileReader.yaml(uri, current);
+      if (!current()) { return; }
       const seg = uri.split('/').pop() ?? `file_${Date.now()}`;
       const name = decodeURIComponent(seg).replace(/\.(yaml|yml)$/i, '');
       const file = ProfileStore.importContent(context, name, content);
       this.finishImport(file);
     } catch (e) {
-      const msg = (e as Error).message ?? JSON.stringify(e);
-      Logger.warn(TAG, `importFile: ${msg}`);
-      this.toast(`导入失败: ${msg}`);
-    }
+      if (this.pageVisible && page === this.pageGeneration && request === this.importGeneration) {
+        this.toast('文件导入失败，请重新选择 YAML 配置');
+      }
+    } finally { this.importing = false; this.acceptExternalImport(); }
   }
 
   private async importClipboard(): Promise<void> {
@@ -582,13 +778,14 @@ export struct ProfilePage {
           const result = await ProfileTransactions.update(context, active);
           this.toast(result === 'applied' ? '已更新并应用' : '已更新，启用或启动后生效');
         } catch (e) {
-          Logger.warn(TAG, `pull refresh update failed: ${(e as Error).message ?? JSON.stringify(e)}`);
-          this.toast(`更新失败: ${(e as Error).message}`);
+          this.refresh();
+          this.toast(this.recoveryNeeded ? '应用未确认，请重连恢复' : '更新失败，请检查网络后重试');
         }
       }
       this.refresh();
     } finally {
       this.refreshing = false;
+      this.acceptExternalImport();
     }
   }
 
@@ -640,6 +837,18 @@ export struct ProfilePage {
           Text(p.name).fontSize(28).fontWeight(FontWeight.Bold).fontColor(UI.ink).width('100%')
           Text(this.isUrlProfile(p.file) ? 'URL 订阅' : '本地配置').fontSize(14).fontColor(UI.muted).width('100%')
           Text(this.subText(p)).fontSize(14).fontColor(UI.muted).width('100%')
+          if (this.updateFeedback[p.file] !== undefined) {
+            Text(this.updateFeedback[p.file]).fontSize(14).fontColor(UI.error).width('100%')
+            if (p.active) {
+              Button(this.updatingFile === p.file ? '更新中…' : '重试自动更新').width('100%').height(48)
+                .enabled(this.updatingFile.length === 0).onClick(() => { this.retryAutomatic(p); })
+            }
+          }
+          this.DetailAction('分流方案', () => { this.openTemplate(p.file); })
+          this.DetailAction('节点与策略组', () => { this.openProxyEditor(p.file); })
+          this.DetailAction('规则与 DNS', () => {
+            this.openRuleDns(p.file);
+          })
           this.DetailAction('原始配置', () => {
             ProfileEditBus.current = p.file;
             this.navStack.pushPath({ name: 'profileEdit' });
@@ -720,6 +929,7 @@ export struct ProfilePage {
         .fontColor(UI.ink)
         .width('100%')
         .padding({ top: 20, left: 20, right: 20, bottom: 8 })
+      this.ImportEntry($r('sys.symbol.qrcode'), '扫码或从图片识别', () => { this.scanInput(); })
       this.ImportEntry($r('sys.symbol.link'), '订阅链接', () => {
         this.sheetMode = SHEET_URL;
       })
@@ -764,11 +974,7 @@ export struct ProfilePage {
           .layoutWeight(1)
           .backgroundColor(UI.soft)
           .fontColor(UI.ink)
-          .onClick(() => {
-            this.showSheet = false;
-            this.sheetMode = SHEET_NONE;
-            this.inputUrl = '';
-          })
+          .onClick(() => { this.cancelImport(); })
         Button(this.importing ? '导入中…' : '导入')
           .height(48)
           .backgroundColor(UI.action).fontColor(UI.onAccent)
@@ -851,6 +1057,19 @@ export struct ProfilePage {
       Button(this.importing ? '导入中…' : '导入').width('100%').height(56)
         .backgroundColor(UI.action).fontColor(UI.onAccent).enabled(!this.importing).onClick(() => this.importPaste())
     }.padding(24).width('100%')
+  }
+
+  @Builder
+  SharedFileSheet() {
+    Column({ space: 16 }) {
+      Text('导入配置文件？').fontSize(21).fontWeight(FontWeight.Bold).fontColor(UI.ink)
+      Button(this.importing ? '导入中…' : '导入').width('100%').height(48)
+        .enabled(!this.importing).onClick(() => { this.importFile(this.sharedFileUri); })
+      Button('取消').width('100%').height(48).backgroundColor(UI.soft).fontColor(UI.ink)
+        .onClick(() => {
+          this.cancelImport();
+        })
+    }.width('100%').padding(24)
   }
 
   @Builder
@@ -955,6 +1174,7 @@ export struct ProfilePage {
     if (this.sheetMode === SHEET_IMPORT) { this.ImportMenuSheet() }
     else if (this.sheetMode === SHEET_URL) { this.UrlImportDialog() }
     else if (this.sheetMode === SHEET_RENAME) { this.RenameSheet() }
+    else if (this.sheetMode === SHEET_SHARED_FILE) { this.SharedFileSheet() }
     else if (this.sheetMode === SHEET_READY) { this.ReadySheet() }
     else if (this.sheetMode === SHEET_PASTE) { this.PasteSheet() }
     else if (this.sheetMode === SHEET_REGION) { this.RegionSheet() }
@@ -965,6 +1185,11 @@ export struct ProfilePage {
 
   build() {
     Column({ space: 16 }) {
+      if (this.recoveryNeeded) {
+        Text('应用未确认').fontSize(14).fontColor(UI.error).width('100%')
+        Button(this.recovering ? '恢复中…' : '重连恢复').width('100%').height(48)
+          .enabled(!this.recovering).onClick(() => { this.confirmRecovery(); })
+      }
       if (this.selectedFile.length > 0) {
         ForEach(this.profiles.filter((p: ProfileMeta) => p.file === this.selectedFile), (p: ProfileMeta) => {
           this.ProfileDetail(p)
@@ -985,6 +1210,7 @@ export struct ProfilePage {
         if (this.profiles.length === 0) {
           Column({ space: 20 }) {
             Text('导入订阅').fontSize(32).fontWeight(FontWeight.Bold).fontColor(UI.ink).width('100%')
+            this.ImportEntry($r('sys.symbol.qrcode'), '扫码或从图片识别', () => { this.scanInput(); })
             this.ImportEntry($r('sys.symbol.link'), '订阅链接', () => {
               this.sheetMode = SHEET_URL; this.showSheet = true;
             })
@@ -1004,9 +1230,18 @@ export struct ProfilePage {
     }.width('100%').height('100%').padding({ left: 24, right: 24, bottom: 12 })
       .backgroundColor(UI.paper).constraintSize({ maxWidth: 760 }).alignSelf(ItemAlign.Center)
       .bindSheet($$this.showSheet, this.MainSheet(), { height: this.sheetMode === SHEET_GLOBAL ? SheetSize.LARGE : SheetSize.FIT_CONTENT,
-        onDisappear: () => { this.sheetMode = SHEET_NONE; },
+        onDisappear: () => {
+          if (!this.showSheet) {
+            this.sheetMode = SHEET_NONE;
+            this.releaseExternalImport();
+            this.acceptExternalImport();
+          }
+        },
         shouldDismiss: (dismiss: SheetDismiss) => {
-          if (this.sheetMode !== SHEET_GLOBAL && !this.importing && !this.regionBusy && !ProfileTransactions.isBusy()) { dismiss.dismiss(); }
+          if (this.sheetMode !== SHEET_GLOBAL && !this.importing && !this.activating && !this.regionBusy && !ProfileTransactions.isBusy()) {
+            this.importGeneration++; this.activationRequest++;
+            dismiss.dismiss();
+          }
         } })
   }
 }
