@@ -31,7 +31,7 @@ const mods = {
  '../lib/EffectiveVersions': { EffectiveVersions: { read: () => ({ Profiles: { 'one.yaml': { ID: 'v1' } } }), editIntent: () => published } },
  '../lib/ProfileStore': { ProfileStore: { getActiveFile: () => 'one.yaml', downloadFromOrigin: () => { downloads++; return new Promise((resolve, reject) => { download = resolve; rejectDownload = reject; }); } } }
 };
-const hostBox = { exports: {}, ...uiFixture.globals, require: name => name === './UiText' ? uiFixture.module : name === './TemplateUpdates' ? { TemplateUpdates: { preview: async () => ({ ready: true, conflicts: [], candidate: snapshot }) } } : {} };
+const hostBox = { exports: {}, ...uiFixture.globals, require: name => name === './CoreValidator' ? require('./ci/semantic-fixture.cjs') : name === './UiText' ? uiFixture.module : name === './TemplateUpdates' ? { TemplateUpdates: { preview: async () => ({ ready: true, conflicts: [], candidate: snapshot }) } } : {} };
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('cexing/entry/src/main/ets/lib/TemplateUpdateHost.ets', 'utf8')).outputText, hostBox);
 mods['../lib/TemplateUpdateHost'] = hostBox.exports;
 function page(name) {
