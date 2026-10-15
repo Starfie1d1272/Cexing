@@ -195,7 +195,8 @@ export struct ProfileEditPage {
       primaryButton: { value: UiText.get($r('app.string.editor_got_it')), action: () => {} } });
   }
 
-  private saveAs(): void {
+  private async saveAs(): Promise<void> {
+    if (this.saving) { return; }
     const input = this.saveAsInput.trim();
     this.showSaveAsSheet = false;
     this.saveAsInput = '';
@@ -204,13 +205,17 @@ export struct ProfileEditPage {
       return;
     }
     const context = getContext(this) as common.UIAbilityContext;
+    this.saving = true;
+    const owner = this.backGuard;
+    const current = (): boolean => ProfileEditBus.backGuard === owner;
     try {
-      const file = ProfileStore.importContent(context, input, this.editedText);
+      const file = await ProfileStore.importContentAsync(context, input, this.editedText, current);
+      if (!current()) { return; }
       this.profileRevision++;
       this.toast(UiText.get($r('app.string.original_saved_as'), file));
     } catch (e) {
-      this.toast(this.safeFailure(e, $r('app.string.original_save_as_failed')));
-    }
+      if (current()) { this.toast(this.safeFailure(e, $r('app.string.original_save_as_failed'))); }
+    } finally { this.saving = false; }
   }
 
   private prepareToLeave(): boolean {

@@ -1,6 +1,7 @@
+const conflictUi = require('./ci/ui-fixtures.cjs');
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const ts=require('./ci/transpile-arkts.cjs');
-const box={exports:{}};
+const box={exports:{},...conflictUi.globals,require:()=>conflictUi.module};
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('cexing/entry/src/main/ets/lib/TemplateConflictPresentation.ets','utf8')).outputText,box);
 const describe=box.exports.describeTemplateConflict;
 const snapshot=entries=>({templateId:'ai',version:1,entries});

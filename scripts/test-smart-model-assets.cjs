@@ -13,7 +13,7 @@ const code = ts.transpileModule(source, { compilerOptions: {
   module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020
 } }).outputText;
 
-function fixture(bundled = model) {
+function fixture(bundled = model, expected = model) {
   const files = new Map();
   let writes = 0;
   const faults = {};
@@ -38,13 +38,23 @@ function fixture(bundled = model) {
     renameSync: (from, to) => { if (faults.rename && from.endsWith('.bundled.tmp')) throw Error('publish'); files.set(to, files.get(from)); files.delete(from); if (faults.afterPublish && from.endsWith('.bundled.tmp')) files.get(to)[0] ^= 1; },
     unlinkSync: p => files.delete(p)
   };
+  io.open = async (...args) => io.openSync(...args);
+  io.read = async (fd, buffer, options) => { fd.cursor = options.offset; return io.readSync(fd, buffer); };
+  io.write = async (fd, buffer, options) => {
+    const value = new Uint8Array(buffer).slice(); if (faults.corrupt) value[0] ^= 1;
+    const before=files.get(fd.path), result=new Uint8Array(Math.max(before.length,options.offset+value.length));
+    result.set(before);result.set(value,options.offset);files.set(fd.path,result);
+    return faults.short ? value.length-1 : value.length;
+  };
+  io.fsync = async fd => io.fsyncSync(fd);
+  io.close = async file => io.closeSync(file);
   const modules = {
     '@kit.CoreFileKit': { fileIo: io },
     '@kit.CryptoArchitectureKit': { cryptoFramework: { createMd: () => {
       let bytes;
       return { update: async value => { bytes = value.data; }, digest: async () => ({ data: crypto.createHash('sha256').update(bytes).digest() }) };
     } } },
-    './SmartModelPin': { SMART_MODEL_BYTES: model.length, SMART_MODEL_SHA256: hash(model), SMART_MODEL_RAWFILE: 'smart/Model.bin' }
+    './SmartModelPin': { SMART_MODEL_BYTES: expected.length, SMART_MODEL_SHA256: hash(expected), SMART_MODEL_RAWFILE: 'smart/Model.bin' }
   };
   const sandbox = { exports: {}, require: name => {
     assert.ok(name in modules, `Missing mock: ${name}`); return modules[name];
@@ -57,6 +67,9 @@ function fixture(bundled = model) {
 }
 
 (async () => {
+  const large = new Uint8Array(131077).fill(7); const chunked = fixture(large, large);
+  assert.equal((await chunked.assets.prepare(chunked.context)).state, 'ready');
+  assert.equal(hash(chunked.files.get('/private/Model.bin')), hash(large));
   const first = fixture();
   assert.equal((await first.assets.inspect(first.context)).state, 'missing');
   assert.equal(first.writes, 0, 'status must not install');

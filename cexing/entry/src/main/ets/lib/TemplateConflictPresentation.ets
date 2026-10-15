@@ -1,10 +1,11 @@
+import { UiText } from './UiText';
 import { TemplateConflict, TemplateConflictDetail, TemplateUpdateRequest, TemplateSnapshot } from './TemplateUpdates';
 
-const sections: Record<string, string> = { 'rules': '分流规则', 'proxy-groups': '策略组',
-  'proxies': '节点', 'proxy-providers': '节点来源', 'rule-providers': '规则来源', 'dns': 'DNS', 'hosts': '域名映射' };
-const fields: Record<string, string> = { 'name': '名称', 'type': '类型', 'proxies': '成员', 'use': '来源',
-  'interval': '检测间隔', 'tolerance': '容差', 'strategy': '策略', 'udp': 'UDP', 'port': '端口',
-  'server': '服务器', 'url': '地址', 'password': '密码凭据', 'uuid': '身份凭据', 'headers': '请求头', 'token': '访问凭据' };
+const sections: Record<string, Resource> = { 'rules': $r('app.string.conflict_text_0'), 'proxy-groups': $r('app.string.conflict_text_1'),
+  'proxies': $r('app.string.conflict_text_2'), 'proxy-providers': $r('app.string.conflict_text_3'), 'rule-providers': $r('app.string.conflict_text_4'), 'dns': $r('app.string.conflict_dns'), 'hosts': $r('app.string.conflict_text_5') };
+const fields: Record<string, Resource> = { 'name': $r('app.string.conflict_text_6'), 'type': $r('app.string.conflict_text_7'), 'proxies': $r('app.string.conflict_text_8'), 'use': $r('app.string.conflict_text_9'),
+  'interval': $r('app.string.conflict_text_10'), 'tolerance': $r('app.string.conflict_text_11'), 'strategy': $r('app.string.conflict_text_12'), 'udp': $r('app.string.conflict_udp'), 'port': $r('app.string.conflict_text_13'),
+  'server': $r('app.string.conflict_text_14'), 'url': $r('app.string.conflict_text_15'), 'password': $r('app.string.conflict_text_16'), 'uuid': $r('app.string.conflict_text_17'), 'headers': $r('app.string.conflict_text_18'), 'token': $r('app.string.conflict_text_19') };
 
 function label(value: string): string {
   // Names are user-facing identities. Never treat a URL, credential-shaped
@@ -14,14 +15,14 @@ function label(value: string): string {
 }
 function rule(value: string): string {
   const parts = value.split(',');
-  if (parts[0] === 'MATCH' && parts.length === 2) { return `其余流量 → ${label(parts[1]) || '指定出口'}`; }
+  if (parts[0] === 'MATCH' && parts.length === 2) { return UiText.get($r('app.string.conflict_remaining'), label(parts[1]) || UiText.get($r('app.string.conflict_text_20'))); }
   if (!['DOMAIN', 'DOMAIN-SUFFIX', 'DOMAIN-KEYWORD', 'GEOIP', 'GEOSITE', 'IP-CIDR', 'IP-CIDR6',
     'SRC-IP-CIDR', 'SRC-IP-CIDR6', 'PROCESS-NAME'].includes(parts[0]) || parts.length < 3 || parts.length > 4) {
-    return '高级规则（内容隐藏）';
+    return UiText.get($r('app.string.conflict_text_21'));
   }
   const subject = label(parts[1]); const target = label(parts[2]);
-  if (subject === '' || target === '') { return '规则内容已隐藏'; }
-  return `${parts[0]} ${subject} → ${target}${parts[3] === 'no-resolve' ? '（不解析域名）' : ''}`;
+  if (subject === '' || target === '') { return UiText.get($r('app.string.conflict_text_22')); }
+  return `${parts[0]} ${subject} → ${target}${parts[3] === 'no-resolve' ? UiText.get($r('app.string.conflict_text_23')) : ''}`;
 }
 function entity(snapshot: TemplateSnapshot, id: string): Object | undefined {
   return snapshot.entries.find(item => item.id === id)?.value;
@@ -37,14 +38,14 @@ function at(value: Object | undefined, path: string[]): Object | undefined {
 }
 function valueSummary(value: Object | undefined, section: string, path: string[], side: string,
   other?: Object): string {
-  if (value === undefined) { return '删除此项'; }
-  if (value === null) { return '空值'; }
+  if (value === undefined) { return UiText.get($r('app.string.conflict_text_24')); }
+  if (value === null) { return UiText.get($r('app.string.conflict_text_25')); }
   if (path.some(key => !Object.keys(fields).includes(key)) ||
     path.some(key => ['password', 'uuid', 'token', 'headers', 'url', 'server'].includes(key))) {
-    return `${side}的修改（内容隐藏）`;
+    return UiText.get($r('app.string.conflict_hidden_change'), side);
   }
   if (section === 'rules' && typeof value === 'string') { return rule(value); }
-  if (typeof value === 'string') { return label(value) || '内容隐藏'; }
+  if (typeof value === 'string') { return label(value) || UiText.get($r('app.string.conflict_text_26')); }
   if (typeof value === 'number' || typeof value === 'boolean') { return String(value); }
   if (Array.isArray(value)) {
     const items = value as Object[];
@@ -54,19 +55,19 @@ function valueSummary(value: Object | undefined, section: string, path: string[]
     if (different.length === 0) { start = Math.max(0, items.findIndex((item, index) => alternative[index] !== item)); }
     const visible = different.length > 0 ? different : items.slice(start);
     const names = visible.slice(0, 3).map(item => typeof item === 'string' ? label(item) : '');
-    if (names.some(name => name === '')) { return `${value.length} 项（内容隐藏）`; }
-    return (different.length > 0 ? '包含：' : `第 ${start + 1} 项起：`) + names.join('、') +
-      (visible.length > 3 ? ` 等 ${visible.length} 项` : '');
+    if (names.some(name => name === '')) { return UiText.get($r('app.string.conflict_hidden_items'), value.length); }
+    return (different.length > 0 ? UiText.get($r('app.string.conflict_text_27')) : UiText.get($r('app.string.conflict_from_item'), start + 1)) + names.join('、') +
+      (visible.length > 3 ? UiText.get($r('app.string.conflict_item_count'), visible.length) : '');
   }
   const name = (value as Record<string, Object>)['name'];
-  return typeof name === 'string' && label(name) !== '' ? label(name) : `${side}的字段修改`;
+  return typeof name === 'string' && label(name) !== '' ? label(name) : UiText.get($r('app.string.conflict_field_changes'), side);
 }
 function orderSummary(snapshot: TemplateSnapshot, other: TemplateSnapshot, section: string, ids: string[]): string {
   const entries = snapshot.entries.filter(item => item.section === section);
   const alternative = other.entries.filter(item => item.section === section);
-  if (entries.length === 0) { return '无此类项目'; }
+  if (entries.length === 0) { return UiText.get($r('app.string.conflict_text_28')); }
   const start = Math.max(0, entries.findIndex((item, index) => alternative[index]?.id !== item.id));
-  return `第 ${start + 1} 项起：` + entries.slice(start, start + 3).map(item =>
+  return UiText.get($r('app.string.conflict_from_item'), start + 1) + entries.slice(start, start + 3).map(item =>
     `${ids.indexOf(item.id) + 1}. ${valueSummary(item.value, section, [], '')}`).join('；');
 }
 function fieldLabel(snapshots: TemplateSnapshot[], id: string, path: string[]): string {
@@ -79,7 +80,7 @@ function fieldLabel(snapshots: TemplateSnapshot[], id: string, path: string[]): 
       }
     });
     const ordinal = keys.sort().indexOf(key) + 1;
-    return fields[key] ?? (label(key) || `高级字段 ${Math.max(1, ordinal)}`);
+    return fields[key] !== undefined ? UiText.get(fields[key]) : (label(key) || UiText.get($r('app.string.conflict_advanced_field'), Math.max(1, ordinal)));
   }).join(' · ');
 }
 
@@ -104,10 +105,16 @@ export function describeTemplateConflict(request: TemplateUpdateRequest,
   }
   const path = conflict.path ?? [];
   const field = path.length > 0 ? fieldLabel(snapshots, conflict.entity, path) :
-    conflict.kind === 'order' ? '排列顺序' : '内容';
-  return { title: `${sections[conflict.section] ?? '个人修改'} ${number}${name !== '' ? ` · ${name}` : ''} · ${field}`,
+    conflict.kind === 'order' ? UiText.get($r('app.string.conflict_text_29')) : UiText.get($r('app.string.conflict_text_30'));
+  return { title: `${sections[conflict.section] !== undefined ? UiText.get(sections[conflict.section]) : UiText.get($r('app.string.conflict_text_31'))} ${number}${name !== '' ? ` · ${name}` : ''} · ${field}`,
     mine: conflict.kind === 'order' ? orderSummary(request.mine, request.next, conflict.section, ids) :
-      valueSummary(at(mine, path), conflict.section, path, '我', at(next, path)),
+      valueSummary(at(mine, path), conflict.section, path, UiText.get($r('app.string.conflict_text_32')), at(next, path)),
     template: conflict.kind === 'order' ? orderSummary(request.next, request.mine, conflict.section, ids) :
-      valueSummary(at(next, path), conflict.section, path, '新模板', at(mine, path)) };
+      valueSummary(at(next, path), conflict.section, path, UiText.get($r('app.string.conflict_text_33')), at(mine, path)) };
+}
+
+export function unavailableTemplateConflict(conflict: TemplateConflict): TemplateConflictDetail {
+  const section = sections[conflict.section];
+  return { title: section !== undefined ? UiText.get(section) : UiText.get($r('app.string.template_personal')),
+    mine: UiText.get($r('app.string.template_repreview')), template: UiText.get($r('app.string.template_repreview')) };
 }

@@ -26,7 +26,7 @@ const store = {
     writes.push({ file, text }); drafts.set(file, text);
   },
   clearDraft: (_, file) => { if (failClear) throw Error('disk full'); drafts.delete(file); },
-  importContent: (_, name, text) => { copies.push({ name, text }); return name; }
+  importContentAsync: async (_, name, text) => { copies.push({ name, text }); return name; }
 };
 const modules = {
   './NativeTheme': {}, '@kit.ArkUI': { promptAction: { showToast: value => toasts.push(value.message) } },
@@ -74,7 +74,7 @@ function idle() { const pending = [...timers.values()]; timers.clear(); pending.
   assert.equal(timers.size, 0); assert.equal(drafts.get('first.yaml'), final);
   assert.equal(drafts.has('next.yaml'), false);
   const restored = open(); assert.equal(restored.editedText, final); assert.equal(restored.dirty, true);
-  restored.saveAsInput = 'copy.yaml'; restored.saveAs(); assert.equal(copies[0].text, final);
+  restored.saveAsInput = 'copy.yaml'; await restored.saveAs(); assert.equal(copies[0].text, final);
   restored.onTextChanged(final + '# pending'); restored.discardDraft(); idle();
   assert.equal(restored.editedText, original); assert.equal(restored.text, original);
   assert.equal(restored.editorRevision, 1, 'discard must reset native text even when its seed is unchanged');
