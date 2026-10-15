@@ -3,24 +3,25 @@
  * VPN 连接成功且设置「后台运行」开启时申请 dataTransfer 长时任务
  * （MODE_DATA_TRANSFER + SUBMODE_LIVE_VIEW_NOTIFICATION），系统代理创建
  * "上传下载"实况窗（typeCode 8）；每 60s publish 更新（取消规则以 SDK/系统为准），
- * 每 5min 对出口节点延迟测速（出口延迟展示，不保证免于系统低速取消）。
+ * 每 5min 探测显示策略（不代表全局出口或所有网站延迟）。
  * 数据面全走 REST 单次请求；日志 tag 'liveview'。
  * 取代 lib/BackgroundKeeper.ets（经典 BackgroundMode.DATA_TRANSFER 通知方案）。
  */
 import { backgroundTaskManager } from '@kit.BackgroundTasksKit';
 import { wantAgent, common } from '@kit.AbilityKit';
 import { notificationManager } from '@kit.NotificationKit';
-import { CoreApi, ProxyInfo, formatRate } from './CoreApi';
+import { CoreApi, formatRate } from './CoreApi';
 import { Settings } from './Settings';
 import { VpnController, VpnStatus } from './VpnController';
 import { Logger } from './Logger';
+import { LiveViewStrategy } from './LiveViewStrategy';
 import { TrafficStats } from './TrafficStats';
 
 const TAG = 'liveview';
 
 /** 实况窗刷新周期：60s（不保证系统授予持续运行） */
 const UPDATE_INTERVAL_MS = 60 * 1000;
-/** 心跳（出口延迟测速）周期：5min */
+/** 心跳（显示策略探测）周期：5min */
 const HEARTBEAT_INTERVAL_MS = 5 * 60 * 1000;
 /** 系统取消后的自愈重申请延迟 */
 const REAPPLY_DELAY_MS = 30 * 1000;
@@ -40,7 +41,46 @@ interface TemplateDataExt extends Record<string, Object> {
   progressValue: number;
 }
 
+// Backend guarantees are observations of the owned system task, never VPN health.
+export type BackgroundTaskState = 'unknown' | 'disabled' | 'requesting' | 'active' | 'failed' | 'revoked' | 'user-stopped';
+export type BackgroundNotificationState = 'unknown' | 'ready' | 'failed';
+export interface BackgroundState {
+  task: BackgroundTaskState;
+  notification: BackgroundNotificationState;
+  suspended: boolean;
+}
+
 export namespace LiveViewKeeper {
+  let taskState: BackgroundTaskState = 'unknown';
+  let notificationState: BackgroundNotificationState = 'unknown';
+  let suspended: boolean = false;
+  const observers: ((state: BackgroundState) => void)[] = [];
+
+  export function state(): BackgroundState {
+    return { task: taskState, notification: notificationState, suspended: suspended };
+  }
+
+  export function onChanged(listener: (state: BackgroundState) => void): () => void {
+    observers.push(listener);
+    return (): void => {
+      const index = observers.indexOf(listener);
+      if (index >= 0) { observers.splice(index, 1); }
+    };
+  }
+
+  function report(task: BackgroundTaskState, notification: BackgroundNotificationState = 'unknown', isSuspended: boolean = false): void {
+    if (taskState === task && notificationState === notification && suspended === isSuspended) { return; }
+    taskState = task; notificationState = notification; suspended = isSuspended;
+    for (const listener of observers.slice()) {
+      try { listener(state()); } catch (_) { Logger.warn(TAG, 'background observer failed'); }
+    }
+  }
+
+  export function needsAttention(value: BackgroundState): boolean {
+    return value.task === 'failed' || value.task === 'revoked' || value.suspended ||
+      (value.task === 'active' && value.notification === 'failed');
+  }
+
   let running: boolean = false;
   /** start() 进行中门闩：防止 onCoreUp 与 ensure() 并发触发重复申请任务 */
   let starting: boolean = false;
@@ -84,11 +124,14 @@ export namespace LiveViewKeeper {
   }
   let lastUpBps: number = 0;
   let lastDownBps: number = 0;
-  /** 出口节点/模式名缓存（每 5min 心跳刷新） */
-  let exitNode: string = '';
+  /** 显示策略/模式名缓存（每 5min 心跳刷新） */
+  let displayGroup: string = '';
+  let metadataGeneration: number = 0;
   let modeName: string = '';
   /** 最近一次成功测速延迟 ms（-1 = 无） */
   let lastDelay: number = -1;
+  let lastDelayAt: number = 0;
+  let lastDelayGroup: string = '';
   /** 自愈重申请时间戳（1 小时窗口内最多 3 次） */
   const reapplyLog: number[] = [];
 
@@ -97,25 +140,43 @@ export namespace LiveViewKeeper {
     rebindContext(context);
     lifecycleGeneration++;
     cancelReapply();
+    const intent = lifecycleGeneration;
     const result = lifecycleQueue.then(() => {
       const ctx = lastContext;
-      return ctx === null ? Promise.resolve(false) : startTask(ctx);
+      return ctx === null || intent !== lifecycleGeneration ? Promise.resolve(false) : startTask(ctx, intent);
     });
     lifecycleQueue = result.then(() => {}, () => {});
     return result;
   }
 
-  async function startTask(context: common.UIAbilityContext): Promise<boolean> {
+  /** Explicit retry may restore a user-dismissed task; foreground ensure never does. */
+  export async function retry(context: common.UIAbilityContext): Promise<boolean> {
+    if (starting || VpnController.status !== VpnStatus.Connected || !Settings.load(context).keepAlive) { return false; }
+    if (running && !suspended) {
+      await publishLiveView(workGeneration);
+      return notificationState === 'ready';
+    }
+    if (running) { await stop(context); }
+    if (VpnController.status !== VpnStatus.Connected || !Settings.load(context).keepAlive) { return false; }
+    userStopped = false;
+    const acquired = await start(context);
+    return acquired && taskState === 'active' && notificationState === 'ready' && !suspended;
+  }
+
+  async function startTask(context: common.UIAbilityContext, intent: number): Promise<boolean> {
+    if (!Settings.load(context).keepAlive) {
+      report('disabled');
+      return false;
+    }
     if (running) {
       return true;
     }
     if (starting) {
       return true;
     }
-    if (!Settings.load(context).keepAlive) {
-      return false;
-    }
     starting = true;
+    userStopped = false;
+    report('requesting');
     const generation = ++workGeneration;
     try {
       const agent = await wantAgent.getWantAgent({
@@ -138,11 +199,17 @@ export namespace LiveViewKeeper {
       if (generation !== workGeneration) {
         return false; // 已取得任务身份，排队的 stop 负责释放。
       }
+      if (!Settings.load(ctx).keepAlive || VpnController.status !== VpnStatus.Connected) {
+        await reset(true);
+        if (intent === lifecycleGeneration) { report(!Settings.load(ctx).keepAlive ? 'disabled' : 'unknown'); }
+        return false;
+      }
       if (connectedAt === 0) {
         connectedAt = Date.now();
       }
       running = true;
       registerEvents();
+      report('active');
       Logger.info(TAG, 'task started notificationId=' + notificationId + ' continuousTaskId=' + continuousTaskId);
       await refreshMeta(generation);
       await publishLiveView(generation);
@@ -163,6 +230,7 @@ export namespace LiveViewKeeper {
     } catch (e) {
       Logger.error(TAG, 'start failed: ' + errMsg(e));
       await reset(true);
+      if (intent === lifecycleGeneration) { report('failed'); }
       return false;
     } finally {
       starting = false;
@@ -195,7 +263,11 @@ export namespace LiveViewKeeper {
     lifecycleGeneration++;
     workGeneration++;
     cancelReapply();
-    return enqueue(() => reset(true));
+    const intent = lifecycleGeneration;
+    return enqueue(async () => {
+      await reset(true);
+      if (intent === lifecycleGeneration) { report(Settings.load(context).keepAlive ? 'unknown' : 'disabled'); }
+    });
   }
 
   export function isRunning(): boolean {
@@ -267,9 +339,10 @@ export namespace LiveViewKeeper {
     connectedAt = 0;
     lastUpBps = 0;
     lastDownBps = 0;
-    exitNode = '';
+    displayGroup = '';
+    metadataGeneration++;
     modeName = '';
-    lastDelay = -1;
+    clearDelay();
   }
 
   function onCancel(info: backgroundTaskManager.ContinuousTaskCancelInfo): void {
@@ -279,10 +352,14 @@ export namespace LiveViewKeeper {
   }
 
   function onSuspend(info: backgroundTaskManager.ContinuousTaskSuspendInfo): void {
+    if (!running || continuousTaskId < 0 || info.continuousTaskId !== continuousTaskId) { return; }
+    report('unknown', notificationState, true);
     Logger.info(TAG, 'task suspended id=' + info.continuousTaskId);
   }
 
   function onActive(info: backgroundTaskManager.ContinuousTaskActiveInfo): void {
+    if (!running || continuousTaskId < 0 || info.id !== continuousTaskId) { return; }
+    report('active', notificationState);
     Logger.info(TAG, 'task active id=' + info.id);
   }
 
@@ -303,7 +380,7 @@ export namespace LiveViewKeeper {
    * - 其他系统原因且内核仍活（GET /version 通）：30s 后重申请，每小时最多 3 次，超出等前台 ensure。
    */
   async function handleCancel(info: backgroundTaskManager.ContinuousTaskCancelInfo): Promise<void> {
-    if (!running || (continuousTaskId >= 0 && info.id !== continuousTaskId)) {
+    if (!running || continuousTaskId < 0 || info.id !== continuousTaskId) {
       return;
     }
     const generation = lifecycleGeneration;
@@ -318,10 +395,12 @@ export namespace LiveViewKeeper {
     if (userCancel) {
       Logger.info(TAG, 'task canceled by user reason=' + reason + ' detailed=' + detailed);
       userStopped = true;
+      report('user-stopped');
       await reset(false);
       return;
     }
     Logger.warn(TAG, 'task canceled reason=' + reason + ' detailed=' + detailed);
+    report('revoked');
     await reset(false);
     if (lastContext === null) {
       return;
@@ -369,120 +448,53 @@ export namespace LiveViewKeeper {
     const t = TrafficStats.rate();
     lastUpBps = t !== null ? t.up : 0;
     lastDownBps = t !== null ? t.down : 0;
+    await refreshMeta(generation);
     await publishLiveView(generation);
     Logger.info(TAG, 'live view updated rate=' + Math.round(lastDownBps + lastUpBps) + ' progress=' + progressValue());
   }
 
-  /** 5min 心跳：刷新出口节点/模式缓存 + 出口延迟测速（真实代理流量） */
-  async function doHeartbeat(generation: number): Promise<void> {
-    if (!isCurrent(generation)) {
-      return;
-    }
-    let node: string = '';
-    let delayMs: number = -1;
-    const proxies = await CoreApi.getProxies();
-    if (!isCurrent(generation)) {
-      return;
-    }
-    if (proxies !== null) {
-      let group: string = '';
-      if (lastContext !== null) {
-        group = Settings.load(lastContext).mainGroup;
-      }
-      let sel: ProxyInfo | null = null;
-      if (group.length > 0 && group !== 'GLOBAL' && proxies[group] !== undefined &&
-        proxies[group].type === 'Selector') {
-        sel = proxies[group];
-      } else {
-        const names = Object.keys(proxies);
-        for (const name of names) {
-          const p = proxies[name];
-          if (p.type === 'Selector' && name !== 'GLOBAL') {
-            sel = p;
-            group = name;
-            break;
-          }
-        }
-        if (sel !== null && lastContext !== null) {
-          const s = Settings.load(lastContext);
-          s.mainGroup = group;
-          Settings.save(lastContext, s);
-        }
-      }
-      if (sel !== null) {
-        node = sel.now;
-        if (node !== 'DIRECT' && node !== 'REJECT') {
-          const d = await CoreApi.delayTest(node);
-          if (!isCurrent(generation)) {
-            return;
-          }
-          if (d !== null && d >= 0) {
-            lastDelay = d;
-            delayMs = d;
-          }
-        }
-      }
-    }
-    const cfg = await CoreApi.getConfigs();
-    if (!isCurrent(generation)) {
-      return;
-    }
-    if (cfg !== null) {
-      modeName = cfg.mode;
-    }
-    if (node.length > 0) {
-      exitNode = node === 'DIRECT' || node === 'REJECT' ? '直连' : node;
-    }
-    if (delayMs >= 0) {
-      Logger.info(TAG, 'heartbeat delay=' + delayMs + 'ms');
-    } else {
-      Logger.info(TAG, 'heartbeat skipped');
-    }
+  function clearDelay(): void {
+    lastDelay = -1; lastDelayAt = 0; lastDelayGroup = '';
   }
 
-  /** 刷新出口节点/模式名缓存（启动时调用一次，让首帧文案准确） */
+  /** Explicit display changes invalidate in-flight probes; no real policy is switched. */
+  export async function refreshDisplayGroup(): Promise<void> {
+    if (!running) { return; }
+    const generation = workGeneration;
+    clearDelay();
+    await refreshMeta(generation);
+    await publishLiveView(generation);
+  }
+
+  /** Probe the display group itself; the result is not attributed to a leaf or website. */
+  async function doHeartbeat(generation: number): Promise<void> {
+    if (!isCurrent(generation)) { return; }
+    clearDelay();
+    await refreshMeta(generation);
+    if (!isCurrent(generation) || displayGroup.length === 0) { return; }
+    const group = displayGroup;
+    const metadata = metadataGeneration;
+    const delay = await CoreApi.delayTest(group);
+    if (!isCurrent(generation) || metadata !== metadataGeneration || group !== displayGroup) { return; }
+    if (delay !== null && Number.isFinite(delay) && delay >= 0) {
+      lastDelay = delay; lastDelayAt = Date.now(); lastDelayGroup = group;
+    }
+    await publishLiveView(generation);
+  }
+
+  /** Read-only Controller snapshots. An unavailable saved group remains unknown. */
   async function refreshMeta(generation: number): Promise<void> {
-    const proxies = await CoreApi.getProxies();
-    if (!isCurrent(generation)) {
-      return;
-    }
-    if (proxies !== null) {
-      let group: string = '';
-      if (lastContext !== null) {
-        group = Settings.load(lastContext).mainGroup;
-      }
-      let sel: ProxyInfo | null = null;
-      if (group.length > 0 && group !== 'GLOBAL' && proxies[group] !== undefined &&
-        proxies[group].type === 'Selector') {
-        sel = proxies[group];
-      } else {
-        const names = Object.keys(proxies);
-        for (const name of names) {
-          const p = proxies[name];
-          if (p.type === 'Selector' && name !== 'GLOBAL') {
-            sel = p;
-            group = name;
-            break;
-          }
-        }
-        if (sel !== null && lastContext !== null) {
-          const s = Settings.load(lastContext);
-          s.mainGroup = group;
-          Settings.save(lastContext, s);
-        }
-      }
-      if (sel !== null) {
-        const now = sel.now;
-        exitNode = now === 'DIRECT' || now === 'REJECT' ? '直连' : now;
-      }
-    }
-    const cfg = await CoreApi.getConfigs();
-    if (!isCurrent(generation)) {
-      return;
-    }
-    if (cfg !== null) {
-      modeName = cfg.mode;
-    }
+    const metadata = ++metadataGeneration;
+    const proxiesRequest = CoreApi.getProxies();
+    const configsRequest = CoreApi.getConfigs();
+    const proxies = await proxiesRequest;
+    const cfg = await configsRequest;
+    if (!isCurrent(generation) || metadata !== metadataGeneration) { return; }
+    const requested = lastContext !== null ? Settings.load(lastContext).mainGroup : '';
+    const next = proxies !== null ? LiveViewStrategy.choose(proxies, requested) : '';
+    if (next !== displayGroup || proxies === null) { clearDelay(); }
+    displayGroup = next;
+    modeName = cfg !== null ? LiveViewStrategy.mode(cfg.mode) : '';
   }
 
   /** 按当前状态发布/更新实况窗 */
@@ -495,7 +507,7 @@ export namespace LiveViewKeeper {
     let mainTitle: string = 'Cexing 系统代理';
     let text: string = '已连接 · 无活动流量';
     let fileName: string = '规则模式';
-    const modePart = truncateName(modeName.length > 0 ? modeName : '规则') + '模式';
+    const modePart = modeName;
     if (status === VpnStatus.Connecting) {
       capsuleTitle = 'Cexing · 连接中…';
       mainTitle = 'Cexing 正在连接';
@@ -507,14 +519,15 @@ export namespace LiveViewKeeper {
       text = '正在释放隧道…';
       fileName = modePart;
     } else {
-      fileName = exitNode.length > 0 ? modePart + ' · 出口 ' + truncateName(exitNode) : modePart;
+      const strategy = displayGroup.length > 0 ? '显示策略 ' + truncateName(displayGroup) : '';
+      fileName = modePart + (modePart.length > 0 && strategy.length > 0 ? ' · ' : '') + strategy;
       if (lastDownBps > 0 || lastUpBps > 0) {
         text = '↓ ' + formatRate(lastDownBps) + ' · ↑ ' + formatRate(lastUpBps) + ' · 已运行 ' + formatUptime();
       } else {
         text = '已连接 · 无活动流量';
       }
-      if (lastDelay >= 0) {
-        text = text + ' · 延迟 ' + lastDelay + ' ms';
+      if (lastDelay >= 0 && lastDelayGroup === displayGroup && Date.now() - lastDelayAt < HEARTBEAT_INTERVAL_MS) {
+        text = text + ' · 探测 ' + lastDelay + ' ms';
       }
     }
     const capsule: notificationManager.NotificationCapsule = {
@@ -559,7 +572,9 @@ export namespace LiveViewKeeper {
       });
       notificationQueue = publish.catch(() => {});
       await publish;
+      if (isCurrent(generation)) { report(taskState, 'ready', suspended); }
     } catch (e) {
+      if (isCurrent(generation)) { report(taskState, 'failed', suspended); }
       Logger.warn(TAG, 'publish failed: ' + errMsg(e));
     }
   }

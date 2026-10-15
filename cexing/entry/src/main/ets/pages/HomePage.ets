@@ -4,6 +4,7 @@ import { VpnController, VpnStatus } from '../lib/VpnController';
 import { CoreApi, TrafficMsg, formatRate } from '../lib/CoreApi';
 import { ProfileStore } from '../lib/ProfileStore';
 import { Settings } from '../lib/Settings';
+import { BackgroundNotice } from './BackgroundNotice';
 import { AppRuntime } from '../lib/AppRuntime';
 import { ProfileTransactions } from '../lib/ProfileTransactions';
 import { NativeTheme as UI } from './NativeTheme';
@@ -196,7 +197,8 @@ export struct HomePage {
     const ctx = getContext(this) as common.UIAbilityContext;
     const settings = Settings.load(ctx);
     settings.mode = next;
-    Settings.save(ctx, settings);
+    try { await Settings.save(ctx, settings, ['mode']); }
+    catch (_) { promptAction.showToast({ message: '模式已切换，保存失败，请重试' }); }
   }
 
   private label(): string {
@@ -346,6 +348,7 @@ export struct HomePage {
         .width('100%').margin({ top: 16, bottom: 12 })
       Scroll() {
         Column({ space: 20 }) {
+          BackgroundNotice({ status: this.status, visible: this.rootVisible && this.currentVisibleTab === 0 })
           if (!this.hasProfile) {
             Column({ space: 18 }) {
               Text('导入订阅').fontSize(36).fontWeight(FontWeight.Bold).fontColor(UI.ink)

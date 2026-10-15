@@ -9,7 +9,7 @@ const ctx = { filesDir: '/private' };
 let state = { Current: null, Previous: null, Profiles: {} }, id = 0;
 let response = 'applied', uncertain = false, failCommit = false, failDraft = false, failRead = false;
 const status = { Disconnected: 0, Connected: 2 };
-const controller = { status: status.Disconnected };
+const controller = { status: status.Disconnected, holdConfiguration: () => () => {}, configurationEpoch: () => 0 };
 const io = { accessSync: p => data.has(p), readTextSync: p => {
   if (failRead) throw Error('read failure'); return data.get(p);
 }, OpenMode: { READ_WRITE: 2, CREATE: 64, TRUNC: 512 }, openSync: p => ({ fd: p }),
@@ -47,7 +47,7 @@ const core = { versionAction: async (_, input) => {
   throw Error(a.op);
 } };
 let smart = false;
-const settings = { load: () => ({ smartAutoConvert: smart, allowLan: false }), setSmartAutoConvert: (_, value) => smart = value };
+const settings = { idle: async () => {}, load: () => ({ smartAutoConvert: smart, allowLan: false }), setSmartAutoConvert: (_, value) => smart = value };
 const modules = { '@kit.CoreFileKit': { fileIo: io }, 'libentry.so': core,
   './Settings': { Settings: settings }, './NativeTheme': {},
   '@kit.ArkUI': { promptAction: { showToast: v => toasts.push(v.message) } } };
@@ -73,7 +73,7 @@ const store = { isApplyUncertain: () => uncertain, markApplyUncertain: () => unc
 modules['./ProfileStore'] = { ProfileStore: store };
 modules['./CoreValidator'] = { CoreValidator: { prepareResources: async () => {} } };
 modules['./VpnController'] = { VpnController: controller, VpnStatus: status };
-modules['./CoreApi'] = { CoreApi: { isAlive: async () => true,
+modules['./CoreApi'] = { CoreApi: { isAlive: async () => true, getControllerSession: async () => 'synthetic-session',
   applyConfigText: async text => { applied.push(text); return response; } } };
 const tx = compile('lib/ProfileTransactions.ets').ProfileTransactions;
 modules['../lib/ProfileTransactions'] = { ProfileTransactions: tx };
@@ -142,8 +142,8 @@ const Editor = compile('pages/GlobalMergeEditor.ets', true).GlobalMergeEditor;
   assert.equal(brokenEditor.saveDraft(), false); failRead = false; assert.equal(draft.read(ctx), '');
   controller.status = status.Connected; response = 'unknown';
   const beforeUnknown = JSON.stringify(state);
-  await assert.rejects(tx.applyGlobalMerge(ctx, 'unknown'), /未知/);
-  assert.equal(JSON.stringify(state), beforeUnknown); await assert.rejects(tx.activate(ctx, 'two.yaml'), /断开/);
+  await assert.rejects(tx.applyGlobalMerge(ctx, 'unknown'), /应用未确认/);
+  assert.equal(JSON.stringify(state), beforeUnknown); await assert.rejects(tx.activate(ctx, 'two.yaml'), /重连恢复/);
   assert.equal(data.get(prior.Path), priorBytes); assert.equal(originals.get('one.yaml'), original);
   const pageSource = fs.readFileSync(path.join(base, 'pages/ProfilePage.ets'), 'utf8');
   const closeBody = pageSource.match(/GlobalMergeEditor\(\{ onClose: \(\) => \{([^}]*)\}/)[1];

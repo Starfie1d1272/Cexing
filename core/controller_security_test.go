@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"core/configpipeline"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -205,6 +207,60 @@ dns:
 		}
 		// Model the next native session after disabling or legacy migration.
 		activeOverrides = before
+	})
+	t.Run("reload-session-and-byte-boundaries", func(t *testing.T) {
+		stale, _ := json.Marshal(map[string]string{"payload": "mixed-port: 0\nmode: direct\ndns: {enable: false}\n", "expectedSession": controllerSession + "-stale"})
+		if code, _ := request("PUT", "/configs", bearer, string(stale)); code != 409 {
+			t.Fatal("old session request accepted", code)
+		}
+		priorTimeout := client.Timeout
+		client.Timeout = 30 * time.Second
+		defer func() { client.Timeout = priorTimeout }()
+		prefix := "proxies: [{name: synthetic, type: socks5, server: 192.0.2.1, port: 1080}]\nrules: ['MATCH,DIRECT']\nx-data: "
+		exact := prefix + strings.Repeat("a", maxConfigBytes-len(prefix))
+		encoded, _ := json.Marshal(map[string]string{"payload": exact, "expectedSession": controllerSession})
+		if len(encoded) <= maxConfigBytes+1 {
+			t.Fatal("fixture did not exceed old JSON cap")
+		}
+		if code, _ := request("PUT", "/configs", bearer, string(encoded)); code != 204 {
+			t.Fatal("16 MiB decoded YAML rejected", code)
+		}
+		excess, _ := json.Marshal(map[string]string{"payload": exact + "a", "expectedSession": controllerSession})
+		if code, _ := request("PUT", "/configs", bearer, string(excess)); code != 400 {
+			t.Fatal("oversize decoded YAML accepted", code)
+		}
+		if err := os.WriteFile(filepath.Join(home, "geoip.metadb"), []byte("synthetic"), 0600); err != nil {
+			t.Fatal(err)
+		}
+		original := prefix + strings.Repeat("\\", 9*1024*1024) + "\n"
+		result, _, err := compilePinnedMerge(home, original, "", `{"mixedPort":0}`)
+		if err != nil {
+			t.Fatal("large compile", err)
+		}
+		if len(result.YAML) > maxConfigBytes {
+			t.Fatal("fixture generated too much YAML")
+		}
+		result.ProfileID = "large.yaml"
+		result.Metadata = "{}"
+		store := configpipeline.FileStore{Root: filepath.Join(home, "profile-versions")}
+		staged, err := store.Stage(context.Background(), result)
+		if err != nil {
+			t.Fatal(err)
+		}
+		candidate, err := os.ReadFile(staged.Path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		escaped, _ := json.Marshal(map[string]string{"payload": string(candidate), "expectedSession": controllerSession})
+		if len(escaped) <= maxConfigBytes+1 {
+			t.Fatal("fixture lacks escape expansion")
+		}
+		if code, _ := request("PUT", "/configs", bearer, string(escaped)); code != 204 {
+			t.Fatal("compile-stage-HTTP escape boundary rejected", code)
+		}
+		if err = store.Discard(context.Background(), staged); err != nil {
+			t.Fatal(err)
+		}
 	})
 	body, _ := json.Marshal(map[string]string{"path": file})
 	if code, _ := request("PUT", "/configs?force=true", bearer, string(body)); code != 204 {
@@ -552,13 +608,21 @@ dns:
 			if format != "" {
 				marker = "synthetic-log-structured"
 			}
-			log.Infoln("%s %s", marker, secret)
+			encoded := base64.StdEncoding.EncodeToString([]byte("SyntheticWireUser:SyntheticWirePassword"))
+			log.Infoln("%s %s https://synthetic-private.example/path?token=wire-fixture Proxy-Authorization: Basic %s", marker, secret, encoded)
 			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 			_, data, err := conn.Read(ctx)
 			cancel()
 			conn.CloseNow()
 			waitLogHandlers(t, false)
-			if err != nil || !json.Valid(data) || !strings.Contains(string(data), marker) || strings.Contains(string(data), secret) || !strings.Contains(string(data), "[REDACTED]") {
+			var wire map[string]any
+			decodeErr := json.Unmarshal(data, &wire)
+			key := "payload"
+			if format != "" {
+				key = "message"
+			}
+			payload, ok := wire[key].(string)
+			if err != nil || decodeErr != nil || !ok || payload == "" || strings.Contains(string(data), secret) || strings.Contains(string(data), encoded) || strings.Contains(string(data), "synthetic-private.example") || strings.Contains(string(data), "wire-fixture") {
 				t.Fatal("log wire format or redaction failed")
 			}
 		}

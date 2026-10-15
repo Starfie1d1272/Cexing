@@ -15,6 +15,8 @@ var profileIDPattern = regexp.MustCompile(`(?i)^[^/\\\x00-\x1f]{1,128}\.ya?ml$`)
 
 type versionAction struct {
 	Op              string                     `json:"op"`
+	EditSection     string                     `json:"editSection,omitempty"`
+	EditTarget      string                     `json:"editTarget,omitempty"`
 	ProfileID       string                     `json:"profileId"`
 	Original        string                     `json:"original"`
 	GlobalMerge     *string                    `json:"globalMerge,omitempty"`
@@ -31,12 +33,14 @@ type versionAction struct {
 }
 
 type versionResponse struct {
-	Version       *configpipeline.Version       `json:"version,omitempty"`
-	State         *configpipeline.Snapshot      `json:"state,omitempty"`
-	Receipt       string                        `json:"receipt,omitempty"`
-	Error         string                        `json:"error,omitempty"`
-	MergePreview  *mergePreview                 `json:"mergePreview,omitempty"`
-	RegionPreview *configpipeline.RegionPreview `json:"regionPreview,omitempty"`
+	Editable      *configpipeline.EditableSnapshot `json:"editable,omitempty"`
+	EditTarget    *configpipeline.EditTarget       `json:"editTarget,omitempty"`
+	Version       *configpipeline.Version          `json:"version,omitempty"`
+	State         *configpipeline.Snapshot         `json:"state,omitempty"`
+	Receipt       string                           `json:"receipt,omitempty"`
+	Error         string                           `json:"error,omitempty"`
+	MergePreview  *mergePreview                    `json:"mergePreview,omitempty"`
+	RegionPreview *configpipeline.RegionPreview    `json:"regionPreview,omitempty"`
 }
 
 func coreVersionAction(home, input string) string {
@@ -45,7 +49,7 @@ func coreVersionAction(home, input string) string {
 		return coreDiagnosticAction(home, input)
 	}
 	var action versionAction
-	if len(input) > maxConfigBytes*4 || json.Unmarshal([]byte(input), &action) != nil ||
+	if len(input) > maxConfigBytes*6+2*1024*1024 || json.Unmarshal([]byte(input), &action) != nil ||
 		home == "" || !filepath.IsAbs(home) {
 		return `{"error":"VERSION_INVALID"}`
 	}
@@ -85,6 +89,22 @@ func executeVersionAction(home string, action versionAction) (versionResponse, e
 		global = *action.GlobalMerge
 	}
 	switch action.Op {
+	case "edit-read", "edit-target":
+		if len(action.Original) > maxConfigBytes || len(action.Overlay) > maxConfigBytes {
+			return versionResponse{}, errors.New("EDIT_LIMIT")
+		}
+		if action.Op == "edit-read" {
+			view, err := configpipeline.ReadEditable([]byte(action.Original), []byte(global), []byte(action.Overlay))
+			if err != nil {
+				return versionResponse{}, errors.New("EDIT_READ_FAILED")
+			}
+			return versionResponse{Editable: &view}, nil
+		}
+		view, err := configpipeline.ReadEditTarget([]byte(action.Original), []byte(global), []byte(action.Overlay), action.EditSection, action.EditTarget)
+		if err != nil {
+			return versionResponse{}, errors.New("EDIT_TARGET_FAILED")
+		}
+		return versionResponse{EditTarget: &view}, nil
 	case "merge-preview":
 		if len(action.Original) > maxConfigBytes || len(action.Overlay) > maxConfigBytes {
 			return versionResponse{}, errors.New("VERSION_INVALID")
@@ -94,7 +114,7 @@ func executeVersionAction(home string, action versionAction) (versionResponse, e
 		if err != nil {
 			return versionResponse{}, errors.New("MERGE_PREVIEW_FAILED")
 		}
-		return versionResponse{MergePreview: &mergePreview{Digest: result.Digest, Changes: result.Changes}}, nil
+		return versionResponse{MergePreview: &mergePreview{Digest: result.Digest, Changes: result.Changes, PlatformChanges: result.PlatformChanges}}, nil
 	case "region-preview":
 		if action.RegionPlan == nil || len(action.Original) > maxConfigBytes || len(action.Overlay) > maxConfigBytes {
 			return versionResponse{}, errors.New("REGION_INVALID")

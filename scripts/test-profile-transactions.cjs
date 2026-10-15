@@ -16,6 +16,9 @@ const state = { Current: { ID: 'version-old', Path: '/versions/old', ProfileID: 
 state.Profiles['old.yaml'] = state.Current;
 let id = 0;
 let response = 'applied';
+let commitHook = null, afterCommitHook = null, clearUnknownMarker = false, switchRestoreAt = -1;
+const smartVersionOverrides = new Map();
+let session = 'synthetic-session';
 let resolveApply;
 let pending = false;
 let uncertain = false;
@@ -30,14 +33,16 @@ let previousRegionObserved = '';
 let currentProxyChoice = 'Original';
 let selectAccepted = true;
 let reloadFallbackChoice = '';
-const controller = { VpnStatus: { Disconnected: 0, Connected: 2 }, VpnController: { status: 2 } };
+const controller = { VpnStatus: { Disconnected: 0, Connected: 2 }, VpnController: { status: 2, holdConfiguration: () => () => {}, configurationEpoch: () => 0 } };
 const core = { CoreApi: {
   isAlive: async () => true,
+  getControllerSession: async () => session,
   getProxies: async () => ({ Main: { now: currentProxyChoice,
     all: ['Original', 'Other', 'Manual', 'Cexing Smart Main'] } }),
   selectProxy: async (_, name) => { if (selectAccepted) currentProxyChoice = name; return selectAccepted; },
   applyConfigText: async () => {
     applies++;
+    if (applies === switchRestoreAt) session = 'third-session';
     const result = pending ? await new Promise(resolve => { resolveApply = resolve; }) : response;
     if (result === 'applied' && reloadFallbackChoice !== '') { currentProxyChoice = reloadFallbackChoice; }
     return result;
@@ -45,7 +50,10 @@ const core = { CoreApi: {
 } };
 const versions = { EffectiveVersions: {
   read: () => state,
-  smartConversion: () => smartCurrent,
+  smartConversion: (_, version) => smartVersionOverrides.has(version.ID) ? smartVersionOverrides.get(version.ID) : smartCurrent,
+  original: (_, version) => originals[version.ProfileID],
+  overlay: () => '',
+
   globalContent: () => state.GlobalMerge ?? "",
   globalMerge: () => state.GlobalMerge ?? "",
   previewMerge: async (_, __, overlay) => {
@@ -56,11 +64,12 @@ const versions = { EffectiveVersions: {
   stage: async (_, name, original, overlay, metadata, expected, regionPlan) => {
     assert.equal(expected, state.Current?.ID ?? '');
     const version = { ID: `version-${++id}`, Path: `/versions/${id}`, ProfileID: name };
-    staged.set(version.Path, { version, original, overlay, metadata, regionPlan });
+    staged.set(version.Path, { version, original, overlay, metadata, regionPlan, smartPolicy:smartAutoConvert });
     return { version, receipt: '' };
   },
   verify: async () => '',
   commit: async (_, version, expected, active) => {
+    if (commitHook) await commitHook();
     if (failCommit) throw Error('synthetic commit failure');
     assert.equal(expected, state.Current?.ID ?? '');
     const entry = staged.get(version.Path);
@@ -68,7 +77,8 @@ const versions = { EffectiveVersions: {
     originals[version.ProfileID] = entry.original;
     state.Profiles[version.ProfileID] = version;
     if (active) { state.Previous = state.Current; state.Current = version; }
-    if (active) smartCurrent = smartAutoConvert;
+    if (active) smartCurrent = entry.smartPolicy;
+    if (afterCommitHook) await afterCommitHook();
     if (lostAck) throw Error('synthetic lost acknowledgement');
   },
   discard: async (_, version) => { staged.delete(version.Path); }
@@ -83,7 +93,7 @@ const store = { ProfileStore: {
   setPreviousRegionObservation: (_, __, observed) => { previousRegionObserved = observed; },
   clearPreviousRegionSelection: () => { previousRegionChoice = ''; previousRegionObserved = ''; },
   isApplyUncertain: () => uncertain,
-  markApplyUncertain: () => { uncertain = true; },
+  markApplyUncertain: () => { uncertain = !clearUnknownMarker; },
   getProfileContent: (_, name) => originals[name] ?? null,
   getActiveContent: () => originals[state.Current.ProfileID],
   getActiveFile: () => state.Current.ProfileID,
@@ -96,10 +106,12 @@ const store = { ProfileStore: {
 } };
 const settings = { Settings: {
   load: () => ({ smartAutoConvert }),
+  idle: async () => {},
   setSmartAutoConvert: (_, enabled) => { smartAutoConvert = enabled; }
 } };
 const context = { exports: {}, require: name => {
   if (name === '@kit.CoreFileKit') return { fileIo: { readTextSync: name => {
+    if (name.endsWith('/source.json')) return JSON.stringify({ Metadata: JSON.stringify({ origin: '', sub: {}, updatedAt: 1 }) });
     const entry = staged.get(name);
     return entry.original + entry.overlay;
   } } };
@@ -125,9 +137,9 @@ const tx = context.exports.ProfileTransactions;
   await assert.rejects(tx.edit({}, 'old.yaml', 'bad'), /parse/);
   assert.equal(originals['old.yaml'], 'proxies: [old]');
   response = 'unknown';
-  await assert.rejects(tx.update({}, 'old.yaml'), /未知/);
+  await assert.rejects(tx.update({}, 'old.yaml'), /应用未确认/);
   assert.equal(state.Current.ProfileID, 'old.yaml');
-  await assert.rejects(tx.activate({}, 'new.yaml'), /断开 VPN/);
+  await assert.rejects(tx.activate({}, 'new.yaml'), /重连恢复/);
   controller.VpnController.status = 0;
   uncertain = false; // explicit confirmed stop clears the persistent marker
   assert.equal(await tx.activate({}, 'new.yaml'), 'saved');
@@ -243,5 +255,81 @@ const tx = context.exports.ProfileTransactions;
   assert.equal(await tx.applyPendingRegionSelection({}), true);
   assert.equal(currentProxyChoice, 'Original');
   assert.equal(previousRegionChoice, '');
+  controller.VpnController.status = 0;
+  const previewRestore = tx.previewPrevious({});
+  await assert.rejects(tx.restorePrevious({}, 'stale', previewRestore.previousId), /重新预览/);
+  const beforeRestore = state.Current.ID;
+  assert.equal(await tx.restorePrevious({}, previewRestore.currentId, previewRestore.previousId), 'saved');
+  assert.notEqual(state.Current.ID, beforeRestore, 'restore must stage a new immutable version');
+  assert.equal(state.Previous.ID, beforeRestore, 'the pre-restore version remains available');
+  controller.VpnController.status = 2;
+  const rejectedRestore = tx.previewPrevious({});
+  const beforeRejectedPreference=smartAutoConvert;
+  smartVersionOverrides.set(state.Previous.ID,!smartAutoConvert);
+  response = 'rejected';
+  const rejectId = state.Current.ID;
+  await assert.rejects(tx.restorePrevious({}, rejectedRestore.currentId, rejectedRestore.previousId), /拒绝/);
+  assert.equal(state.Current.ID, rejectId, 'rejected restore preserves the current pointer');
+  assert.equal(smartAutoConvert,beforeRejectedPreference,'confirmed rejection restores the prior Smart preference');
+  response = 'applied';
+  const beforeUnknownApply = smartAutoConvert, beforeUnknownPointer = state.Current.ID;
+  response='unknown';
+  await assert.rejects(tx.setSmartAutoConvert({},!beforeUnknownApply),/应用未确认/);
+  assert.equal(state.Current.ID,beforeUnknownPointer);
+  assert.equal(smartAutoConvert,beforeUnknownApply,'no commit was attempted: keep the known pointer and preference paired');
+  response='applied';uncertain=false;controller.VpnController.status=0;
+  await tx.activate({},'old.yaml');controller.VpnController.status=2;
+  const beforeFailedCommit = smartAutoConvert, knownPointer = state.Current.ID;
+  failCommit=true;switchRestoreAt=applies+2;
+  await assert.rejects(tx.setSmartAutoConvert({},!beforeFailedCommit),/应用未确认/);
+  assert.equal(state.Current.ID,knownPointer);
+  assert.equal(smartAutoConvert,beforeFailedCommit,'confirmed unpublished pointer retains its old preference even if runtime rollback is unknown');
+  failCommit=false;switchRestoreAt=-1;uncertain=false;controller.VpnController.status=0;
+  await tx.activate({},'old.yaml');controller.VpnController.status=2;
+  // A commit can publish and only then lose session confirmation. Never revert
+  // the preference alone while retaining the newly published candidate.
+  for (const operation of ['toggle','previous']) {
+    const beforePreference=smartAutoConvert, beforePublished=state.Current.ID;
+    const restored=tx.previewPrevious({});
+    if(operation==='previous')smartVersionOverrides.set(state.Previous.ID,!beforePreference);
+    clearUnknownMarker=operation==='previous';
+    afterCommitHook=async()=>{session=`post-commit-${operation}`};
+    await assert.rejects(operation==='toggle'?tx.setSmartAutoConvert({},!beforePreference):tx.restorePrevious({},restored.currentId,restored.previousId),/应用未确认/);
+    assert.notEqual(state.Current.ID,beforePublished,'published candidate must remain the truthful pointer');
+    assert.equal(smartAutoConvert,!beforePreference,'unknown cannot roll back just the preference');
+    assert.equal(smartAutoConvert,staged.get(state.Current.Path).smartPolicy,'retained preference matches the actual staged policy');
+    assert.equal(uncertain,!clearUnknownMarker);
+    await assert.rejects(tx.activate({},'new.yaml'),/重连恢复/,'in-memory unknown fence survives a cleared persistent marker');
+    afterCommitHook=null;clearUnknownMarker=false;uncertain=false;controller.VpnController.status=0;
+    await tx.activate({},'old.yaml');controller.VpnController.status=2;
+  }
+  let valid = true; pending = true;
+  const cancelledVersion = state.Current.ID;
+  const cancelled = tx.update({}, 'old.yaml', () => valid);
+  await new Promise(resolve => setTimeout(resolve, 0));
+  valid = false; pending = false; resolveApply('applied');
+  await assert.rejects(cancelled, /取消/);
+  assert.equal(state.Current.ID, cancelledVersion); assert.equal(uncertain, false, 'same-session cancellation confirms rollback');
+  commitHook = async () => { session = 'commit-new-session'; };
+  const beforeCommitSwitch = state.Current.ID;
+  await assert.rejects(tx.update({}, 'old.yaml'), /应用未确认/);
+  assert.notEqual(state.Current.ID, beforeCommitSwitch, 'published pointer truth is retained after a late session change');
+  assert.equal(uncertain, true); commitHook = null;
+  controller.VpnController.status = 0; uncertain = false; await tx.activate({}, 'old.yaml'); controller.VpnController.status = 2;
+  failCommit = true; switchRestoreAt = applies + 2;
+  const beforeRestoreSwitch = state.Current.ID;
+  await assert.rejects(tx.update({}, 'old.yaml'), /应用未确认/);
+  assert.equal(state.Current.ID, beforeRestoreSwitch); assert.equal(uncertain, true);
+  failCommit = false; switchRestoreAt = -1;
+  controller.VpnController.status = 0; uncertain = false; await tx.activate({}, 'old.yaml'); controller.VpnController.status = 2;
+  pending = true;
+  const priorSessionVersion = state.Current.ID;
+  const oldResult = tx.update({}, 'old.yaml');
+  await new Promise(resolve => setTimeout(resolve, 0));
+  session = 'new-session';
+  resolveApply('applied');
+  await assert.rejects(oldResult, /应用未确认/);
+  assert.equal(state.Current.ID, priorSessionVersion, 'old runtime result cannot publish into a new session');
+  await assert.rejects(tx.activate({}, 'new.yaml'), /重连恢复/);
   console.log('PASS: rejected, unknown, staged pointer, merge reapply and concurrent profile transactions');
 })().catch(error => { console.error(error); process.exitCode = 1; });

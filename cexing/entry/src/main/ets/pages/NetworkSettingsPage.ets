@@ -1,3 +1,4 @@
+import { SettingsReconnectButton } from './SettingsReconnectButton';
 import { NativeTheme as UI } from './NativeTheme';
 /*
  * NetworkSettingsPage.ets - 网络设置（设置 → 网络设置）
@@ -6,6 +7,7 @@ import { NativeTheme as UI } from './NativeTheme';
 import { common } from '@kit.AbilityKit';
 import { promptAction } from '@kit.ArkUI';
 import { Settings } from '../lib/Settings';
+import { buildVpnApplicationPolicy, validVpnBundleName, vpnRouteExceptions } from '../lib/VpnController';
 
 const ACCESS_MODES: string[] = ['全部应用', '仅选中应用', '排除选中应用'];
 const ACCESS_VALUES: string[] = ['all', 'white', 'black'];
@@ -17,8 +19,30 @@ export struct NetworkSettingsPage {
   @State accessList: string[] = [];
   @State inputPkg: string = '';
   @State showAddDialog: boolean = false;
+  private pageActive: boolean = false;
+  @State ready: boolean = false;
+  private saveGeneration: number = 0;
+  @State showRouteDetails: boolean = false;
 
   aboutToAppear(): void {
+    this.pageActive = true;
+    this.saveGeneration++;
+    const generation = this.saveGeneration;
+    this.ready = false;
+    this.readSettings();
+    Settings.idle().then(() => {
+      if (!this.pageActive || generation !== this.saveGeneration) { return; }
+      this.readSettings(); this.ready = true;
+    }).catch(() => {
+      if (this.pageActive && generation === this.saveGeneration) {
+        promptAction.showToast({ message: '设置读取失败，请重试' });
+      }
+    });
+  }
+
+  aboutToDisappear(): void { this.pageActive = false; this.saveGeneration++; this.cancelAddPackage(); this.showRouteDetails = false; }
+
+  private readSettings(): void {
     const context = getContext(this) as common.UIAbilityContext;
     const s = Settings.load(context);
     this.ipv6 = s.ipv6;
@@ -27,17 +51,52 @@ export struct NetworkSettingsPage {
     this.accessIndex = idx >= 0 ? idx : 0;
   }
 
-  private persist(): void {
+  private async persist(fields: string[]): Promise<void> {
+    if (!this.pageActive || !this.ready) { return; }
+    const generation = ++this.saveGeneration;
     const context = getContext(this) as common.UIAbilityContext;
     const s = Settings.load(context);
     s.ipv6 = this.ipv6;
     s.accessMode = ACCESS_VALUES[this.accessIndex];
     s.accessList = this.accessList;
-    Settings.save(context, s);
+    try {
+      await Settings.save(context, s, fields);
+      if (this.pageActive && generation === this.saveGeneration) { this.changedHint(); }
+    } catch (_) {
+      if (!this.pageActive || generation !== this.saveGeneration) { return; }
+      this.aboutToAppear();
+      promptAction.showToast({ message: '保存失败，请重试', duration: 2000 });
+    }
   }
 
   private changedHint(): void {
     promptAction.showToast({ message: '已保存，下次启动 VPN 生效', duration: 1500 });
+  }
+
+  private addPackage(): void {
+    if (!this.showAddDialog) { return; }
+    const pkg = this.inputPkg.trim();
+    const context = getContext(this) as common.UIAbilityContext;
+    if (!validVpnBundleName(pkg) || pkg === context.applicationInfo.name) {
+      promptAction.showToast({ message: '请输入其他应用的有效包名', duration: 1500 });
+      return;
+    }
+    if (this.accessList.indexOf(pkg) >= 0) {
+      promptAction.showToast({ message: '应用已添加', duration: 1500 });
+      return;
+    }
+    const next = [...this.accessList, pkg];
+    try { buildVpnApplicationPolicy(ACCESS_VALUES[this.accessIndex], next, context.applicationInfo.name); }
+    catch (e) { promptAction.showToast({ message: (e as Error).message, duration: 1500 }); return; }
+    this.accessList = next;
+    this.persist(['accessList']);
+    this.inputPkg = '';
+    this.showAddDialog = false;
+  }
+
+  private cancelAddPackage(): void {
+    this.inputPkg = '';
+    this.showAddDialog = false;
   }
 
   @Builder
@@ -83,20 +142,13 @@ export struct NetworkSettingsPage {
           .backgroundColor(UI.soft)
           .fontColor(UI.ink)
           .onClick(() => {
-            this.showAddDialog = false;
+            this.cancelAddPackage();
           })
         Button('添加')
           .height(48).backgroundColor(UI.action).fontColor(UI.onAccent)
           .layoutWeight(1)
           .onClick(() => {
-            const pkg = this.inputPkg.trim();
-            if (pkg.length > 0 && this.accessList.indexOf(pkg) < 0) {
-              this.accessList = [...this.accessList, pkg];
-              this.persist();
-              this.changedHint();
-            }
-            this.inputPkg = '';
-            this.showAddDialog = false;
+            this.addPackage();
           })
       }
       .width('100%')
@@ -106,14 +158,29 @@ export struct NetworkSettingsPage {
     .borderRadius(24)
   }
 
+  @Builder
+  RouteDetails() {
+    Column({ space: 12 }) {
+      Text('系统路由例外').fontSize(17).fontWeight(FontWeight.Medium).fontColor(UI.ink)
+      Text('以下地址直接使用当前网络，匹配的流量不进入 VPN。')
+        .fontSize(13).fontColor(UI.muted).width('100%')
+      ForEach(vpnRouteExceptions(), (cidr: string) => {
+        Text(cidr).fontSize(14).fontColor(UI.ink).width('100%')
+      }, (cidr: string) => cidr)
+      Text('每次连接自动恢复默认例外。').fontSize(13).fontColor(UI.muted).width('100%')
+      Button('完成').width('100%').height(48).backgroundColor(UI.action).fontColor(UI.onAccent)
+        .onClick(() => { this.showRouteDetails = false; })
+    }.padding(20).backgroundColor(UI.surface)
+  }
+
   build() {
     Scroll() {
       Column({ space: 16 }) {
+        SettingsReconnectButton()
         Column() {
           this.ToggleRow('IPv6', '下次启动生效', this.ipv6, (v: boolean) => {
             this.ipv6 = v;
-            this.persist();
-            this.changedHint();
+            this.persist(['ipv6']);
           })
         }
         .width('100%')
@@ -148,9 +215,8 @@ export struct NetworkSettingsPage {
                 })
                 .onClick(() => {
                   this.accessIndex = index;
-                  this.persist();
-                  this.changedHint();
-                })
+                  this.persist(['accessMode']);
+                    })
             }, (label: string) => label)
           }
           .backgroundColor(UI.soft)
@@ -159,6 +225,11 @@ export struct NetworkSettingsPage {
           .margin({ left: 14, right: 14, bottom: 8 })
 
           if (this.accessIndex > 0) {
+            if (this.accessIndex === 1 && this.accessList.filter((pkg: string) =>
+              validVpnBundleName(pkg) && pkg !== (getContext(this) as common.UIAbilityContext).applicationInfo.name).length === 0) {
+              Text('请添加要连接的应用').fontSize(13).fontColor(UI.error)
+                .width('100%').padding({ left: 14, right: 14, bottom: 6 })
+            }
             ForEach(this.accessList, (pkg: string) => {
               Row() {
                 Text(pkg)
@@ -183,7 +254,7 @@ export struct NetworkSettingsPage {
                 })
                 .onClick(() => {
                   this.accessList = this.accessList.filter((x) => x !== pkg);
-                  this.persist();
+                  this.persist(['accessList']);
                 })
               }
               .width('100%')
@@ -206,6 +277,7 @@ export struct NetworkSettingsPage {
               normal: { .opacity(1.0) }
             })
             .onClick(() => {
+              this.inputPkg = '';
               this.showAddDialog = true;
             })
           }
@@ -213,6 +285,9 @@ export struct NetworkSettingsPage {
         .width('100%')
         .backgroundColor(UI.surface)
         .borderRadius(24)
+
+        Button('系统路由例外').height(48).width('100%').backgroundColor(UI.soft).fontColor(UI.ink)
+          .onClick(() => { this.showRouteDetails = true; })
 
         Text('手动输入应用包名 · 本应用始终直连')
           .fontSize(13)
@@ -223,7 +298,8 @@ export struct NetworkSettingsPage {
       .width('100%')
       .padding({ left: 24, right: 24, top: 8 })
     }
-    .width('100%').height('100%').backgroundColor(UI.paper).constraintSize({ maxWidth: 760 }).alignSelf(ItemAlign.Center)
+    .width('100%').height('100%').enabled(this.ready).backgroundColor(UI.paper).constraintSize({ maxWidth: 760 }).alignSelf(ItemAlign.Center)
+    .bindSheet($$this.showRouteDetails, this.RouteDetails(), { height: SheetSize.MEDIUM })
     .bindSheet($$this.showAddDialog, this.AddPkgDialog(), { height: SheetSize.MEDIUM })
   }
 }
