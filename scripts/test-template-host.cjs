@@ -14,7 +14,7 @@ const editor = {
   receipt = { revision: expected, digest: `digest-${revision}`, changes: { digest: `digest-${revision}`, changes: [{ section: 'rules', before: 1, after: 9 }] } }; return receipt; },
  apply: async checked => { assert.equal(checked, receipt); assert.equal(checked.revision, `ticket-${revision}`); calls.push('apply'); committed++; published = structuredClone(draft); return 'applied'; }
 };
-const modules = { './EditorDraftHosts': { EditorDraftHosts: { create: () => editor } }, './ConfigEditor': { ConfigEditor: { templatePlan: (templateId, version, targetGroup, region, replaceRules) => ({templateId, version, targetGroup, region, replaceRules}) } }, './EffectiveVersions': { EffectiveVersions: { read: () => ({ Profiles: { 'one.yaml': { ID: 'version-one' } } }),
+const modules = { './CoreValidator': require('./ci/semantic-fixture.cjs'), './EditorDraftHosts': { EditorDraftHosts: { create: () => editor } }, './ConfigEditor': { ConfigEditor: { templatePlan: (templateId, version, targetGroup, region, replaceRules) => ({templateId, version, targetGroup, region, replaceRules}) } }, './EffectiveVersions': { EffectiveVersions: { read: () => ({ Profiles: { 'one.yaml': { ID: 'version-one' } } }),
  editIntent: () => structuredClone(published), regionPlan: () => null } } };
 const sandbox = { exports: {}, ...uiFixture.globals, require: name => { if (name.endsWith('/UiText')) return uiFixture.module; assert.ok(name in modules, name); return modules[name]; } };
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('cexing/entry/src/main/ets/lib/TemplateHost.ets', 'utf8')).outputText, sandbox);

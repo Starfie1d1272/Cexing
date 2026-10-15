@@ -7,12 +7,12 @@ let code = fs.readFileSync('cexing/entry/src/main/ets/pages/ProfileProxyEditorPa
 code = code.slice(0, code.indexOf('  build()')) + '\n}';
 code = code.split('\n').map(line => line.trimStart().startsWith('@') ?
   line.replace(/@\w+(?:\([^\n)]*\))?\s*/g, '') : line).join('\n').replace('export struct ', 'export class ');
-let actionIds = 0;
+let actionIds = 0, smartAnswer, smartDialog, smartDialogCount = 0;
 let finishObservation, observations = 0, restores = 0, undoSteps = 0;
 let finishLoad, finishTarget, finishSave, targetCalls = 0, saveCalls = 0, dialog;
 const intent = { schemaVersion: 1, sourceRevision: 'source', revision: 'draft', operations: [] };
 class Model {
-  snapshot = null; preview = null;
+  snapshot = null; preview = null; smartChanges = [];
   cancel() {}
   canUndo() { return true; }
   undoNeedsConfirmation() { return true; }
@@ -39,11 +39,11 @@ vm.runInNewContext(ts.transpileModule(fs.readFileSync('cexing/entry/src/main/ets
 const editBus = { current: '' };
 const editExports = { exports: {} };
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('cexing/entry/src/main/ets/lib/ProxyIntentEdits.ets', 'utf8')).outputText, editExports);
-const sandbox = { exports: {}, getContext: () => resourceContext(), AlertDialog: { show: value => { dialog = value; } },
-  require: name => name.includes('ProfileApplyFeedback') ? feedbackBox.exports :
+const sandbox = { exports: {}, $r: id => ({ id }), getContext: () => resourceContext(), AlertDialog: { show: value => { dialog = value; } },
+  require: name => name === '../lib/CoreValidator' ? require('./ci/semantic-fixture.cjs') : name.includes('ProfileApplyFeedback') ? feedbackBox.exports :
     name.includes('ProfileApplyRecovery') ? { ProfileApplyRecovery: { reconnect: async (_ctx, current) => { recoveryCalls++; assert.equal(current(), true); return recoveryResult; } } } :
     name.includes('ProfileImportInput') ? { ProfileImportInput: { hasPending: () => sharePending } } : name.includes('ProfileProxyEditorModel') ? { ProfileProxyEditorModel: Model } :
-    name === '@kit.ArkUI' ? { promptAction: { showToast() {} } } : name === '@kit.ArkTS' ? { util: { generateRandomUUID: () => `add-action-${++actionIds}` } } : name.includes('ProxyIntentEdits') ? editExports.exports : name.includes('ProfileEditPage') ? { ProfileEditBus: editBus } : name.includes('ProxyEditorText') ? textBox.exports : name.includes('ConfigEditor') ? editorExports.exports : name.includes('ProxyProviderStatus') ?
+    name === '@kit.ArkUI' ? { promptAction: { showToast() {}, showDialog(value) { smartDialog = value; smartDialogCount++; return new Promise(resolve => { smartAnswer = resolve; }); } } } : name === '@kit.ArkTS' ? { util: { generateRandomUUID: () => `add-action-${++actionIds}` } } : name.includes('ProxyIntentEdits') ? editExports.exports : name.includes('ProfileEditPage') ? { ProfileEditBus: editBus } : name.includes('ProxyEditorText') ? textBox.exports : name.includes('ConfigEditor') ? editorExports.exports : name.includes('ProxyProviderStatus') ?
       { ProxyProviderStatus: { observe: () => { observations++; return new Promise(resolve => { finishObservation = resolve; }); } } } : {} };
 vm.runInNewContext(ts.transpileModule(code).outputText, sandbox);
 const Page = sandbox.exports.ProfileProxyEditorPage; sandbox.exports.ProfileProxyEditorBus.file = 'one.yaml';
@@ -175,5 +175,30 @@ const Page = sandbox.exports.ProfileProxyEditorPage; sandbox.exports.ProfileProx
   }
   unknownApply = true; const reopenedFailure = new Page(); reopenedFailure.visible = true; reopenedFailure.aboutToAppear(); finishLoad(); await new Promise(setImmediate);
   assert.equal(reopenedFailure.applyFailure, 'unconfirmed', 'reopening cannot hide the persistent unknown fence'); unknownApply = false;
+  const smartPage = new Page(); smartPage.visible = true; smartPage.aboutToAppear(); finishLoad(); await new Promise(setImmediate);
+  for (const [changes, expected] of [
+    [[{ section: 'proxies', before: 1, after: 1, modified: 1, kind: 'modified', contentChanged: true }], /节点：修改 1 项/],
+    [[{ section: 'proxy-groups', before: 2, after: 2, membersChanged: 1 }], /策略组：成员已调整/],
+    [[{ section: 'proxy-groups', before: 2, after: 2, typesChanged: 1 }], /策略组：类型已调整/],
+    [[{ section: 'private.invalid/?token=synthetic', before: 1, after: 1, fields: [{ field: 'password', before: 1, after: 1 }], contentChanged: true }], /其他配置：内容已调整/]
+  ]) {
+    smartPage.model.preview = { changes, platformChanges: [{ section: 'tun', before: 1, after: 1, kind: 'protected' }] };
+    smartPage.sync(); assert.match(smartPage.previewText, expected); assert.match(smartPage.previewText, /1 项使用设备约束/);
+    assert.ok(!smartPage.previewText.includes('1 → 1')); assert.ok(!smartPage.previewText.includes('private.invalid'));
+    assert.ok(!smartPage.previewText.includes('password')); assert.ok(!smartPage.previewText.includes('synthetic'));
+  }
+  smartPage.model.preview = null; smartPage.sync(); assert.equal(smartPage.previewText, '', 'a missing receipt clears old semantic evidence');
+  const group = { id: 'group', label: 'Synthetic group', type: 'url-test', section: 'proxy-groups' };
+  let smartIntent = { schemaVersion: 1, operations: [], smartGroups: {} }, smartSaves = 0;
+  smartPage.model.workingIntent = () => structuredClone(smartIntent);
+  smartPage.model.smartChoices = async () => [{ id: 'group', choiceId: 'group', before: 'url-test', after: smartIntent.smartGroups.group === false ? 'url-test' : 'smart', override: smartIntent.smartGroups.group !== undefined }];
+  smartPage.model.save = async next => { smartSaves++; smartIntent = structuredClone(next); smartPage.model.smartChanges = await smartPage.model.smartChoices(); smartPage.model.preview = { changes: [{ section: 'proxy-groups', before: 2, after: 2 }] }; return true; };
+  const enabling = smartPage.smart(group); await new Promise(setImmediate);
+  assert.equal(smartDialog.message, 'Smart：url-test → smart'); await smartPage.smart(group); assert.equal(smartDialogCount, 1, 'repeated Smart action stays single-flight');
+  smartAnswer({ index: 1 }); await enabling; assert.match(smartPage.previewText, /url-test → smart/); assert.equal(smartSaves, 1);
+  const keeping = smartPage.smart(group); await new Promise(setImmediate); smartAnswer({ index: 2 }); await keeping;
+  assert.match(smartPage.previewText, /url-test → url-test/, 'explicit original type choice displays actual compiler before/after');
+  const staleSmart = smartPage.smart(group); await new Promise(setImmediate); smartPage.visible = false; smartPage.visibilityChanged(); smartAnswer({ index: 1 }); await staleSmart;
+  assert.equal(smartSaves, 2, 'late Smart dialog does not persist into a hidden page');
   console.log('PASS: real native proxy editor load/target/save lifecycle, repeat actions, hidden private values and stale delete confirmation');
 })().catch(error => { console.error(error); process.exitCode = 1; });

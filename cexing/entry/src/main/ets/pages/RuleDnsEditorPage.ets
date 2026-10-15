@@ -1,3 +1,5 @@
+import { UiText } from '../lib/UiText';
+import { RuleDnsText } from '../lib/RuleDnsText';
 import { CoreValidator } from '../lib/CoreValidator';
 import { util } from '@kit.ArkTS';
 import { EditorDraftHosts } from '../lib/EditorDraftHosts';
@@ -77,7 +79,7 @@ export struct RuleDnsEditorPage {
       const session = await host.load();
       if (!this.current(epoch)) { return; }
       this.acceptSession(session); this.message = '';
-    } catch (error) { if (this.current(epoch)) { this.message = (error as Error).message || '无法打开编辑，请重试'; } }
+    } catch (error) { if (this.current(epoch)) { this.message = RuleDnsText.failure(error, $r('app.string.rule_open_failed')); } }
     finally { if (this.current(epoch)) { this.busy = false; } }
   }
   private async open(item: EditableItem): Promise<void> {
@@ -88,7 +90,7 @@ export struct RuleDnsEditorPage {
       if (!this.current(epoch)) { return; }
       this.liveProviderName = value.name ?? '';
       this.selected = value; this.isNew = false; this.providerState = ''; this.providerError = ''; this.showProviderError = false;
-    } catch (_) { if (this.current(epoch)) { this.message = '配置已变化，请重新打开'; } }
+    } catch (_) { if (this.current(epoch)) { this.message = UiText.get($r('app.string.rule_changed')); } }
     finally { if (this.current(epoch)) { this.busy = false; } }
   }
   private intentIdentity(intent: EditIntent | null): string {
@@ -99,21 +101,21 @@ export struct RuleDnsEditorPage {
   }
   private async provider(update: boolean): Promise<void> {
     if (this.busy || this.selected === null || this.selected.name === undefined) { return; }
-    if (this.ticket?.activeFile !== this.file || VpnController.status !== VpnStatus.Connected || ProfileTransactions.isBusy()) { this.message = '此订阅尚未运行'; return; }
+    if (this.ticket?.activeFile !== this.file || VpnController.status !== VpnStatus.Connected || ProfileTransactions.isBusy()) { this.message = UiText.get($r('app.string.rule_not_running')); return; }
     const context = getContext(this) as common.UIAbilityContext;
     const version = EffectiveVersions.read(context)?.Profiles[this.file];
     const published = version !== undefined ? EffectiveVersions.editIntent(context, version) : null;
-    if (this.intentIdentity(this.intent) !== this.intentIdentity(published)) { this.message = '请先应用修改'; return; }
+    if (this.intentIdentity(this.intent) !== this.intentIdentity(published)) { this.message = UiText.get($r('app.string.rule_apply_first')); return; }
     const epoch = ++this.epoch; const name = this.liveProviderName; const ticket = this.ticket; this.busy = true;
     try {
       const observation = update ? await RuleProviderStatus.refresh(name) : await RuleProviderStatus.read(name);
       if (!this.current(epoch)) { return; }
       const current = ProfileTransactions.editTicket(getContext(this) as common.UIAbilityContext, this.file);
-      if (current.activeVersion !== ticket.activeVersion || current.activeFile !== this.file || ProfileTransactions.isBusy()) { this.message = '运行配置已变化，请重试'; return; }
-      this.providerState = observation.available ? `${observation.count} 条规则` : '运行状态未确认';
-      if (observation.available && observation.references >= 0) { this.providerState += ` · 关联 ${observation.references} 条规则`; }
+      if (current.activeVersion !== ticket.activeVersion || current.activeFile !== this.file || ProfileTransactions.isBusy()) { this.message = UiText.get($r('app.string.rule_runtime_changed')); return; }
+      this.providerState = observation.available ? UiText.get($r('app.string.rule_count'), observation.count) : UiText.get($r('app.string.rule_runtime_unknown'));
+      if (observation.available && observation.references >= 0) { this.providerState += UiText.get($r('app.string.rule_references'), observation.references); }
       this.providerError = observation.error; this.showProviderError = false;
-      if (observation.error !== '') { this.message = update ? '更新失败，可重试' : '暂无法读取运行状态'; }
+      if (observation.error !== '') { this.message = update ? UiText.get($r('app.string.rule_update_failed')) : UiText.get($r('app.string.rule_runtime_failed')); }
     } finally { if (this.current(epoch)) { this.busy = false; } }
   }
   private renameProvider(): void {
@@ -141,7 +143,7 @@ export struct RuleDnsEditorPage {
       this.message = CoreValidator.describeMergePreview(preview.changes);
     } catch (error) { if (this.current(epoch)) {
       const message = (error as Error).message;
-      this.message = /未确认|恢复|变化|正在进行|不存在/.test(message) ? message : '变更未通过校验，可修改或撤销';
+      this.message = RuleDnsText.failure(error, $r('app.string.rule_validation_failed'));
     } }
     finally { if (this.current(epoch)) { this.busy = false; } }
   }
@@ -150,17 +152,17 @@ export struct RuleDnsEditorPage {
     const epoch = ++this.epoch; const host = this.host; const revision = this.session.revision; this.busy = true;
     try {
       const session = await host.undo(revision);
-      if (this.current(epoch)) { this.acceptSession(session); this.previewReady = false; this.shown = null; this.message = '已撤销草稿'; }
-    } catch (error) { if (this.current(epoch)) { this.message = (error as Error).message; } }
+      if (this.current(epoch)) { this.acceptSession(session); this.previewReady = false; this.shown = null; this.message = UiText.get($r('app.string.rule_draft_discarded')); }
+    } catch (error) { if (this.current(epoch)) { this.message = RuleDnsText.failure(error, $r('app.string.rule_validation_failed')); } }
     finally { if (this.current(epoch)) { this.busy = false; } }
   }
   private edit(operation: EditOperation): void {
     if (this.intent === null || this.busy) { return; }
     if (operation.section === 'rules' && operation.kind === 'add' && operation.value !== undefined && RuleDnsForms.parseRule(operation.value)?.type === 'MATCH' &&
-      this.items.some((item: EditableItem) => item.type === undefined)) { this.message = '无法读取最终规则，请重试'; return; }
+      this.items.some((item: EditableItem) => item.type === undefined)) { this.message = UiText.get($r('app.string.rule_final_unreadable')); return; }
     if (operation.section === 'rules' && operation.value !== undefined && RuleDnsForms.parseRule(operation.value)?.type === 'MATCH' &&
       (this.items.some((item: EditableItem) => item.type === 'MATCH' && item.id !== operation.target) ||
-        this.additions.some((op: EditOperation) => RuleDnsForms.parseRule(op.value ?? '')?.type === 'MATCH' && op.id !== this.selected?.item.id))) { this.message = '已有最终规则，请编辑它'; return; }
+        this.additions.some((op: EditOperation) => RuleDnsForms.parseRule(op.value ?? '')?.type === 'MATCH' && op.id !== this.selected?.item.id))) { this.message = UiText.get($r('app.string.rule_final_exists')); return; }
     this.undo = JSON.parse(JSON.stringify(this.intent)) as EditIntent;
     if (this.isNew && this.selected !== null && this.selected.item.id !== '') { operation.id = this.selected!.item.id; }
     if (this.isNew && operation.section === 'rules' && operation.kind === 'add' && operation.value !== undefined &&
@@ -178,17 +180,17 @@ export struct RuleDnsEditorPage {
       if (!this.current(epoch)) { return; }
       const session = await host.load();
       if (!this.current(epoch)) { return; }
-      this.acceptSession(session); this.message = state === 'applied' ? '已应用' : '已保存'; this.previewReady = false; this.shown = null;
-    } catch (error) { if (this.current(epoch)) { this.previewReady = false; this.message = (error as Error).message; } }
+      this.acceptSession(session); this.message = state === 'applied' ? UiText.get($r('app.string.rule_applied')) : UiText.get($r('app.string.rule_saved')); this.previewReady = false; this.shown = null;
+    } catch (error) { if (this.current(epoch)) { this.previewReady = false; this.message = RuleDnsText.failure(error, $r('app.string.rule_validation_failed')); } }
     finally { if (this.current(epoch)) { this.busy = false; } }
   }
   private move(from: number, to: number): void {
     if (this.busy || this.section !== 'rules' || from === to || from < 0 || to < 0 ||
       from >= this.items.length || to >= this.items.length) { return; }
-    if (this.items.some((entry: EditableItem) => entry.type === undefined)) { this.message = '无法读取最终规则，请重试'; return; }
+    if (this.items.some((entry: EditableItem) => entry.type === undefined)) { this.message = UiText.get($r('app.string.rule_final_unreadable')); return; }
     const item = this.items[from];
     const final = this.items.find((entry: EditableItem) => entry.type === 'MATCH')?.id ?? '';
-    if (item.type === 'MATCH' || item.id === final || (final !== '' && to >= this.items.findIndex((entry: EditableItem) => entry.id === final))) { this.message = '最终规则保持在末尾'; return; }
+    if (item.type === 'MATCH' || item.id === final || (final !== '' && to >= this.items.findIndex((entry: EditableItem) => entry.id === final))) { this.message = UiText.get($r('app.string.rule_final_order')); return; }
     const revised = this.items.slice(); revised.splice(from, 1); revised.splice(to, 0, item);
     const before = revised[to + 1]?.id ?? '';
     this.edit(RuleDnsForms.moveRule(`move-${util.generateRandomUUID(true)}`, item, before, final));
@@ -209,23 +211,23 @@ export struct RuleDnsEditorPage {
       if (this.selected !== null) {
         if (this.section === 'rule-providers' && !this.isNew) {
           Row({ space: 8 }) {
-            Button('查看状态').enabled(!this.busy).onClick(() => this.provider(false))
-            Button('更新').enabled(!this.busy).onClick(() => this.provider(true))
+            Button(UiText.get($r('app.string.rule_view_status'))).enabled(!this.busy).onClick(() => this.provider(false))
+            Button(UiText.get($r('app.string.rule_update'))).enabled(!this.busy).onClick(() => this.provider(true))
           }
           if (this.providerState !== '') { Text(this.providerState).fontSize(14) }
           if (this.providerError !== '') {
-            Button('错误详情').onClick(() => { this.showProviderError = !this.showProviderError; })
+            Button(UiText.get($r('app.string.rule_error_details'))).onClick(() => { this.showProviderError = !this.showProviderError; })
             if (this.showProviderError) { Text(this.providerError).fontSize(14).fontColor(UI.error) }
           }
           Row({ space: 8 }) {
-            TextInput({ placeholder: '新名称', text: this.rename }).onChange((value: string) => { this.rename = value; }).layoutWeight(1)
-            Button('重命名').enabled(!this.busy).onClick(() => this.renameProvider())
+            TextInput({ placeholder: UiText.get($r('app.string.rule_new_name')), text: this.rename }).onChange((value: string) => { this.rename = value; }).layoutWeight(1)
+            Button(UiText.get($r('app.string.rule_rename'))).enabled(!this.busy).onClick(() => this.renameProvider())
           }
         }
         if (this.section === 'dns') {
           Row({ space: 12 }) {
-            Button('默认').enabled(!this.busy).onClick(() => this.preset(false))
-            Button('推荐').enabled(!this.busy).onClick(() => this.preset(true))
+            Button(UiText.get($r('app.string.rule_default'))).enabled(!this.busy).onClick(() => this.preset(false))
+            Button(UiText.get($r('app.string.rule_recommended'))).enabled(!this.busy).onClick(() => this.preset(true))
           }
         }
         RuleDnsEditForm({ section: this.section, selected: this.selected, isNew: this.isNew,
@@ -233,10 +235,10 @@ export struct RuleDnsEditorPage {
           onOperation: (operation: EditOperation) => this.edit(operation), onClose: () => { this.selected = null; } }).layoutWeight(1)
       } else {
         Row({ space: 8 }) {
-          Button('规则').onClick(() => { this.section = 'rules'; this.list(); })
-          Button('规则源').onClick(() => { this.section = 'rule-providers'; this.list(); })
-          Button('DNS').onClick(() => { this.section = 'dns'; this.list(); })
-          Button('hosts').onClick(() => { this.section = 'hosts'; this.list(); })
+          Button(UiText.get($r('app.string.rule_rules'))).accessibilitySelected(this.section === 'rules').onClick(() => { this.section = 'rules'; this.list(); })
+          Button(UiText.get($r('app.string.rule_providers'))).accessibilitySelected(this.section === 'rule-providers').onClick(() => { this.section = 'rule-providers'; this.list(); })
+          Button('DNS').accessibilitySelected(this.section === 'dns').onClick(() => { this.section = 'dns'; this.list(); })
+          Button('hosts').accessibilitySelected(this.section === 'hosts').onClick(() => { this.section = 'hosts'; this.list(); })
         }.enabled(!this.busy)
         List({ space: 8 }) {
           ForEach(this.items, (item: EditableItem, index: number) => {
@@ -244,21 +246,21 @@ export struct RuleDnsEditorPage {
               Row() {
                 Button(item.name ?? `${item.type ?? this.section} ${index + 1}`).layoutWeight(1).onClick(() => this.open(item))
                 if (this.section !== 'dns') {
-                  Button('删除').onClick(() => this.edit(RuleDnsForms.deleteItem(`delete-${util.generateRandomUUID(true)}`, this.section, item)))
+                  Button(UiText.get($r('app.string.rule_delete'))).accessibilityText(UiText.get($r('app.string.rule_remove_named'), item.name ?? `${item.type ?? this.section} ${index + 1}`)).onClick(() => this.edit(RuleDnsForms.deleteItem(`delete-${util.generateRandomUUID(true)}`, this.section, item)))
                 }
               }.enabled(!this.busy)
             }
           }, (item: EditableItem) => item.id).onMove((from: number, to: number) => this.move(from, to))
         }.layoutWeight(1)
-        if (this.section !== 'dns') { Button('新增').enabled(!this.busy).onClick(() => this.add()) }
-        if (this.previewReady) { Button('应用').enabled(!this.busy).onClick(() => this.apply()) }
-        if (this.undo !== null) { Button('撤销').enabled(!this.busy).onClick(() => this.preview(this.undo)) }
-        if ((this.intent?.operations.length ?? 0) > 0) { Button('撤销草稿').enabled(!this.busy).onClick(() => this.discardDraft()) }
-        Button(this.intent?.disabled === true ? '启用修改' : '停用修改').enabled(!this.busy).onClick(() => {
+        if (this.section !== 'dns') { Button(UiText.get($r('app.string.rule_add'))).enabled(!this.busy).onClick(() => this.add()) }
+        if (this.previewReady) { Button(UiText.get($r('app.string.rule_apply'))).enabled(!this.busy).onClick(() => this.apply()) }
+        if (this.undo !== null) { Button(UiText.get($r('app.string.rule_undo'))).enabled(!this.busy).onClick(() => this.preview(this.undo)) }
+        if ((this.intent?.operations.length ?? 0) > 0) { Button(UiText.get($r('app.string.rule_discard'))).enabled(!this.busy).onClick(() => this.discardDraft()) }
+        Button(this.intent?.disabled === true ? UiText.get($r('app.string.rule_enable')) : UiText.get($r('app.string.rule_disable'))).enabled(!this.busy).onClick(() => {
           if (this.intent !== null) { const next = JSON.parse(JSON.stringify(this.intent)) as EditIntent; next.disabled = !next.disabled; this.preview(next); }
         })
       }
-      if (this.snapshot === null && !this.busy) { Button('重试').onClick(() => this.load()) }
+      if (this.snapshot === null && !this.busy) { Button(UiText.get($r('app.string.rule_retry'))).onClick(() => this.load()) }
       if (this.busy) { LoadingProgress().width(24).height(24) }
       if (this.message !== '') { Text(this.message).fontSize(14).fontColor(UI.muted) }
     }.width('100%').height('100%').padding(16).backgroundColor(UI.paper)

@@ -1,3 +1,4 @@
+import { CoreValidator } from '../lib/CoreValidator';
 import { ProfileApplyFeedback, ProfileApplyFailureKind } from '../lib/ProfileApplyFeedback';
 import { ProfileApplyRecovery } from '../lib/ProfileApplyRecovery';
 import { ProfileImportInput } from '../lib/ProfileImportInput';
@@ -177,9 +178,12 @@ export struct ProfileProxyEditorPage {
     this.names = names; this.providers = providers;
     this.previewReady = model.preview !== null;
     this.renameReferences = this.previewReady && operations.some((op: EditOperation) => op.kind === 'rename');
-    const sectionNames: Record<string, string> = { 'proxies': 'proxy_editor_nodes', 'proxy-groups': 'proxy_editor_groups', 'proxy-providers': 'proxy_editor_sources' };
-    this.previewText = model.preview?.changes.map((change) => this.t('proxy_editor_change_count',
-      this.t(sectionNames[change.section] ?? 'proxy_editor_config'), change.before, change.after)).join(' · ') ?? '';
+    this.previewText = model.preview === null ? '' : CoreValidator.describeMergePreview(model.preview);
+    if (this.previewReady) {
+      const smart = model.smartChanges.filter((change) => change.override || change.before !== change.after)
+        .map((change) => this.t('proxy_editor_smart_type_change', change.before, change.after));
+      this.previewText = [this.previewText, ...smart].filter((part) => part.length > 0).join(' · ');
+    }
   }
 
   private isProviderSource(): boolean { return this.sourceKey.startsWith('provider:') || this.sourceKey.startsWith('added:'); }
@@ -425,7 +429,7 @@ export struct ProfileProxyEditorPage {
       const choice = choices.find((entry) => entry.choiceId === row.id);
       if (choice === undefined) { this.error = this.t('proxy_editor_smart_unsupported'); return; }
       const result = await promptAction.showDialog({ title: row.label,
-        message: this.t('proxy_editor_smart'), buttons: [{ text: this.t('proxy_editor_follow_global'), color: $r('app.color.ui_muted') },
+        message: this.t('proxy_editor_smart_type_change', choice.before, choice.after), buttons: [{ text: this.t('proxy_editor_follow_global'), color: $r('app.color.ui_muted') },
           { text: this.t('proxy_editor_enable'), color: $r('app.color.ui_accent_text') }, { text: this.t('proxy_editor_keep_type'), color: $r('app.color.ui_muted') }] });
       if (!this.current(epoch)) { return; }
       next = this.model.workingIntent();
