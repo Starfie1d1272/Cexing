@@ -5,7 +5,7 @@ import { NativeTheme as UI } from './NativeTheme';
 import { GlobalMergeDraft } from '../lib/GlobalMergeDraft';
 import { EffectiveVersions } from '../lib/EffectiveVersions';
 import { ProfileTransactions } from '../lib/ProfileTransactions';
-import { MergeChange } from '../lib/CoreValidator';
+import { CoreValidator } from '../lib/CoreValidator';
 
 @Component
 export struct GlobalMergeEditor {
@@ -60,8 +60,7 @@ export struct GlobalMergeEditor {
     try {
       const result = await ProfileTransactions.previewGlobalMerge(
         getContext(this) as common.UIAbilityContext, this.editedText);
-      this.summary = result.changes.map((change: MergeChange) =>
-        `${change.section}: ${change.before} → ${change.after}`).join(' · ') || UiText.get($r('app.string.editor_no_diff'));
+      this.summary = CoreValidator.describeMergePreview(result);
     } catch (e) { this.summary = this.safeFailure(e, $r('app.string.editor_preview_failed')); }
     finally { this.busy = false; }
   }
@@ -81,9 +80,7 @@ export struct GlobalMergeEditor {
   }
 
   private safeFailure(error: Object, fallback: Resource): string {
-    const message = (error as Error).message ?? '';
-    if (message.startsWith('请先启用订阅')) { return UiText.get($r('app.string.editor_enable_first')); }
-    return message.includes('未确认') || message.includes('结果未知') ? UiText.get($r('app.string.editor_unknown')) : UiText.get(fallback);
+    return CoreValidator.describeMergeFailure(error, fallback);
   }
 
   private help(): void {
@@ -106,7 +103,10 @@ export struct GlobalMergeEditor {
         .width('100%').layoutWeight(1).fontSize(14).fontFamily('HarmonyOS Sans Mono')
         .backgroundColor(UI.paper).borderRadius(12).padding(12).accessibilityText(UiText.get($r('app.string.editor_global')))
         .accessibilityDescription(this.loadFailed ? UiText.get($r('app.string.editor_read_blocked')) : (this.busy ? UiText.get($r('app.string.editor_working')) : '')).enabled(!this.busy && !this.loadFailed).onChange((value: string) => this.changeText(value))
-      if (this.summary.length > 0) { Text(this.summary).fontSize(13).fontColor(UI.muted).maxLines(4) }
+      if (this.summary.length > 0) {
+        Scroll() { Text(this.summary).fontSize(13).fontColor(UI.muted).width('100%') }
+          .width('100%').constraintSize({ maxHeight: 120 }).scrollBar(BarState.Auto)
+      }
       Row({ space: 8 }) {
         Button(UiText.get($r('app.string.editor_close'))).layoutWeight(1).constraintSize({ minHeight: 44 }).backgroundColor(UI.soft).fontColor(UI.ink)
           .enabled(!this.busy).onClick(() => this.close())

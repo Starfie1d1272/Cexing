@@ -3,21 +3,13 @@ import { common } from '@kit.AbilityKit';
 import { ConfigEditor, EditIntent, EditorDraftHost, EditorDraftSession, EditorDraftPreview } from './ConfigEditor';
 import { EffectiveVersions, RegionPlan } from './EffectiveVersions';
 import { TemplatePlan, TemplateInputs, TemplatePreview, TemplateWizardHost } from './TemplateWizardModel';
-import { MergeChange } from './CoreValidator';
+import { CoreValidator } from './CoreValidator';
 
 function cloneIntent(session: EditorDraftSession): EditIntent {
   return session.intent !== null ? JSON.parse(JSON.stringify(session.intent)) as EditIntent : {
     schemaVersion: 1, revision: session.revision, sourceRevision: session.snapshot.sourceRevision, operations: []
   };
 }
-function summary(changes: MergeChange[]): string {
-  const labels: Record<string, string> = { 'proxies': '节点', 'proxy-groups': '策略组', 'rules': '规则',
-    'proxy-providers': '节点来源', 'rule-providers': '规则来源', 'dns': 'DNS', 'hosts': '域名映射' };
-  return changes.filter((change: MergeChange) => labels[change.section] !== undefined).map((change: MergeChange) =>
-    change.before === change.after ? `${labels[change.section]}调整` :
-      `${labels[change.section]} ${change.before} → ${change.after}`).join(' · ') || '配置无变化';
-}
-
 /** Production adapter over the one shared EditorDraftHost. No file writes or
  * publish/activation implementation belongs here. profileId is fixed at entry. */
 export function createTemplateWizardHost(context: common.Context, profileId: string,
@@ -81,7 +73,7 @@ export function createTemplateWizardHost(context: common.Context, profileId: str
       if (preview.digest.length === 0 || preview.changes.digest !== preview.digest) { throw new Error('TEMPLATE_PREVIEW_INVALID'); }
       receipt = preview; planned = JSON.stringify(plan);
       return { revision: preview.revision, digest: preview.digest,
-        summary: summary(preview.changes.changes), inactiveEdits: inactiveEdits };
+        summary: CoreValidator.describeMergePreview(preview.changes), inactiveEdits: inactiveEdits };
     },
     apply: async (plan: TemplatePlan, preview: TemplatePreview, confirmed?: boolean): Promise<string> => {
       const checked = receipt;

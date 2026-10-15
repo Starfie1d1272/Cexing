@@ -18,7 +18,7 @@ function load(name, modules, extra = {}) {
     module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020
   } }).outputText;
   const sandbox = { exports: {}, getContext: () => ({}), Date, Promise,
-    require: key => { if (key.endsWith('/UiText')) return uiFixture.module; assert.ok(key in modules, `Missing mock ${key}`); return modules[key]; }, ...extra };
+    require: key => { if (key.endsWith('/UiText')) return uiFixture.module; if (key.endsWith('/CoreValidator') && !(key in modules)) return require('./ci/semantic-fixture.cjs'); assert.ok(key in modules, `Missing mock ${key}`); return modules[key]; }, ...extra };
   Object.assign(sandbox, uiFixture.globals);
   vm.runInNewContext(code, sandbox);
   const component = sandbox.exports[name];

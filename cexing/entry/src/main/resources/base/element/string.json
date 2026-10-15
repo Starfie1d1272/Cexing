@@ -994,7 +994,7 @@
     },
     {
       "name": "editor_preview_failed",
-      "value": "Cannot preview overrides. Check the content."
+      "value": "Cannot preview overrides. Check the content and try again."
     },
     {
       "name": "editor_global_applied",
@@ -1651,6 +1651,142 @@
     {
       "name": "card_start",
       "value": "Connect"
+    },
+    {
+      "name": "merge_nodes",
+      "value": "Nodes"
+    },
+    {
+      "name": "merge_node_sources",
+      "value": "Node providers"
+    },
+    {
+      "name": "merge_groups",
+      "value": "Proxy groups"
+    },
+    {
+      "name": "merge_rules",
+      "value": "Rules"
+    },
+    {
+      "name": "merge_rule_sources",
+      "value": "Rule providers"
+    },
+    {
+      "name": "merge_listeners",
+      "value": "Listeners"
+    },
+    {
+      "name": "merge_mode",
+      "value": "Mode"
+    },
+    {
+      "name": "merge_controller",
+      "value": "Controller"
+    },
+    {
+      "name": "merge_panel",
+      "value": "Panel"
+    },
+    {
+      "name": "merge_lan",
+      "value": "LAN proxy"
+    },
+    {
+      "name": "merge_bind",
+      "value": "Proxy listener"
+    },
+    {
+      "name": "merge_ports",
+      "value": "Proxy ports"
+    },
+    {
+      "name": "merge_other",
+      "value": "Other configuration"
+    },
+    {
+      "name": "merge_protected",
+      "value": "%s: device constraints used"
+    },
+    {
+      "name": "merge_cleared",
+      "value": "%s: cleared"
+    },
+    {
+      "name": "merge_types_members",
+      "value": "%s: types and members changed"
+    },
+    {
+      "name": "merge_types",
+      "value": "%s: types changed"
+    },
+    {
+      "name": "merge_members",
+      "value": "%s: members changed"
+    },
+    {
+      "name": "merge_reordered",
+      "value": "%s: reordered"
+    },
+    {
+      "name": "merge_modified",
+      "value": "%s: %d modified"
+    },
+    {
+      "name": "merge_added_count",
+      "value": "%s: %d added"
+    },
+    {
+      "name": "merge_removed_count",
+      "value": "%s: %d removed"
+    },
+    {
+      "name": "merge_added",
+      "value": "%s: added"
+    },
+    {
+      "name": "merge_removed",
+      "value": "%s: removed"
+    },
+    {
+      "name": "merge_content",
+      "value": "%s: content changed"
+    },
+    {
+      "name": "merge_device_count",
+      "value": "Device constraints used for %d items"
+    },
+    {
+      "name": "merge_no_changes",
+      "value": "No changes needed"
+    },
+    {
+      "name": "merge_repair_resources",
+      "value": "Resources are not ready. Disconnect VPN and repair resources in Settings before retrying."
+    },
+    {
+      "name": "merge_update_package",
+      "value": "Resource package is unusable. Update the app before retrying."
+    },
+    {
+      "name": "merge_update_source",
+      "value": "Subscription sources are not ready. Update the subscription and preview again."
+    },
+    {
+      "name": "merge_repreview",
+      "value": "Preview changed. Preview again before applying."
+    },
+    {
+      "name": "merge_reread",
+      "value": "Cannot read configuration. Import it again on the subscriptions page."
+    },
+    {
+      "name": "merge_wait",
+      "value": "A configuration operation is in progress. Try again shortly."
+    },
+    {
+      "name": "merge_disconnect",
+      "value": "Disconnect VPN on the connection page before retrying."
     }
   ]
 }

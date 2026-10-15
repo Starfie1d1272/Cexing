@@ -4,6 +4,7 @@ const ts = require('./ci/transpile-arkts.cjs');
 const read = locale => new Map(JSON.parse(fs.readFileSync(`cexing/entry/src/main/resources/${locale}/element/string.json`, 'utf8')).string.map(x => [x.name, x.value]));
 const locales = { zh_CN: read('zh_CN'), base: read('base') };
 const pages = ['HomePage', 'Index', 'SettingsPage', 'BackgroundNotice', 'SettingsReconnectButton', 'SmartPage', 'LiveViewStrategyPicker', 'ResourceRecoveryPage', 'DiagnosticsPage', 'GlobalMergeEditor', 'NetworkSettingsPage', 'OverridePage', 'ProfileEditPage', 'ProfileGeneratedPage', 'TrafficPage', 'ZashboardPage'];
+pages.push('../lib/CoreValidator');
 for (const name of pages) {
   const source = fs.readFileSync(`cexing/entry/src/main/ets/pages/${name}.ets`, 'utf8');
   for (const match of source.matchAll(/app\.string\.([A-Za-z0-9_]+)/g)) {
@@ -22,4 +23,9 @@ assert.equal(c.exports.UiText.get({ id: 'action_retry' }), '重试');
 locale = 'base'; assert.equal(c.exports.UiText.get({ id: 'action_retry' }), 'Retry');
 assert.equal(c.exports.UiText.get({ id: 'a11y_current_profile' }, '%s-user'), 'Current subscription: %s-user');
 assert.deepEqual(calls.at(-1).args, ['%s-user']);
+const semanticContext = { exports: {}, $r: id => ({ id: id.replace(/^app\.string\./, '') }),
+  require: key => key.endsWith('/UiText') ? c.exports : {} };
+vm.runInNewContext(ts.transpileModule(fs.readFileSync('cexing/entry/src/main/ets/lib/CoreValidator.ets', 'utf8')).outputText, semanticContext);
+assert.equal(semanticContext.exports.CoreValidator.describeMergeChange({ section: 'rules', before: 5, after: 5, reordered: true }), 'Rules: reordered');
+assert.equal(semanticContext.exports.CoreValidator.describeMergePreview({ digest: 'opaque', changes: [], platformChanges: [{}] }), 'Device constraints used for 1 items');
 console.log('PASS: matching locale resources/format arguments and actual platform string boundary, without user-text reformatting');

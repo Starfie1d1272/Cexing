@@ -1,8 +1,9 @@
+const uiFixture = require('./ci/ui-fixtures.cjs');
 const assert = require('node:assert/strict');
 const fs = require('node:fs'), vm = require('node:vm');
 const ts = require('./ci/transpile-arkts.cjs');
 const source = fs.readFileSync('cexing/entry/src/main/ets/lib/CoreValidator.ets', 'utf8');
-const context = { exports: {}, require: () => ({}) };
+const context = { exports: {}, ...uiFixture.globals, require: key => key.endsWith('/UiText') ? uiFixture.module : {} };
 vm.runInNewContext(ts.transpileModule(source).outputText, context);
 const api = context.exports.CoreValidator;
 const base = { section: 'rules', before: 5, after: 5, contentChanged: true, kind: 'modified' };
@@ -14,3 +15,9 @@ assert.equal(api.describeMergePreview({ digest: 'opaque', changes: [], platformC
 assert.equal(api.describeMergePreview({ digest: 'opaque', changes: [] }), '无需更改');
 assert(!api.describeMergeChange({ ...base, section: 'private-domain.test' }).includes('private-domain'));
 console.log('PASS: equal-count replacement, order, clear, protected input and private section presentation');
+
+assert.match(api.describeMergeFailure(Error('RESOURCE_MISSING'), { id: 'app.string.editor_preview_failed' }), /设置.*修复资源/);
+assert.match(api.describeMergeFailure(Error('PROVIDER_UNRESOLVED'), { id: 'app.string.editor_preview_failed' }), /更新订阅.*预览/);
+assert.match(api.describeMergeFailure(Error('provider 缓存已变化，请重试'), { id: 'app.string.editor_preview_failed' }), /重新预览/);
+assert.match(api.describeMergeFailure(Error('版本发布结果未知，请断开 VPN 后检查'), { id: 'app.string.editor_preview_failed' }), /未确认.*断开/);
+assert.ok(!api.describeMergeFailure(Error('https://private.invalid/?token=synthetic'), { id: 'app.string.editor_preview_failed' }).includes('private'));

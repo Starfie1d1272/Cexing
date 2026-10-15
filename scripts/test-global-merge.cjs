@@ -59,7 +59,7 @@ function compile(file, page = false) {
   if (page) src = src.slice(0, src.indexOf('  build()')) + '\n}';
   src = src.split('\n').map(line => line.trimStart().startsWith('@') ? line.replace(/@\w+(?:\([^\n)]*\))?\s*/g, '') : line).join('\n').replace(/export struct /g, 'export class ');
   const sandbox = { exports: {}, getContext: () => ctx, require: n => { assert.ok(n in modules, n); return modules[n]; } };
-  Object.assign(sandbox, uiFixture.globals); modules['../lib/UiText'] = uiFixture.module;
+  Object.assign(sandbox, uiFixture.globals); modules['../lib/UiText'] = uiFixture.module; modules['../lib/CoreValidator'] = require('./ci/semantic-fixture.cjs');
 vm.runInNewContext(ts.transpileModule(src, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, sandbox);
   return sandbox.exports;
 }
@@ -142,7 +142,7 @@ const Editor = compile('pages/GlobalMergeEditor.ets', true).GlobalMergeEditor;
   assert.equal(displayedText(), 'draft only', 'a reactive redraw must bind the current draft');
   await editor.preview();
   assert.equal(displayedText(), 'draft only', 'preview must keep the visible input');
-  assert.equal(editor.summary, 'rules: 1 → 2');
+  assert.equal(editor.summary, '规则：内容已调整');
   assert.equal(draft.read(ctx), 'draft only');
   editor.changeText('draft only');
   const enabledState = JSON.stringify(state); let closed = 0; editor.onClose = () => closed++;

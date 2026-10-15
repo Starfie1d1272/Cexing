@@ -18,7 +18,7 @@ const source = {
  encode: async (candidate, session) => ({ ...structuredClone(session.intent), template: { templateId: 'ai', version: candidate.version, targetGroup: 'Pick' } }),
  label: () => 'AI 规则'
 };
-const modules = { './EditorDraftHosts': { EditorDraftHosts: { create: () => editor } }, './TemplateUpdates': { TemplateUpdates: { preview: async (_context, request) => {
+const modules = { './CoreValidator': require('./ci/semantic-fixture.cjs'), './EditorDraftHosts': { EditorDraftHosts: { create: () => editor } }, './TemplateUpdates': { TemplateUpdates: { preview: async (_context, request) => {
  assert.equal(request.base.version, 1); assert.equal(request.next.version, 2);
  return resolved ? { ready: true, candidate: snapshot(2), conflicts: [] } : { ready: false, conflicts: [{ id: 'conflict', section: 'rules', entity: 'ai/web', kind: 'edit' }] };
 } } } };

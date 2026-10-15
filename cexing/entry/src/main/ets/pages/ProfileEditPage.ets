@@ -8,7 +8,7 @@ import { common } from '@kit.AbilityKit';
 import { promptAction } from '@kit.ArkUI';
 import { ProfileStore } from '../lib/ProfileStore';
 import { ProfileTransactions } from '../lib/ProfileTransactions';
-import { MergeChange } from '../lib/CoreValidator';
+import { CoreValidator } from '../lib/CoreValidator';
 import { Logger } from '../lib/Logger';
 
 const TAG = 'profileEdit';
@@ -181,9 +181,7 @@ export struct ProfileEditPage {
   }
 
   private safeFailure(error: Object, fallback: Resource): string {
-    const message = (error as Error).message ?? '';
-    if (message.startsWith('请先启用订阅')) { return UiText.get($r('app.string.editor_enable_first')); }
-    return message.includes('未确认') || message.includes('结果未知') ? UiText.get($r('app.string.editor_unknown')) : UiText.get(fallback);
+    return CoreValidator.describeMergeFailure(error, fallback);
   }
 
   private saveHelp(): void {
@@ -250,9 +248,7 @@ export struct ProfileEditPage {
     try {
       const context = getContext(this) as common.UIAbilityContext;
       const result = await ProfileTransactions.saveMergeDraft(context, this.file, this.mergeText);
-      this.mergeSummary = result.changes.map((change: MergeChange) =>
-        `${change.section}: ${change.before} → ${change.after}`).join(' · ');
-      if (this.mergeSummary.length === 0) { this.mergeSummary = UiText.get($r('app.string.editor_no_diff')); }
+      this.mergeSummary = CoreValidator.describeMergePreview(result);
       this.toast(UiText.get($r('app.string.editor_draft_saved')));
     } catch (e) {
       this.toast(this.safeFailure(e, $r('app.string.editor_preview_failed')));
@@ -298,7 +294,8 @@ export struct ProfileEditPage {
         .enabled(!this.mergeBusy && !this.mergeLoadFailed)
         .backgroundColor(UI.paper).borderRadius(12).padding(12)
       if (this.mergeSummary.length > 0) {
-        Text(this.mergeSummary).fontSize(13).fontColor(UI.muted)
+        Scroll() { Text(this.mergeSummary).fontSize(13).fontColor(UI.muted).width('100%') }
+          .width('100%').constraintSize({ maxHeight: 120 }).scrollBar(BarState.Auto)
       }
       Row({ space: 12 }) {
         Button(UiText.get($r('app.string.editor_close'))).constraintSize({ minHeight: 44 }).layoutWeight(1).backgroundColor(UI.soft).fontColor(UI.ink)
