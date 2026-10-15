@@ -3,9 +3,11 @@ const ts = require('./ci/transpile-arkts.cjs');
 let expectedOriginal='prepared original', inputs = [], prepared = 0, pendingRead, precision = false;
 const snapshot = { templateId: 'ai', version: 1, entries: [] };
 const intent = { schemaVersion: 1, revision: 'intent', sourceRevision: 'source', operations: [], template: { templateId: 'ai', version: 1, targetGroup: 'Pick' } };
-let published = structuredClone(intent);
+let published = structuredClone(intent), paired, activeVersion='version-successful';
 const session = revision => ({ profileId: 'one.yaml', revision, intent: structuredClone(intent), snapshot: { sourceRevision: 'source', sections: [] } });
+const ticket=()=>({file:'one.yaml',profileIdentity:'identity',profileVersion:'version-successful',activeVersion:activeVersion,activeFile:'one.yaml',draftRevision:intent.revision});
 const modules = {
+ './ProfileTransactions':{ProfileTransactions:{editTicket:ticket,readEditSource:async(_ctx,captured,current)=>{assert.deepEqual(captured,ticket());assert.equal(current(),true);return paired}}},
  'libentry.so': { versionAction: async (root, raw) => {
   if (precision) return JSON.stringify({ error: 'TEMPLATE_UPDATE_PRECISION' });
   assert.equal(root, '/synthetic'); const value = JSON.parse(raw); assert.equal(value.op, 'template-update-preview'); inputs.push(value.source);
@@ -43,6 +45,11 @@ vm.runInNewContext(ts.transpileModule(fs.readFileSync('cexing/entry/src/main/ets
  const candidateSource=sandbox.exports.createTemplateUpdateSource({filesDir:'/synthetic'},'one.yaml',downloaded);
  downloaded.original='caller mutation';expectedOriginal='prepared downloaded';
  await candidateSource.read(session('candidate'));await candidateSource.encode(snapshot,session('candidate'));
+ paired={original:'paired',metadata:{origin:'synthetic',sub:{},updatedAt:2}};expectedOriginal='prepared paired';
+ await source.read(session('restored'));assert.equal(inputs.at(-1).resolvedDraft,true);
+ activeVersion='foreign-version';await assert.rejects(source.encode(snapshot,session('restored')),/SOURCE_CHANGED/);activeVersion='version-successful';
+ await assert.rejects(candidateSource.read(session('candidate')),/SOURCE_CHANGED/);
+ paired=undefined;
  precision = true; await assert.rejects(source.read(session('precise')), /PRECISION/);
  console.log('PASS: real update source uses existing worker/context/provenance, binds candidate encoding and rejects changed/late sessions');
 })().catch(error => { console.error(error); process.exitCode = 1; });

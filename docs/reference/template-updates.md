@@ -35,3 +35,5 @@ Base 是最后成功版本的自有模板基线；Mine 是个人模板结果/墓
 采用 Base/两侧结果及显式冲突的模型，对照 [Git merge 官方文档](https://git-scm.com/docs/git-merge)。[Clash Party 固定 store 源码](https://github.com/mihomo-party-org/clash-party/blob/fbaaba2107cea0b39b5c5f1de25a3d59c7749224/src/main/simple/store.ts) 仅用于比较草稿与成功状态分离，未移植源码、模板或建立其存储系统。具体字段合并和顺序约束算法均为本项目自有实现。
 
 下载更新使用不可变 `EditorSourceCandidate { original, metadata }`：同一候选传给 `EditorDraftHosts.create(context, profileId, candidate)` 和 `createTemplateUpdateSource(context, profileId, candidate)`，再交既有 `createTemplateUpdateHost`。source 的 Base/Mine 仍来自成功 provenance，Next 来自候选；未解决冲突时共同 host 保留成功编辑视图，避免旧个人 precondition 提前阻断冲突入口。解决后经同一收据完整预览、发布候选 Original/metadata/intent。不得预写下载原文或另建 publisher；页面退出和迟到响应沿用同一 host 的代次检查。
+
+冷恢复的模板 Source 使用 `ProfileTransactions.readEditSource(context, ticket, current?)` 读取配对来源，不直接绕过共同校验读取私有正文。会话意图修订与完整 ticket 必须匹配，读取、资源准备及 worker 返回前后继续核对同一 ticket。Host reset 取消 Source 的分块读取并丢弃迟到结果，不撤销或删除草稿；重新进入由同一配对来源重新预览，再消费原收据提交。

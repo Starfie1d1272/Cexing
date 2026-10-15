@@ -21,7 +21,7 @@ const modules = {
     globalContent: () => '', regionPlan: () => null, editIntent: () => structuredClone(published) } },
   './ConfigEditor': { ConfigEditor: { list: async () => ({ sourceRevision: 'source', sections: [
     { section: 'proxy-groups', items: [{ id: 'group', name: 'Pick', sourceName: 'Pick', type: 'select' }] }] }) } },
-  './ProfileTransactions': { ProfileTransactions: { editTicket: ticket,
+  './ProfileTransactions': { ProfileTransactions: { editTicket: ticket, readEditSource: async () => undefined,
     saveEditDraft: async (_context, captured, intent, guard) => { await guard(); assert.equal(captured.draftRevision, draft.revision);
       draft = { revision: `draft-${++serial}`, intent: structuredClone(intent) }; draft.intent.revision = draft.revision; writes++; return draft.revision; },
     previewEditDraft: async () => ({ digest: 'compiler-digest', changes: [{ section: 'rules', before: 1, after: 2 }] }),
