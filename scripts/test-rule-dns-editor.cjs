@@ -3,7 +3,8 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('nod
 const ts=require('./ci/transpile-arkts.cjs');
 const read=name=>fs.readFileSync(`cexing/entry/src/main/ets/${name}`,'utf8');
 function load(source,modules,extra={}){const box={exports:{},...uiFixture.globals,require:n=>{if(n.endsWith('/UiText'))return uiFixture.module;assert.ok(n in modules,n);return modules[n];},...extra};vm.runInNewContext(ts.transpileModule(source).outputText,box);return box.exports;}
-const text=load(read('lib/RuleDnsText.ets'),{});
+const feedback=load(read('lib/ProfileApplyFeedback.ets'),{'./ProfileStore':{},'./EffectiveVersions':{},'./ProfileRegionChoices':{},'./VpnController':{}});
+const text=load(read('lib/RuleDnsText.ets'),{'./ProfileApplyFeedback':feedback});
 const forms=load(read('lib/RuleDnsForms.ets'),{}),drafts=load(read('lib/RuleDnsDraft.ets'),{});
 const gate=()=>{let resolve;const promise=new Promise(r=>{resolve=r;});return {promise,resolve};};
 const snapshot={sourceRevision:'source',missingFieldRevision:'missing-revision',sections:[{section:'rules',items:[{id:'rule',revision:'rev',type:'DOMAIN',name:'规则 1'},{id:'match',revision:'end',type:'MATCH',name:'规则 2'}]},{section:'dns',items:[{id:'dns',revision:'dns-rev',name:'DNS'}]},{section:'proxy-groups',items:[{id:'group',revision:'g',name:'Synthetic group'}]}]};
@@ -21,7 +22,8 @@ const modules={'../lib/RuleDnsText':text,'../lib/CoreValidator':{CoreValidator:{
  '../lib/ProfileStore':{ProfileStore:{}},'../lib/EffectiveVersions':{EffectiveVersions:{read:()=>({Profiles:{}})}},'../lib/VpnController':{VpnController:{status:0},VpnStatus:{Connected:2}},
  '../lib/RuleDnsForms':forms,'../lib/RuleDnsDraft':drafts,'../lib/RuleProviderStatus':{RuleProviderStatus:{}},'@kit.ArkTS':{util:{generateRandomUUID:()=> 'synthetic-operation'}},'./RuleDnsEditForm':{},'./NativeTheme':{}};
 let source=read('pages/RuleDnsEditorPage.ets');source=(source.slice(0,source.indexOf('  build()'))+'\n}').split('\n').map(line=>line.trimStart().startsWith('@')?line.replace(/@\w+(?:\([^\n)]*\))?\s*/g,''):line).join('\n').replace('export struct ','export class ');
-const {RuleDnsEditorPage:Page,RuleDnsEditorBus:Bus}=load(source,modules,{getContext:()=>({})});
+const {RuleDnsEditorPage:Page,RuleDnsEditorBus:Bus}=load(source,modules,{getContext:()=>({}),AlertDialog:{show:options=>{dialog=options;dialogs++;}}});
+let dialog=null,dialogs=0;
 (async()=>{
  Bus.file='synthetic.yaml';const page=new Page();page.aboutToAppear();await page.load();assert.ok(page.targets.includes('Synthetic group'));
  await page.open(snapshot.sections[0].items[0]);assert.equal(page.selected.value,'DOMAIN,public.test,DIRECT');
@@ -32,7 +34,7 @@ const {RuleDnsEditorPage:Page,RuleDnsEditorBus:Bus}=load(source,modules,{getCont
  fail=true;await page.preview(intent);assert.equal(page.previewReady,false,'failed preview cannot apply');assert.equal(applies,0);fail=false;
  await page.preview(intent);applyFailure=true;await page.apply();assert.equal(page.previewReady,false);assert.equal(page.message,'应用未确认，请重连恢复');applyFailure=false;applies=0;
  await page.preview(intent);pending=gate();const apply=page.apply();await page.apply();assert.equal(applies,1);page.aboutToDisappear();page.message='new view';pending.resolve();await apply;assert.equal(page.message,'new view');
- pending=null;page.visible=true;page.aboutToAppear();await page.load();await page.discardDraft();assert.equal(intent.operations.length,0);
+ pending=null;page.visible=true;page.aboutToAppear();await page.load();page.discardDraft();const firstDialog=dialog;const count=dialogs;page.discardDraft();assert.equal(dialogs,count);const beforeCancel=JSON.stringify(intent);firstDialog.primaryButton.action();assert.equal(JSON.stringify(intent),beforeCancel);await firstDialog.secondaryButton.action();assert.equal(JSON.stringify(intent),beforeCancel,'cancel cannot later confirm');page.discardDraft();const stale=dialog;page.aboutToDisappear();await stale.secondaryButton.action();assert.equal(JSON.stringify(intent),beforeCancel,'late confirmation after leaving is inert');page.visible=true;page.aboutToAppear();await page.load();page.discardDraft();await dialog.secondaryButton.action();assert.equal(intent.operations.length,0);await dialog.secondaryButton.action();
  page.items=[{id:'first',revision:'a',type:'DOMAIN'},{id:'second',revision:'b',type:'DOMAIN-SUFFIX'},{id:'final',revision:'c',type:'MATCH'}];
  page.move(1,0);for(let i=0;i<20;i++)await Promise.resolve();
  assert.equal(intent.operations.at(-1).kind,'move');assert.equal(intent.operations.at(-1).target,'second');assert.equal(intent.operations.at(-1).before,'first');

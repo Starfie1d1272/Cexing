@@ -25,6 +25,7 @@ export struct TemplateUpdateReview {
   @Prop profileId: string = '';
   private activeHost: TemplateUpdateHost | null = null;
   onClose: () => void = () => {};
+  onRecovery?: (selection: boolean) => Promise<void>;
   @State private conflicts: TemplateConflict[] = [];
   @State private ready: boolean = false;
   @State private busy: boolean = false;
@@ -66,6 +67,7 @@ export struct TemplateUpdateReview {
     const current = (): boolean => this.visible && epoch === this.recoveryGeneration && model === this.model && file === this.profileId;
     this.recovering = true; this.recoveryMessage = '';
     try {
+      if (this.onRecovery !== undefined) { await this.onRecovery(false); return; }
       const accepted = await ProfileApplyRecovery.reconnect(getContext(this) as common.UIAbilityContext, current);
       if (!current() || accepted === null) { return; }
       if (accepted) {
@@ -76,11 +78,17 @@ export struct TemplateUpdateReview {
     } catch (_) { if (current()) { this.recoveryMessage = UiText.get($r('app.string.apply_feedback_recovery_failed')); } }
     finally { if (current()) { this.recovering = false; } }
   }
-  private repairSelection(): void {
-    if (this.visible && !this.recovering && this.applyFailure === 'selection-required') { this.navStack.pushPath({ name: 'zashboard' }); }
+  private async repairSelection(): Promise<void> {
+    if (this.visible && !this.recovering && this.applyFailure === 'selection-required') {
+      if (this.onRecovery !== undefined) { await this.onRecovery(true); }
+      else { this.navStack.pushPath({ name: 'zashboard' }); }
+    }
   }
   private displayMessage(message: string): string {
     if (message === '') { return ''; }
+    if (message === '应用未确认，请返回连接页断开后重连恢复') { return UiText.get($r('app.string.apply_feedback_unconfirmed')); }
+    if (message === '配置已保存，地区选择待重连恢复') { return UiText.get($r('app.string.apply_feedback_committed')); }
+    if (message === '请先在代理面板选择可用选项，再关闭或切换地区策略') { return UiText.get($r('app.string.apply_feedback_selection')); }
     if (message === '方案读取失败，请重试') { return UiText.get($r('app.string.template_read_failed')); }
     if (message === '请选择出口') { return UiText.get($r('app.string.template_choose_exit')); }
     if (message === '方案未通过校验，请检查出口和订阅资源') { return UiText.get($r('app.string.template_validation_failed')); }
@@ -103,6 +111,8 @@ export struct TemplateUpdateReview {
       ForEach(this.conflicts, (conflict: TemplateConflict) => {
         Column({ space: 8 }) {
           Text(this.activeHost?.label(conflict) ?? UiText.get($r('app.string.template_personal'))).fontSize(15).fontColor(UI.ink)
+          Text(UiText.get($r('app.string.template_conflict_mine'), this.activeHost?.detail?.(conflict).mine ?? UiText.get($r('app.string.template_personal')))).fontSize(14).fontColor(UI.muted)
+          Text(UiText.get($r('app.string.template_conflict_new'), this.activeHost?.detail?.(conflict).template ?? UiText.get($r('app.string.template_personal')))).fontSize(14).fontColor(UI.muted)
           Row({ space: 8 }) {
             Button(UiText.get($r('app.string.template_keep_mine'))).layoutWeight(1).backgroundColor(UI.soft).fontColor(UI.ink)
               .enabled(!this.busy).onClick(() => this.model?.choose(conflict.id, 'mine'))

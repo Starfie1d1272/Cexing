@@ -6,6 +6,11 @@ function load(file,page=false){let source=fs.readFileSync(`cexing/entry/src/main
 const wizard=load('pages/TemplateWizard.ets',true),review=load('pages/TemplateUpdateReview.ets',true),probe=load('pages/AiProbeStatus.ets',true),host=load('lib/CoreValidator.ets').exports.CoreValidator;load('lib/TemplateHost.ets');load('lib/TemplateUpdateHost.ets');
 const p=new probe.exports.AiProbeStatus();assert.equal(p.summary(),'Not checked');p.results=[{state:'reachable'}];assert.equal(p.summary(),'1/3 reachable');p.results.push({state:'region_restricted'});assert.equal(p.summary(),'Some services region restricted');p.checking=true;assert.equal(p.summary(),'Checking');
 const w=new wizard.exports.TemplateWizard();assert.equal(w.displayMessage('方案已应用'),'Template applied');assert.equal(w.displayMessage('private: synthetic-token'),'Result unconfirmed. Check the connection page.');const r=new review.exports.TemplateUpdateReview();assert.match(r.displayMessage('部分高级字段需通过高级编辑修改'),/advanced/);
+for (const page of [w,r]) {
+ assert.match(page.displayMessage('应用未确认，请返回连接页断开后重连恢复'), /unconfirmed/i);
+ assert.match(page.displayMessage('配置已保存，地区选择待重连恢复'), /saved/i);
+ assert.match(page.displayMessage('请先在代理面板选择可用选项，再关闭或切换地区策略'), /proxy panel/i);
+}
 assert.equal(host.describeMergePreview({digest:'r',changes:[{section:'rules',before:2,after:2,reordered:true}]}),'Rules: reordered');assert.equal(host.describeMergePreview({digest:'r',changes:[{section:'proxies',before:1,after:3,added:2}]}),'Nodes: 2 added');assert.equal(host.describeMergePreview({digest:'r',changes:[{section:'private-unknown',before:1,after:3}]}),'Other configuration: content changed');assert.equal(host.describeMergePreview({digest:'r',changes:[{section:'rules',before:1,after:2,added:1},{section:'private-unknown',before:1,after:3}]}),'Rules: 1 added · Other configuration: content changed');assert.equal(host.describeMergePreview({digest:'r',changes:[]}),'No changes needed');
 locale='zh_CN';p.checking=false;p.results=[];assert.equal(p.summary(),'未检查');assert.equal(host.describeMergePreview({digest:'r',changes:[{section:'rules',before:2,after:2,reordered:true}]}),'规则：顺序已调整');
 console.log('PASS: actual template/probe status and Host display summaries in both locales, resource parameters, no false reachable or raw unknown-result text');

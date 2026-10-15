@@ -10,6 +10,7 @@ export interface TemplateUpdateRequest {
   kind: string; base: TemplateSnapshot; mine: TemplateSnapshot; next: TemplateSnapshot;
   decisions?: Record<string, string>;
 }
+export interface TemplateConflictDetail { title: string; mine: string; template: string; }
 export interface TemplateConflict { id: string; entity: string; section: string; path?: string[]; kind: string; }
 export interface TemplateUpdatePreview { ready: boolean; candidate?: TemplateSnapshot; conflicts: TemplateConflict[]; validation?: TemplatePreview; }
 
@@ -38,6 +39,7 @@ export interface TemplateUpdateHost {
   // compare the captured ticket, then use ProfileTransactions. No list Merge.
   apply: (preview: TemplateUpdatePreview) => Promise<string>;
   label: (conflict: TemplateConflict) => string;
+  detail?: (conflict: TemplateConflict) => TemplateConflictDetail;
 }
 
 export class TemplateUpdateModel {

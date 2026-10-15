@@ -1653,146 +1653,6 @@
       "value": "Connect"
     },
     {
-      "name": "merge_nodes",
-      "value": "Nodes"
-    },
-    {
-      "name": "merge_node_sources",
-      "value": "Node providers"
-    },
-    {
-      "name": "merge_groups",
-      "value": "Proxy groups"
-    },
-    {
-      "name": "merge_rules",
-      "value": "Rules"
-    },
-    {
-      "name": "merge_rule_sources",
-      "value": "Rule providers"
-    },
-    {
-      "name": "merge_listeners",
-      "value": "Listeners"
-    },
-    {
-      "name": "merge_mode",
-      "value": "Mode"
-    },
-    {
-      "name": "merge_controller",
-      "value": "Controller"
-    },
-    {
-      "name": "merge_panel",
-      "value": "Panel"
-    },
-    {
-      "name": "merge_lan",
-      "value": "LAN proxy"
-    },
-    {
-      "name": "merge_bind",
-      "value": "Proxy listener"
-    },
-    {
-      "name": "merge_ports",
-      "value": "Proxy ports"
-    },
-    {
-      "name": "merge_other",
-      "value": "Other configuration"
-    },
-    {
-      "name": "merge_protected",
-      "value": "%s: device constraints used"
-    },
-    {
-      "name": "merge_cleared",
-      "value": "%s: cleared"
-    },
-    {
-      "name": "merge_types_members",
-      "value": "%s: types and members changed"
-    },
-    {
-      "name": "merge_types",
-      "value": "%s: types changed"
-    },
-    {
-      "name": "merge_members",
-      "value": "%s: members changed"
-    },
-    {
-      "name": "merge_reordered",
-      "value": "%s: reordered"
-    },
-    {
-      "name": "merge_modified",
-      "value": "%s: %d modified"
-    },
-    {
-      "name": "merge_added_count",
-      "value": "%s: %d added"
-    },
-    {
-      "name": "merge_removed_count",
-      "value": "%s: %d removed"
-    },
-    {
-      "name": "merge_added",
-      "value": "%s: added"
-    },
-    {
-      "name": "merge_removed",
-      "value": "%s: removed"
-    },
-    {
-      "name": "merge_content",
-      "value": "%s: content changed"
-    },
-    {
-      "name": "merge_device_count",
-      "value": "Items using device constraints: %d"
-    },
-    {
-      "name": "merge_no_changes",
-      "value": "No changes needed"
-    },
-    {
-      "name": "merge_repair_resources",
-      "value": "Resources are not ready. Disconnect VPN and repair resources in Settings before retrying."
-    },
-    {
-      "name": "merge_update_package",
-      "value": "Resource package is unusable. Update the app before retrying."
-    },
-    {
-      "name": "merge_update_source",
-      "value": "Subscription sources are not ready. Update the subscription and preview again."
-    },
-    {
-      "name": "merge_repreview",
-      "value": "Preview changed. Preview again before applying."
-    },
-    {
-      "name": "merge_reread",
-      "value": "Cannot read configuration. Import it again on the subscriptions page."
-    },
-    {
-      "name": "merge_wait",
-      "value": "A configuration operation is in progress. Try again shortly."
-    },
-    {
-      "name": "merge_disconnect",
-      "value": "Disconnect VPN on the connection page before retrying."
-    },
-    {
-      "name": "failure_recovery_restart",
-      "value": "Backup restore is unconfirmed. Reopen the app before retrying."
-    },
-    {
       "name": "template_replace_reenable",
       "value": "Subscription rules will be replaced and disabled personal edits will be enabled."
     },
@@ -2737,6 +2597,754 @@
       "value": "Cannot change node state. Reload and retry."
     },
     {
+      "name": "profile_update_expired",
+      "value": "The update changed. Return and download it again."
+    },
+    {
+      "name": "profile_update_back",
+      "value": "Back"
+    },
+    {
+      "name": "profile_update_title",
+      "value": "Update subscription"
+    },
+    {
+      "name": "profile_update_done",
+      "value": "Subscription updated"
+    },
+    {
+      "name": "profile_update_close_editor",
+      "value": "Close the editor, then retry the update."
+    },
+    {
+      "name": "profile_region_unknown",
+      "value": "Region policy result is unconfirmed"
+    },
+    {
+      "name": "profile_region_created_later",
+      "value": "Region policy created. Select the new entry after connecting."
+    },
+    {
+      "name": "profile_region_selected",
+      "value": "Region entry selected"
+    },
+    {
+      "name": "profile_region_created",
+      "value": "Region policy created. You can enable it later."
+    },
+    {
+      "name": "profile_region_unsaved",
+      "value": "Region policy was not saved"
+    },
+    {
+      "name": "profile_region_unavailable",
+      "value": "Cannot create a region policy for this subscription"
+    },
+    {
+      "name": "profile_region_restored",
+      "value": "Original subscription policy restored. Region entries can be enabled again."
+    },
+    {
+      "name": "profile_region_waiting",
+      "value": "Region entry created. Select it after connecting."
+    },
+    {
+      "name": "profile_region_failed",
+      "value": "Could not switch region policy"
+    },
+    {
+      "name": "profile_delete_title",
+      "value": "Delete subscription?"
+    },
+    {
+      "name": "profile_keep",
+      "value": "Keep"
+    },
+    {
+      "name": "profile_delete",
+      "value": "Delete"
+    },
+    {
+      "name": "profile_disconnect_delete",
+      "value": "Disconnect before deleting the current subscription"
+    },
+    {
+      "name": "profile_deleted",
+      "value": "Deleted"
+    },
+    {
+      "name": "profile_delete_failed",
+      "value": "Could not delete. Try again."
+    },
+    {
+      "name": "profile_auto_failed",
+      "value": "Automatic update failed"
+    },
+    {
+      "name": "profile_update_unavailable",
+      "value": "Update history unavailable"
+    },
+    {
+      "name": "profile_provider_missing",
+      "value": "Subscription sources are not ready. Update the subscription and retry."
+    },
+    {
+      "name": "profile_resource_missing",
+      "value": "Configuration resources are not ready. Retry or update the app."
+    },
+    {
+      "name": "profile_nodes_missing",
+      "value": "No available nodes. Check the subscription."
+    },
+    {
+      "name": "profile_invalid_reference",
+      "value": "Invalid configuration reference. Check the original configuration."
+    },
+    {
+      "name": "profile_invalid_config",
+      "value": "Configuration validation failed. Check the original configuration."
+    },
+    {
+      "name": "profile_apply_unknown",
+      "value": "Apply result unconfirmed. Check the connection page."
+    },
+    {
+      "name": "profile_enable_failed",
+      "value": "Could not enable. Retry or check the original configuration."
+    },
+    {
+      "name": "profile_connection_busy",
+      "value": "Connection is changing. Try again shortly."
+    },
+    {
+      "name": "profile_connection_unconfirmed",
+      "value": "Connection needs verification. Retry disconnection on the connection page."
+    },
+    {
+      "name": "profile_missing",
+      "value": "Subscription missing. Import it again."
+    },
+    {
+      "name": "profile_apply_unconfirmed",
+      "value": "Apply result unconfirmed"
+    },
+    {
+      "name": "profile_connection_changed",
+      "value": "Connection changed. Check the connection page."
+    },
+    {
+      "name": "profile_start_failed",
+      "value": "Connection could not start. Retry on the connection page."
+    },
+    {
+      "name": "profile_switch_unknown",
+      "value": "Switch result unconfirmed"
+    },
+    {
+      "name": "profile_recover_required",
+      "value": "Apply unconfirmed. Reconnect to recover."
+    },
+    {
+      "name": "profile_reconnect_title",
+      "value": "Reconnect?"
+    },
+    {
+      "name": "profile_reconnect_risk",
+      "value": "The current connection will be interrupted briefly."
+    },
+    {
+      "name": "profile_cancel",
+      "value": "Cancel"
+    },
+    {
+      "name": "profile_reconnect",
+      "value": "Reconnect"
+    },
+    {
+      "name": "profile_not_started",
+      "value": "Connection did not start. Try again."
+    },
+    {
+      "name": "profile_recovery_failed",
+      "value": "Recovery incomplete. Retry or check the connection page."
+    },
+    {
+      "name": "profile_updated",
+      "value": "Updated"
+    },
+    {
+      "name": "profile_auto_retry_failed",
+      "value": "Could not update. Check network and automatic update settings."
+    },
+    {
+      "name": "profile_update_incomplete",
+      "value": "Update incomplete. Try again."
+    },
+    {
+      "name": "profile_updated_applied",
+      "value": "Updated and applied"
+    },
+    {
+      "name": "profile_updated_saved",
+      "value": "Updated. Applies when enabled or started."
+    },
+    {
+      "name": "profile_update_failed",
+      "value": "Update failed. Check the network and retry."
+    },
+    {
+      "name": "profile_url_copied",
+      "value": "Subscription URL copied"
+    },
+    {
+      "name": "profile_copy_failed",
+      "value": "Could not copy"
+    },
+    {
+      "name": "profile_rename_failed",
+      "value": "Could not rename. Try again."
+    },
+    {
+      "name": "profile_read_failed",
+      "value": "Cannot read configuration"
+    },
+    {
+      "name": "profile_yaml_type",
+      "value": "YAML configuration|.yaml"
+    },
+    {
+      "name": "profile_exported",
+      "value": "Exported"
+    },
+    {
+      "name": "profile_export_failed",
+      "value": "Could not export. Try again."
+    },
+    {
+      "name": "profile_scan_unsupported",
+      "value": "Scanning is unavailable. Import a link or file instead."
+    },
+    {
+      "name": "profile_scan_no_link",
+      "value": "No subscription link found. Import a link or file instead."
+    },
+    {
+      "name": "profile_scan_failed",
+      "value": "Cannot open scanner. Import a link or file instead."
+    },
+    {
+      "name": "profile_import_failed",
+      "value": "Import failed. Check the input and network, then retry."
+    },
+    {
+      "name": "profile_file_failed",
+      "value": "File import failed. Select the YAML configuration again."
+    },
+    {
+      "name": "profile_paste_manually",
+      "value": "Paste a link or YAML manually"
+    },
+    {
+      "name": "profile_other_region",
+      "value": "Other regions"
+    },
+    {
+      "name": "profile_current",
+      "value": "In use"
+    },
+    {
+      "name": "profile_url_type",
+      "value": "URL subscription"
+    },
+    {
+      "name": "profile_local_type",
+      "value": "Local configuration"
+    },
+    {
+      "name": "profile_details",
+      "value": "Subscription details"
+    },
+    {
+      "name": "profile_updating",
+      "value": "Updating…"
+    },
+    {
+      "name": "profile_retry_auto",
+      "value": "Retry automatic update"
+    },
+    {
+      "name": "profile_templates",
+      "value": "Routing templates"
+    },
+    {
+      "name": "profile_nodes_groups",
+      "value": "Nodes and proxy groups"
+    },
+    {
+      "name": "profile_rules_dns",
+      "value": "Rules and DNS"
+    },
+    {
+      "name": "profile_original",
+      "value": "Original configuration"
+    },
+    {
+      "name": "profile_merge",
+      "value": "Subscription overrides"
+    },
+    {
+      "name": "profile_generated",
+      "value": "Generated configuration"
+    },
+    {
+      "name": "profile_region_edit",
+      "value": "Edit Smart region policy"
+    },
+    {
+      "name": "profile_region_disable",
+      "value": "Disable region policy and restore original"
+    },
+    {
+      "name": "profile_region_enable",
+      "value": "Enable Smart region policy"
+    },
+    {
+      "name": "profile_region_create",
+      "value": "Create Smart region policy"
+    },
+    {
+      "name": "profile_rename",
+      "value": "Rename"
+    },
+    {
+      "name": "profile_export",
+      "value": "Export configuration"
+    },
+    {
+      "name": "profile_enable",
+      "value": "Enable subscription"
+    },
+    {
+      "name": "profile_update",
+      "value": "Update subscription"
+    },
+    {
+      "name": "profile_copy_url",
+      "value": "Copy subscription link"
+    },
+    {
+      "name": "profile_remove",
+      "value": "Delete subscription"
+    },
+    {
+      "name": "profile_add",
+      "value": "Add subscription"
+    },
+    {
+      "name": "profile_scan",
+      "value": "Scan code or image"
+    },
+    {
+      "name": "profile_link",
+      "value": "Subscription link"
+    },
+    {
+      "name": "profile_file",
+      "value": "Configuration file"
+    },
+    {
+      "name": "profile_clipboard",
+      "value": "Clipboard"
+    },
+    {
+      "name": "profile_import_url",
+      "value": "Import subscription URL"
+    },
+    {
+      "name": "profile_importing",
+      "value": "Importing…"
+    },
+    {
+      "name": "profile_import",
+      "value": "Import"
+    },
+    {
+      "name": "profile_rename_title",
+      "value": "Rename configuration"
+    },
+    {
+      "name": "profile_new_name",
+      "value": "New name (.yaml added automatically)"
+    },
+    {
+      "name": "profile_confirm",
+      "value": "Confirm"
+    },
+    {
+      "name": "profile_paste_title",
+      "value": "Paste link or YAML"
+    },
+    {
+      "name": "profile_paste_placeholder",
+      "value": "Subscription link or full configuration"
+    },
+    {
+      "name": "profile_import_file_title",
+      "value": "Import configuration file?"
+    },
+    {
+      "name": "profile_imported",
+      "value": "Subscription imported"
+    },
+    {
+      "name": "profile_enabling",
+      "value": "Enabling…"
+    },
+    {
+      "name": "profile_enable_connect",
+      "value": "Enable and connect"
+    },
+    {
+      "name": "profile_enable_later",
+      "value": "Enable later"
+    },
+    {
+      "name": "profile_region_title",
+      "value": "Create a Smart policy for this subscription?"
+    },
+    {
+      "name": "profile_region_risk",
+      "value": "Regions are inferred from node names. The original subscription and selectors are retained and can be restored by disabling the policy."
+    },
+    {
+      "name": "profile_preview_failed",
+      "value": "Preview failed"
+    },
+    {
+      "name": "profile_by_region",
+      "value": "By region"
+    },
+    {
+      "name": "profile_all_nodes",
+      "value": "All nodes"
+    },
+    {
+      "name": "profile_unchanged",
+      "value": "Keep unchanged"
+    },
+    {
+      "name": "profile_provider_wait",
+      "value": "This selector's provider nodes are not loaded yet. Connect or refresh the provider, then preview again."
+    },
+    {
+      "name": "profile_refresh_preview",
+      "value": "Refresh preview"
+    },
+    {
+      "name": "profile_provider_pending",
+      "value": "Provider not ready"
+    },
+    {
+      "name": "profile_create_enable",
+      "value": "Create and enable"
+    },
+    {
+      "name": "profile_create_only",
+      "value": "Create only"
+    },
+    {
+      "name": "profile_uncertain",
+      "value": "Apply unconfirmed"
+    },
+    {
+      "name": "profile_recovering",
+      "value": "Recovering…"
+    },
+    {
+      "name": "profile_recover",
+      "value": "Reconnect to recover"
+    },
+    {
+      "name": "profile_tab",
+      "value": "Subscriptions"
+    },
+    {
+      "name": "profile_add_short",
+      "value": "Add"
+    },
+    {
+      "name": "profile_global",
+      "value": "Global overrides"
+    },
+    {
+      "name": "profile_global_scope",
+      "value": "All subscriptions · Subscription overrides take precedence"
+    },
+    {
+      "name": "profile_import_title",
+      "value": "Import subscription"
+    },
+    {
+      "name": "profile_traffic_expiry",
+      "value": "Data %s/%s · %d days left"
+    },
+    {
+      "name": "profile_traffic_total",
+      "value": "Data %s/%s"
+    },
+    {
+      "name": "profile_traffic_days",
+      "value": "Data %s · %d days left"
+    },
+    {
+      "name": "profile_traffic_used",
+      "value": "Data %s"
+    },
+    {
+      "name": "profile_switched",
+      "value": "Switched to “%s”"
+    },
+    {
+      "name": "profile_selected",
+      "value": "Selected “%s”. Applies when VPN starts."
+    },
+    {
+      "name": "profile_renamed",
+      "value": "Renamed to %s"
+    },
+    {
+      "name": "profile_region_count",
+      "value": "Resolved nodes %d · Other regions %d"
+    },
+    {
+      "name": "profile_region_hk",
+      "value": "Hong Kong"
+    },
+    {
+      "name": "profile_region_tw",
+      "value": "Taiwan"
+    },
+    {
+      "name": "profile_region_jp",
+      "value": "Japan"
+    },
+    {
+      "name": "profile_region_sg",
+      "value": "Singapore"
+    },
+    {
+      "name": "profile_region_us",
+      "value": "United States"
+    },
+    {
+      "name": "profile_region_kr",
+      "value": "South Korea"
+    },
+    {
+      "name": "profile_region_uk",
+      "value": "United Kingdom"
+    },
+    {
+      "name": "profile_region_de",
+      "value": "Germany"
+    },
+    {
+      "name": "profile_more",
+      "value": "More actions"
+    },
+    {
+      "name": "profile_less",
+      "value": "Fewer actions"
+    },
+    {
+      "name": "profile_expanded",
+      "value": "Expanded"
+    },
+    {
+      "name": "profile_collapsed",
+      "value": "Collapsed"
+    },
+    {
+      "name": "profile_export_risk",
+      "value": "Configuration may contain node credentials and subscription addresses. Keep it secure."
+    },
+    {
+      "name": "profile_export_choose",
+      "value": "Choose location"
+    },
+    {
+      "name": "profile_node_region",
+      "value": "Region for %s"
+    },
+    {
+      "name": "profile_exporting",
+      "value": "Exporting…"
+    },
+    {
+      "name": "profile_region_saved_recovery",
+      "value": "Configuration saved. Reconnect to restore the region selection."
+    },
+    {
+      "name": "profile_region_manual_repair",
+      "value": "Select an available option in the proxy panel, then disable the region policy."
+    },
+    {
+      "name": "template_conflict_mine",
+      "value": "Mine: %s"
+    },
+    {
+      "name": "template_conflict_new",
+      "value": "New template: %s"
+    },
+    {
+      "name": "profile_last_updated",
+      "value": "Updated %s"
+    },
+    {
+      "name": "profile_not_updated",
+      "value": "Not updated yet"
+    },
+    {
+      "name": "merge_nodes",
+      "value": "Nodes"
+    },
+    {
+      "name": "merge_node_sources",
+      "value": "Node providers"
+    },
+    {
+      "name": "merge_groups",
+      "value": "Proxy groups"
+    },
+    {
+      "name": "merge_rules",
+      "value": "Rules"
+    },
+    {
+      "name": "merge_rule_sources",
+      "value": "Rule providers"
+    },
+    {
+      "name": "merge_listeners",
+      "value": "Listeners"
+    },
+    {
+      "name": "merge_mode",
+      "value": "Mode"
+    },
+    {
+      "name": "merge_controller",
+      "value": "Controller"
+    },
+    {
+      "name": "merge_panel",
+      "value": "Panel"
+    },
+    {
+      "name": "merge_lan",
+      "value": "LAN proxy"
+    },
+    {
+      "name": "merge_bind",
+      "value": "Proxy listener"
+    },
+    {
+      "name": "merge_ports",
+      "value": "Proxy ports"
+    },
+    {
+      "name": "merge_other",
+      "value": "Other configuration"
+    },
+    {
+      "name": "merge_protected",
+      "value": "%s: device constraints used"
+    },
+    {
+      "name": "merge_cleared",
+      "value": "%s: cleared"
+    },
+    {
+      "name": "merge_types_members",
+      "value": "%s: types and members changed"
+    },
+    {
+      "name": "merge_types",
+      "value": "%s: types changed"
+    },
+    {
+      "name": "merge_members",
+      "value": "%s: members changed"
+    },
+    {
+      "name": "merge_reordered",
+      "value": "%s: reordered"
+    },
+    {
+      "name": "merge_modified",
+      "value": "%s: %d modified"
+    },
+    {
+      "name": "merge_added_count",
+      "value": "%s: %d added"
+    },
+    {
+      "name": "merge_removed_count",
+      "value": "%s: %d removed"
+    },
+    {
+      "name": "merge_added",
+      "value": "%s: added"
+    },
+    {
+      "name": "merge_removed",
+      "value": "%s: removed"
+    },
+    {
+      "name": "merge_content",
+      "value": "%s: content changed"
+    },
+    {
+      "name": "merge_device_count",
+      "value": "Items using device constraints: %d"
+    },
+    {
+      "name": "merge_no_changes",
+      "value": "No changes needed"
+    },
+    {
+      "name": "merge_repair_resources",
+      "value": "Resources are not ready. Disconnect VPN and repair resources in Settings before retrying."
+    },
+    {
+      "name": "merge_update_package",
+      "value": "Resource package is unusable. Update the app before retrying."
+    },
+    {
+      "name": "merge_update_source",
+      "value": "Subscription sources are not ready. Update the subscription and preview again."
+    },
+    {
+      "name": "merge_repreview",
+      "value": "Preview changed. Preview again before applying."
+    },
+    {
+      "name": "merge_reread",
+      "value": "Cannot read configuration. Import it again on the subscriptions page."
+    },
+    {
+      "name": "merge_wait",
+      "value": "A configuration operation is in progress. Try again shortly."
+    },
+    {
+      "name": "merge_disconnect",
+      "value": "Disconnect VPN on the connection page before retrying."
+    },
+    {
+      "name": "failure_recovery_restart",
+      "value": "Backup restore is unconfirmed. Reopen the app before retrying."
+    },
+    {
       "name": "settings_dns_read_failed",
       "value": "Cannot read subscriptions. Try again."
     },
@@ -3131,6 +3739,14 @@
     {
       "name": "merge_open_connection",
       "value": "Open Connection to recover"
+    },
+    {
+      "name": "rule_discard_confirm_title",
+      "value": "Discard all unapplied changes?"
+    },
+    {
+      "name": "rule_discard_confirm_body",
+      "value": "This removes all unapplied changes and the pending update source for this subscription."
     }
   ]
 }

@@ -10,9 +10,11 @@ export type ProfileApplyFailureKind = 'unconfirmed' | 'committed-pending' | 'sel
 export namespace ProfileApplyFeedback {
   export function classify(message: string): ProfileApplyFailureKind {
     if (['应用未确认，请重连恢复', '应用结果未确认', '地区策略结果未确认', '切换结果未确认',
-      '版本发布结果未知，请断开 VPN 后检查'].includes(message)) { return 'unconfirmed'; }
+      '版本发布结果未知，请断开 VPN 后检查', '应用未确认，请返回连接页断开后重连恢复'].includes(message)) { return 'unconfirmed'; }
     if (message === '配置已保存，地区选择待重连恢复' || message === '地区策略已关闭，但原选项未恢复') { return 'committed-pending'; }
-    if (message === '请先在代理面板选择可用节点，再关闭或切换地区策略') { return 'selection-required'; }
+    if (['请先在代理面板选择可用节点，再关闭或切换地区策略',
+      '请先在代理面板选择可用选项，再关闭或切换地区策略',
+      '原手动选项已失效，请先手动选择可用节点再关闭地区策略', 'REGION_PREVIOUS_UNAVAILABLE'].includes(message)) { return 'selection-required'; }
     return 'failed';
   }
 

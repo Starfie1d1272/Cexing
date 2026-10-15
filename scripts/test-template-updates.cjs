@@ -40,5 +40,12 @@ const valid = { ready: true, candidate, conflicts: [], validation: { revision: '
  await stale.apply(); assert.equal(stale.result, '');
  const precision = new Model({ preview: async () => { throw Error('TEMPLATE_UPDATE_PRECISION'); }, apply: async () => '', label: () => '' }, () => {});
  await precision.refresh(); assert.equal(precision.error, '部分高级字段需通过高级编辑修改');
+ for(const [raw,kind] of [['应用未确认，请重连恢复','unconfirmed'],['配置已保存，地区选择待重连恢复','committed-pending'],['private: synthetic-token','failed']]) {
+  const outcome=new Model({preview:async()=>valid,apply:async()=>{throw Error(raw)},label:()=>''},()=>{});
+  await outcome.refresh();await outcome.apply();assert.equal(outcome.applyFailure,kind);assert.equal(outcome.needsRepair(),kind!=='failed');
+  assert.equal(outcome.preview,null);assert.ok(!(outcome.error+outcome.result).includes('synthetic-token'));
+  if(kind==='committed-pending'){assert.equal(outcome.error,'');assert.equal(feedbackBox.exports.ProfileApplyFeedback.key(kind),'apply_feedback_committed')}
+  if(kind==='unconfirmed'){assert.equal(outcome.error,'');assert.equal(feedbackBox.exports.ProfileApplyFeedback.key(kind),'apply_feedback_unconfirmed')}
+ }
  console.log('PASS: template update worker bridge, unresolved/unvalidated gate, duplicate apply and stale/exit fencing');
 })().catch(error => { console.error(error); process.exitCode = 1; });

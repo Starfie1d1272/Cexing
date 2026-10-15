@@ -38,7 +38,7 @@ function page(name){let source=fs.readFileSync(`cexing/entry/src/main/ets/pages/
  line.replace(/@\w+(?:\([^\n)]*\))?\s*/g,''):line).join('\n').replace('export struct ','export class ');
  const box={exports:{},...ui.globals,getContext:()=>ctx,require:key=>pageMods[key]??{}};
  vm.runInNewContext(ts.transpileModule(source).outputText,box);return box.exports[name];}
-const classes=[page('TemplateWizard'),page('TemplateUpdateReview')];
+const classes=[page('TemplateWizard'),page('TemplateUpdateReview')],Entry=page('ProfileTemplatePage');
 function make(Page){const p=new Page();p.profileId='one.yaml';p.tabJump=-1;p.closed=0;p.reads=0;p.applies=0;
  p.navStack={clear:()=>{p.closed++;},pushPath:x=>{p.route=x.name}};
  p.editor={};p.source={};p.updateSource={available:()=>false};
@@ -77,6 +77,14 @@ function make(Page){const p=new Page();p.profileId='one.yaml';p.tabJump=-1;p.clo
   assert.equal(p.closed,1);assert.equal(p.tabJump,-1,'a queued external import keeps its navigation priority');p.aboutToDisappear();
   reset();unknown=false;p=make(Page);await flush();p.model.setApplyFailure('selection-required');p.repairSelection();
   assert.equal(p.route,'zashboard');assert.deepEqual(events,[]);p.aboutToDisappear();
+  // Existing production wrappers may own navigation. Their callback must
+  // delegate to the same shared chain exactly once, with no fallback replay.
+  reset();p=make(Page);await flush();const owner=new Entry();let popped=0;
+  owner.visible=true;owner.ready=true;owner.profileRevision=0;owner.navStack={pop:()=>popped++,pushPath(){}};
+  p.onRecovery=selection=>owner.recover(selection);wait=p.recoverApply();await p.recoverApply();
+  assert.equal(dialogs,1);dialog({index:1});await wait;
+  assert.deepEqual(events,['cancel-auto-restore','stop-confirmed','prepare-saved-version','start']);
+  assert.equal(popped,1);assert.equal(p.closed,0);assert.equal(unknown,true);p.aboutToDisappear();
  }
  for(const [Model,method] of [[wizardModel.TemplateWizardModel,'inspect'],[updates.TemplateUpdateModel,'refresh']]){
   let calls=0;const m=new Model({load:async()=>({groups:[],selectors:[],current:{templateId:'original',version:1}}),preview:async()=>{calls++;},apply:async()=>{calls++;},label:()=>''},()=>{});
