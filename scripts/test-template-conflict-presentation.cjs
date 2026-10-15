@@ -18,6 +18,13 @@ const privateRequest={kind:'subscription',base:snapshot([mapping]),mine:snapshot
 const hidden=describe(privateRequest,{id:'secret-hash',entity:'group',section:'proxy-groups',kind:'edit',path:['password']});
 assert.match(hidden.title,/US selector.*凭据/);assert.ok(!JSON.stringify(hidden).match(/synthetic-token|private.invalid|secret-hash/));
 assert.notEqual(hidden.mine,hidden.template);
+const identity=describe(privateRequest,{id:'other-secret',entity:'group',section:'proxy-groups',kind:'edit',path:['uuid']});
+assert.notEqual(hidden.title,identity.title,'password and UUID have different field labels');
+const keys={name:'US selector','private-token-a':'first','private-token-b':'second'};
+const keyed={...privateRequest,mine:snapshot([{...mapping,value:keys}]),next:snapshot([{...mapping,value:keys}])};
+const hiddenA=describe(keyed,{id:'one',entity:'group',section:'proxy-groups',kind:'edit',path:['private-token-a']});
+const hiddenB=describe(keyed,{id:'two',entity:'group',section:'proxy-groups',kind:'edit',path:['private-token-b']});
+assert.notEqual(hiddenA.title,hiddenB.title);assert.ok(!JSON.stringify([hiddenA,hiddenB]).includes('private-token'));
 const deleted=describe({...request,next:snapshot([])},{id:'x',entity:'a',section:'rules',kind:'delete/edit'});
 assert.equal(deleted.template,'删除此项');assert.match(deleted.mine,/Mine A/);
 const order=describe({...request,next:snapshot([...request.next.entries].reverse())},

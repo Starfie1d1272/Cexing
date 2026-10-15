@@ -4,7 +4,7 @@ const sections: Record<string, string> = { 'rules': '分流规则', 'proxy-group
   'proxies': '节点', 'proxy-providers': '节点来源', 'rule-providers': '规则来源', 'dns': 'DNS', 'hosts': '域名映射' };
 const fields: Record<string, string> = { 'name': '名称', 'type': '类型', 'proxies': '成员', 'use': '来源',
   'interval': '检测间隔', 'tolerance': '容差', 'strategy': '策略', 'udp': 'UDP', 'port': '端口',
-  'server': '服务器', 'url': '地址', 'password': '凭据', 'uuid': '凭据', 'headers': '请求头', 'token': '凭据' };
+  'server': '服务器', 'url': '地址', 'password': '密码凭据', 'uuid': '身份凭据', 'headers': '请求头', 'token': '访问凭据' };
 
 function label(value: string): string {
   // Names are user-facing identities. Never treat a URL, credential-shaped
@@ -69,6 +69,19 @@ function orderSummary(snapshot: TemplateSnapshot, other: TemplateSnapshot, secti
   return `第 ${start + 1} 项起：` + entries.slice(start, start + 3).map(item =>
     `${ids.indexOf(item.id) + 1}. ${valueSummary(item.value, section, [], '')}`).join('；');
 }
+function fieldLabel(snapshots: TemplateSnapshot[], id: string, path: string[]): string {
+  return path.map((key, index) => {
+    const keys: string[] = [];
+    snapshots.forEach(snapshot => {
+      const parent = at(entity(snapshot, id), path.slice(0, index));
+      if (parent !== undefined && parent !== null && typeof parent === 'object' && !Array.isArray(parent)) {
+        Object.keys(parent).forEach(name => { if (!keys.includes(name)) { keys.push(name); } });
+      }
+    });
+    const ordinal = keys.sort().indexOf(key) + 1;
+    return fields[key] ?? (label(key) || `高级字段 ${Math.max(1, ordinal)}`);
+  }).join(' · ');
+}
 
 /** Only invoked for a conflict, using the already captured private snapshots.
  * No exception bodies, raw JSON, opaque IDs or full YAML reach the cards. */
@@ -90,7 +103,7 @@ export function describeTemplateConflict(request: TemplateUpdateRequest,
     if (typeof candidate === 'string') { name = label(candidate); }
   }
   const path = conflict.path ?? [];
-  const field = path.length > 0 ? (fields[path[path.length - 1]] ?? (label(path[path.length - 1]) || '高级字段')) :
+  const field = path.length > 0 ? fieldLabel(snapshots, conflict.entity, path) :
     conflict.kind === 'order' ? '排列顺序' : '内容';
   return { title: `${sections[conflict.section] ?? '个人修改'} ${number}${name !== '' ? ` · ${name}` : ''} · ${field}`,
     mine: conflict.kind === 'order' ? orderSummary(request.mine, request.next, conflict.section, ids) :
