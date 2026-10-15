@@ -364,7 +364,14 @@ func ApplyRouting(ctx context.Context, root *yaml.Node, p RoutingPlan) error {
 		groups.Content = append(groups.Content, g)
 		return nil
 	}
+	activeOutlets := map[string]bool{p.DefaultOutlet: true}
+	for _, route := range p.Routes {
+		activeOutlets[route.Outlet] = true
+	}
 	for _, o := range p.Outlets {
+		if !activeOutlets[o.ID] {
+			continue
+		}
 		if err := ctx.Err(); err != nil {
 			return err
 		}

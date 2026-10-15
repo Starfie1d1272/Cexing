@@ -189,3 +189,12 @@ func TestRoutingRejectsAmbiguousProviderIdentity(t *testing.T) {
 		t.Fatal("duplicate leaf names silently collapsed")
 	}
 }
+
+func TestRoutingUnusedOutletCannotBlockRemovingService(t *testing.T) {
+	plan := routingFixturePlan()
+	plan.Routes = nil
+	plan.Outlets[1].Scope.Regions = []string{"美国"}
+	if err := ApplyRouting(context.Background(), routingRoot(t), plan); err != nil {
+		t.Fatal("unused AI range blocked removing the service", err)
+	}
+}
