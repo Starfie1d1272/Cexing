@@ -5,7 +5,7 @@ const vm = require('node:vm');
 const ts = require('./ci/transpile-arkts.cjs');
 let ticket = { file: 'synthetic.yaml', profileIdentity: 'identity', profileVersion: 'profile-v1',
   activeVersion: 'active-v1', activeFile: 'synthetic.yaml', draftRevision: '' };
-let publishedIntent = null;
+let publishedIntent = null, smartIntent;
 let draft = { intent: null }, saveCalls = 0, applyCalls = 0, revision = 0;
 let read = async () => ({ sourceRevision: 'source-v1', sections: [] });
 let target = async () => ({ item: { id: 'target' }, value: { password: 'synthetic-private' } });
@@ -28,7 +28,7 @@ const modules = {
   './Settings': { Settings: { load: () => ({ smartAutoConvert: true }) } },
   './ConfigEditor': { ConfigEditor: { list: (...args) => read(...args), target: (...args) => target(...args), smartPreview: async (_ctx, _raw, _merge, expected, enabled, intent) => {
     assert.equal(expected, ticket.activeVersion); assert.equal(enabled, true);
-    assert.equal(intent.smartGroups?.['original-group'], false);
+    smartIntent = intent;
     return [{ id: 'renamed-group', choiceId: 'original-group', before: 'url-test', after: 'url-test', override: true }];
   } } },
   './ProfileStore': { ProfileStore: { getProfileContent: () => 'proxies: []', getEnabledMerge: () => '', readEditDraft: () => draft } },
@@ -57,6 +57,7 @@ const Model = sandbox.exports.ProfileProxyEditorModel;
   assert.equal(model.publishedProviderName({ item: { id: 'source-id' }, name: 'original-name' }), 'applied-name', 'runtime provider lookup follows published provenance, never an unapplied rename');
   model.intent = { schemaVersion: 1, sourceRevision: 'source-v2', revision: 'draft', operations: [], smartGroups: { 'original-group': false } };
   const choices = await model.smartChoices();
+  assert.equal(smartIntent.smartGroups['original-group'], false, 'read uses the current stable Smart override');
   assert.equal(choices[0].choiceId, 'original-group', 'Smart control follows stable pre-rename identity');
   model.intent = { schemaVersion: 1, sourceRevision: 'source-v2', revision: 'draft', operations: [
     { id: 'rename-node', kind: 'rename', section: 'proxies', target: 'old-node-id', name: 'new-node' } ] };
@@ -112,6 +113,8 @@ const Model = sandbox.exports.ProfileProxyEditorModel;
   save = (...args) => new Promise(resolve => { finishSave = async () => resolve(await actualSave(...args)); });
   const saving = model.save(intent); await new Promise(setImmediate); assert.equal(await model.save(intent), false); assert.equal(saveCalls, 1);
   await finishSave(); assert.equal(await saving, true); assert.ok(model.preview);
+  assert.equal(model.smartChanges[0].before, 'url-test'); assert.equal(model.smartChanges[0].after, 'url-test');
+  assert.equal(smartIntent.revision, ticket.draftRevision, 'Smart display and receipt use the same saved draft ticket');
   assert.equal(model.intent.revision, ticket.draftRevision);
   assert.equal(model.canUndo(), true); assert.equal(model.undoNeedsConfirmation(), false, 'current-session edits keep step undo');
   save = actualSave;
@@ -127,7 +130,7 @@ const Model = sandbox.exports.ProfileProxyEditorModel;
   assert.equal(model.undoNeedsConfirmation(), true, 'an external ticket change clears unrelated session history');
   preview = async () => { throw Error('invalid reference'); };
   await assert.rejects(model.save(intent), /reference/);
-  assert.equal(model.preview, null); assert.equal(model.intent.operations.length, 1, 'failed preview retains the inert repairable draft');
+  assert.equal(model.preview, null); assert.equal(model.smartChanges.length, 0, 'failed preview clears old type evidence'); assert.equal(model.intent.operations.length, 1, 'failed preview retains the inert repairable draft');
   preview = async () => ({ digest: 'fixed', changes: [] }); await model.previewSaved();
   let finishApply; apply = () => new Promise(resolve => { finishApply = resolve; });
   const applying = model.apply(); model.cancel(); finishApply('saved');

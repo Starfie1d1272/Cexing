@@ -12,6 +12,7 @@ export class ProfileProxyEditorModel {
   snapshot: EditableSnapshot | null = null;
   intent: EditIntent | null = null;
   preview: MergePreview | null = null;
+  smartChanges: SmartGroupChange[] = [];
   busy: boolean = false;
   private context: common.Context;
   private file: string;
@@ -78,7 +79,7 @@ export class ProfileProxyEditorModel {
     this.region = region;
     this.snapshot = snapshot;
     this.intent = draft.intent;
-    this.preview = null; this.editor = null; this.confirmed = null;
+    this.preview = null; this.smartChanges = []; this.editor = null; this.confirmed = null;
     return true;
   }
 
@@ -172,7 +173,7 @@ export class ProfileProxyEditorModel {
     const ticket = this.ticket;
     this.check(ticket);
     this.busy = true;
-    this.preview = null; this.editor = null; this.confirmed = null;
+    this.preview = null; this.smartChanges = []; this.editor = null; this.confirmed = null;
     try {
       if (request !== this.generation) { return false; }
       this.check(ticket);
@@ -201,6 +202,12 @@ export class ProfileProxyEditorModel {
     const receipt = await editor.preview(session.revision);
     if (request !== this.generation) { return false; }
     this.check(ticket);
+    // Same captured ticket/intent as the receipt; display metadata is read-only.
+    const smartChanges = await ConfigEditor.smartPreview(this.context, this.original, this.overlay,
+      ticket.activeVersion, Settings.load(this.context).smartAutoConvert, this.workingIntent(), undefined, this.region);
+    if (request !== this.generation) { return false; }
+    this.check(ticket);
+    this.smartChanges = smartChanges;
     this.editor = editor; this.confirmed = receipt; this.preview = receipt.changes;
     return true;
   }
@@ -211,7 +218,7 @@ export class ProfileProxyEditorModel {
     const ticket = this.ticket;
     this.check(ticket);
     this.busy = true;
-    this.preview = null; this.editor = null; this.confirmed = null;
+    this.preview = null; this.smartChanges = []; this.editor = null; this.confirmed = null;
     try {
       return await this.confirmPreview(ticket, request);
     } finally { this.busy = false; }
@@ -247,9 +254,9 @@ export class ProfileProxyEditorModel {
       const result = await this.editor.apply(this.confirmed);
       if (result !== 'applied' && result !== 'saved') { throw new Error('应用结果未确认'); }
       if (request !== this.generation) { return null; }
-      this.preview = null; this.editor = null; this.confirmed = null;
+      this.preview = null; this.smartChanges = []; this.editor = null; this.confirmed = null;
       this.history = [];
       return result;
-    } finally { this.preview = null; this.editor = null; this.confirmed = null; this.busy = false; }
+    } finally { this.preview = null; this.smartChanges = []; this.editor = null; this.confirmed = null; this.busy = false; }
   }
 }
