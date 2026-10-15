@@ -3131,6 +3131,14 @@
     {
       "name": "merge_open_connection",
       "value": "前往连接页恢复"
+    },
+    {
+      "name": "rule_discard_confirm_title",
+      "value": "撤销全部未应用修改？"
+    },
+    {
+      "name": "rule_discard_confirm_body",
+      "value": "将撤销此订阅全部未应用修改及待更新来源。"
     }
   ]
 }
