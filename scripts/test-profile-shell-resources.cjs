@@ -10,7 +10,8 @@ let source = fs.readFileSync('cexing/entry/src/main/ets/pages/ProfilePage.ets','
 for (const [,key] of source.matchAll(/app\.string\.([A-Za-z0-9_]+)/g)) { assert.ok(locales.base.has(key),key);assert.ok(locales.zh_CN.has(key),key);assert.deepEqual(locales.base.get(key).match(/%[sd]/g),locales.zh_CN.get(key).match(/%[sd]/g),key); }
 source = (source.slice(0,source.indexOf('  @Builder'))+'\n}').split('\n').map(l=>l.trimStart().startsWith('@')?l.replace(/@\w+(?:\([^\n)]*\))?\s*/g,''):l).join('\n').replace('export struct ','export class ');
 const c={exports:{},require:key=>key.endsWith('/UiText')?helper.exports:key.endsWith('/VpnController')?{VpnStatus:{Disconnected:0},VpnController:{}}:{},$r:id=>({id:id.replace(/^app\.string\./,'')}),AlertDialog:{show:x=>dialog=x}};
-vm.runInNewContext(ts.transpileModule(source).outputText,c);
+vm.runInNewContext(ts.transpileModule(source + '\nexports.RegionOption = RegionSelectOption;').outputText,c);
+assert.equal(new c.exports.RegionOption('未知').value, '未知', 'a user selector named 未知 is not a canonical region label');
 const p=new c.exports.ProfilePage();assert.equal(p.moreActions,false);assert.equal(p.regionNames()[0],'香港','canonical persisted regions must not change with locale');assert.equal(p.regionLabel('香港'),'Hong Kong');assert.equal(p.regionLabel('未知'),'Other regions');assert.equal(p.regionLabel('%s-user'),'%s-user');
 assert.equal(helper.exports.UiText.get({id:'profile_selected'},'%s-user'),'Selected “%s-user”. Applies when VPN starts.');
 p.pageVisible=true;p.pageGeneration=1;p.exportProfile=()=>{exportCount++};const profile={file:'synthetic.yaml',name:'test'};

@@ -42,7 +42,7 @@ const REGION_NAMES: string[] = ['香港', '台湾', '日本', '新加坡', '美�
 
 class RegionSelectOption {
   value: string;
-  constructor(value: string) { this.value = value === '未知' ? UiText.get($r('app.string.profile_other_region')) : value; }
+  constructor(value: string) { this.value = value; }
 }
 
 export class ProfileDetailBus {
