@@ -2139,6 +2139,50 @@
     {
       "name": "proxy_form_open_original",
       "value": "编辑原始配置"
+    },
+    {
+      "name": "apply_feedback_unconfirmed",
+      "value": "应用未确认，请重连恢复"
+    },
+    {
+      "name": "apply_feedback_committed",
+      "value": "配置已保存，地区选择待重连恢复"
+    },
+    {
+      "name": "apply_feedback_selection",
+      "value": "请先在代理面板选择可用节点，再重试"
+    },
+    {
+      "name": "apply_feedback_failed",
+      "value": "操作未完成，请重新预览"
+    },
+    {
+      "name": "apply_feedback_reconnect",
+      "value": "重连恢复"
+    },
+    {
+      "name": "apply_feedback_panel",
+      "value": "打开代理面板"
+    },
+    {
+      "name": "apply_feedback_reconnect_title",
+      "value": "重新连接？"
+    },
+    {
+      "name": "apply_feedback_reconnect_body",
+      "value": "当前连接会暂时中断。"
+    },
+    {
+      "name": "apply_feedback_starting",
+      "value": "正在连接"
+    },
+    {
+      "name": "apply_feedback_recovery_failed",
+      "value": "恢复未完成，请检查连接后重试"
+    },
+    {
+      "name": "apply_feedback_region_failed",
+      "value": "地区策略未完成，请重试"
     }
   ]
 }

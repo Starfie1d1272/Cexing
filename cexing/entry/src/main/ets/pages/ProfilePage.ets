@@ -1,3 +1,4 @@
+import { ProfileApplyFeedback } from '../lib/ProfileApplyFeedback';
 import { NativeTheme as UI } from './NativeTheme';
 /*
  * Profile 列表（激活/更新/编辑/重命名/导出/删除）+ 订阅导入（URL/文件/剪贴板，入口在右上 ＋ 半屏菜单）
@@ -146,7 +147,7 @@ export struct ProfilePage {
   }
 
   private onRootVisible(): void {
-    if (this.rootVisible) { this.acceptExternalImport(); }
+    if (this.rootVisible) { this.refresh(); this.acceptExternalImport(); }
     if (this.detailFile.length === 0 && !this.rootVisible) { this.activationRequest++; this.importGeneration++; }
   }
 
@@ -194,7 +195,10 @@ export struct ProfilePage {
       const pending = ProfileStore.pendingRegionSelection(context, this.importedFile) !== '';
       this.toast(enable ? (pending ? '地区策略已创建，连接后选择新入口' : '地区入口已选择') :
         '地区策略已创建，可稍后启用');
-    } catch (e) { this.importError = (e as Error).message ?? '地区策略未保存'; }
+    } catch (error) {
+      const kind = ProfileApplyFeedback.classify((error as Error).message);
+      this.importError = (getContext(this) as common.UIAbilityContext).resourceManager.getStringByNameSync(kind === 'failed' ? 'apply_feedback_region_failed' : ProfileApplyFeedback.key(kind));
+    }
     finally { this.regionBusy = false; this.acceptExternalImport(); }
   }
 
@@ -254,7 +258,8 @@ export struct ProfilePage {
     } catch (e) {
       // A committed disable may still report a failed Controller selection restore.
       this.changed();
-      this.toast((e as Error).message ?? '地区策略切换失败');
+      const kind = ProfileApplyFeedback.classify((e as Error).message);
+      this.toast((getContext(this) as common.UIAbilityContext).resourceManager.getStringByNameSync(kind === 'failed' ? 'apply_feedback_region_failed' : ProfileApplyFeedback.key(kind)));
     }
   }
 

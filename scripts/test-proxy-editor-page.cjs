@@ -32,12 +32,18 @@ const editorExports = { exports: {}, require: () => ({}) };
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('cexing/entry/src/main/ets/lib/ConfigEditor.ets', 'utf8')).outputText, editorExports);
 const textBox = { exports: {} };
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('cexing/entry/src/main/ets/lib/ProxyEditorText.ets', 'utf8')).outputText, textBox);
+let unknownApply = false, recoveryResult = null, recoveryCalls = 0, sharePending = false;
+const feedbackBox = { exports: {}, require: name => name === './ProfileStore' ? { ProfileStore: { isApplyUncertain: () => unknownApply, getActiveFile: () => 'one.yaml' } } :
+  name === './EffectiveVersions' ? { EffectiveVersions: { read: () => null } } : {} };
+vm.runInNewContext(ts.transpileModule(fs.readFileSync('cexing/entry/src/main/ets/lib/ProfileApplyFeedback.ets', 'utf8')).outputText, feedbackBox);
 const editBus = { current: '' };
 const editExports = { exports: {} };
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('cexing/entry/src/main/ets/lib/ProxyIntentEdits.ets', 'utf8')).outputText, editExports);
 const sandbox = { exports: {}, getContext: () => resourceContext(), AlertDialog: { show: value => { dialog = value; } },
-  require: name => name.includes('ProfileProxyEditorModel') ? { ProfileProxyEditorModel: Model } :
-    name === '@kit.ArkTS' ? { util: { generateRandomUUID: () => `add-action-${++actionIds}` } } : name.includes('ProxyIntentEdits') ? editExports.exports : name.includes('ProfileEditPage') ? { ProfileEditBus: editBus } : name.includes('ProxyEditorText') ? textBox.exports : name.includes('ConfigEditor') ? editorExports.exports : name.includes('ProxyProviderStatus') ?
+  require: name => name.includes('ProfileApplyFeedback') ? feedbackBox.exports :
+    name.includes('ProfileApplyRecovery') ? { ProfileApplyRecovery: { reconnect: async (_ctx, current) => { recoveryCalls++; assert.equal(current(), true); return recoveryResult; } } } :
+    name.includes('ProfileImportInput') ? { ProfileImportInput: { hasPending: () => sharePending } } : name.includes('ProfileProxyEditorModel') ? { ProfileProxyEditorModel: Model } :
+    name === '@kit.ArkUI' ? { promptAction: { showToast() {} } } : name === '@kit.ArkTS' ? { util: { generateRandomUUID: () => `add-action-${++actionIds}` } } : name.includes('ProxyIntentEdits') ? editExports.exports : name.includes('ProfileEditPage') ? { ProfileEditBus: editBus } : name.includes('ProxyEditorText') ? textBox.exports : name.includes('ConfigEditor') ? editorExports.exports : name.includes('ProxyProviderStatus') ?
       { ProxyProviderStatus: { observe: () => { observations++; return new Promise(resolve => { finishObservation = resolve; }); } } } : {} };
 vm.runInNewContext(ts.transpileModule(code).outputText, sandbox);
 const Page = sandbox.exports.ProfileProxyEditorPage; sandbox.exports.ProfileProxyEditorBus.file = 'one.yaml';
@@ -133,5 +139,19 @@ const Page = sandbox.exports.ProfileProxyEditorPage; sandbox.exports.ProfileProx
   const firstId = intent.operations[0].id; createGroup.value.use = ['known-source'];
   await retryAdd.saveForm(createGroup); assert.equal(intent.operations.length, 1, 'failed new-item preview must be repairable without a duplicate add');
   assert.equal(intent.operations[0].id, firstId); assert.equal(intent.operations[0].value.use[0], 'known-source'); assert.equal(retryAdd.formOpen, false);
+  for (const [message, kind] of [['应用未确认，请重连恢复', 'unconfirmed'], ['配置已保存，地区选择待重连恢复', 'committed-pending'], ['private: synthetic-token', 'failed']]) {
+    const failed = new Page(); failed.visible = true; failed.aboutToAppear(); finishLoad(); await new Promise(setImmediate);
+    let applyAttempts = 0; failed.model.apply = async () => { applyAttempts++; throw Error(message); };
+    failed.previewReady = true; await failed.apply(); assert.equal(failed.applyFailure, kind); assert.equal(failed.previewReady, false);
+    assert.ok(!failed.error.includes('synthetic-token')); assert.ok(!failed.error.includes('private:'));
+    if (kind !== 'failed') {
+      assert.match(failed.error, /重连恢复/); await failed.apply(); await failed.inspect(); assert.equal(applyAttempts, 1, 'unconfirmed/committed results cannot offer ordinary repeated apply');
+      let clears = 0; failed.navStack = { clear: () => clears++ }; failed.tabJump = -1;
+      recoveryResult = null; await failed.recoverApply(); assert.equal(clears, 0); assert.equal(failed.applyFailure, kind);
+      recoveryResult = true; await failed.recoverApply(); assert.equal(clears, 1); assert.equal(failed.tabJump, 0);
+    }
+  }
+  unknownApply = true; const reopenedFailure = new Page(); reopenedFailure.visible = true; reopenedFailure.aboutToAppear(); finishLoad(); await new Promise(setImmediate);
+  assert.equal(reopenedFailure.applyFailure, 'unconfirmed', 'reopening cannot hide the persistent unknown fence'); unknownApply = false;
   console.log('PASS: real native proxy editor load/target/save lifecycle, repeat actions, hidden private values and stale delete confirmation');
 })().catch(error => { console.error(error); process.exitCode = 1; });

@@ -2139,6 +2139,50 @@
     {
       "name": "proxy_form_open_original",
       "value": "Edit original configuration"
+    },
+    {
+      "name": "apply_feedback_unconfirmed",
+      "value": "Apply status is unconfirmed. Reconnect to recover."
+    },
+    {
+      "name": "apply_feedback_committed",
+      "value": "Configuration saved. Reconnect to restore the region selection."
+    },
+    {
+      "name": "apply_feedback_selection",
+      "value": "Choose an available node in the proxy panel, then retry."
+    },
+    {
+      "name": "apply_feedback_failed",
+      "value": "The operation did not finish. Preview again."
+    },
+    {
+      "name": "apply_feedback_reconnect",
+      "value": "Reconnect"
+    },
+    {
+      "name": "apply_feedback_panel",
+      "value": "Open proxy panel"
+    },
+    {
+      "name": "apply_feedback_reconnect_title",
+      "value": "Reconnect?"
+    },
+    {
+      "name": "apply_feedback_reconnect_body",
+      "value": "The current connection will be interrupted briefly."
+    },
+    {
+      "name": "apply_feedback_starting",
+      "value": "Connecting"
+    },
+    {
+      "name": "apply_feedback_recovery_failed",
+      "value": "Recovery did not finish. Check the connection and retry."
+    },
+    {
+      "name": "apply_feedback_region_failed",
+      "value": "The region change did not finish. Retry."
     }
   ]
 }
