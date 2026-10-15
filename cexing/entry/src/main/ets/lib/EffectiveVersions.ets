@@ -158,6 +158,13 @@ export namespace EffectiveVersions {
     return intent;
   }
 
+  export async function originalIdentity(context: common.Context, original: string, expected: string): Promise<string> {
+    const result = await call(context, { op: 'editor-source-identity', original: original, expected: expected });
+    const identity = result['identity'];
+    if (typeof identity !== 'string' || !/^[a-f0-9]{64}$/.test(identity as string)) { throw new Error('原文校验失败'); }
+    return identity as string;
+  }
+
   export async function checkIntent(context: common.Context, intent: EditIntent | null,
     expected: string): Promise<void> {
     await call(context, { op: 'edit-check', editIntent: intent, expected: expected });

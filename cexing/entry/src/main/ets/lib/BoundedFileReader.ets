@@ -59,10 +59,14 @@ export namespace BoundedFileReader {
 
   export async function yaml(uri: string, current?: () => boolean): Promise<string> {
     const data = await bytes(uri, IMPORT_CONFIG_BYTES, current);
+    return await decodeUtf8(data, current);
+  }
+
+  export async function decodeUtf8(data: ArrayBuffer, current?: () => boolean, start: number = 0): Promise<string> {
     check(current);
     const decoder = util.TextDecoder.create('utf-8', { fatal: true });
     const parts: string[] = [];
-    for (let offset = 0; offset < data.byteLength; offset += CHUNK_BYTES) {
+    for (let offset = start; offset < data.byteLength; offset += CHUNK_BYTES) {
       check(current);
       parts.push(decoder.decodeToString(new Uint8Array(data, offset,
         Math.min(CHUNK_BYTES, data.byteLength - offset)), { stream: true }));
