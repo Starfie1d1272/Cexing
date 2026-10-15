@@ -1,8 +1,9 @@
 import { common } from '@kit.AbilityKit';
-import { fileIo, picker } from '@kit.CoreFileKit';
+import { picker } from '@kit.CoreFileKit';
 import { CoreApi, SmartStatus } from '../lib/CoreApi';
 import { VpnController, VpnStatus } from '../lib/VpnController';
 import { SmartModelRestart } from '../lib/SmartModelRestart';
+import { BoundedFileReader } from '../lib/BoundedFileReader';
 import { Settings } from '../lib/Settings';
 import { ProfileTransactions } from '../lib/ProfileTransactions';
 import { NativeTheme as UI } from './NativeTheme';
@@ -30,9 +31,27 @@ export struct SmartPage {
   private importGeneration: number = 0;
   private timer: number = -1;
   private active: boolean = false;
+  private operationSequence: number = 0;
+  private activeOperation: number = 0;
+  private statusListener: (status: VpnStatus) => void = (_status: VpnStatus) => { this.onVisible(); };
+
+  private beginOperation(): number {
+    this.activeOperation = ++this.operationSequence;
+    this.busy = true;
+    return this.activeOperation;
+  }
+
+  private ownsOperation(operation: number): boolean { return this.active && operation === this.activeOperation; }
+
+  private finishOperation(operation: number): void {
+    if (this.ownsOperation(operation)) { this.activeOperation = 0; this.busy = false; }
+  }
+
+  private cancelOperation(): void { this.activeOperation = 0; this.busy = false; }
 
   aboutToAppear(): void {
     this.active = true;
+    VpnController.onChanged(this.statusListener);
     this.autoConvert = Settings.load(getContext(this) as common.UIAbilityContext).smartAutoConvert;
     this.onVisible();
   }
@@ -40,6 +59,8 @@ export struct SmartPage {
   aboutToDisappear(): void {
     this.importGeneration++;
     this.active = false;
+    VpnController.offChanged(this.statusListener);
+    this.cancelOperation();
     this.stopPolling();
   }
 
@@ -52,7 +73,9 @@ export struct SmartPage {
   private onVisible(): void {
     if (!this.visible && this.active) {
       const routes = this.navStack.getAllPathName();
-      if (routes.length === 0 || routes[routes.length - 1] !== 'smart') { this.importGeneration++; }
+      if (routes.length === 0 || routes[routes.length - 1] !== 'smart') {
+        this.importGeneration++; this.cancelOperation();
+      }
     }
     this.stopPolling();
     if (this.active && this.visible) { this.refresh(this.generation); }
@@ -79,10 +102,10 @@ export struct SmartPage {
       const names = Object.keys(status.groups);
       this.usage = names.length === 0 ? '当前配置未使用智能选择' : '智能选择已启用';
       this.nextStep = names.length === 0 ?
-        '自动转换适用于 URL Test 和负载均衡组。仅有手动选择组的订阅，可在订阅详情预览地区策略。' :
+        '可在订阅详情设置策略。' :
         '可在控制面板查看 Smart 策略组与当前选项。';
       this.groupSummary = names.length === 0 ? '请按订阅的组类型选择策略' :
-        names.map((name: string) => `${name} · ${status.groups[name].useLightGBM ? '已请求模型' : '统计策略'}`).join('\n');
+        names.map((name: string) => `${name} · ${status.groups[name].useLightGBM ? '模型策略' : '统计策略'}`).join('\n');
       const state = status.model.state;
       this.modelSummary = state === 'loaded' ? '模型已加载' :
         (state === 'missing' ? '模型缺失，使用统计策略' :
@@ -106,28 +129,28 @@ export struct SmartPage {
 
   private async changeAutoConvert(on: boolean): Promise<void> {
     if (this.busy) { return; }
-    this.busy = true;
+    const operation = this.beginOperation();
     const before = this.autoConvert;
     this.autoConvert = on;
     try {
       const context = getContext(this) as common.UIAbilityContext;
       const result = await ProfileTransactions.setSmartAutoConvert(context, on);
+      if (!this.ownsOperation(operation)) { return; }
       this.message = result === 'applied' ? '已应用到当前运行配置' : '已保存，下次连接时生效';
       this.stopPolling();
       this.refresh(this.generation);
     } catch (error) {
-      this.autoConvert = before;
-      this.message = (error as Error).message;
-    } finally { this.busy = false; }
+      if (this.ownsOperation(operation)) { this.autoConvert = before; this.message = (error as Error).message; }
+    } finally { this.finishOperation(operation); }
   }
 
   private importCurrent(generation: number): boolean {
-    return this.active && this.visible && generation === this.importGeneration;
+    return this.active && this.visible && VpnController.status === VpnStatus.Connected && generation === this.importGeneration;
   }
 
   private async importModel(): Promise<void> {
     if (this.busy || !this.ready) { return; }
-    this.busy = true;
+    const operation = this.beginOperation();
     // 系统文件选择器可触发页面隐藏和恢复；轮询重启不撤销仍在本页的导入。
     const generation = this.importGeneration;
     try {
@@ -136,19 +159,8 @@ export struct SmartPage {
         maxSelectNumber: 1, selectMode: picker.DocumentSelectMode.FILE, fileSuffixFilters: ['.bin']
       });
       if (!this.importCurrent(generation) || uris.length === 0) { return; }
-      const file = fileIo.openSync(uris[0], fileIo.OpenMode.READ_ONLY);
-      const bytes = new ArrayBuffer(MODEL_BYTES);
-      try {
-        if (fileIo.statSync(file.fd).size !== MODEL_BYTES) { throw new Error('模型大小须为 9,345,218 字节'); }
-        let offset = 0;
-        while (offset < MODEL_BYTES) {
-          const chunk = new ArrayBuffer(Math.min(1024 * 1024, MODEL_BYTES - offset));
-          const length = fileIo.readSync(file.fd, chunk);
-          if (length <= 0) { throw new Error('模型文件未完整读取'); }
-          new Uint8Array(bytes).set(new Uint8Array(chunk, 0, length), offset);
-          offset += length;
-        }
-      } finally { fileIo.closeSync(file); }
+      const bytes = await BoundedFileReader.bytes(uris[0], MODEL_BYTES,
+        () => this.importCurrent(generation), MODEL_BYTES);
       if (!this.importCurrent(generation)) { return; }
       const result = await CoreApi.importSmartModel(bytes);
       if (!this.importCurrent(generation)) { return; }
@@ -158,7 +170,7 @@ export struct SmartPage {
         '模型已校验安装，可查看 Smart 组的模型策略状态';
     } catch (error) {
       if (this.importCurrent(generation)) { this.message = (error as Error).message; }
-    } finally { this.busy = false; }
+    } finally { this.finishOperation(operation); }
   }
 
   private confirmRestart(): void {
@@ -168,10 +180,10 @@ export struct SmartPage {
       primaryButton: { value: '取消', action: () => {} },
       secondaryButton: { value: '重启应用', action: () => {
         if (!this.current(generation) || this.busy) { return; }
-        this.busy = true;
+        const operation = this.beginOperation();
         SmartModelRestart.restart(getContext(this) as common.UIAbilityContext).catch((error: Error) => {
-          if (this.current(generation)) { this.message = error.message; }
-        }).finally(() => { this.busy = false; });
+          if (this.ownsOperation(operation)) { this.message = error.message; }
+        }).finally(() => { this.finishOperation(operation); });
       } }
     });
   }
