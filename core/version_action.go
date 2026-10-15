@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 
 	"core/configpipeline"
 )
@@ -14,27 +15,33 @@ import (
 var profileIDPattern = regexp.MustCompile(`(?i)^[^/\\\x00-\x1f]{1,128}\.ya?ml$`)
 
 type versionAction struct {
-	RegionChoice    *configpipeline.RegionChoice `json:"regionChoice,omitempty"`
-	Op              string                       `json:"op"`
-	EditSection     string                       `json:"editSection,omitempty"`
-	EditTarget      string                       `json:"editTarget,omitempty"`
-	EditIntent      *configpipeline.EditIntent   `json:"editIntent,omitempty"`
-	ProfileID       string                       `json:"profileId"`
-	Original        string                       `json:"original"`
-	GlobalMerge     *string                      `json:"globalMerge,omitempty"`
-	UpdateGlobal    bool                         `json:"updateGlobal,omitempty"`
-	Overlay         string                       `json:"overlay"`
-	Metadata        string                       `json:"metadata"`
-	Overrides       string                       `json:"overrides"`
-	Expected        string                       `json:"expected"`
-	VersionID       string                       `json:"versionId"`
-	Active          bool                         `json:"active"`
-	NewProfileID    string                       `json:"newProfileId"`
-	SmartConversion bool                         `json:"smartConversion"`
-	RegionPlan      *configpipeline.RegionPlan   `json:"regionPlan,omitempty"`
+	RegionChoice      *configpipeline.RegionChoice `json:"regionChoice,omitempty"`
+	BackupFile        string                       `json:"backupFile,omitempty"`
+	BackupToken       string                       `json:"backupToken,omitempty"`
+	BackupPreferences json.RawMessage              `json:"backupPreferences,omitempty"`
+	BackupOwner       string                       `json:"backupOwner,omitempty"`
+	BackupAllowLan    bool                         `json:"backupAllowLan"`
+	Op                string                       `json:"op"`
+	EditSection       string                       `json:"editSection,omitempty"`
+	EditTarget        string                       `json:"editTarget,omitempty"`
+	EditIntent        *configpipeline.EditIntent   `json:"editIntent,omitempty"`
+	ProfileID         string                       `json:"profileId"`
+	Original          string                       `json:"original"`
+	GlobalMerge       *string                      `json:"globalMerge,omitempty"`
+	UpdateGlobal      bool                         `json:"updateGlobal,omitempty"`
+	Overlay           string                       `json:"overlay"`
+	Metadata          string                       `json:"metadata"`
+	Overrides         string                       `json:"overrides"`
+	Expected          string                       `json:"expected"`
+	VersionID         string                       `json:"versionId"`
+	Active            bool                         `json:"active"`
+	NewProfileID      string                       `json:"newProfileId"`
+	SmartConversion   bool                         `json:"smartConversion"`
+	RegionPlan        *configpipeline.RegionPlan   `json:"regionPlan,omitempty"`
 }
 
 type versionResponse struct {
+	Backup        *backupResponse                    `json:"backup,omitempty"`
 	Storage       *storageReport                     `json:"storage,omitempty"`
 	Identity      string                             `json:"identity,omitempty"`
 	Digest        string                             `json:"digest,omitempty"`
@@ -98,6 +105,12 @@ func executeVersionAction(home string, action versionAction) (versionResponse, e
 	currentID := ""
 	if prior.Current != nil {
 		currentID = prior.Current.ID
+	}
+	if strings.HasPrefix(action.Op, "backup-") {
+		return executeBackupAction(home, store, prior, action)
+	}
+	if action.Op != "read" && action.Op != "gc" && fileExists(filepath.Join(home, "profiles", "backup-restore.json")) {
+		return versionResponse{}, errors.New("BACKUP_RECOVERY_REQUIRED")
 	}
 	if action.Op == "read" {
 		return versionResponse{State: &prior}, nil

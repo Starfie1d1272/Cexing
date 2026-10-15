@@ -1,3 +1,4 @@
+import { UiText } from './UiText';
 import { EditorDraftHosts } from './EditorDraftHosts';
 import { common } from '@kit.AbilityKit';
 import { EditIntent, EditorDraftHost, EditorDraftSession, EditorDraftPreview } from './ConfigEditor';
@@ -65,7 +66,7 @@ export function createTemplateUpdateHost(context: common.Context, profileId: str
         checked.changes.digest !== checked.digest) { throw new Error('TEMPLATE_UPDATE_VALIDATION'); }
       const count = checked.changes.changes.length;
       comparison.validation = { revision: checked.revision, digest: checked.digest,
-        summary: count > 0 ? `${count} 项配置变化` : '配置无变化' };
+        summary: count > 0 ? UiText.get($r('app.string.template_change_count'), count) : UiText.get($r('app.string.template_no_changes')) };
       receipt = checked; offered = comparison; fingerprint = JSON.stringify(comparison);
       return comparison;
       } catch (error) {

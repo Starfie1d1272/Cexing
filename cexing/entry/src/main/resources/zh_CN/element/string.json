@@ -1653,6 +1653,394 @@
       "value": "连接"
     },
     {
+      "name": "template_replace_reenable",
+      "value": "将替换订阅规则，并启用已停用的个人修改。"
+    },
+    {
+      "name": "template_reenable",
+      "value": "将同时启用已停用的个人修改。"
+    },
+    {
+      "name": "template_auto_scope",
+      "value": "本地网络直连，其余流量使用所选出口。"
+    },
+    {
+      "name": "template_replace_title",
+      "value": "替换订阅分流规则？"
+    },
+    {
+      "name": "template_apply_title",
+      "value": "应用分流方案？"
+    },
+    {
+      "name": "template_cancel",
+      "value": "取消"
+    },
+    {
+      "name": "template_replace_apply",
+      "value": "替换并应用"
+    },
+    {
+      "name": "template_apply",
+      "value": "应用"
+    },
+    {
+      "name": "template_title",
+      "value": "分流方案"
+    },
+    {
+      "name": "template_back",
+      "value": "返回"
+    },
+    {
+      "name": "template_update",
+      "value": "更新方案"
+    },
+    {
+      "name": "template_original",
+      "value": "保持订阅原样"
+    },
+    {
+      "name": "template_region",
+      "value": "按地区智能选择"
+    },
+    {
+      "name": "template_ai",
+      "value": "AI 专用出口"
+    },
+    {
+      "name": "template_automatic",
+      "value": "自动分流"
+    },
+    {
+      "name": "template_selector",
+      "value": "原策略组"
+    },
+    {
+      "name": "template_exit",
+      "value": "出口"
+    },
+    {
+      "name": "template_choose",
+      "value": "请选择"
+    },
+    {
+      "name": "template_ai_scope",
+      "value": "常用 AI 服务使用所选出口，其余流量沿用订阅。"
+    },
+    {
+      "name": "template_retry",
+      "value": "重试"
+    },
+    {
+      "name": "template_working",
+      "value": "处理中"
+    },
+    {
+      "name": "template_apply_plan",
+      "value": "应用方案"
+    },
+    {
+      "name": "template_preview",
+      "value": "预览"
+    },
+    {
+      "name": "template_update_title",
+      "value": "更新分流方案"
+    },
+    {
+      "name": "template_pending",
+      "value": "待应用"
+    },
+    {
+      "name": "template_personal",
+      "value": "个人修改"
+    },
+    {
+      "name": "template_keep_mine",
+      "value": "保留我的修改"
+    },
+    {
+      "name": "template_use_new",
+      "value": "使用新模板"
+    },
+    {
+      "name": "template_repreview",
+      "value": "重新预览"
+    },
+    {
+      "name": "template_apply_update",
+      "value": "应用更新"
+    },
+    {
+      "name": "template_read_failed",
+      "value": "方案读取失败，请重试"
+    },
+    {
+      "name": "template_choose_exit",
+      "value": "请选择出口"
+    },
+    {
+      "name": "template_validation_failed",
+      "value": "方案未通过校验，请检查出口和订阅资源"
+    },
+    {
+      "name": "template_apply_failed",
+      "value": "应用失败，请重新预览后重试"
+    },
+    {
+      "name": "template_compare_failed",
+      "value": "无法比较，请重新预览"
+    },
+    {
+      "name": "template_update_failed",
+      "value": "应用失败，请重新预览"
+    },
+    {
+      "name": "template_advanced_required",
+      "value": "部分高级字段需通过高级编辑修改"
+    },
+    {
+      "name": "template_applied",
+      "value": "方案已应用"
+    },
+    {
+      "name": "template_saved",
+      "value": "已保存，启用后生效"
+    },
+    {
+      "name": "template_update_applied",
+      "value": "更新已应用"
+    },
+    {
+      "name": "template_result_unknown",
+      "value": "结果未确认，请返回连接页检查"
+    },
+    {
+      "name": "template_nodes",
+      "value": "节点"
+    },
+    {
+      "name": "template_groups",
+      "value": "策略组"
+    },
+    {
+      "name": "template_rules",
+      "value": "规则"
+    },
+    {
+      "name": "template_proxy_sources",
+      "value": "节点来源"
+    },
+    {
+      "name": "template_rule_sources",
+      "value": "规则来源"
+    },
+    {
+      "name": "template_hosts",
+      "value": "域名映射"
+    },
+    {
+      "name": "template_no_changes",
+      "value": "配置无变化"
+    },
+    {
+      "name": "template_change_count",
+      "value": "%d 项配置变化"
+    },
+    {
+      "name": "template_expanded",
+      "value": "已展开"
+    },
+    {
+      "name": "template_collapsed",
+      "value": "已收起"
+    },
+    {
+      "name": "ai_reachable",
+      "value": "可达"
+    },
+    {
+      "name": "ai_region_restricted",
+      "value": "地区限制"
+    },
+    {
+      "name": "ai_limited",
+      "value": "稍后重试"
+    },
+    {
+      "name": "ai_timeout",
+      "value": "超时"
+    },
+    {
+      "name": "ai_failed",
+      "value": "连接失败"
+    },
+    {
+      "name": "ai_unknown",
+      "value": "未确认"
+    },
+    {
+      "name": "ai_checking",
+      "value": "检查中"
+    },
+    {
+      "name": "ai_unchecked",
+      "value": "未检查"
+    },
+    {
+      "name": "ai_partial_restricted",
+      "value": "部分地区限制"
+    },
+    {
+      "name": "ai_partial_reachable",
+      "value": "%d/3 可达"
+    },
+    {
+      "name": "ai_route_unknown",
+      "value": "当前出口暂不能确认，可更换出口重试"
+    },
+    {
+      "name": "ai_retry_unavailable",
+      "value": "连接并应用 AI 方案后可重试"
+    },
+    {
+      "name": "template_section_adjusted",
+      "value": "%s调整"
+    },
+    {
+      "name": "template_other_changes",
+      "value": "其他配置已调整"
+    },
+    {
+      "name": "backup_export",
+      "value": "导出本地备份"
+    },
+    {
+      "name": "backup_export_risk",
+      "value": "备份含订阅地址和节点凭据，请妥善保管。"
+    },
+    {
+      "name": "backup_cancel",
+      "value": "取消"
+    },
+    {
+      "name": "backup_choose_location",
+      "value": "选择保存位置"
+    },
+    {
+      "name": "backup_file_type",
+      "value": "备份|.json"
+    },
+    {
+      "name": "backup_saved",
+      "value": "备份已保存"
+    },
+    {
+      "name": "backup_export_failed",
+      "value": "导出未完成，请重试"
+    },
+    {
+      "name": "backup_invalid",
+      "value": "备份无法读取或验证，请检查文件"
+    },
+    {
+      "name": "backup_restore",
+      "value": "恢复备份"
+    },
+    {
+      "name": "backup_restore_local",
+      "value": "恢复本地备份"
+    },
+    {
+      "name": "backup_restore_count",
+      "value": "导入 %d 个订阅并恢复设置。"
+    },
+    {
+      "name": "backup_conflicts",
+      "value": " %d 个同名订阅将另存为新名称。"
+    },
+    {
+      "name": "backup_global_changed",
+      "value": " 全局覆写将更新。"
+    },
+    {
+      "name": "backup_disconnect_risk",
+      "value": " 将先断开 VPN。"
+    },
+    {
+      "name": "backup_disconnect_restore",
+      "value": "断开并恢复"
+    },
+    {
+      "name": "backup_restored",
+      "value": "已恢复，下次连接生效"
+    },
+    {
+      "name": "backup_restore_unknown",
+      "value": "备份恢复未确认，请重新打开应用后重试"
+    },
+    {
+      "name": "backup_restore_prior",
+      "value": "恢复失败，原资料已保留"
+    },
+    {
+      "name": "backup_stop_unconfirmed",
+      "value": "断开未确认，请重试"
+    },
+    {
+      "name": "backup_restore_failed",
+      "value": "恢复未完成，请重试"
+    },
+    {
+      "name": "backup_working",
+      "value": "正在处理备份"
+    },
+    {
+      "name": "storage_no_stats",
+      "value": "暂无统计，请重试"
+    },
+    {
+      "name": "storage_incomplete",
+      "value": "暂无法整理，请稍后重试"
+    },
+    {
+      "name": "storage_stats_failed",
+      "value": "暂无法统计，请稍后重试"
+    },
+    {
+      "name": "storage_summary",
+      "value": "%d 个版本 · %s MiB"
+    },
+    {
+      "name": "storage_collapse",
+      "value": "收起存储详情"
+    },
+    {
+      "name": "storage_details",
+      "value": "存储详情"
+    },
+    {
+      "name": "storage_working",
+      "value": "正在统计"
+    },
+    {
+      "name": "storage_refresh",
+      "value": "刷新"
+    },
+    {
+      "name": "storage_expanded",
+      "value": "已展开"
+    },
+    {
+      "name": "storage_collapsed",
+      "value": "已收起"
+    },
+    {
+      "name": "backup_restore_action",
+      "value": "恢复"
+    },
+    {
       "name": "proxy_editor_keep_type",
       "value": "保持原类型"
     },
