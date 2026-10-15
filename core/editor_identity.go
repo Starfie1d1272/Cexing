@@ -51,10 +51,10 @@ func editorIdentity(home string, a versionAction, global string) (string, error)
 		identityIntent = &copied
 	}
 	input, _ := json.Marshal(struct {
-		Original, Global, Overlay, Settings string
-		Intent                              *configpipeline.EditIntent
-		Region                              *configpipeline.RegionPlan
-	}{a.Original, global, a.Overlay, a.Overrides, identityIntent, a.RegionPlan})
+		Original, Global, Overlay, Settings, Metadata string
+		Intent                                        *configpipeline.EditIntent
+		Region                                        *configpipeline.RegionPlan
+	}{a.Original, global, a.Overlay, a.Overrides, a.Metadata, identityIntent, a.RegionPlan})
 	h.Write(input)
 	for _, section := range []struct {
 		prefix string
