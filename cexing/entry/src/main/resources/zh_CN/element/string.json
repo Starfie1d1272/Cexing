@@ -263,6 +263,10 @@
     {
       "name": "template_section_adjusted",
       "value": "%s调整"
+    },
+    {
+      "name": "template_other_changes",
+      "value": "其他配置已调整"
     }
   ]
 }
