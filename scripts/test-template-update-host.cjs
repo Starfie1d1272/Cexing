@@ -52,6 +52,9 @@ vm.runInNewContext(ts.transpileModule(fs.readFileSync('cexing/entry/src/main/ets
  await host.discard(savedRevision); assert.equal(undos, 1);
  await assert.rejects(host.discard(savedRevision), /STALE/); assert.equal(undos, 1);
  badDigest = false;
+ const unreadable = create({}, 'one.yaml', editor, { ...source, read: async () => { throw Error('TEMPLATE_UPDATE_PRECISION'); } });
+ await assert.rejects(unreadable.preview({}), /PRECISION/);
+ assert.ok(unreadable.discardRevision()); await unreadable.discard(unreadable.discardRevision()); assert.equal(undos, 2);
  const wrong = create({}, 'other.yaml', editor, source); await assert.rejects(wrong.preview({}), /SESSION/);
  console.log('PASS: actual update Host retains personal edits, gates unresolved/unvalidated drafts, preserves opaque receipt and consumes once');
 })().catch(error => { console.error(error); process.exitCode = 1; });

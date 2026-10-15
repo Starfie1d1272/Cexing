@@ -51,6 +51,7 @@ export function createTemplateUpdateHost(context: common.Context, profileId: str
         if (epoch !== generation || loaded.profileId !== profileId || loaded.revision.length === 0) {
           throw new Error('TEMPLATE_UPDATE_SESSION');
         }
+        discardSession = loaded;
         const inputs = await source.read(loaded);
         if (epoch !== generation) { throw new Error('TEMPLATE_UPDATE_CANCELLED'); }
         session = loaded; discardSession = loaded;
