@@ -1,12 +1,20 @@
 // Shared lifecycle runner supplies production modules and real Go RPC.
 const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
 const ts=require('./transpile-arkts.cjs');
+const ui=require('./ui-fixtures.cjs');
 function page(r,ctx,file){
- const presentation={exports:{},require:n=>n==='./Settings'?r.load('Settings'): {}};
+ // Load the real presenter with shipped string resources; only its unused
+ // platform I/O dependencies are substituted in this presentation sandbox.
+ const presentation={exports:{},...ui.globals,require:n=>{
+  if(n==='./UiText')return ui.module;
+  if(n==='./Settings'||n==='./ProfileApplyFeedback')return r.load(n.slice(2));
+  if(n==='./GeoDataAssets'||n==='libentry.so'||n==='@kit.AbilityKit')return {};
+  throw Error('Unexpected presentation dependency '+n);
+ }};
  vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.resolve(__dirname,'../../cexing/entry/src/main/ets/lib/CoreValidator.ets'),'utf8')).outputText,presentation);
  const source=fs.readFileSync(path.resolve(__dirname,'../../cexing/entry/src/main/ets/pages/RuleDnsEditorPage.ets'),'utf8');
  const body=(source.slice(0,source.indexOf('  build()'))+'\n}').split('\n').map(line=>line.trimStart().startsWith('@')?line.replace(/@\w+(?:\([^\n)]*\))?\s*/g,''):line).join('\n').replace('export struct ','export class ');
- const box={exports:{},getContext:()=>ctx,require:n=>{
+ const box={exports:{},...ui.globals,getContext:()=>ctx,require:n=>{
   if(n==='./NativeTheme'||n==='./RuleDnsEditForm')return {};
   if(n==='../lib/CoreValidator')return presentation.exports;
   if(n.startsWith('../lib/'))return r.load(n.slice('../lib/'.length));
