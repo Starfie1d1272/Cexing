@@ -6,6 +6,7 @@ import { RegionPlan } from './EffectiveVersions';
 import { TemplateSnapshot } from './TemplateUpdates';
 
 export interface EditOperation {
+  templateId?: string;
   id: string;
   kind: string;
   section: string;
@@ -35,6 +36,7 @@ export interface EditIntent {
   operations: EditOperation[];
   smartGroups?: Record<string, boolean>;
   template?: TemplatePlan;
+  templateArchives?: Record<string, TemplatePlan>;
 }
 export interface EditorProviderRef { id: string; name: string; type?: string; state: string; count?: number; }
 export interface EditableItem {
@@ -73,12 +75,25 @@ interface EditorReadRequest {
   regionPlan?: RegionPlan | null;
   overrides?: string;
 }
+export interface TemplateSwitchResult { intent?: EditIntent; dependentCount: number; }
+
 export namespace ConfigEditor {
   /** ArkTS does not structurally assign the wizard's distinct TemplatePlan. */
   export function templatePlan(templateId: string, version: number, targetGroup?: string,
     region?: RegionPlan, replaceRules?: boolean): TemplatePlan {
     return { templateId: templateId, version: version, targetGroup: targetGroup,
       region: region, replaceRules: replaceRules };
+  }
+
+  export async function switchTemplate(context: common.Context, intent: EditIntent, next: TemplatePlan,
+    pauseDependents: boolean = false): Promise<TemplateSwitchResult> {
+    const raw = await core.versionAction(context.filesDir, JSON.stringify({ op: 'template-switch-plan',
+      intent: intent, next: next, pauseDependents: pauseDependents }));
+    const reply = JSON.parse(raw) as Record<string, Object>;
+    const count = reply['dependentCount'] as number;
+    if (reply['error'] !== undefined || !Number.isSafeInteger(count) || count < 0 || count > 512 ||
+      (count === 0 && reply['intent'] === undefined)) { throw new Error('TEMPLATE_SWITCH_INVALID'); }
+    return { intent: reply['intent'] as EditIntent | undefined, dependentCount: count };
   }
 
   /** Explicit editor list: private names/references, never a default preview. */

@@ -6,7 +6,7 @@ const host = { exports: {}, require: () => ({}) };
 vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(__dirname,'../cexing/entry/src/main/ets/lib/RuleDnsForms.ets'),'utf8')).outputText,host);
 const input=JSON.parse(fs.readFileSync(0,'utf8'));
 const f=host.exports.RuleDnsForms;
-const draftHost={exports:{},require:()=>({})};
+const draftHost={exports:{},require:()=>require('./ci/edit-operation-scope.cjs')};
 vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(__dirname,'../cexing/entry/src/main/ets/lib/RuleDnsDraft.ets'),'utf8')).outputText,draftHost);
 let intent={schemaVersion:1,revision:'forms-fixture',sourceRevision:input.sourceRevision,
  operations:input.variant==='hosts' || input.variant==='match' ? [] : [f.moveRule('move',input.rule,input.before,input.match),f.recommendedDns(input.dns)]};

@@ -64,6 +64,17 @@ func coreVersionAction(home, input string) string {
 	if json.Unmarshal([]byte(input), &diagnostic) == nil && (diagnostic.Op == "diagnostics-record" || diagnostic.Op == "diagnostics-export") {
 		return coreDiagnosticAction(home, input)
 	}
+	if diagnostic.Op == "template-switch-plan" {
+		result, err := configpipeline.DecodeTemplateSwitch(input)
+		if err != nil {
+			return `{"error":"TEMPLATE_SWITCH_INVALID"}`
+		}
+		output, err := json.Marshal(result)
+		if err != nil {
+			return `{"error":"TEMPLATE_SWITCH_INVALID"}`
+		}
+		return string(output)
+	}
 	if diagnostic.Op == "template-update-preview" {
 		return coreTemplateUpdateAction(input, home)
 	}

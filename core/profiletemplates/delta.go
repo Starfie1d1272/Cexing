@@ -58,6 +58,10 @@ func EncodeDelta(ctx context.Context, compiler configpipeline.Compiler, request 
 	}
 	kept := []configpipeline.EditOperation{}
 	for _, op := range intent.Operations {
+		if op.TemplateID != "" && op.TemplateID != intent.Template.TemplateID {
+			kept = append(kept, op)
+			continue
+		}
 		if !owned[op.Target] && !strings.HasPrefix(op.ID, deltaPrefix) {
 			kept = append(kept, op)
 		}

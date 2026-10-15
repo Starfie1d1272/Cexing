@@ -2,7 +2,7 @@ const uiFixture=require('./ci/ui-fixtures.cjs');
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const ts=require('./ci/transpile-arkts.cjs');
 const read=name=>fs.readFileSync(`cexing/entry/src/main/ets/${name}`,'utf8');
-function load(source,modules,extra={}){const box={exports:{},...uiFixture.globals,require:n=>{if(n.endsWith('/UiText'))return uiFixture.module;assert.ok(n in modules,n);return modules[n];},...extra};vm.runInNewContext(ts.transpileModule(source).outputText,box);return box.exports;}
+function load(source,modules,extra={}){const box={exports:{},...uiFixture.globals,require:n=>{if(n.endsWith('/EditOperationScope'))return require('./ci/edit-operation-scope.cjs');if(n.endsWith('/UiText'))return uiFixture.module;assert.ok(n in modules,n);return modules[n];},...extra};vm.runInNewContext(ts.transpileModule(source).outputText,box);return box.exports;}
 const feedback=load(read('lib/ProfileApplyFeedback.ets'),{'./ProfileStore':{},'./EffectiveVersions':{},'./ProfileRegionChoices':{},'./VpnController':{}});
 const text=load(read('lib/RuleDnsText.ets'),{'./ProfileApplyFeedback':feedback});
 const forms=load(read('lib/RuleDnsForms.ets'),{}),drafts=load(read('lib/RuleDnsDraft.ets'),{});
@@ -55,5 +55,10 @@ let dialog=null,dialogs=0;
  let hosts=drafts.RuleDnsDraft.put({schemaVersion:1,revision:'r',sourceRevision:'s',operations:[]},{id:'host-first',kind:'update',section:'hosts',target:'host-id',expected:'original-host',value:'192.0.2.1'});
  hosts=drafts.RuleDnsDraft.put(hosts,{id:'host-second',kind:'update',section:'hosts',target:'host-id',expected:'projected-host',value:'192.0.2.2'});
  assert.equal(hosts.operations.length,1);assert.equal(hosts.operations[0].expected,'original-host');assert.equal(hosts.operations[0].value,'192.0.2.2');
+ page.busy=false; page.active=true; page.selected={item:{id:'dns'},value:{}};
+ const sleepingDns={id:'sleep-dns',kind:'update',section:'dns',templateId:'region',patch:{nameserver:['sleep']},preconditions:{nameserver:'guard'}};
+ page.intent={schemaVersion:1,revision:'r',sourceRevision:'s',template:{templateId:'original'},operations:[sleepingDns,{id:'live-dns',kind:'update',section:'dns',patch:{nameserver:['live']},preconditions:{nameserver:'guard'}}]};
+ let restoredDns; page.preview=async next=>{restoredDns=clone(next);}; page.preset(false);
+ assert.deepEqual(restoredDns.operations,[sleepingDns],'DNS restore leaves inactive template edits intact');
  console.log('PASS: unified EditorDraftHost load/target/save/preview/digest-bound apply/undo, names, repeats, stale view and retained source preconditions');
 })().catch(e=>{console.error(e);process.exitCode=1;});

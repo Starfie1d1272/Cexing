@@ -170,6 +170,14 @@ export struct TemplateWizard {
       this.option('region', UiText.get($r('app.string.template_region')))
       this.option('ai', UiText.get($r('app.string.template_ai')))
       this.option('automatic', UiText.get($r('app.string.template_automatic')))
+      if ((this.view.dependencies ?? 0) > 0) {
+        Text(UiText.get($r('app.string.template_dependents'), this.view.dependencies ?? 0)).fontSize(14).fontColor(UI.muted)
+        Row({ space: 8 }) {
+          Button(UiText.get($r('app.string.template_edit_dependents'))).layoutWeight(1).constraintSize({ minHeight: 48 }).onClick(() => this.close())
+          Button(UiText.get($r('app.string.template_pause_dependents'))).layoutWeight(1).constraintSize({ minHeight: 48 })
+            .enabled(!this.view.busy).onClick(() => this.model?.inspect(true))
+        }.width('100%')
+      }
       if (this.view.templateId !== 'original' && this.view.ready === true) {
         Text(this.view.templateId === 'region' ? UiText.get($r('app.string.template_selector')) : UiText.get($r('app.string.template_exit'))).fontSize(14).fontColor(UI.muted)
         Select((this.view.templateId === 'region' ? this.view.selectors :

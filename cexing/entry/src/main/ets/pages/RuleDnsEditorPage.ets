@@ -1,3 +1,4 @@
+import { isEditOperationActive } from '../lib/EditOperationScope';
 import { UiText } from '../lib/UiText';
 import { RuleDnsText } from '../lib/RuleDnsText';
 import { CoreValidator } from '../lib/CoreValidator';
@@ -216,7 +217,7 @@ export struct RuleDnsEditorPage {
     else {
       this.undo = JSON.parse(JSON.stringify(this.intent)) as EditIntent;
       const next = JSON.parse(JSON.stringify(this.intent)) as EditIntent;
-      next.operations = next.operations.filter((op: EditOperation) => op.section !== 'dns');
+      next.operations = next.operations.filter((op: EditOperation) => !isEditOperationActive(next, op) || op.section !== 'dns');
       this.preview(next);
     }
   }

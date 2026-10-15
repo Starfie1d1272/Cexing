@@ -52,6 +52,7 @@ const reset=()=>{state={pending:''};groups={A:{now:'manual-a',all:['manual-a','m
  original:()=>'',overlay:()=>'',globalMerge:()=>''}},
  './ProfileStore':{ProfileStore:{getActiveFile:()=> 'one.yaml',runtimeRegionChoice:()=>saved,saveRuntimeRegionChoice:(_c,_f,_v,s)=>saved=clone(s)}},
  './CoreApi':{CoreApi:{getProxies:async()=>live,selectProxy:async(g,n)=>{selected.push([g,n]);live[g].now=n;return true}}}};
+ const scope={exports:{}};vm.runInNewContext(ts.transpileModule(fs.readFileSync('cexing/entry/src/main/ets/lib/EditOperationScope.ets','utf8')).outputText,scope);mods['./EditOperationScope']=scope.exports;
  const adapter={exports:{},require:k=>mods[k]??{}};
  vm.runInNewContext(ts.transpileModule(fs.readFileSync('cexing/entry/src/main/ets/lib/ProfileRegionChoices.ets','utf8')).outputText,adapter);
  assert.equal(await adapter.exports.ProfileRegionChoices.resume({},'one.yaml',version,()=>true,async()=>true),true);
