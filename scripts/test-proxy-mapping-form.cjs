@@ -116,3 +116,17 @@ candidate = edits.remove(intent, 'proxies', node, 'delete-1');
 assert.equal(candidate.operations[0].kind, 'delete');
 assert.equal(edits.restore(candidate, 'proxies', node.item.id).operations.length, 0);
 console.log('PASS: minimal field preconditions, explicit rename/references operation, coalescing and reversible delete intents');
+
+const paused = edits.disableNode(edits.mapping(intent, node, changed.finish(), 'edit-for-pause', 'missing-from-compiler'), node, 'pause');
+assert.equal(paused.operations.map(op => op.kind).join(','), 'update,disable,rename');
+assert.equal(paused.operations[1].expected, node.item.revision);
+assert.equal(edits.nodeDisabled(paused, node.item.id), true);
+const resumed = edits.enableNode(paused, node.item.id);
+assert.equal(resumed.operations.map(op => op.kind).join(','), 'update,rename');
+assert.equal(intent.operations.length, 0, 'pause helpers cannot mutate the captured intent');
+const addedPause = edits.disableNode({ ...intent, operations: [{ id: 'addition', kind: 'add', section: 'proxies', name: 'added', value: {} }] },
+  { item: { id: 'actual-compiler-id', revision: 'actual-compiler-revision' } }, 'addition:disable');
+assert.equal(edits.nodeDisabled(addedPause, 'addition', true), true);
+assert.equal(edits.removeAddition(addedPause, 'addition').operations.length, 0, 'deleting an added node removes its bound pause');
+assert.equal(edits.enableNode(addedPause, 'addition', true).operations.length, 1, 'resuming keeps the original addition');
+console.log('PASS: node disable preserves field/rename operations, opaque target revision, addition identity and enable/delete restoration');

@@ -79,6 +79,24 @@ const Model = sandbox.exports.ProfileProxyEditorModel;
   assert.equal(model.publishedProviderName({ item: { id: 'added-source' }, name: 'draft-name' }, true), '', 'draft additions cannot query a published provider');
   publishedIntent = { operations: [{ kind: 'add', id: 'added-source', section: 'proxy-providers', name: 'published-name' }] };
   assert.equal(model.publishedProviderName({ item: { id: 'added-source' }, name: 'draft-name' }, true), 'published-name');
+  model.intent = { schemaVersion: 1, sourceRevision: 'source-v2', revision: 'draft', operations: [
+    { id: 'caller-add-id', kind: 'add', section: 'proxies', name: 'added-node', value: { name: 'added-node', type: 'ss' } },
+    { id: 'pause', kind: 'disable', section: 'proxies', target: 'compiler-node' },
+    { id: 'rename', kind: 'rename', section: 'proxies', target: 'other-node', name: 'other-renamed' } ] };
+  read = async (_ctx, _raw, _merge, _expected, _global, intent) => {
+    assert.equal(intent.operations.length, 1, 'disable target is read at the real compiler insertion point');
+    return { sections: [{ section: 'proxies', items: [{ id: 'compiler-node', name: 'added-node' }] }] };
+  };
+  target = async (_ctx, _raw, _merge, _expected, section, id, _global, intent) => {
+    assert.equal(section, 'proxies'); assert.equal(id, 'compiler-node'); assert.equal(intent.operations.length, 1);
+    return { item: { id, revision: 'compiler-new-revision' }, value: { password: 'synthetic' } };
+  };
+  assert.equal((await model.nodeTarget('caller-add-id', true)).item.revision, 'compiler-new-revision');
+  await assert.rejects(model.nodeTarget('missing-add', true), /NODE_OPERATION_CHANGED/);
+  let finishAddedList; read = () => new Promise(resolve => { finishAddedList = resolve; });
+  const lateAdded = model.nodeTarget('caller-add-id', true); model.cancel(); finishAddedList({ sections: [] });
+  assert.equal(await lateAdded, null);
+  read = async () => ({ sourceRevision: 'source-v2', missingFieldRevision: 'absent-hash', sections: [] });
   model.intent = null; publishedIntent = null;
   let finishTarget;
   target = () => new Promise(resolve => { finishTarget = resolve; });

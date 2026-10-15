@@ -107,6 +107,29 @@ export class ProfileProxyEditorModel {
     return target;
   }
 
+  async nodeTarget(id: string, addition: boolean): Promise<EditTarget | null> {
+    if (!addition) { return await this.target('proxies', id); }
+    if (this.ticket === null || this.busy) { return null; }
+    const request = ++this.generation; const ticket = this.ticket;
+    this.check(ticket);
+    const intent = this.workingIntent(); intent.disabled = false;
+    const added = intent.operations.find((op) => op.id === id && op.kind === 'add' && op.section === 'proxies');
+    if (added === undefined) { throw new Error('NODE_OPERATION_CHANGED'); }
+    // Obtain the compiler identity/revision at the disable insertion point.
+    // Never guess an ID from a display name or hash private values in the UI.
+    intent.operations = intent.operations.filter((op) => op.kind !== 'disable' && op.kind !== 'rename');
+    const snapshot = await ConfigEditor.list(this.context, this.original, this.overlay,
+      ticket.activeVersion, undefined, intent, this.region);
+    if (request !== this.generation) { return null; }
+    this.check(ticket);
+    const item = snapshot.sections.find((part) => part.section === 'proxies')?.items.find((entry) => entry.name === added.name);
+    if (item === undefined) { throw new Error('NODE_OPERATION_CHANGED'); }
+    const target = await ConfigEditor.target(this.context, this.original, this.overlay,
+      ticket.activeVersion, 'proxies', item.id, undefined, intent, this.region);
+    if (request !== this.generation) { return null; }
+    this.check(ticket); return target;
+  }
+
   /** Render the compiler's current projection, including references rewritten
    * by another item's rename. Keep the authoring target for field conditions. */
   async presentTarget(section: string, baseline: EditTarget): Promise<EditTarget | null> {

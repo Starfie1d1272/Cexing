@@ -519,6 +519,30 @@
     {
       "name": "proxy_form_open_original",
       "value": "Edit original configuration"
+    },
+    {
+      "name": "proxy_editor_disable_node",
+      "value": "Disable"
+    },
+    {
+      "name": "proxy_editor_enable_node",
+      "value": "Enable"
+    },
+    {
+      "name": "proxy_editor_disable_node_risk",
+      "value": "Connections using this node will be rejected."
+    },
+    {
+      "name": "proxy_editor_disable_node_named",
+      "value": "Disable %s"
+    },
+    {
+      "name": "proxy_editor_enable_node_named",
+      "value": "Enable %s"
+    },
+    {
+      "name": "proxy_editor_node_state_failed",
+      "value": "Cannot change node state. Reload and retry."
     }
   ]
 }
