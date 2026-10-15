@@ -1,3 +1,4 @@
+const uiFixture = require('./ci/ui-fixtures.cjs');
 // Actual SDK-transpiled Smart page/client behavior; no native rendering/device claim.
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -10,8 +11,9 @@ function compile(file, modules, extras = {}, page = false) {
   if (page) source = source.slice(0, source.indexOf('  build()')) + '\n}';
   source = source.split('\n').map(line => line.trimStart().startsWith('@') ?
     line.replace(/@\w+(?:\([^\n)]*\))?\s*/g, '') : line).join('\n').replace(/export struct /g, 'export class ');
-  const sandbox = { exports: {}, require: name => { assert.ok(name in modules, name); return modules[name]; },
+  const sandbox = { exports: {}, require: name => { if (name.endsWith('/UiText')) return uiFixture.module; assert.ok(name in modules, name); return modules[name]; },
     getContext: () => ({}), ArrayBuffer, Uint8Array, Promise, Error, ...extras };
+  Object.assign(sandbox, uiFixture.globals);
   vm.runInNewContext(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS,
     target: ts.ScriptTarget.ES2020 } }).outputText, sandbox);
   return sandbox.exports;

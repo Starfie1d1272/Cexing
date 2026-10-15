@@ -1,7 +1,8 @@
+const uiFixture = require('./ci/ui-fixtures.cjs');
 // Actual page + snapshot store methods; no physical picker/share claim.
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const ts=require('./ci/transpile-arkts.cjs');
-function load(file,modules={},extra={}){const c={exports:{},require:k=>{assert.ok(k in modules,k);return modules[k];},...extra};vm.runInNewContext(ts.transpileModule(fs.readFileSync(file,'utf8')).outputText,c);return c.exports;}
+function load(file,modules={},extra={}){const c={exports:{},require:k=>{if(k.endsWith('/UiText'))return uiFixture.module;assert.ok(k in modules,k);return modules[k];},...extra};Object.assign(c,uiFixture.globals);vm.runInNewContext(ts.transpileModule(fs.readFileSync(file,'utf8')).outputText,c);return c.exports;}
 const failures=load('cexing/entry/src/main/ets/lib/ConnectionFailure.ets');
 const view=load('cexing/entry/src/main/ets/lib/DiagnosticsBundleView.ets');
 function packet(marker,count=1){return JSON.stringify({schema:'cexing-support-bundle/1',sources:[{name:'host-current',status:'available',journal:{events:Array(count).fill({}),dropped:3,writeFailures:2,logSuppressed:1},exportOmitted:4,unpersistedEvents:1},{name:'host-previous',status:'available',journal:{events:[{},{}]}},{name:'kernel-previous',status:'invalid'}],exportContextCollected:false,selectedVersion:{effectiveVersion:'unknown'},checkCoverage:{controller:[{}]},marker,padding:'x'.repeat(250000)});}
@@ -35,8 +36,8 @@ const modules={'../lib/CoreApi':{CoreApi:{getProxies:()=>holdProxy?new Promise(r
 };
 const src=fs.readFileSync('cexing/entry/src/main/ets/pages/DiagnosticsPage.ets','utf8');
 const methods=(src.slice(0,src.indexOf('  build()'))+'\n}').split('\n').map(l=>l.trimStart().startsWith('@')?l.replace(/@\w+(?:\([^\n)]*\))?\s*/g,''):l).join('\n').replace('export struct ','export class ');
-const c={exports:{},require:k=>{assert.ok(k in modules,k);return modules[k];},getContext:()=>context,Date,Promise,setTimeout:()=>1,clearTimeout(){}};
-vm.runInNewContext(ts.transpileModule(methods).outputText,c);
+const c={exports:{},require:k=>{if(k.endsWith('/UiText'))return uiFixture.module;assert.ok(k in modules,k);return modules[k];},getContext:()=>context,Date,Promise,setTimeout:()=>1,clearTimeout(){}};
+Object.assign(c,uiFixture.globals);vm.runInNewContext(ts.transpileModule(methods).outputText,c);
 const flush=async()=>{for(let i=0;i<12;i++)await Promise.resolve();};
 const readURI=uri=>files.get(uri.slice('file://'.length)).toString();
 (async()=>{

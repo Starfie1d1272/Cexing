@@ -1,8 +1,10 @@
+const uiFixture = require('./ci/ui-fixtures.cjs');
 // Execute the actual display-only preference editor, never a real Controller/device.
 const assert = require('node:assert/strict'), fs = require('node:fs'), vm = require('node:vm');
 const ts = require('./ci/transpile-arkts.cjs');
 function compile(source, modules) {
-  const c = { exports: {}, require: key => { assert.ok(key in modules, key); return modules[key]; }, getContext: () => ({}) };
+  const c = { exports: {}, require: key => { if (key.endsWith('/UiText')) return uiFixture.module; assert.ok(key in modules, key); return modules[key]; }, getContext: () => ({}) };
+  Object.assign(c, uiFixture.globals);
   vm.runInNewContext(ts.transpileModule(source).outputText, c); return c.exports;
 }
 const strategy = compile(fs.readFileSync('cexing/entry/src/main/ets/lib/LiveViewStrategy.ets', 'utf8'), {});

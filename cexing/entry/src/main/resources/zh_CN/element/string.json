@@ -7,6 +7,1650 @@
     {
       "name": "EntryAbility_desc",
       "value": "策星原生代理客户端"
+    },
+    {
+      "name": "action_retry",
+      "value": "重试"
+    },
+    {
+      "name": "action_retrying",
+      "value": "重试中…"
+    },
+    {
+      "name": "action_cancel",
+      "value": "取消"
+    },
+    {
+      "name": "action_settings",
+      "value": "设置"
+    },
+    {
+      "name": "action_reconnect",
+      "value": "重连"
+    },
+    {
+      "name": "action_connect_vpn",
+      "value": "连接 VPN"
+    },
+    {
+      "name": "action_disconnect",
+      "value": "断开连接"
+    },
+    {
+      "name": "action_cancel_connect",
+      "value": "取消连接"
+    },
+    {
+      "name": "action_retry_disconnect",
+      "value": "重试断开"
+    },
+    {
+      "name": "action_add_profile",
+      "value": "添加订阅"
+    },
+    {
+      "name": "action_manage",
+      "value": "管理"
+    },
+    {
+      "name": "nav_connection",
+      "value": "连接"
+    },
+    {
+      "name": "nav_profiles",
+      "value": "订阅"
+    },
+    {
+      "name": "nav_traffic",
+      "value": "流量"
+    },
+    {
+      "name": "nav_diagnostics",
+      "value": "诊断"
+    },
+    {
+      "name": "nav_resources",
+      "value": "资源"
+    },
+    {
+      "name": "nav_panel",
+      "value": "控制面板"
+    },
+    {
+      "name": "nav_network",
+      "value": "网络设置"
+    },
+    {
+      "name": "nav_core",
+      "value": "内核设置"
+    },
+    {
+      "name": "nav_profile_details",
+      "value": "订阅详情"
+    },
+    {
+      "name": "nav_original",
+      "value": "原始配置"
+    },
+    {
+      "name": "state_connected",
+      "value": "已连接"
+    },
+    {
+      "name": "state_connecting",
+      "value": "连接中"
+    },
+    {
+      "name": "state_disconnecting",
+      "value": "断开中"
+    },
+    {
+      "name": "state_disconnected",
+      "value": "未连接"
+    },
+    {
+      "name": "state_connect_failed",
+      "value": "连接失败"
+    },
+    {
+      "name": "state_stop_unknown",
+      "value": "断开未确认"
+    },
+    {
+      "name": "state_not_imported",
+      "value": "未导入"
+    },
+    {
+      "name": "state_selected",
+      "value": "已选中"
+    },
+    {
+      "name": "state_ready_connect",
+      "value": "准备连接"
+    },
+    {
+      "name": "state_system_connecting",
+      "value": "正在建立系统连接"
+    },
+    {
+      "name": "state_system_disconnecting",
+      "value": "正在结束系统会话"
+    },
+    {
+      "name": "state_connected_actions",
+      "value": "可查看流量或检查连接"
+    },
+    {
+      "name": "state_retry_diagnostics",
+      "value": "可重试或前往诊断"
+    },
+    {
+      "name": "state_stop_diagnostics",
+      "value": "请重试断开，或前往诊断检查"
+    },
+    {
+      "name": "failure_stop_unknown",
+      "value": "断开未确认，请检查系统 VPN 状态后重试"
+    },
+    {
+      "name": "failure_prepare_config",
+      "value": "当前配置未能生成，请检查配置后重试"
+    },
+    {
+      "name": "failure_state_unknown",
+      "value": "连接状态待核对，请先重试断开"
+    },
+    {
+      "name": "failure_mode_change",
+      "value": "模式切换失败"
+    },
+    {
+      "name": "failure_mode_save",
+      "value": "模式已切换，保存失败，请重试"
+    },
+    {
+      "name": "failure_config_read",
+      "value": "配置读取失败，请检查后重试"
+    },
+    {
+      "name": "failure_connect_not_started",
+      "value": "连接未启动，请重试"
+    },
+    {
+      "name": "failure_save",
+      "value": "保存失败，请重试"
+    },
+    {
+      "name": "failure_settings_read",
+      "value": "设置读取失败，请重试"
+    },
+    {
+      "name": "mode_rule",
+      "value": "规则"
+    },
+    {
+      "name": "mode_global",
+      "value": "全局"
+    },
+    {
+      "name": "mode_direct",
+      "value": "直连"
+    },
+    {
+      "name": "home_connection_state",
+      "value": "连接状态"
+    },
+    {
+      "name": "home_upload",
+      "value": "↑ 上传"
+    },
+    {
+      "name": "home_download",
+      "value": "↓ 下载"
+    },
+    {
+      "name": "home_view_traffic",
+      "value": "查看流量"
+    },
+    {
+      "name": "home_current_profile",
+      "value": "当前订阅"
+    },
+    {
+      "name": "home_check_connection",
+      "value": "检查连接"
+    },
+    {
+      "name": "home_check_description",
+      "value": "检查连接状态和本机服务"
+    },
+    {
+      "name": "home_import_profile",
+      "value": "导入订阅"
+    },
+    {
+      "name": "settings_running",
+      "value": "运行"
+    },
+    {
+      "name": "settings_auto_restore",
+      "value": "打开应用自动恢复"
+    },
+    {
+      "name": "settings_background",
+      "value": "后台运行"
+    },
+    {
+      "name": "settings_background_hint",
+      "value": "关闭页面后保持会话"
+    },
+    {
+      "name": "settings_system_connection",
+      "value": "系统与连接"
+    },
+    {
+      "name": "settings_network_hint",
+      "value": "按应用分流 · IPv6"
+    },
+    {
+      "name": "settings_smart_hint",
+      "value": "统计策略 · 离线模型"
+    },
+    {
+      "name": "settings_advanced",
+      "value": "高级"
+    },
+    {
+      "name": "settings_auto_update",
+      "value": "自动更新订阅"
+    },
+    {
+      "name": "settings_update_hint",
+      "value": "VPN 运行期间检查"
+    },
+    {
+      "name": "settings_interval",
+      "value": "更新间隔"
+    },
+    {
+      "name": "settings_log_file",
+      "value": "记录内核日志"
+    },
+    {
+      "name": "settings_next_start",
+      "value": "下次启动生效"
+    },
+    {
+      "name": "settings_background_enabled",
+      "value": "已开启后台运行"
+    },
+    {
+      "name": "settings_background_denied",
+      "value": "授权失败，无法开启"
+    },
+    {
+      "name": "settings_enabled",
+      "value": "已开启"
+    },
+    {
+      "name": "settings_interval_hint",
+      "value": "自动更新订阅的检查周期"
+    },
+    {
+      "name": "settings_saved_next",
+      "value": "已保存，下次连接生效"
+    },
+    {
+      "name": "settings_reconnect_title",
+      "value": "重连应用设置？"
+    },
+    {
+      "name": "settings_reconnect_warning",
+      "value": "会短暂断开 VPN。"
+    },
+    {
+      "name": "settings_reconnecting",
+      "value": "正在重连"
+    },
+    {
+      "name": "settings_reconnect_apply",
+      "value": "重连应用"
+    },
+    {
+      "name": "background_acquired",
+      "value": "已获后台任务"
+    },
+    {
+      "name": "background_disabled",
+      "value": "后台运行已关闭"
+    },
+    {
+      "name": "background_requesting",
+      "value": "正在申请后台任务"
+    },
+    {
+      "name": "background_failed",
+      "value": "后台任务申请失败"
+    },
+    {
+      "name": "background_revoked",
+      "value": "系统已撤销后台任务"
+    },
+    {
+      "name": "background_user_stopped",
+      "value": "后台任务已由用户关闭"
+    },
+    {
+      "name": "background_suspended",
+      "value": "后台任务已暂停"
+    },
+    {
+      "name": "background_unknown",
+      "value": "后台任务尚未确认"
+    },
+    {
+      "name": "background_notification_ready",
+      "value": "实况窗已发布"
+    },
+    {
+      "name": "background_notification_failed",
+      "value": "实况窗发布失败"
+    },
+    {
+      "name": "background_notification_unknown",
+      "value": "实况窗尚未确认"
+    },
+    {
+      "name": "background_limited",
+      "value": "后台运行受限"
+    },
+    {
+      "name": "background_still_limited",
+      "value": "后台运行仍受限"
+    },
+    {
+      "name": "failure_start_detail",
+      "value": "启动失败：%s"
+    },
+    {
+      "name": "home_traffic_description",
+      "value": "流量 上传 %s 下载 %s"
+    },
+    {
+      "name": "settings_hours",
+      "value": "%d 小时"
+    },
+    {
+      "name": "a11y_loading_settings",
+      "value": "正在读取设置"
+    },
+    {
+      "name": "a11y_unsaved_settings",
+      "value": "请先保存设置"
+    },
+    {
+      "name": "a11y_current_profile",
+      "value": "当前订阅：%s"
+    },
+    {
+      "name": "smart_after_connect",
+      "value": "连接后查看智能选择"
+    },
+    {
+      "name": "smart_connect_first",
+      "value": "先连接 VPN，再查看 Smart 策略组。"
+    },
+    {
+      "name": "state_not_checked",
+      "value": "尚未检查"
+    },
+    {
+      "name": "smart_no_evidence",
+      "value": "尚无模型参与证据"
+    },
+    {
+      "name": "state_unavailable",
+      "value": "暂时无法读取状态"
+    },
+    {
+      "name": "smart_wait_config",
+      "value": "等待读取运行配置"
+    },
+    {
+      "name": "smart_retry_status",
+      "value": "请稍后重试；仍无法读取时可检查本机服务。"
+    },
+    {
+      "name": "smart_wait_predictions",
+      "value": "等待读取有效预测次数"
+    },
+    {
+      "name": "smart_not_used",
+      "value": "当前配置未使用智能选择"
+    },
+    {
+      "name": "smart_enabled",
+      "value": "智能选择已启用"
+    },
+    {
+      "name": "smart_profile_strategy",
+      "value": "可在订阅详情设置策略。"
+    },
+    {
+      "name": "smart_panel_strategy",
+      "value": "可在控制面板查看 Smart 策略组与当前选项。"
+    },
+    {
+      "name": "smart_choose_strategy",
+      "value": "请按订阅的组类型选择策略"
+    },
+    {
+      "name": "smart_model_strategy",
+      "value": "模型策略"
+    },
+    {
+      "name": "smart_statistics",
+      "value": "统计策略"
+    },
+    {
+      "name": "smart_model_loaded",
+      "value": "模型已加载"
+    },
+    {
+      "name": "smart_model_missing",
+      "value": "模型缺失，使用统计策略"
+    },
+    {
+      "name": "smart_model_invalid",
+      "value": "模型无效，使用统计策略"
+    },
+    {
+      "name": "smart_model_loading",
+      "value": "模型加载中"
+    },
+    {
+      "name": "smart_model_not_requested",
+      "value": "尚未请求加载模型"
+    },
+    {
+      "name": "smart_predictions_zero",
+      "value": "本进程有效预测 0 次"
+    },
+    {
+      "name": "smart_prediction_evidence",
+      "value": "已记录有效预测；计数由全部 Smart 组累计，不对应某一次网站访问。"
+    },
+    {
+      "name": "smart_prediction_none",
+      "value": "尚未记录有效预测。模型加载后，仍需 Smart 组被使用并产生符合条件的样本。"
+    },
+    {
+      "name": "smart_applied",
+      "value": "已应用到当前运行配置"
+    },
+    {
+      "name": "smart_saved_next",
+      "value": "已保存，下次连接时生效"
+    },
+    {
+      "name": "smart_import_failed",
+      "value": "导入失败：请核对官方 Model.bin 版本、文件摘要和 VPN 连接"
+    },
+    {
+      "name": "smart_installed_restart",
+      "value": "模型已校验安装，请重启应用使模型生效"
+    },
+    {
+      "name": "smart_installed",
+      "value": "模型已校验安装，可查看 Smart 组的模型策略状态"
+    },
+    {
+      "name": "smart_restart_title",
+      "value": "重启应用使模型生效？"
+    },
+    {
+      "name": "smart_restart_warning",
+      "value": "会断开 VPN 并重启整个应用；重新打开后请手动连接。"
+    },
+    {
+      "name": "smart_restart",
+      "value": "重启应用"
+    },
+    {
+      "name": "action_open_panel",
+      "value": "打开控制面板"
+    },
+    {
+      "name": "smart_auto_enable",
+      "value": "自动启用智能选择"
+    },
+    {
+      "name": "smart_restart_apply",
+      "value": "重启应用使模型生效"
+    },
+    {
+      "name": "action_collapse_details",
+      "value": "收起详情"
+    },
+    {
+      "name": "action_details",
+      "value": "详情"
+    },
+    {
+      "name": "smart_current_config",
+      "value": "当前配置"
+    },
+    {
+      "name": "smart_region_details",
+      "value": "地区策略在订阅详情中设置。"
+    },
+    {
+      "name": "resource_model",
+      "value": "离线模型"
+    },
+    {
+      "name": "smart_bundled_model",
+      "value": "官方模型已随安装包提供。模型加载与有效预测分别展示；模型不可用时使用统计策略。"
+    },
+    {
+      "name": "smart_official_model",
+      "value": "查看官方模型来源"
+    },
+    {
+      "name": "smart_manual_hint",
+      "value": "仅在需要手动恢复时导入官方 Model.bin；应用会校验文件。"
+    },
+    {
+      "name": "action_working",
+      "value": "处理中…"
+    },
+    {
+      "name": "smart_import_recovery",
+      "value": "手动导入模型（恢复用）"
+    },
+    {
+      "name": "strategy_unavailable",
+      "value": "暂时无法读取策略"
+    },
+    {
+      "name": "strategy_changed",
+      "value": "策略已变化，请重新选择"
+    },
+    {
+      "name": "strategy_updated",
+      "value": "已更新显示策略"
+    },
+    {
+      "name": "strategy_save_failed",
+      "value": "显示策略保存失败，请重试"
+    },
+    {
+      "name": "strategy_display",
+      "value": "实况窗显示策略"
+    },
+    {
+      "name": "strategy_auto",
+      "value": "自动"
+    },
+    {
+      "name": "action_saving",
+      "value": "保存中…"
+    },
+    {
+      "name": "action_apply",
+      "value": "应用"
+    },
+    {
+      "name": "resource_read_failed",
+      "value": "无法查看资源，请重试"
+    },
+    {
+      "name": "resource_restored",
+      "value": "已恢复"
+    },
+    {
+      "name": "resource_ready",
+      "value": "可用"
+    },
+    {
+      "name": "resource_missing",
+      "value": "未安装"
+    },
+    {
+      "name": "resource_invalid",
+      "value": "需要恢复"
+    },
+    {
+      "name": "action_restore",
+      "value": "恢复"
+    },
+    {
+      "name": "resource_geodata",
+      "value": "网络数据"
+    },
+    {
+      "name": "a11y_restore_stopped",
+      "value": "请先断开并确认停止"
+    },
+    {
+      "name": "a11y_expanded",
+      "value": "已展开"
+    },
+    {
+      "name": "a11y_collapsed",
+      "value": "已收起"
+    },
+    {
+      "name": "smart_group",
+      "value": "%s · %s"
+    },
+    {
+      "name": "smart_predictions",
+      "value": "本进程有效预测 %d 次（全部 Smart 组累计）"
+    },
+    {
+      "name": "smart_source_fallback",
+      "value": "请在浏览器打开 %s"
+    },
+    {
+      "name": "resource_restore_name",
+      "value": "恢复%s"
+    },
+    {
+      "name": "diag_not_checked",
+      "value": "尚未检查本机服务"
+    },
+    {
+      "name": "diag_checking",
+      "value": "正在检查…"
+    },
+    {
+      "name": "diag_evidence_failed",
+      "value": "本次检查证据未保存成功，请重试导出"
+    },
+    {
+      "name": "diag_proxy_unavailable",
+      "value": "测试代理列表未读取到，请连接后重试"
+    },
+    {
+      "name": "diag_preparing_export",
+      "value": "正在准备诊断支持包…"
+    },
+    {
+      "name": "diag_bundle_name",
+      "value": "策星诊断支持包"
+    },
+    {
+      "name": "diag_share_open",
+      "value": "已打开系统分享面板，请审核内容后选择接收应用"
+    },
+    {
+      "name": "diag_picker_type",
+      "value": "诊断支持包|.json"
+    },
+    {
+      "name": "diag_save_cancelled",
+      "value": "保存已取消，诊断包保留在应用中"
+    },
+    {
+      "name": "diag_saved",
+      "value": "诊断支持包已保存，请审核证据范围后提交"
+    },
+    {
+      "name": "diag_files_pending",
+      "value": "已有诊断文件仍在等待或保留，请先完成保存/分享或稍后重试"
+    },
+    {
+      "name": "diag_export_failed",
+      "value": "诊断包保存或分享未完成，可重试；历史证据保留"
+    },
+    {
+      "name": "diag_reachable",
+      "value": "本机服务可达"
+    },
+    {
+      "name": "diag_timeout",
+      "value": "检查超时"
+    },
+    {
+      "name": "diag_summary_copied",
+      "value": "脱敏摘要已复制"
+    },
+    {
+      "name": "diag_copy_failed",
+      "value": "复制失败，请重试"
+    },
+    {
+      "name": "diag_feedback_failed",
+      "value": "打开失败，请在 GitHub 仓库的问题页提交反馈"
+    },
+    {
+      "name": "diag_connection_check",
+      "value": "连接检查"
+    },
+    {
+      "name": "diag_local_service",
+      "value": "本机服务"
+    },
+    {
+      "name": "diag_retry_timeout",
+      "value": "请重试检查；若仍超时，请断开后重新连接。"
+    },
+    {
+      "name": "diag_collapse",
+      "value": "收起技术详情"
+    },
+    {
+      "name": "diag_details",
+      "value": "查看技术详情"
+    },
+    {
+      "name": "diag_check_scope",
+      "value": "这些检查分别验证本机 API、配置的 DNS 和所选代理；网站访问与系统隧道转发仍需单独确认。"
+    },
+    {
+      "name": "diag_check_dns",
+      "value": "检查 DNS"
+    },
+    {
+      "name": "diag_read_proxies",
+      "value": "读取测试代理列表"
+    },
+    {
+      "name": "diag_choose_proxy",
+      "value": "请选择测试代理"
+    },
+    {
+      "name": "diag_check_proxy",
+      "value": "检查代理连接"
+    },
+    {
+      "name": "diag_check_delay",
+      "value": "检查代理延迟"
+    },
+    {
+      "name": "diag_bandwidth_not_run",
+      "value": "带宽测速在本页未执行。"
+    },
+    {
+      "name": "diag_visit_site",
+      "value": "本机服务响应正常后，请打开网站确认网络访问；访问异常时可在控制面板查看日志。"
+    },
+    {
+      "name": "diag_kernel_ready",
+      "value": "内核已报告就绪"
+    },
+    {
+      "name": "diag_kernel_waiting",
+      "value": "等待内核报告就绪"
+    },
+    {
+      "name": "diag_share",
+      "value": "分享诊断包文件"
+    },
+    {
+      "name": "diag_copy_summary",
+      "value": "复制简短脱敏摘要"
+    },
+    {
+      "name": "diag_feedback",
+      "value": "打开 GitHub 反馈模板"
+    },
+    {
+      "name": "diag_check_service",
+      "value": "检查本机服务"
+    },
+    {
+      "name": "diag_save_bundle",
+      "value": "保存诊断支持包"
+    },
+    {
+      "name": "diag_evidence_scope",
+      "value": "本次诊断包的证据范围"
+    },
+    {
+      "name": "diag_title_connection",
+      "value": "代理连接"
+    },
+    {
+      "name": "diag_title_delay",
+      "value": "代理延迟"
+    },
+    {
+      "name": "diag_title_bandwidth",
+      "value": "带宽测速"
+    },
+    {
+      "name": "diag_credentials_failed",
+      "value": "连接信息不可用，请重新连接"
+    },
+    {
+      "name": "diag_auth_failed",
+      "value": "连接认证失败，请断开后重新连接"
+    },
+    {
+      "name": "diag_connect_first",
+      "value": "尚未执行，请先连接 VPN"
+    },
+    {
+      "name": "diag_proxy_first",
+      "value": "尚未执行，请先选择测试代理"
+    },
+    {
+      "name": "diag_bandwidth_disabled",
+      "value": "本页不执行带宽测速"
+    },
+    {
+      "name": "diag_skipped",
+      "value": "检查未执行，原因已记录在诊断包"
+    },
+    {
+      "name": "diag_unknown",
+      "value": "检查结果待确认，可保存诊断包排查"
+    },
+    {
+      "name": "diag_fact_host",
+      "value": "应用"
+    },
+    {
+      "name": "diag_fact_kernel",
+      "value": "内核"
+    },
+    {
+      "name": "diag_fact_current",
+      "value": "当前会话"
+    },
+    {
+      "name": "diag_fact_previous",
+      "value": "上一会话"
+    },
+    {
+      "name": "diag_fact_older",
+      "value": "更早会话"
+    },
+    {
+      "name": "diag_fact_no_evidence",
+      "value": "没有保留证据"
+    },
+    {
+      "name": "diag_fact_missing",
+      "value": "没有保留该会话证据，可能为首次启用或已轮转"
+    },
+    {
+      "name": "diag_fact_invalid",
+      "value": "证据文件损坏或超过限制"
+    },
+    {
+      "name": "diag_fact_unreadable",
+      "value": "证据无法读取"
+    },
+    {
+      "name": "diag_fact_environment",
+      "value": "应用环境快照未采集完整"
+    },
+    {
+      "name": "diag_fact_version",
+      "value": "有效配置版本未确认"
+    },
+    {
+      "name": "diag_fact_retention",
+      "value": "每个来源保留当前与两次历史进程会话；更早证据可能已轮转。"
+    },
+    {
+      "name": "diag_fact_bandwidth",
+      "value": "带宽测速需单独主动执行；本页仅提供低流量检查。"
+    },
+    {
+      "name": "diag_last_failure",
+      "value": "最近启动失败：%s"
+    },
+    {
+      "name": "diag_checked_at",
+      "value": "检查时间：%s"
+    },
+    {
+      "name": "diag_passed",
+      "value": "%s检查通过"
+    },
+    {
+      "name": "diag_error_code",
+      "value": "（错误码 %s）"
+    },
+    {
+      "name": "diag_failed",
+      "value": "检查失败%s，可保存诊断包排查"
+    },
+    {
+      "name": "diag_fact_label",
+      "value": "%s · %s"
+    },
+    {
+      "name": "diag_fact_line",
+      "value": "%s：%s"
+    },
+    {
+      "name": "diag_fact_count",
+      "value": "%s：%d 条记录"
+    },
+    {
+      "name": "diag_fact_losses",
+      "value": "%s：记录丢弃 %d，导出省略 %d，写入失败 %d，未落盘 %d，限流省略 %d"
+    },
+    {
+      "name": "diag_fact_checks",
+      "value": "%s：包内保留 %d 条检查记录"
+    },
+    {
+      "name": "diag_fact_no_checks",
+      "value": "%s：没有保留检查结果，不能据此判断是否执行过"
+    },
+    {
+      "name": "diag_connecting",
+      "value": "正在连接"
+    },
+    {
+      "name": "diag_disconnecting",
+      "value": "正在断开"
+    },
+    {
+      "name": "module_desc",
+      "value": "HarmonyOS NEXT 的 mihomo 客户端"
+    },
+    {
+      "name": "pasteboard_reason",
+      "value": "用于从剪贴板导入订阅配置"
+    },
+    {
+      "name": "shortcut_connect",
+      "value": "连接 VPN"
+    },
+    {
+      "name": "shortcut_disconnect",
+      "value": "断开连接"
+    },
+    {
+      "name": "connection_card_name",
+      "value": "策星连接"
+    },
+    {
+      "name": "connection_card_description",
+      "value": "查看连接状态，一键连接或断开"
+    },
+    {
+      "name": "nav_profile_merge",
+      "value": "本订阅覆写"
+    },
+    {
+      "name": "nav_generated",
+      "value": "生成配置"
+    },
+    {
+      "name": "editor_draft_failed",
+      "value": "草稿保存失败，内容仍在编辑器中"
+    },
+    {
+      "name": "editor_no_diff",
+      "value": "配置内容无统计差异"
+    },
+    {
+      "name": "editor_preview_failed",
+      "value": "覆写预览失败"
+    },
+    {
+      "name": "editor_global_applied",
+      "value": "全局覆写已应用"
+    },
+    {
+      "name": "editor_global_saved",
+      "value": "全局覆写已保存，启动后生效"
+    },
+    {
+      "name": "editor_other_profiles",
+      "value": "其他订阅会在启用或更新时重新校验并应用。"
+    },
+    {
+      "name": "editor_apply_failed",
+      "value": "应用未完成，请重试"
+    },
+    {
+      "name": "editor_unknown",
+      "value": "结果未确认，请返回连接页断开后重试"
+    },
+    {
+      "name": "editor_global",
+      "value": "全局覆写"
+    },
+    {
+      "name": "editor_enabled",
+      "value": "已启用"
+    },
+    {
+      "name": "editor_disabled",
+      "value": "未启用"
+    },
+    {
+      "name": "editor_global_scope",
+      "value": "为所有订阅设置通用配置，单个订阅的覆写优先。"
+    },
+    {
+      "name": "editor_global_help",
+      "value": "预览查看当前订阅的变化，应用后生效。清空内容并应用可停用。"
+    },
+    {
+      "name": "editor_list_help",
+      "value": "填写规则或策略组列表时，会替换订阅中的对应列表。"
+    },
+    {
+      "name": "editor_read_blocked",
+      "value": "现有覆写或草稿读取失败，已阻止覆盖"
+    },
+    {
+      "name": "editor_yaml_placeholder",
+      "value": "输入 YAML 覆写配置"
+    },
+    {
+      "name": "editor_close",
+      "value": "关闭"
+    },
+    {
+      "name": "editor_save_draft",
+      "value": "保存草稿"
+    },
+    {
+      "name": "editor_draft_saved",
+      "value": "草稿已保存"
+    },
+    {
+      "name": "editor_preview",
+      "value": "预览"
+    },
+    {
+      "name": "editor_working",
+      "value": "处理中"
+    },
+    {
+      "name": "editor_apply_global",
+      "value": "应用全局覆写"
+    },
+    {
+      "name": "editor_help",
+      "value": "编辑帮助"
+    },
+    {
+      "name": "editor_got_it",
+      "value": "知道了"
+    },
+    {
+      "name": "network_all",
+      "value": "全部应用"
+    },
+    {
+      "name": "network_only",
+      "value": "仅选中应用"
+    },
+    {
+      "name": "network_except",
+      "value": "排除选中应用"
+    },
+    {
+      "name": "network_read_failed",
+      "value": "设置读取失败，请重试"
+    },
+    {
+      "name": "network_save_failed",
+      "value": "保存失败，请重试"
+    },
+    {
+      "name": "network_saved",
+      "value": "已保存，下次启动 VPN 生效"
+    },
+    {
+      "name": "network_invalid_package",
+      "value": "请输入其他应用的有效包名"
+    },
+    {
+      "name": "network_added",
+      "value": "应用已添加"
+    },
+    {
+      "name": "network_add_package",
+      "value": "添加应用包名"
+    },
+    {
+      "name": "network_package_placeholder",
+      "value": "如 com.example.app"
+    },
+    {
+      "name": "network_cancel",
+      "value": "取消"
+    },
+    {
+      "name": "network_add",
+      "value": "添加"
+    },
+    {
+      "name": "network_routes",
+      "value": "系统路由例外"
+    },
+    {
+      "name": "network_route_help",
+      "value": "以下地址直接使用当前网络，匹配的流量不进入 VPN。"
+    },
+    {
+      "name": "network_route_defaults",
+      "value": "每次连接自动恢复默认例外。"
+    },
+    {
+      "name": "network_done",
+      "value": "完成"
+    },
+    {
+      "name": "network_next_start",
+      "value": "下次启动生效"
+    },
+    {
+      "name": "network_per_app",
+      "value": "按应用分流"
+    },
+    {
+      "name": "network_add_required",
+      "value": "请添加要连接的应用"
+    },
+    {
+      "name": "network_add_short",
+      "value": "添加包名"
+    },
+    {
+      "name": "network_package_help",
+      "value": "手动输入应用包名 · 本应用始终直连"
+    },
+    {
+      "name": "network_remove_app",
+      "value": "移除 %s"
+    },
+    {
+      "name": "network_mode",
+      "value": "分流模式"
+    },
+    {
+      "name": "core_port_invalid",
+      "value": "端口须为 1–65535"
+    },
+    {
+      "name": "core_enable_failed",
+      "value": "开启保存失败，请重试"
+    },
+    {
+      "name": "core_revoke_failed",
+      "value": "撤销保存失败，原授权仍可能有效，请再次关闭重试；当前共享不会自动停止"
+    },
+    {
+      "name": "core_lan_title",
+      "value": "允许同网设备使用代理？"
+    },
+    {
+      "name": "core_lan_risk",
+      "value": "开启后，同一局域网设备可能无需认证即可使用手机代理，消耗手机网络和代理流量。请仅在可信网络主动共享。此操作不会开放局域网 DNS；下次启动 VPN 生效。"
+    },
+    {
+      "name": "core_confirm_enable",
+      "value": "确认开启"
+    },
+    {
+      "name": "core_port",
+      "value": "混合代理端口"
+    },
+    {
+      "name": "core_allow_lan",
+      "value": "允许局域网连接"
+    },
+    {
+      "name": "core_log_level",
+      "value": "日志等级"
+    },
+    {
+      "name": "core_save",
+      "value": "保存"
+    },
+    {
+      "name": "original_read_failed",
+      "value": "配置文件读取失败，无法保存"
+    },
+    {
+      "name": "original_missing",
+      "value": "目标配置不存在"
+    },
+    {
+      "name": "original_applied",
+      "value": "已保存并应用"
+    },
+    {
+      "name": "original_saved",
+      "value": "已保存，启用或启动后生效"
+    },
+    {
+      "name": "original_save_failed",
+      "value": "保存未完成，请检查内容后重试"
+    },
+    {
+      "name": "original_saved_unreadable",
+      "value": "无法读取已保存配置"
+    },
+    {
+      "name": "original_draft_delete_failed",
+      "value": "草稿删除失败"
+    },
+    {
+      "name": "original_draft_failed",
+      "value": "草稿保存失败，请先保存配置"
+    },
+    {
+      "name": "original_name_required",
+      "value": "名称不能为空"
+    },
+    {
+      "name": "original_saved_as",
+      "value": "已另存为 %s"
+    },
+    {
+      "name": "original_save_as_failed",
+      "value": "另存失败，请重试"
+    },
+    {
+      "name": "original_merge_draft_failed",
+      "value": "覆写草稿未能保存，请重试"
+    },
+    {
+      "name": "original_merge_read_failed",
+      "value": "覆写草稿读取失败，请重试"
+    },
+    {
+      "name": "original_save_before_preview",
+      "value": "请先保存原始配置，再预览覆写"
+    },
+    {
+      "name": "original_save_before_apply",
+      "value": "请先保存原始配置，再应用覆写"
+    },
+    {
+      "name": "original_merge_applied",
+      "value": "本订阅覆写已应用"
+    },
+    {
+      "name": "original_merge_saved",
+      "value": "本订阅覆写已保存，下次连接时生效"
+    },
+    {
+      "name": "original_merge",
+      "value": "本订阅覆写"
+    },
+    {
+      "name": "original_scope",
+      "value": "仅作用于当前订阅"
+    },
+    {
+      "name": "original_merge_help",
+      "value": "优先于全局覆写。预览保存草稿，应用后生效。清空内容并应用可停用。规则和策略组列表会替换订阅中的对应列表。"
+    },
+    {
+      "name": "original_merge_blocked",
+      "value": "覆写草稿读取失败，请关闭后重试"
+    },
+    {
+      "name": "original_unsaved",
+      "value": "原始配置有未保存修改"
+    },
+    {
+      "name": "original_continue",
+      "value": "继续编辑原文"
+    },
+    {
+      "name": "original_previewing",
+      "value": "预览中"
+    },
+    {
+      "name": "original_apply_merge",
+      "value": "应用本订阅覆写"
+    },
+    {
+      "name": "original_save_copy_title",
+      "value": "另存为新配置"
+    },
+    {
+      "name": "original_new_name",
+      "value": "新配置名称（自动补 .yaml）"
+    },
+    {
+      "name": "original_save_copy",
+      "value": "保存副本"
+    },
+    {
+      "name": "original_draft_pending",
+      "value": "未保存 · 正在保留草稿"
+    },
+    {
+      "name": "original_draft_kept",
+      "value": "未保存 · 草稿已保留"
+    },
+    {
+      "name": "original_save_as",
+      "value": "另存为"
+    },
+    {
+      "name": "original_read_error",
+      "value": "配置文件读取失败"
+    },
+    {
+      "name": "original_file_retry",
+      "value": "文件可能已被删除，请返回配置页重试"
+    },
+    {
+      "name": "original_save_help",
+      "value": "保存前校验配置，连接中同步应用。"
+    },
+    {
+      "name": "original_discard",
+      "value": "放弃草稿"
+    },
+    {
+      "name": "original_saving",
+      "value": "保存中"
+    },
+    {
+      "name": "original_save",
+      "value": "保存配置"
+    },
+    {
+      "name": "original_content",
+      "value": "配置内容"
+    },
+    {
+      "name": "generated_missing",
+      "value": "尚无生成配置，请先启用订阅"
+    },
+    {
+      "name": "generated_read_failed",
+      "value": "生成配置读取失败，请重试"
+    },
+    {
+      "name": "generated_readonly",
+      "value": "已保存的生成配置 · 只读"
+    },
+    {
+      "name": "traffic_up_rate",
+      "value": "↑ 上传"
+    },
+    {
+      "name": "traffic_down_rate",
+      "value": "↓ 下载"
+    },
+    {
+      "name": "traffic_partial",
+      "value": "部分记录"
+    },
+    {
+      "name": "traffic_up",
+      "value": "上传"
+    },
+    {
+      "name": "traffic_down",
+      "value": "下载"
+    },
+    {
+      "name": "traffic_total",
+      "value": "合计"
+    },
+    {
+      "name": "traffic_five_ago",
+      "value": "5 分钟前"
+    },
+    {
+      "name": "traffic_half_ago",
+      "value": "2.5 分钟前"
+    },
+    {
+      "name": "traffic_now",
+      "value": "现在"
+    },
+    {
+      "name": "traffic_chart",
+      "value": "最近五分钟上传与下载速率"
+    },
+    {
+      "name": "traffic_session",
+      "value": "本次"
+    },
+    {
+      "name": "traffic_today",
+      "value": "今日"
+    },
+    {
+      "name": "traffic_month",
+      "value": "本月"
+    },
+    {
+      "name": "traffic_unsaved",
+      "value": "记录未保存"
+    },
+    {
+      "name": "panel_preparing",
+      "value": "正在准备控制面板…"
+    },
+    {
+      "name": "panel_open",
+      "value": "打开控制面板"
+    },
+    {
+      "name": "panel_reopen",
+      "value": "重新打开"
+    },
+    {
+      "name": "panel_leave_help",
+      "value": "返回连接页不会断开 VPN。"
+    },
+    {
+      "name": "panel_cache_failed",
+      "value": "缓存清理失败，请重新打开。"
+    },
+    {
+      "name": "panel_exited",
+      "value": "控制面板已退出，请重新打开。"
+    },
+    {
+      "name": "panel_load_failed",
+      "value": "加载失败，请重新打开；VPN 继续运行。"
+    },
+    {
+      "name": "panel_service_failed",
+      "value": "服务暂不可用，请重新打开。"
+    },
+    {
+      "name": "panel_unavailable",
+      "value": "控制面板暂不可用，正在重试…"
+    },
+    {
+      "name": "editor_enable_first",
+      "value": "请先启用订阅，再预览或应用全局覆写"
+    },
+    {
+      "name": "original_draft_keep_failed",
+      "value": "草稿保留失败，请先保存配置"
+    },
+    {
+      "name": "live_connected_title",
+      "value": "Cexing · 代理已连接"
+    },
+    {
+      "name": "live_main_title",
+      "value": "Cexing 系统代理"
+    },
+    {
+      "name": "live_idle",
+      "value": "已连接 · 无活动流量"
+    },
+    {
+      "name": "live_rule_mode",
+      "value": "规则模式"
+    },
+    {
+      "name": "live_global_mode",
+      "value": "全局模式"
+    },
+    {
+      "name": "live_direct_mode",
+      "value": "直连模式"
+    },
+    {
+      "name": "live_connecting_title",
+      "value": "Cexing · 连接中…"
+    },
+    {
+      "name": "live_connecting",
+      "value": "Cexing 正在连接"
+    },
+    {
+      "name": "live_tunnel_start",
+      "value": "正在建立 VPN 隧道…"
+    },
+    {
+      "name": "live_disconnecting_title",
+      "value": "Cexing · 断开中…"
+    },
+    {
+      "name": "live_disconnecting",
+      "value": "Cexing 正在断开"
+    },
+    {
+      "name": "live_tunnel_stop",
+      "value": "正在释放隧道…"
+    },
+    {
+      "name": "live_strategy",
+      "value": "显示策略 %s"
+    },
+    {
+      "name": "live_traffic",
+      "value": "↓ %s · ↑ %s · 已运行 %s"
+    },
+    {
+      "name": "live_probe",
+      "value": " · 探测 %d ms"
+    },
+    {
+      "name": "failure_phase_start",
+      "value": "启动"
+    },
+    {
+      "name": "failure_phase_authorization",
+      "value": "系统授权"
+    },
+    {
+      "name": "failure_phase_service",
+      "value": "服务连接"
+    },
+    {
+      "name": "failure_phase_vpn",
+      "value": "系统隧道"
+    },
+    {
+      "name": "failure_phase_protect",
+      "value": "进程网络保护"
+    },
+    {
+      "name": "failure_phase_assets",
+      "value": "资源准备"
+    },
+    {
+      "name": "failure_phase_core_init",
+      "value": "内核初始化"
+    },
+    {
+      "name": "failure_phase_config",
+      "value": "配置解析"
+    },
+    {
+      "name": "failure_phase_core_start",
+      "value": "内核启动"
+    },
+    {
+      "name": "failure_phase_readiness",
+      "value": "启动状态确认"
+    },
+    {
+      "name": "failure_unknown",
+      "value": "未知错误"
+    },
+    {
+      "name": "failure_permission",
+      "value": "权限被拒绝"
+    },
+    {
+      "name": "failure_configuration",
+      "value": "配置错误"
+    },
+    {
+      "name": "failure_dns",
+      "value": "解析错误"
+    },
+    {
+      "name": "failure_tls",
+      "value": "安全连接错误"
+    },
+    {
+      "name": "failure_timeout",
+      "value": "超时"
+    },
+    {
+      "name": "failure_network",
+      "value": "网络连接错误"
+    },
+    {
+      "name": "failure_label",
+      "value": "%s：%s%s"
+    },
+    {
+      "name": "card_title",
+      "value": "策星 VPN"
+    },
+    {
+      "name": "card_brand",
+      "value": "策星"
+    },
+    {
+      "name": "card_previous",
+      "value": "上次状态"
+    },
+    {
+      "name": "card_connected",
+      "value": "已连接"
+    },
+    {
+      "name": "card_connecting",
+      "value": "连接中"
+    },
+    {
+      "name": "card_disconnecting",
+      "value": "断开中"
+    },
+    {
+      "name": "card_disconnected",
+      "value": "未连接"
+    },
+    {
+      "name": "card_stop_unknown",
+      "value": "状态待核对"
+    },
+    {
+      "name": "card_stopping",
+      "value": "正在断开"
+    },
+    {
+      "name": "card_stop",
+      "value": "断开"
+    },
+    {
+      "name": "card_start",
+      "value": "连接"
     }
   ]
 }
