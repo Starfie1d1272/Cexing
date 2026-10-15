@@ -21,7 +21,7 @@ async function page(runtime, ctx, file) {
   const row = p.rows.find(row => row.label === 'Synthetic'); assert.ok(row); await p.open(row);
   assert.ok(p.formTarget, p.error); return { r, p, model: p.model };
 }
-exports.run = async function ({ runtime, action, ctx, file, phase }) {
+exports.run = async function ({ runtime, action, ctx, file, phase, hooks }) {
   const r = runtime();
   const Model = r.load('ProfileProxyEditorModel').ProfileProxyEditorModel;
   const metadata = { origin: 'https://example.invalid/proxy-candidate', sub: { upload: 0, download: 0, total: 0, expire: 0 }, updatedAt: 3 };
@@ -78,6 +78,11 @@ exports.run = async function ({ runtime, action, ctx, file, phase }) {
     assert.equal(p.formTarget.value.port, 1081, 'undo restores source together with intent');
     await p.saveForm({ section: 'proxies', name: 'Synthetic', target: p.originalTarget, value: { ...p.formTarget.value, port: 1082 } });
     assert.equal(p.error, ''); assert.equal(p.previewReady, true);
+    await p.open(p.rows.find(row => row.label === 'Synthetic'));
+    const beforeCancelledSave = fs.readFileSync(draftPath);
+    hooks.write = async () => { p.aboutToDisappear(); };
+    await p.saveForm({ section: 'proxies', name: 'Synthetic', target: p.originalTarget, value: { ...p.formTarget.value, port: 1083 } });
+    assert.deepEqual(fs.readFileSync(draftPath), beforeCancelledSave, 'leaving during the real atomic write must retain the prior paired draft');
   } else if (phase === 'proxy-apply') {
     assert.equal((await model.presentTarget('proxies', target)).value.port, 1082);
     await p.inspect(); assert.equal(p.error, ''); assert.equal(p.previewReady, true);

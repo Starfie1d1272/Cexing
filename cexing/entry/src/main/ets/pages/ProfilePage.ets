@@ -1,4 +1,5 @@
-import { ProfileApplyFeedback } from '../lib/ProfileApplyFeedback';
+import { EditorSourceCandidate } from '../lib/EditorDraftHosts';
+import { ProfileApplyFeedback, ProfileApplyFailureKind } from '../lib/ProfileApplyFeedback';
 import { UiText } from '../lib/UiText';
 import { NativeTheme as UI } from './NativeTheme';
 /*
@@ -71,6 +72,7 @@ export struct ProfilePage {
   @State exporting: boolean = false;
   private exportGeneration: number = 0;
   @State recoveryNeeded: boolean = false;
+  @State recoveryFailure: ProfileApplyFailureKind | '' = '';
   @State recovering: boolean = false;
   @State updateFeedback: Record<string, string> = {};
   @State updateTimes: Record<string, number> = {};
@@ -333,7 +335,8 @@ export struct ProfilePage {
     const context = getContext(this) as common.UIAbilityContext;
     this.profiles = ProfileStore.list(context);
     this.metas = ProfileStore.getMeta(context);
-    this.recoveryNeeded = ProfileStore.isApplyUncertain(context);
+    this.recoveryFailure = ProfileApplyFeedback.recovery(context);
+    this.recoveryNeeded = this.recoveryFailure === 'unconfirmed' || this.recoveryFailure === 'committed-pending';
     const feedback: Record<string, string> = {};
     const times: Record<string, number> = {};
     for (const p of this.profiles) {
@@ -481,7 +484,8 @@ export struct ProfilePage {
     } catch (e) {
       if (this.activationPageCurrent(request, page, tab, paths)) {
         this.refresh();
-        this.toast(this.recoveryNeeded ? UiText.get($r('app.string.profile_recover_required')) : this.activationError(e as Error));
+        const kind = this.recoveryFailure || ProfileApplyFeedback.classify((e as Error).message);
+        this.toast(kind === 'failed' ? this.activationError(e as Error) : context.resourceManager.getStringByNameSync(ProfileApplyFeedback.key(kind)));
       }
     } finally { this.activating = false; this.acceptExternalImport(); }
   }
@@ -561,25 +565,41 @@ export struct ProfilePage {
       const intent = version !== undefined ? EffectiveVersions.editIntent(context, version) : null;
       if (intent?.disabled !== true && intent?.template !== undefined && intent.template.templateId !== 'original') {
         const ticket = ProfileTransactions.editTicket(context, file);
-        const downloaded = await ProfileStore.downloadFromOrigin(context, file);
+        const draft = ProfileStore.readEditDraft(context, file);
+        let source: EditorSourceCandidate;
+        if (draft.source !== undefined) {
+          if (this.showSheet) { this.toast(UiText.get($r('app.string.profile_update_close_editor'))); return; }
+          if (draft.intent?.template === undefined || draft.intent.template.templateId === 'original') {
+            this.toast(UiText.get($r('app.string.profile_update_pending'))); return;
+          }
+          const restored = await ProfileTransactions.readEditSource(context, ticket, current);
+          if (restored === undefined) { throw new Error('UPDATE_SOURCE_CHANGED'); }
+          source = restored;
+        } else {
+          const downloaded = await ProfileStore.downloadFromOrigin(context, file);
+          source = { original: downloaded.content, metadata: downloaded.meta };
+        }
         if (!current()) { return; }
         if (this.showSheet) { this.toast(context.resourceManager.getStringByNameSync('profile_update_close_editor')); return; }
         if (JSON.stringify(ticket) !== JSON.stringify(ProfileTransactions.editTicket(context, file))) {
-          this.toast('配置已变化，请重新更新'); return;
+          this.toast(UiText.get($r('app.string.profile_update_expired'))); return;
         }
-        ProfileUpdateBus.request = { file: file, ticket: ticket,
-          source: { original: downloaded.content, metadata: downloaded.meta } };
+        ProfileUpdateBus.request = { file: file, ticket: ticket, source: source };
         try { this.navStack.pushPath({ name: 'profileTemplateUpdate' }); }
         catch (_) { ProfileUpdateBus.request = null; throw new Error('UPDATE_ROUTE_FAILED'); }
         return;
       }
       const result = await ProfileTransactions.update(context, file);
       if (current()) {
-        this.toast(result === 'applied' ? '已更新并应用' : '已更新，启用或启动后生效'); this.changed();
+        this.toast(result === 'applied' ? UiText.get($r('app.string.profile_updated_applied')) : UiText.get($r('app.string.profile_updated_saved'))); this.changed();
       }
-    } catch (_) {
+    } catch (error) {
       if (current()) {
-        this.refresh(); this.toast(this.recoveryNeeded ? '应用未确认，请重连恢复' : '更新失败，请检查网络后重试');
+        this.refresh();
+        const pending = (error as Error).message === '请先应用或撤销当前更新草稿';
+        const kind = this.recoveryFailure || ProfileApplyFeedback.classify((error as Error).message);
+        this.toast(kind !== 'failed' ? context.resourceManager.getStringByNameSync(ProfileApplyFeedback.key(kind)) :
+          pending ? UiText.get($r('app.string.profile_update_pending')) : UiText.get($r('app.string.profile_update_incomplete')));
       }
     } finally {
       this.updatingFile = '';
@@ -1289,7 +1309,7 @@ export struct ProfilePage {
   build() {
     Column({ space: 16 }) {
       if (this.recoveryNeeded) {
-        Text(UiText.get($r('app.string.profile_uncertain'))).fontSize(14).fontColor(UI.error).width('100%')
+        Text(this.recoveryFailure === 'committed-pending' ? UiText.get($r('app.string.apply_feedback_committed')) : UiText.get($r('app.string.profile_uncertain'))).fontSize(14).fontColor(UI.error).width('100%')
         Button(this.recovering ? UiText.get($r('app.string.profile_recovering')) : UiText.get($r('app.string.profile_recover'))).width('100%').constraintSize({ minHeight: 48 })
           .enabled(!this.recovering).onClick(() => { this.confirmRecovery(); })
       }

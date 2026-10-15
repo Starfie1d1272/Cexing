@@ -3747,6 +3747,10 @@
     {
       "name": "rule_discard_confirm_body",
       "value": "将撤销此订阅全部未应用修改及待更新来源。"
+    },
+    {
+      "name": "profile_update_pending",
+      "value": "请先应用或撤销当前更新草稿"
     }
   ]
 }

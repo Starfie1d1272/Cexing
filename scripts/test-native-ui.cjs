@@ -273,6 +273,7 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   let importAsync = async (_context, _name, _content, current) => { assert.ok(current()); importedWrites++; return 'candidate.yaml'; };
   let activateResult = async () => 'applied';
   let regionResult = async () => 'saved';
+  let updateFailure = '';
   const profiles = [{ file: 'fixture.yaml', name: 'Fixture', active: true },
     { file: 'candidate.yaml', name: 'Candidate', active: false }];
   const Profile = load('ProfilePage', { ...common,
@@ -283,7 +284,7 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
       remove: async () => { deleted++; }, activate: (...args) => activateResult(...args),
       setRegionPlan: (...args) => regionResult(...args),
       ensureActiveSmartPolicy: () => smartPrepare(),
-      update: async () => 'applied', rename: () => 'fixture.yaml'
+      update: async () => { if (updateFailure) throw Error(updateFailure); return 'applied'; }, rename: () => 'fixture.yaml'
     } },
     '../lib/ProfileStore': { ProfileStore: { list: () => profiles, getMeta: () => ({}),
       isApplyUncertain: () => uncertainProfile, updateState: (_context, file) => ({ ...(sourceStates[file] ?? updateState) }),
@@ -549,6 +550,12 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   const rejectedRegion = regionPage();
   await rejectedRegion.saveRegion(true);
   assert.equal(rejectedRegion.tabJump, -1, 'rejected create and enable stays on profiles');
+  for (const [failure, expected] of [['配置已保存，地区选择待重连恢复', '配置已保存，地区选择待重连恢复'],
+    ['应用未确认，请重连恢复', '应用未确认，请重连恢复'], ['private: synthetic-update-token', '更新未完成，请重试']]) {
+    updateFailure = failure; const updating = activationPage().page; updating.rootVisible = true;
+    await updating.updateProfile(profiles[0]); assert.equal(toasts.at(-1), expected);
+  }
+  updateFailure = '';
   let finishRegion;
   regionResult = () => new Promise(resolve => { finishRegion = resolve; });
   const leftRegion = regionPage();

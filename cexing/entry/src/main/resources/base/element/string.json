@@ -3747,6 +3747,10 @@
     {
       "name": "rule_discard_confirm_body",
       "value": "This removes all unapplied changes and the pending update source for this subscription."
+    },
+    {
+      "name": "profile_update_pending",
+      "value": "Apply or discard the pending update first."
     }
   ]
 }

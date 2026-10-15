@@ -5,10 +5,11 @@ const uiFixture = require('./ci/ui-fixtures.cjs');
 const ts = require('./ci/transpile-arkts.cjs'), { resourceContext } = require('./ci/mock-profile-resources.cjs');
 let ticket, download, rejectDownload, downloads = 0, normalUpdates = 0, writes = 0, applies = 0, editorSource, comparedSource, releaseLoad;
 let published = { template: { templateId: 'ai', version: 1, targetGroup: 'Pick' } }, original = 'successful original';
+let pendingSource = false, releaseSource;
 let draft, revision = 0, checked, pagePaths = [], toasts = [], queuedShare = null;
 const candidate = { original: 'downloaded original', metadata: { origin: 'https://example.invalid/synthetic', sub: {}, updatedAt: 1 } };
 const context = { ...resourceContext(), filesDir: '/synthetic' };
-const tx = { editTicket: () => structuredClone(ticket), isBusy: () => false, onIdle: () => () => {}, update: async () => { normalUpdates++; return 'saved'; } };
+const tx = { editTicket: () => structuredClone(ticket), isBusy: () => false, onIdle: () => () => {}, readEditSource: async (_ctx, captured, current) => { assert.deepEqual(captured, ticket); if (releaseSource) await new Promise(resolve => { releaseSource = resolve; }); assert.ok(current()); return candidate; }, update: async () => { normalUpdates++; return 'saved'; } };
 const snapshot = { templateId: 'ai', version: 1, entries: [] };
 const editorFactory = { create: (_ctx, file, source) => { assert.equal(file, 'one.yaml'); editorSource = source;
  return {
@@ -23,13 +24,14 @@ const sourceFactory = (_ctx, file, source) => { assert.equal(file, 'one.yaml'); 
  return { read: async () => ({ kind: 'template', base: snapshot, mine: snapshot, next: snapshot }),
   encode: async (_value, session) => structuredClone(session.intent), label: () => 'synthetic' }; };
 const mods = {
+ '../lib/ProfileApplyFeedback': require('./ci/load-profile-feedback.cjs'),
  '../lib/UiText': uiFixture.module,
  '@kit.ArkUI': { promptAction: { showToast: value => toasts.push(value.message) } },
  '../lib/ProfileImportInput': { ProfileImportInput: { take: () => { const value = queuedShare; queuedShare = null; return value; }, release() {} } },
  '../lib/ProfileTransactions': { ProfileTransactions: tx }, '../lib/EditorDraftHosts': { EditorDraftHosts: editorFactory },
  '../lib/TemplateUpdateSource': { createTemplateUpdateSource: sourceFactory },
  '../lib/EffectiveVersions': { EffectiveVersions: { read: () => ({ Profiles: { 'one.yaml': { ID: 'v1' } } }), editIntent: () => published } },
- '../lib/ProfileStore': { ProfileStore: { getActiveFile: () => 'one.yaml', downloadFromOrigin: () => { downloads++; return new Promise((resolve, reject) => { download = resolve; rejectDownload = reject; }); } } }
+ '../lib/ProfileStore': { ProfileStore: { getActiveFile: () => 'one.yaml', readEditDraft: () => ({ revision: ticket.draftRevision, intent: draft, source: pendingSource ? {} : undefined }), downloadFromOrigin: () => { assert.equal(pendingSource, false, 'pending sources must resume without a new download'); downloads++; return new Promise((resolve, reject) => { download = resolve; rejectDownload = reject; }); } } }
 };
 const hostBox = { exports: {}, ...uiFixture.globals, require: name => name === './CoreValidator' ? require('./ci/semantic-fixture.cjs') : name === './UiText' ? uiFixture.module : name === './TemplateUpdates' ? { TemplateUpdates: { preview: async () => ({ ready: true, conflicts: [], candidate: snapshot }) } } : {} };
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('cexing/entry/src/main/ets/lib/TemplateUpdateHost.ets', 'utf8')).outputText, hostBox);
@@ -43,7 +45,7 @@ function page(name) {
 }
 const update = page('ProfileUpdatePage'); mods['./ProfileUpdatePage'] = update;
 const profileExports = page('ProfilePage'); const Profile = profileExports.ProfilePage;
-function reset() { queuedShare = null; original = 'successful original'; ticket = { file: 'one.yaml', profileIdentity: 'identity', profileVersion: 'v1', activeVersion: 'v1', activeFile: 'one.yaml', draftRevision: 'published' };
+function reset() { pendingSource = false; releaseSource = null; queuedShare = null; original = 'successful original'; ticket = { file: 'one.yaml', profileIdentity: 'identity', profileVersion: 'v1', activeVersion: 'v1', activeFile: 'one.yaml', draftRevision: 'published' };
  draft = { schemaVersion: 1, revision: 'published', sourceRevision: 'source', operations: [], template: { templateId: 'ai', version: 1, targetGroup: 'Pick' } }; revision = 0; update.ProfileUpdateBus.request = null; pagePaths = []; releaseLoad = null; }
 function profile() { const p = new Profile(); p.pageVisible = true; p.rootVisible = true; p.currentVisibleTab = 1; p.pageGeneration = 1; p.profileRevision = 0;
  p.navStack = { getAllPathName: () => pagePaths.slice(), pushPath: value => pagePaths.push(value.name) }; p.refresh = () => {}; p.toast = value => toasts.push(value); p.isUrlProfile = () => true; return p; }
@@ -84,6 +86,17 @@ function route(visible = true) { const p = new update.ProfileUpdatePage(); p.pro
  reset(); const routeFailure = profile(); routeFailure.navStack.pushPath = () => { throw Error('synthetic route unavailable'); };
  const failedRoute = routeFailure.updateProfile({ file: 'one.yaml' }); download({ content: candidate.original, meta: candidate.metadata }); await failedRoute;
  assert.equal(update.ProfileUpdateBus.request, null, 'failed navigation releases private candidate memory'); assert.equal(original, 'successful original');
+ reset(); pendingSource = true; const resumed = profile(), previousDownloads = downloads;
+ await resumed.updateProfile({ file: 'one.yaml' }); assert.equal(downloads, previousDownloads);
+ assert.equal(pagePaths.join(','), 'profileTemplateUpdate'); assert.equal(update.ProfileUpdateBus.request.source, candidate);
+ assert.equal(original, 'successful original');
+ reset(); pendingSource = true; releaseSource = true; const leftResume = profile();
+ const restoring = leftResume.updateProfile({ file: 'one.yaml' }); await new Promise(setImmediate);
+ leftResume.pageVisible = false; leftResume.pageGeneration++; releaseSource(); await restoring;
+ assert.equal(pagePaths.length, 0); assert.equal(update.ProfileUpdateBus.request, null);
+ reset(); pendingSource = true; draft.template = { templateId: 'original', version: 1 };
+ await profile().updateProfile({ file: 'one.yaml' }); assert.equal(downloads, previousDownloads);
+ assert.equal(pagePaths.length, 0); assert.equal(toasts.at(-1), '请先应用或撤销当前更新草稿');
  const root = fs.readFileSync('cexing/entry/src/main/ets/pages/Index.ets', 'utf8'); assert.match(root, /name === 'profileTemplateUpdate'[\s\S]*ProfileUpdatePage\(\{ visible: this.templateUpdateVisible/);
  console.log('PASS: downloaded candidates reach the registered review route and shared receipt Host; no early Original write; stale/hidden/dirty/repeat/first-read fences, own draft refresh, apply return and ordinary/pull updates');
 })().catch(error => { console.error(error); process.exitCode = 1; });
