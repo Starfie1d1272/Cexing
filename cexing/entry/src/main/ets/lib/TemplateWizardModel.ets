@@ -1,5 +1,6 @@
 /* Template UI owns a draft only. The host must use ProfileTransactions and the
  * existing effective version; it never writes settings or publishes YAML here. */
+import { RegionPlan, RegionPreview } from './EffectiveVersions';
 import { TemplatePlan as EditorTemplatePlan } from './ConfigEditor';
 import { ProfileApplyFeedback, ProfileApplyFailureKind } from './ProfileApplyFeedback';
 
@@ -10,6 +11,7 @@ export interface TemplateInputs {
   labels?: Record<string, string>;
   current: TemplatePlan;
   published?: TemplatePlan;
+  regionDraft?: RegionPlan;
 }
 export interface TemplatePreview {
   revision: string;
@@ -19,6 +21,7 @@ export interface TemplatePreview {
 }
 export interface TemplateWizardHost {
   load: () => Promise<TemplateInputs>;
+  regionPreview?: (plan: RegionPlan) => Promise<RegionPreview>;
   preview: (plan: TemplatePlan, pauseDependents?: boolean) => Promise<TemplatePreview>;
   // Verify revision AND digest against the latest original, both Merge layers,
   // settings and provider snapshot inside the existing transaction gate.
@@ -49,6 +52,7 @@ export class TemplateWizardModel {
   inputs: TemplateInputs = { groups: [], selectors: [], current: { templateId: 'original', version: 1 } };
   templateId: string = 'original';
   target: string = '';
+  private region: RegionPlan = { mode: 'region', selector: '', enable: true, assignments: {} };
   preview: TemplatePreview | null = null;
   busy: boolean = false;
   ready: boolean = false;
@@ -88,6 +92,8 @@ export class TemplateWizardModel {
       this.inputs = inputs;
       this.templateId = inputs.current.templateId;
       this.target = inputs.current.region?.selector ?? inputs.current.targetGroup ?? '';
+      this.region = this.copyRegion(inputs.current.region ?? inputs.regionDraft ?? inputs.published?.region ??
+        { mode: 'region', selector: '', enable: true, assignments: {} });
       this.ready = true;
       this.error = '';
     } catch (_) { if (this.current(epoch)) { this.error = '方案读取失败，请重试'; } }
@@ -97,8 +103,16 @@ export class TemplateWizardModel {
   choose(templateId: string, target: string): void {
     if (!this.open || !this.ready || this.busy || this.needsRepair()) { return; }
     if (!['original', 'region', 'ai', 'automatic'].includes(templateId)) { return; }
+    if (templateId === this.templateId && (target === '' || target === this.target)) { return; }
     this.epoch++;
     this.dependencies = 0;
+    if (templateId === 'region') {
+      target = target || this.region.selector;
+      const saved = this.inputs.current.region;
+      const previous = this.region.selector === target ? this.region : saved?.selector === target ? saved : undefined;
+      this.region = this.copyRegion({ mode: previous?.mode ?? this.region.mode, selector: target,
+        enable: true, assignments: previous?.assignments ?? {} });
+    }
     this.templateId = templateId;
     this.target = target;
     this.preview = null;
@@ -107,19 +121,54 @@ export class TemplateWizardModel {
     this.emit();
   }
 
+  private copyRegion(plan: RegionPlan): RegionPlan {
+    return JSON.parse(JSON.stringify(plan)) as RegionPlan;
+  }
+
+  regionPlan(): RegionPlan { return this.copyRegion(this.region); }
+
+  configureRegion(mode: string, assignments: Record<string, string>): void {
+    if (!this.open || !this.ready || this.busy || this.needsRepair() || this.templateId !== 'region' ||
+      !['region', 'all'].includes(mode)) { return; }
+    this.region = this.copyRegion({ mode: mode, selector: this.target, enable: true, assignments: assignments });
+    this.preview = null; this.error = ''; this.result = ''; this.dependencies = 0; this.epoch++; this.emit();
+  }
+
+  async previewRegion(plan: RegionPlan): Promise<RegionPreview> {
+    if (!this.open || !this.ready || this.busy || this.needsRepair() || this.host.regionPreview === undefined) {
+      throw new Error('TEMPLATE_REGION_UNAVAILABLE');
+    }
+    return this.host.regionPreview(this.copyRegion(plan));
+  }
+
+  /** Compare all effective v1 authoring fields. Compiler baseline/Mine snapshots
+   * are provenance, not another editable plan. Mapping insertion order is inert. */
+  static planKey(plan: TemplatePlan): string {
+    let effective: TemplatePlan;
+    if (plan.templateId === 'region') {
+      const region = plan.region;
+      const assignments: Record<string, string> = {};
+      const source: Record<string, string> = region?.assignments ?? {};
+      for (const key of Object.keys(source).sort()) { assignments[key] = source[key]; }
+      effective = { templateId: plan.templateId, version: plan.version,
+        region: { mode: region?.mode ?? 'region', selector: region?.selector ?? '',
+          enable: region?.enable !== false, disabled: region?.disabled === true, assignments: assignments } };
+    } else if (plan.templateId === 'original') {
+      effective = { templateId: plan.templateId, version: plan.version };
+    } else {
+      effective = { templateId: plan.templateId, version: plan.version,
+        targetGroup: plan.targetGroup ?? '', replaceRules: plan.replaceRules === true };
+    }
+    return JSON.stringify(effective);
+  }
+
   hasChanges(): boolean {
-    const published = this.inputs.published ?? this.inputs.current;
-    const target = published.templateId === 'region' ? published.region?.selector ?? '' : published.targetGroup ?? '';
-    return this.templateId !== published.templateId || this.target !== target;
+    return TemplateWizardModel.planKey(this.plan()) !== TemplateWizardModel.planKey(this.inputs.published ?? this.inputs.current);
   }
 
   private plan(): TemplatePlan {
     if (this.templateId === 'region') {
-      // Preserve existing per-node corrections when retaining the selector.
-      const previous = this.inputs.current.region;
-      const assignments: Record<string, string> = previous?.selector === this.target ? previous.assignments : {};
-      return { templateId: 'region', version: 1, region: { mode: 'region', selector: this.target,
-        enable: true, assignments: assignments } };
+      return { templateId: 'region', version: 1, region: this.regionPlan() };
     }
     if (this.templateId === 'original') { return { templateId: 'original', version: 1 }; }
     return { templateId: this.templateId, version: 1, targetGroup: this.target,

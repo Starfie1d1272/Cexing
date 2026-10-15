@@ -314,7 +314,7 @@
     },
     {
       "name": "settings_reconnect_apply",
-      "value": "重连以应用已保存修改"
+      "value": "重连生效"
     },
     {
       "name": "background_acquired",
@@ -3946,7 +3946,7 @@
     },
     {
       "name": "template_published",
-      "value": "已发布"
+      "value": "当前方案"
     },
     {
       "name": "template_view_changes",
@@ -3958,7 +3958,7 @@
     },
     {
       "name": "diag_offline",
-      "value": "未连接 · 连接检查暂停"
+      "value": "未连接"
     },
     {
       "name": "diag_repair_resources",
@@ -3967,6 +3967,10 @@
     {
       "name": "template_region_scope",
       "value": "保留订阅规则，按节点名称生成地区选项，供控制面板选择。"
+    },
+    {
+      "name": "template_region_advanced",
+      "value": "地区调整"
     }
   ]
 }

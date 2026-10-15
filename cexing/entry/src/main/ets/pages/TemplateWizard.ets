@@ -1,3 +1,4 @@
+import { RegionPlan, RegionPreview } from '../lib/EffectiveVersions';
 import { UiText } from '../lib/UiText';
 import { ProfileApplyFeedback } from '../lib/ProfileApplyFeedback';
 import { ProfileApplyRecovery } from '../lib/ProfileApplyRecovery';
@@ -34,6 +35,13 @@ export struct TemplateWizard {
   onClose: () => void = () => {};
   registerBackGuard: (guard: (() => boolean) | null) => void = () => {};
   private reviewBackGuard: (() => boolean) | null = null;
+  @State private showRegionAdvanced: boolean = false;
+  @State private regionMode: string = 'region';
+  @State private regionAssignments: Record<string, string> = {};
+  @State private regionPreview: RegionPreview | null = null;
+  @State private regionBusy: boolean = false;
+  @State private regionError: string = '';
+  private regionGeneration: number = 0;
   @State private view: TemplateWizardView = { templateId: 'original', target: '', busy: false,
     ready: false, error: '', result: '', summary: '', hasPreview: false, groups: [], selectors: [] };
   @State private confirming: boolean = false;
@@ -50,8 +58,9 @@ export struct TemplateWizard {
         if (this.reviewBackGuard?.() === true) { return true; }
         this.reviewingUpdate = false; this.load(); return true;
       }
-      return this.view.busy || this.confirming || this.recovering;
+      return this.view.busy || this.confirming || this.recovering || this.regionBusy;
     });
+    this.regionGeneration++; this.regionBusy = false; this.showRegionAdvanced = false;
     this.recoveryGeneration++; this.recovering = false; this.recoveryMessage = '';
     this.visible = true; this.confirmationGeneration++; this.confirming = false;
     this.reviewingUpdate = false;
@@ -73,7 +82,7 @@ export struct TemplateWizard {
     });
     this.load();
   }
-  aboutToDisappear(): void { this.registerBackGuard(null); this.visible = false; this.recoveryGeneration++; this.confirmationGeneration++; this.confirming = false; this.model?.close(); }
+  aboutToDisappear(): void { this.regionGeneration++; this.registerBackGuard(null); this.visible = false; this.recoveryGeneration++; this.confirmationGeneration++; this.confirming = false; this.model?.close(); }
   private close(): void { this.visible = false; this.recoveryGeneration++; this.confirmationGeneration++; this.confirming = false; this.model?.close(); this.onClose(); }
   private load(): void {
     this.model?.setApplyFailure(ProfileApplyFeedback.recovery(getContext(this) as common.UIAbilityContext));
@@ -139,6 +148,116 @@ export struct TemplateWizard {
     }
     await model.apply(true);
   }
+  private openRegionAdvanced(): void {
+    if (this.regionBusy || this.view.busy || this.view.templateId !== 'region' || this.view.target === '' ||
+      this.model === null || this.model.needsRepair()) { return; }
+    const plan = this.model.regionPlan();
+    this.regionMode = plan.mode; this.regionAssignments = plan.assignments;
+    this.regionPreview = null; this.regionError = ''; this.showRegionAdvanced = true;
+    this.refreshRegionPreview();
+  }
+
+  private async refreshRegionPreview(): Promise<void> {
+    const model = this.model;
+    if (model === null || this.regionBusy || !this.showRegionAdvanced) { return; }
+    const generation = ++this.regionGeneration; this.regionBusy = true; this.regionError = '';
+    const plan: RegionPlan = { mode: this.regionMode, selector: this.view.target,
+      enable: false, assignments: this.regionAssignments };
+    try {
+      const preview = await model.previewRegion(plan);
+      if (this.visible && this.showRegionAdvanced && generation === this.regionGeneration && this.model === model) {
+        this.regionPreview = preview;
+      }
+    } catch (_) {
+      if (this.visible && generation === this.regionGeneration) { this.regionError = UiText.get($r('app.string.profile_preview_failed')); }
+    } finally { if (this.visible && generation === this.regionGeneration) { this.regionBusy = false; } }
+  }
+
+  private regionCanSave(): boolean {
+    return !this.regionBusy && !this.view.busy && this.regionError === '' && this.regionPreview?.eligible === true &&
+      (this.regionMode !== 'all' || Object.keys(this.regionPreview.nodes).length >= 2);
+  }
+
+  private async saveRegionDraft(): Promise<void> {
+    const model = this.model;
+    if (model === null || !this.regionCanSave()) { return; }
+    const generation = ++this.regionGeneration; this.regionBusy = true;
+    model.configureRegion(this.regionMode, this.regionAssignments);
+    try {
+      await model.inspect();
+      if (!this.visible || generation !== this.regionGeneration || model !== this.model) { return; }
+      if (model.preview !== null) { this.showRegionAdvanced = false; }
+      else { this.regionError = this.displayMessage(model.error); }
+    } finally { if (this.visible && generation === this.regionGeneration) { this.regionBusy = false; } }
+  }
+
+  private regionNames(): string[] {
+    return this.regionPreview?.regions ?? ['香港', '台湾', '日本', '新加坡', '美国', '韩国', '英国', '德国', '未知'];
+  }
+
+  private regionLabel(name: string): string {
+    // Region keys are persisted canonical data. Only their display labels are localized.
+    if (name === '香港') { return UiText.get($r('app.string.profile_region_hk')); }
+    if (name === '台湾') { return UiText.get($r('app.string.profile_region_tw')); }
+    if (name === '日本') { return UiText.get($r('app.string.profile_region_jp')); }
+    if (name === '新加坡') { return UiText.get($r('app.string.profile_region_sg')); }
+    if (name === '美国') { return UiText.get($r('app.string.profile_region_us')); }
+    if (name === '韩国') { return UiText.get($r('app.string.profile_region_kr')); }
+    if (name === '英国') { return UiText.get($r('app.string.profile_region_uk')); }
+    if (name === '德国') { return UiText.get($r('app.string.profile_region_de')); }
+    return name === '未知' ? UiText.get($r('app.string.profile_other_region')) : name;
+  }
+
+  @Builder
+  RegionAdvanced() {
+    Column({ space: 12 }) {
+      Text(UiText.get($r('app.string.template_region_advanced'))).fontSize(20).fontColor(UI.ink).fontWeight(FontWeight.Bold)
+      Text(UiText.get($r('app.string.profile_region_risk'))).fontSize(13).fontColor(UI.muted)
+      Flex({ wrap: FlexWrap.Wrap }) {
+        Button(UiText.get($r('app.string.profile_by_region'))).constraintSize({ minHeight: 48 }).margin({ right: 8, bottom: 8 })
+          .backgroundColor(this.regionMode === 'region' ? UI.action : UI.soft).fontColor(this.regionMode === 'region' ? UI.onAccent : UI.ink)
+          .accessibilitySelected(this.regionMode === 'region').enabled(!this.regionBusy)
+          .onClick(() => { if (this.regionMode !== 'region') { this.regionMode = 'region'; this.refreshRegionPreview(); } })
+        Button(UiText.get($r('app.string.profile_all_nodes'))).constraintSize({ minHeight: 48 })
+          .backgroundColor(this.regionMode === 'all' ? UI.action : UI.soft).fontColor(this.regionMode === 'all' ? UI.onAccent : UI.ink)
+          .accessibilitySelected(this.regionMode === 'all').enabled(!this.regionBusy)
+          .onClick(() => { if (this.regionMode !== 'all') { this.regionMode = 'all'; this.refreshRegionPreview(); } })
+      }.width('100%')
+      if (this.regionPreview !== null) {
+        Text(UiText.get($r('app.string.profile_region_count'), Object.keys(this.regionPreview.nodes).length, this.regionPreview.unknown))
+          .fontSize(14).fontColor(UI.ink)
+        if (this.regionPreview.providerPending) {
+          Text(UiText.get($r('app.string.profile_provider_wait'))).fontSize(13).fontColor(UI.error)
+        }
+        Scroll() {
+          Column({ space: 8 }) {
+            ForEach(Object.keys(this.regionPreview.nodes), (node: string) => {
+              Row({ space: 8 }) {
+                Text(node).fontSize(14).fontColor(UI.ink).layoutWeight(1)
+                Select(this.regionNames().map((name: string): SelectOption => ({ value: this.regionLabel(name) })))
+                  .constraintSize({ minHeight: 48 }).backgroundColor(UI.soft).fontColor(UI.ink)
+                  .selected(this.regionNames().indexOf(this.regionPreview?.nodes[node] ?? '未知'))
+                  .value(this.regionLabel(this.regionPreview?.nodes[node] ?? '未知'))
+                  .accessibilityText(UiText.get($r('app.string.profile_node_region'), node)).enabled(!this.regionBusy)
+                  .onSelect((index: number) => {
+                    if (this.regionBusy) { return; }
+                    const next: Record<string, string> = {};
+                    for (const key of Object.keys(this.regionAssignments)) { next[key] = this.regionAssignments[key]; }
+                    next[node] = this.regionNames()[index]; this.regionAssignments = next; this.refreshRegionPreview();
+                  })
+              }.width('100%')
+            }, (node: string) => node)
+          }.width('100%')
+        }.width('100%').layoutWeight(1)
+      } else { Blank().layoutWeight(1) }
+      if (this.regionError !== '') { Text(this.regionError).fontSize(14).fontColor(UI.error) }
+      Button(UiText.get($r('app.string.profile_refresh_preview'))).width('100%').constraintSize({ minHeight: 44 })
+        .backgroundColor(UI.soft).fontColor(UI.ink).enabled(!this.regionBusy).onClick(() => this.refreshRegionPreview())
+      Button(UiText.get($r('app.string.editor_save_draft'))).width('100%').constraintSize({ minHeight: 48 })
+        .backgroundColor(UI.action).fontColor(UI.onAccent).enabled(this.regionCanSave()).onClick(() => this.saveRegionDraft())
+    }.width('100%').height('100%').padding(20).backgroundColor(UI.surface)
+  }
+
   @Builder
   option(id: string, label: string) {
     Button({ type: ButtonType.Normal }) {
@@ -154,7 +273,7 @@ export struct TemplateWizard {
     }.fontColor(UI.ink).constraintSize({ minHeight: 56 }).width('100%').borderRadius(16).backgroundColor(UI.paper)
       .accessibilitySelected(this.view.templateId === id).accessibilityText(label)
       .enabled(this.view.ready && !this.view.busy && !this.confirming && !this.model?.needsRepair())
-      .onClick(() => { this.showChanges = false; this.model?.choose(id, ''); })
+      .onClick(() => { if (this.view.templateId !== id) { this.showChanges = false; this.model?.choose(id, ''); } })
   }
 
   private displayMessage(message: string): string {
@@ -209,7 +328,9 @@ export struct TemplateWizard {
             (this.view.templateId === 'region' ? this.view.selectors : this.view.groups)[index] ?? ''))
       }
       if (this.view.templateId === 'region') {
-        Text(UiText.get($r('app.string.template_region_scope'))).fontSize(13).fontColor(UI.muted)
+        Button(UiText.get($r('app.string.template_region_advanced'))).width('100%').constraintSize({ minHeight: 48 })
+          .backgroundColor(UI.soft).fontColor(UI.ink).enabled(this.view.ready && !this.view.busy && !this.confirming && this.view.target !== '' && !this.model?.needsRepair())
+          .onClick(() => this.openRegionAdvanced())
       }
       if (this.view.templateId === 'ai') {
         Text(UiText.get($r('app.string.template_ai_scope'))).fontSize(13).fontColor(UI.muted)
@@ -256,6 +377,8 @@ export struct TemplateWizard {
           .onClick(() => this.apply())
       }
     }.width('100%').height('100%').padding(20).backgroundColor(UI.surface)
+      .bindSheet($$this.showRegionAdvanced, this.RegionAdvanced(), { height: SheetSize.LARGE,
+        shouldDismiss: (dismiss: SheetDismiss) => { if (!this.regionBusy && !this.view.busy) { this.regionGeneration++; dismiss.dismiss(); } } })
     }
   }
 }

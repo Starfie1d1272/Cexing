@@ -338,7 +338,7 @@
     },
     {
       "name": "settings_reconnect_apply",
-      "value": "Reconnect to apply saved changes"
+      "value": "Reconnect to apply"
     },
     {
       "name": "background_acquired",
@@ -3946,7 +3946,7 @@
     },
     {
       "name": "template_published",
-      "value": "Published"
+      "value": "Current plan"
     },
     {
       "name": "template_view_changes",
@@ -3958,7 +3958,7 @@
     },
     {
       "name": "diag_offline",
-      "value": "Not connected · connection checks paused"
+      "value": "Not connected"
     },
     {
       "name": "diag_repair_resources",
@@ -3967,6 +3967,10 @@
     {
       "name": "template_region_scope",
       "value": "Keeps subscription rules and adds region choices for the panel; regions are inferred from node names."
+    },
+    {
+      "name": "template_region_advanced",
+      "value": "Region adjustments"
     }
   ]
 }

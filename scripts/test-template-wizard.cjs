@@ -64,6 +64,27 @@ const preview = { revision: 'version-synthetic', digest: 'synthetic', summary: '
   assert.equal(dependent.preview,null);await dependent.apply();assert.equal(dependencyApplies,0);
   await dependent.inspect(true);assert.equal(dependent.dependencies,0);assert.equal(dependent.preview,preview);
   await dependent.apply();assert.equal(dependencyApplies,1);
+  const regionPlan = {templateId:'region',version:1,region:{mode:'all',selector:'Pick',enable:true,assignments:{a:'日本',b:'美国'}}};
+  let draftPlan=structuredClone(regionPlan), regionApplied=0, capturedPlan;
+  const regionHost={load:async()=>({...inputs(),current:structuredClone(draftPlan),published:structuredClone(regionPlan)}),
+    preview:async plan=>{capturedPlan=JSON.parse(JSON.stringify(plan));draftPlan=structuredClone(capturedPlan);return preview},
+    apply:async()=>{regionApplied++;return '已保存'}};
+  const regionModel=new Model(regionHost,()=>{});await regionModel.load();
+  assert.equal(regionModel.hasChanges(),false);regionModel.choose('region','');assert.equal(regionModel.target,'Pick');
+  assert.equal(regionModel.regionPlan().mode,'all');assert.equal(regionModel.hasChanges(),false);
+  regionModel.configureRegion('all',{b:'美国',a:'日本'});assert.equal(regionModel.hasChanges(),false,'mapping order is inert');
+  regionModel.configureRegion('all',{a:'美国',b:'美国'});assert.equal(regionModel.hasChanges(),true,'same ID and selector with different assignments is a change');
+  await regionModel.inspect();assert.equal(capturedPlan.region.mode,'all');assert.equal(regionApplied,0);
+  regionModel.choose('region','');assert.equal(regionModel.preview,preview,'selected radio is a no-op, including its receipt');
+  regionModel.close();const reentered=new Model(regionHost,()=>{});await reentered.load();
+  assert.equal(reentered.hasChanges(),true);assert.equal(reentered.regionPlan().mode,'all');
+  assert.equal(reentered.regionPlan().assignments.a,'美国');
+  reentered.configureRegion('region',{b:'美国',a:'日本'});assert.equal(reentered.hasChanges(),true,'mode matters even with the same selector and mapping');
+  reentered.configureRegion('all',{a:'日本',b:'美国'});assert.equal(reentered.hasChanges(),false);
+  const archived=new Model({load:async()=>({...inputs(),regionDraft:regionPlan.region})},()=>{});
+  await archived.load();archived.choose('region','');assert.equal(archived.regionPlan().mode,'all');assert.equal(archived.regionPlan().assignments.a,'日本');
+  const exitModel=new Model({load:async()=>({...inputs(),current:{templateId:'ai',version:1,targetGroup:'Pick'}})},()=>{});
+  await exitModel.load();exitModel.choose('ai','');assert.equal(exitModel.target,'Pick');assert.equal(exitModel.hasChanges(),false);
   console.log('PASS: template wizard duplicate clicks, confirmation, failure retry and late results');
 })().catch(error => { console.error(error); process.exitCode = 1; });
 
@@ -111,3 +132,20 @@ vm.runInNewContext(ts.transpileModule(pageSource).outputText, pageSandbox);
   assert.equal(commits, 0);
   console.log('PASS: template page repeated confirmation, cancel/back and page replacement');
 })().catch(error => { console.error(error); process.exitCode = 1; });
+
+(async()=>{
+ const saved={templateId:'region',version:1,region:{mode:'all',selector:'Pick',enable:true,assignments:{one:'美国'}}};
+ let draft=structuredClone(saved),saves=0,applies=0;
+ const host={load:async()=>({...inputs(),current:structuredClone(draft),published:structuredClone(saved)}),
+   regionPreview:async plan=>{assert.ok(['all','region'].includes(plan.mode));return {eligible:true,providerPending:false,selectors:['Pick'],regions:['美国','日本'],nodes:{one:plan.assignments.one??'美国',two:'日本'},counts:{},unknown:0}},
+   preview:async plan=>{saves++;draft=JSON.parse(JSON.stringify(plan));return preview},apply:async()=>{applies++;return '已保存'}};
+ const page=new pageSandbox.exports.TemplateWizard();page.host=host;page.aboutToAppear();await new Promise(setImmediate);
+ page.openRegionAdvanced();await new Promise(setImmediate);assert.equal(page.regionMode,'all');assert.equal(page.regionAssignments.one,'美国');
+ page.regionAssignments={one:'日本'};page.showRegionAdvanced=false;page.regionGeneration++;
+ page.openRegionAdvanced();await new Promise(setImmediate);assert.equal(page.regionAssignments.one,'美国','cancelled adjustments do not alter the model');assert.equal(saves,0);
+ page.regionAssignments={one:'日本'};await page.refreshRegionPreview();await page.saveRegionDraft();
+ assert.equal(draft.region.mode,'all');assert.equal(draft.region.assignments.one,'日本');assert.equal(applies,0);assert.equal(page.showRegionAdvanced,false);
+ page.aboutToDisappear();page.aboutToAppear();await new Promise(setImmediate);page.openRegionAdvanced();await new Promise(setImmediate);
+ assert.equal(page.regionMode,'all');assert.equal(page.regionAssignments.one,'日本','saved draft survives reentry');assert.equal(page.model.hasChanges(),true);
+ console.log('PASS: unified region advanced cancellation, all mode, mapping draft save/reentry and inert publication');
+})().catch(error=>{console.error(error);process.exitCode=1});
