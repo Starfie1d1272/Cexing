@@ -105,3 +105,11 @@ Go-only `Compiler.EditorResourceSource` 仅复用既有 editSource/boundEditSour
 事务通过 `ProfileStore.saveEditDraftAtomic` 异步短写循环、fsync、关闭、再次核对 guard/revision 后原子替换同一个文件。失败或迟到保存保留旧记录；冷进程直接读取该完整文件，未完成临时文件不参与恢复。成功来源或字节已变时拒绝沿用旧绑定，保留草稿供冲突处理。`readEditDraftSource(context,file,revision,current?)` 提供有界异步候选读取，页面不得把只含绑定的同步头当作候选正文。
 
 已消费草稿会压缩为小标记；读取该标记始终投影当前成功意图。提交后压缩失败不否认已提交事实，但下一次发布前必须先完成压缩，避免恢复旧版本后旧候选重新出现。模板比较对恢复的已解决候选在其配对原文上重建 authoring Base/Mine，不把新的前置条件重投到旧成功 Original；仍使用共同编译器和收据流程。地区 authoring 资源解析与身份缓存读取不递归获取同一运行锁，身份同时绑定实际投影和资源字节。
+
+### 直接读取者与联测入口
+
+节点、规则等直接调用 ConfigEditor 的模型先捕获 `EditTicket`，再调用 `ProfileTransactions.readEditSource(context,ticket,current?)`。有候选时使用其 Original/metadata，无候选返回 undefined；该只读封装复用同一私有来源读取，前后比较完整 ticket 和成功原文字节，并把取消传给有界异步正文读取，不进入发布门禁或写草稿。保存仍经现有事务，不另建来源库。
+
+未应用候选保留期间，手动/后台订阅更新在下载前拒绝；同一订阅的其他版本发布也不能绕过，只有该草稿的正常 apply 可发布。应用或显式撤销后更新重新放行。因此正常更新不会先改变成功版本、再把配对草稿留成无法打开/撤销的旧来源。
+
+页面联测复用 `runCandidateDraftFixture(t,script,phases)`：真实 Go worker 在独立进程运行，各 Node 阶段共享私有文件。Node fixture 可 require `scripts/ci/candidate-draft-lifecycle.cjs`，使用 runtime/load、action、ctx/file、I/O/worker调度 hooks；实际 Store/Tx/Host/Compiler 不替换。runtime 支持 lib/pages 相对模块解析与页面源码 transform、平台/UI globals。规则组提供 `candidate-rule-page-lifecycle.cjs` 后，标准 runner 自动加 rules-save/reopen/modify/apply 四阶段并打印实际通过列表，缺少其分支时原七阶段仍全部保留；联合验收须核对四阶段实际执行，不能把仅接口分支的成功记为页面通过。

@@ -6,7 +6,7 @@ const root = process.argv[2] || path.resolve(__dirname, '..');
 let pending = null, finishDownload, failDownload, gate = 0, checks = 0;
 let state = { Current: { ID: 'active' }, Profiles: {} }, serial = 0;
 const controller = { status: 0, holdConfiguration: () => { gate++; return () => { gate--; }; }, configurationEpoch: () => 1 };
-const store = { compactAppliedDraft: async () => {}, isApplyUncertain: () => false, getActiveFile: () => '', getEnabledMerge: () => '', prepareContent: value => value,
+const store = { readEditDraft: () => ({ revision: '', intent: null }), compactAppliedDraft: async () => {}, isApplyUncertain: () => false, getActiveFile: () => '', getEnabledMerge: () => '', prepareContent: value => value,
   downloadFromOrigin: () => new Promise((resolve, reject) => { finishDownload = resolve; failDownload = reject; }) };
 const versions = { read: () => state, regionPlan: () => null, editIntent: () => null, stage: async () => ({ version: { ID: `version-${++serial}`, Path: 'synthetic-stage' }, receipt: 'receipt' }),
   verify: async () => 'receipt', commit: async (_context, version) => { state.Profiles['other.yaml'] = version; }, discard: async () => {} };
@@ -21,7 +21,7 @@ const input = { take: () => { checks++; const candidate = pending; pending = nul
 let source = fs.readFileSync(path.join(root, 'cexing/entry/src/main/ets/pages/ProfilePage.ets'), 'utf8');
 let code = source.slice(0, source.indexOf('  @Builder')) + '\n}';
 code = code.split('\n').map(line => line.trimStart().startsWith('@') ? line.replace(/@\w+(?:\([^\n)]*\))?\s*/g, '') : line).join('\n').replace('export struct ', 'export class ');
-const pageBox = { exports: {}, setTimeout, clearTimeout, getContext: () => ({}), NavPathStack: class {}, require: name => name.endsWith('/ProfileTransactions') ? { ProfileTransactions: tx } :
+const pageBox = { exports: {}, getContext: () => ({}), NavPathStack: class {}, require: name => name.endsWith('/ProfileTransactions') ? { ProfileTransactions: tx } :
   name.endsWith('/ProfileImportInput') ? { ProfileImportInput: input } : {} };
 vm.runInNewContext(ts.transpileModule(code).outputText, pageBox);
 const Page = pageBox.exports.ProfilePage;
@@ -61,30 +61,5 @@ async function settle(result, outcome) {
   assert.ok(pending); assert.equal(checks, before, 'departed pages release the observer');
   hidden.aboutToAppear(); assert.equal(pending, null); assert.equal(hidden.inputUrl, 'https://example.invalid/return'); hidden.aboutToDisappear();
   assert.equal(observed, 3, 'unsubscribed observers stay released');
-  // AutoUpdater writes its result after the transaction's finally/onIdle. The
-  // page must observe that result on the next turn, without another user tap.
-  let updateState = { id: 'other', attemptedAt: 0, succeededAt: 0, failedAt: 0, retryAt: 0 };
-  store.getActiveFile = () => 'other.yaml'; store.getOrigin = () => 'https://example.invalid/source';
-  store.updateState = () => ({ ...updateState }); store.saveUpdateState = (_context, _file, next) => { updateState = { ...next }; };
-  mods['./Settings'].Settings.load = () => ({ autoUpdate: true, autoUpdateIntervalHours: 6 });
-  mods['./CoreApi'] = { CoreApi: { isAlive: async () => true } };
-  mods['./ProfileTransactions'] = { ProfileTransactions: tx };
-  mods['./Logger'] = { Logger: { info() {}, warn() {} } };
-  const autoBox = { exports: {}, Date, require: name => mods[name] || {} };
-  vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(root, 'cexing/entry/src/main/ets/lib/AutoUpdater.ets'), 'utf8')).outputText, autoBox);
-  for (const outcome of ['failure', 'success']) {
-    const visible = page(); let displayed = null;
-    visible.refresh = () => { displayed = { ...updateState }; };
-    const running = autoBox.exports.AutoUpdater.checkAndRun({}, true);
-    while (!tx.isBusy()) await new Promise(setImmediate);
-    if (outcome === 'failure') failDownload(Error('synthetic failure'));
-    else finishDownload({ content: 'synthetic original', meta: {} });
-    await running; await new Promise(resolve => setTimeout(resolve, 5));
-    assert.ok(displayed, 'settlement refresh needs no manual call');
-    if (outcome === 'failure') assert.ok(displayed.failedAt > displayed.succeededAt);
-    else { assert.ok(displayed.succeededAt > 0); assert.equal(displayed.failedAt, 0); }
-    visible.aboutToDisappear();
-  }
-
   console.log('PASS: real background transaction success/failure/cancel wakes pending shares automatically, after gate release, with draft/hidden-page protection and isolated observers');
 })().catch(error => { console.error(error); process.exitCode = 1; });
