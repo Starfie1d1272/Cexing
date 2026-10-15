@@ -249,6 +249,13 @@ export namespace ProfileStore {
     const out: ProfileMeta[] = [];
     try {
       const names = fileIo.listFileSync(d);
+      // Immutable versions remain authoritative after restoration even if the
+      // old compatibility file was deleted. Keep those profiles operable in UI.
+      if (state !== null) {
+        for (const name of Object.keys(state.Profiles)) {
+          if (!names.includes(name)) { names.push(name); }
+        }
+      }
       for (const name of names) {
         if (name === ACTIVE_FILE || !/\.(yaml|yml)$/i.test(name)) {
           continue;
@@ -370,7 +377,8 @@ export namespace ProfileStore {
   }
 
   export async function deleteProfile(context: common.Context, file: string): Promise<void> {
-    await fileIo.unlink(`${dir(context)}/${file}`);
+    const rawPath = `${dir(context)}/${file}`;
+    if (fileIo.accessSync(rawPath)) { await fileIo.unlink(rawPath); }
     deleteMetaEntry(context, file);
     const originPath = `${dir(context)}/${file}.url`;
     if (fileIo.accessSync(originPath)) {
@@ -525,11 +533,20 @@ export namespace ProfileStore {
     const d = ensureDir(context);
     const oldPath = `${d}/${oldFile}`;
     const newPath = `${d}/${target}`;
-    if (!fileIo.accessSync(oldPath)) {
-      throw new Error('配置文件不存在');
+    const suffixes: string[] = ['.url', '.last-good', '.merge.json', '.region-select.json',
+      '.region-previous.json', '.update.json', '.intent.json'];
+    // moveFileSync may replace a destination. Reject every managed collision
+    // before moving the raw source or materializing an immutable-only source.
+    const newDraft = draftPath(context, target);
+    if (pendingImports.includes(target) || fileIo.accessSync(newPath) || fileIo.accessSync(newDraft) ||
+      suffixes.some((suffix: string) => fileIo.accessSync(`${newPath}${suffix}`)) ||
+      readMetaStrict(context)[target] !== undefined) {
+      throw new Error('目标名称已有资料，请使用其他名称');
     }
-    if (fileIo.accessSync(newPath)) {
-      throw new Error(`已存在同名配置：${target}`);
+    if (!fileIo.accessSync(oldPath)) {
+      const original = getProfileContent(context, oldFile);
+      if (original === null) { throw new Error('配置文件不存在'); }
+      atomicText(oldPath, original);
     }
     try {
       fileIo.moveFileSync(oldPath, newPath);
@@ -538,8 +555,7 @@ export namespace ProfileStore {
     }
     const moved: string[][] = [];
     try {
-      for (const suffix of ['.url', '.last-good', '.merge.json', '.region-select.json',
-        '.region-previous.json', '.update.json']) {
+      for (const suffix of suffixes) {
         const from = `${oldPath}${suffix}`;
         const to = `${newPath}${suffix}`;
         if (fileIo.accessSync(from)) {
@@ -549,7 +565,6 @@ export namespace ProfileStore {
       }
       const oldDraft = draftPath(context, oldFile);
       if (fileIo.accessSync(oldDraft)) {
-        const newDraft = draftPath(context, target);
         fileIo.moveFileSync(oldDraft, newDraft);
         moved.push([oldDraft, newDraft]);
       }
