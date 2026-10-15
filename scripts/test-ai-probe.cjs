@@ -1,3 +1,4 @@
+const uiFixture = require('./ci/ui-fixtures.cjs');
 // Execute the real UI observer/service with synthetic platform callbacks.
 const assert = require('node:assert/strict'), fs = require('node:fs'), vm = require('node:vm');
 const ts = require('./ci/transpile-arkts.cjs');
@@ -29,7 +30,7 @@ function load(file, page = false) {
  let src = fs.readFileSync(`cexing/entry/src/main/ets/${file}`, 'utf8');
  if (page) src = src.slice(0, src.indexOf('  build()')) + '\n}';
  src = src.replace(/@Component\n/g, '').replace(/@(Prop|Watch|State)(?:\([^)]*\))?\s*/g, '').replace('export struct ', 'export class ');
- const sandbox = { exports: {}, require: name => { assert.ok(name in modules, name); return modules[name]; } };
+ const sandbox = { exports: {}, ...uiFixture.globals, require: name => { if (name.endsWith('/UiText')) return uiFixture.module; assert.ok(name in modules, name); return modules[name]; } };
  vm.runInNewContext(ts.transpileModule(src).outputText, sandbox); return sandbox.exports;
 }
 let successful = { ID: 'version-good', ProfileID: 'one.yaml' }, intentReads = 0;

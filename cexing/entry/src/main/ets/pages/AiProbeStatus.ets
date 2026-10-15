@@ -1,3 +1,4 @@
+import { UiText } from '../lib/UiText';
 import { connection } from '@kit.NetworkKit';
 import { AiProbeService, AiServiceResult } from '../lib/AiProbeService';
 import { VpnController, VpnStatus } from '../lib/VpnController';
@@ -63,37 +64,37 @@ export struct AiProbeStatus {
   private clear(): void { this.service?.cancel(); this.checking = false; this.results = []; this.routeUnproven = false; }
   private revisionChanged(): void { this.clear(); if (this.visible) { this.service?.check(this.revision); } }
   private status(state: string): string {
-    if (state === 'reachable') { return '可达'; }
-    if (state === 'region_restricted') { return '地区限制'; }
-    if (state === 'limited') { return '稍后重试'; }
-    if (state === 'timeout') { return '超时'; }
-    if (state === 'network_failed') { return '连接失败'; }
-    return '未确认';
+    if (state === 'reachable') { return UiText.get($r('app.string.ai_reachable')); }
+    if (state === 'region_restricted') { return UiText.get($r('app.string.ai_region_restricted')); }
+    if (state === 'limited') { return UiText.get($r('app.string.ai_limited')); }
+    if (state === 'timeout') { return UiText.get($r('app.string.ai_timeout')); }
+    if (state === 'network_failed') { return UiText.get($r('app.string.ai_failed')); }
+    return UiText.get($r('app.string.ai_unknown'));
   }
   private summary(): string {
-    if (this.checking) { return '检查中'; }
-    if (this.results.length === 0) { return '未检查'; }
+    if (this.checking) { return UiText.get($r('app.string.ai_checking')); }
+    if (this.results.length === 0) { return UiText.get($r('app.string.ai_unchecked')); }
     const available = this.results.filter((r: AiServiceResult) => r.state === 'reachable').length;
-    if (available === 3) { return '可达'; }
-    if (this.results.some((r: AiServiceResult) => r.state === 'region_restricted')) { return '部分地区限制'; }
-    if (this.results.some((r: AiServiceResult) => r.state === 'limited')) { return '稍后重试'; }
-    return available > 0 ? `${available}/3 可达` : '未确认';
+    if (available === 3) { return UiText.get($r('app.string.ai_reachable')); }
+    if (this.results.some((r: AiServiceResult) => r.state === 'region_restricted')) { return UiText.get($r('app.string.ai_partial_restricted')); }
+    if (this.results.some((r: AiServiceResult) => r.state === 'limited')) { return UiText.get($r('app.string.ai_limited')); }
+    return available > 0 ? UiText.get($r('app.string.ai_partial_reachable'), available) : UiText.get($r('app.string.ai_unknown'));
   }
   build() {
     Column({ space: 8 }) {
       Row({ space: 8 }) {
         Button(this.summary()).backgroundColor(UI.soft).fontColor(UI.muted)
-          .onClick(() => { this.expanded = !this.expanded; })
+          .accessibilityDescription(this.expanded ? UiText.get($r('app.string.template_expanded')) : UiText.get($r('app.string.template_collapsed'))).onClick(() => { this.expanded = !this.expanded; })
         if (this.results.length > 0) {
           Text(new Date(this.results[0].at).toLocaleTimeString()).fontSize(12).fontColor(UI.muted)
         }
         Blank()
-        Button('重试').backgroundColor(UI.soft).fontColor(UI.ink).enabled(!this.checking && this.revision.length > 0 && this.online && VpnController.status === VpnStatus.Connected)
+        Button(UiText.get($r('app.string.template_retry'))).backgroundColor(UI.soft).fontColor(UI.ink).accessibilityDescription(this.checking ? UiText.get($r('app.string.ai_checking')) : (this.revision.length === 0 || !this.online || VpnController.status !== VpnStatus.Connected ? UiText.get($r('app.string.ai_retry_unavailable')) : '')).enabled(!this.checking && this.revision.length > 0 && this.online && VpnController.status === VpnStatus.Connected)
           .onClick(() => this.service?.check(this.revision, true))
       }.width('100%')
       if (this.expanded) {
         if (this.routeUnproven && this.results.length === 0) {
-          Text('当前出口暂不能确认，可更换出口重试').fontSize(13).fontColor(UI.muted)
+          Text(UiText.get($r('app.string.ai_route_unknown'))).fontSize(13).fontColor(UI.muted)
         }
         ForEach(this.results, (result: AiServiceResult) => {
           Row() {
