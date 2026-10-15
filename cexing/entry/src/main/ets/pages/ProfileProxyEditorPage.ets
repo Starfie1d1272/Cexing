@@ -21,6 +21,7 @@ class ProxyEditorRow {
   label: string;
   type: string;
   added: boolean;
+  disabled: boolean = false;
   constructor(id: string, label: string, type: string, added: boolean) {
     this.id = id; this.label = label; this.type = type; this.added = added;
   }
@@ -137,6 +138,9 @@ export struct ProfileProxyEditorPage {
         rows.splice(before < 0 ? rows.length : before, 0, moved);
       }
     }
+    if (this.section === 'proxies') {
+      for (const row of rows) { row.disabled = ProxyIntentEdits.nodeDisabled(intent, row.id, row.added); }
+    }
     this.rows = rows;
     const choices: ProxySourceChoice[] = [new ProxySourceChoice('all', this.t('proxy_editor_all_sources')),
       new ProxySourceChoice('raw', this.t('proxy_editor_original')), new ProxySourceChoice('custom', this.t('proxy_editor_custom'))];
@@ -232,7 +236,7 @@ export struct ProfileProxyEditorPage {
   }
 
   private async open(row: ProxyEditorRow): Promise<void> {
-    if (this.busy || this.model === null) { return; }
+    if (this.busy || this.model === null || row.disabled) { return; }
     const epoch = ++this.epoch; this.busy = true; this.providerState = '';
     try {
       const intent = this.model.workingIntent(); this.newAction = '';
@@ -338,7 +342,7 @@ export struct ProfileProxyEditorPage {
         if (used || !this.current(epoch) || this.busy || this.model === null) { return; }
         used = true;
         const intent = this.model.workingIntent();
-        if (row.added) { intent.operations = intent.operations.filter((op: EditOperation) => op.id !== row.id); await this.save(intent); }
+        if (row.added) { await this.save(ProxyIntentEdits.removeAddition(intent, row.id)); }
         else {
           this.busy = true;
           try {
@@ -349,6 +353,30 @@ export struct ProfileProxyEditorPage {
           } catch (_) { if (this.current(epoch)) { this.error = this.t('proxy_editor_delete_failed'); } }
           finally { if (this.current(epoch)) { this.busy = false; } }
         }
+      } } });
+  }
+
+  private async toggleNode(row: ProxyEditorRow): Promise<void> {
+    if (this.busy || this.model === null || this.section !== 'proxies') { return; }
+    const epoch = ++this.epoch;
+    if (row.disabled) {
+      await this.save(ProxyIntentEdits.enableNode(this.model.workingIntent(), row.id, row.added)); return;
+    }
+    let used = false;
+    AlertDialog.show({ title: this.t('proxy_editor_disable_node_named', row.label), message: this.t('proxy_editor_disable_node_risk'),
+      primaryButton: { value: this.t('proxy_editor_cancel'), action: () => { used = true; } },
+      secondaryButton: { value: this.t('proxy_editor_disable_node'), action: async () => {
+        if (used || !this.current(epoch) || this.busy || this.model === null || this.section !== 'proxies') { return; }
+        used = true; this.busy = true;
+        let next: EditIntent | null = null;
+        try {
+          const target = await this.model.nodeTarget(row.id, row.added);
+          if (!this.current(epoch) || target === null || this.section !== 'proxies') { return; }
+          next = ProxyIntentEdits.disableNode(this.model.workingIntent(), target,
+            row.added ? `${row.id}:disable` : util.generateRandomUUID(true));
+        } catch (_) { if (this.current(epoch)) { this.error = this.t('proxy_editor_node_state_failed'); } }
+        finally { if (this.current(epoch)) { this.busy = false; } }
+        if (next !== null && this.current(epoch)) { await this.save(next); }
       } } });
   }
 
@@ -530,7 +558,13 @@ export struct ProfileProxyEditorPage {
           ForEach(this.shownRows(), (row: ProxyEditorRow) => {
             ListItem() {
               Row({ space: 8 }) {
-                Button(row.label).constraintSize({ minHeight: 44 }).layoutWeight(1).onClick(() => { this.open(row); })
+                Button(row.label).constraintSize({ minHeight: 44 }).layoutWeight(1).enabled(!row.disabled).onClick(() => { this.open(row); })
+                if (this.section === 'proxies') {
+                  Button(row.disabled ? this.t('proxy_editor_enable_node') : this.t('proxy_editor_disable_node'))
+                    .constraintSize({ minHeight: 44 }).accessibilityText(this.t(row.disabled ?
+                      'proxy_editor_enable_node_named' : 'proxy_editor_disable_node_named', row.label))
+                    .onClick(() => { this.toggleNode(row); })
+                }
                 if (this.section === 'proxy-groups' && !row.added) {
                   Button($r('app.string.proxy_editor_smart')).constraintSize({ minHeight: 44 }).accessibilityText(this.t('proxy_editor_smart_named', row.label)).onClick(() => { this.smart(row); })
                 }

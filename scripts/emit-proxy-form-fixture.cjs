@@ -35,4 +35,8 @@ if (input.advancedDirect) {
   const advanced = new Form('proxies'); advanced.replaceAdvanced(JSON.stringify({ name: 'advanced-node', type: 'direct', 'x-advanced': { keep: true } }));
   intent = edits.mapping(intent, null, advanced.finish(), 'advanced-add', input.missing);
 }
+if (input.disableNode) {
+  intent = edits.disableNode(intent, input.node, 'node-pause');
+  if (input.disableNode === 'restore') { intent = edits.enableNode(intent, input.node.item.id); }
+}
 process.stdout.write(JSON.stringify(intent));

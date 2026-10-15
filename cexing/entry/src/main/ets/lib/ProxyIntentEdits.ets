@@ -71,6 +71,37 @@ export namespace ProxyIntentEdits {
     return next;
   }
 
+  /** Keep node references intact; the common compiler supplies the reject adapter. */
+  export function nodeDisabled(intent: EditIntent, id: string, addition: boolean = false): boolean {
+    return intent.operations.some((op: EditOperation) => op.section === 'proxies' && op.kind === 'disable' &&
+      (addition ? op.id === `${id}:disable` : op.target === id));
+  }
+
+  export function enableNode(intent: EditIntent, id: string, addition: boolean = false): EditIntent {
+    const next = copy(intent);
+    next.operations = next.operations.filter((op: EditOperation) => op.section !== 'proxies' || op.kind !== 'disable' ||
+      (addition ? op.id !== `${id}:disable` : op.target !== id));
+    return next;
+  }
+
+  export function disableNode(intent: EditIntent, target: EditTarget, action: string): EditIntent {
+    const next = enableNode(intent, target.item.id);
+    if (next.operations.some((op: EditOperation) => op.id === action)) { throw new Error('NODE_OPERATION_CHANGED'); }
+    const operation: EditOperation = { id: action, kind: 'disable', section: 'proxies',
+      target: target.item.id, expected: target.item.revision };
+    const renames = next.operations.filter((op: EditOperation) => op.kind === 'rename');
+    next.operations = next.operations.filter((op: EditOperation) => op.kind !== 'rename');
+    next.operations.push(operation);
+    next.operations = next.operations.concat(renames);
+    return next;
+  }
+
+  export function removeAddition(intent: EditIntent, id: string): EditIntent {
+    const next = enableNode(intent, id, true);
+    next.operations = next.operations.filter((op: EditOperation) => op.id !== id);
+    return next;
+  }
+
   export function move(intent: EditIntent, section: string, id: string, before: string, action: string): EditIntent {
     const next = copy(intent);
     next.operations = next.operations.filter((op: EditOperation) =>

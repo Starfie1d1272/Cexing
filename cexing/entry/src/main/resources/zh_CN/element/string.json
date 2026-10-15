@@ -2571,6 +2571,30 @@
     {
       "name": "apply_feedback_region_failed",
       "value": "地区策略未完成，请重试"
+    },
+    {
+      "name": "proxy_editor_disable_node",
+      "value": "停用"
+    },
+    {
+      "name": "proxy_editor_enable_node",
+      "value": "启用"
+    },
+    {
+      "name": "proxy_editor_disable_node_risk",
+      "value": "停用后，所有使用此节点的连接将被拒绝。"
+    },
+    {
+      "name": "proxy_editor_disable_node_named",
+      "value": "停用 %s"
+    },
+    {
+      "name": "proxy_editor_enable_node_named",
+      "value": "启用 %s"
+    },
+    {
+      "name": "proxy_editor_node_state_failed",
+      "value": "无法修改节点状态，请重新读取"
     }
   ]
 }
