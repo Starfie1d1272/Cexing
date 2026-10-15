@@ -1,4 +1,8 @@
 import { UiText } from '../lib/UiText';
+import { ProfileApplyFeedback, ProfileApplyFailureKind } from '../lib/ProfileApplyFeedback';
+import { ProfileApplyRecovery } from '../lib/ProfileApplyRecovery';
+import { ProfileImportInput } from '../lib/ProfileImportInput';
+import { promptAction } from '@kit.ArkUI';
 import { createTemplateUpdateSource } from '../lib/TemplateUpdateSource';
 import { common } from '@kit.AbilityKit';
 import { EditorDraftHost } from '../lib/ConfigEditor';
@@ -8,6 +12,13 @@ import { NativeTheme as UI } from './NativeTheme';
 
 @Component
 export struct TemplateUpdateReview {
+  @Consume('nav') navStack: NavPathStack;
+  @Consume('tabJump') tabJump: number;
+  @State private recovering: boolean = false;
+  @State private recoveryMessage: string = '';
+  @State private applyFailure: ProfileApplyFailureKind | '' = '';
+  private visible: boolean = false;
+  private recoveryGeneration: number = 0;
   host?: TemplateUpdateHost;
   editor?: EditorDraftHost;
   source?: TemplateUpdateSource;
@@ -21,6 +32,7 @@ export struct TemplateUpdateReview {
   @State private message: string = '';
   private model: TemplateUpdateModel | null = null;
   aboutToAppear(): void {
+    this.visible = true; this.recoveryGeneration++; this.recovering = false; this.recoveryMessage = '';
     const source = this.source ?? (this.profileId.length > 0 ?
       createTemplateUpdateSource(getContext(this) as common.UIAbilityContext, this.profileId) : undefined);
     const host = this.host ?? (source !== undefined && this.profileId.length > 0 ?
@@ -35,11 +47,38 @@ export struct TemplateUpdateReview {
       this.summary = model.preview?.validation?.summary ?? '';
       this.busy = model.busy;
       this.message = model.error || model.result;
+      this.applyFailure = model.applyFailure;
     });
+    this.model.setApplyFailure(ProfileApplyFeedback.recovery(getContext(this) as common.UIAbilityContext));
     this.model.refresh();
   }
-  aboutToDisappear(): void { this.model?.close(); }
-  private close(): void { this.model?.close(); this.onClose(); }
+  aboutToDisappear(): void { this.visible = false; this.recoveryGeneration++; this.model?.close(); }
+  private close(): void { this.visible = false; this.recoveryGeneration++; this.model?.close(); this.onClose(); }
+  private needsRecovery(): boolean { return this.applyFailure === 'unconfirmed' || this.applyFailure === 'committed-pending'; }
+  private failureMessage(): string {
+    return this.applyFailure !== '' ? (getContext(this) as common.UIAbilityContext)
+      .resourceManager.getStringByNameSync(ProfileApplyFeedback.key(this.applyFailure)) : '';
+  }
+  private async recoverApply(): Promise<void> {
+    const model = this.model; const file = this.profileId;
+    if (!this.visible || this.recovering || model === null || model.busy || !this.needsRecovery()) { return; }
+    const epoch = ++this.recoveryGeneration;
+    const current = (): boolean => this.visible && epoch === this.recoveryGeneration && model === this.model && file === this.profileId;
+    this.recovering = true; this.recoveryMessage = '';
+    try {
+      const accepted = await ProfileApplyRecovery.reconnect(getContext(this) as common.UIAbilityContext, current);
+      if (!current() || accepted === null) { return; }
+      if (accepted) {
+        promptAction.showToast({ message: UiText.get($r('app.string.apply_feedback_starting')), duration: 1800 });
+        if (!ProfileImportInput.hasPending()) { this.tabJump = 0; }
+        this.navStack.clear();
+      } else { this.recoveryMessage = UiText.get($r('app.string.apply_feedback_recovery_failed')); }
+    } catch (_) { if (current()) { this.recoveryMessage = UiText.get($r('app.string.apply_feedback_recovery_failed')); } }
+    finally { if (current()) { this.recovering = false; } }
+  }
+  private repairSelection(): void {
+    if (this.visible && !this.recovering && this.applyFailure === 'selection-required') { this.navStack.pushPath({ name: 'zashboard' }); }
+  }
   private displayMessage(message: string): string {
     if (message === '') { return ''; }
     if (message === '方案读取失败，请重试') { return UiText.get($r('app.string.template_read_failed')); }
@@ -73,16 +112,27 @@ export struct TemplateUpdateReview {
         }.width('100%')
       }, (conflict: TemplateConflict) => conflict.id)
       if (this.message.length > 0) { Text(this.displayMessage(this.message)).fontSize(14).fontColor(UI.muted) }
+      if (this.applyFailure !== '' && this.applyFailure !== 'failed') { Text(this.failureMessage()).fontSize(14).fontColor(UI.error) }
+      if (this.recoveryMessage.length > 0) { Text(this.recoveryMessage).fontSize(14).fontColor(UI.muted) }
       }.width('100%')
       }.width('100%').layoutWeight(1)
       Row({ space: 8 }) {
         Button(UiText.get($r('app.string.template_back'))).layoutWeight(1).backgroundColor(UI.soft).fontColor(UI.ink).onClick(() => this.close())
-        Button(UiText.get($r('app.string.template_repreview'))).layoutWeight(1).backgroundColor(UI.soft).fontColor(UI.ink)
+        if (!this.model?.needsRepair()) { Button(UiText.get($r('app.string.template_repreview'))).layoutWeight(1).backgroundColor(UI.soft).fontColor(UI.ink)
           .enabled(!this.busy).onClick(() => this.model?.reset())
+        }
       }.width('100%')
-      Button(this.busy ? UiText.get($r('app.string.template_working')) : UiText.get($r('app.string.template_apply_update'))).width('100%').constraintSize({ minHeight: 48 })
+      if (this.needsRecovery()) {
+        Button(UiText.get($r('app.string.apply_feedback_reconnect'))).width('100%').constraintSize({ minHeight: 48 })
+          .enabled(!this.recovering).onClick(() => this.recoverApply())
+      } else if (this.applyFailure === 'selection-required') {
+        Button(UiText.get($r('app.string.apply_feedback_panel'))).width('100%').constraintSize({ minHeight: 48 })
+          .enabled(!this.recovering).onClick(() => this.repairSelection())
+      }
+      if (!this.model?.needsRepair()) { Button(this.busy ? UiText.get($r('app.string.template_working')) : UiText.get($r('app.string.template_apply_update'))).width('100%').constraintSize({ minHeight: 48 })
         .backgroundColor(UI.action).fontColor(UI.onAccent).enabled(!this.busy && this.ready)
         .onClick(() => this.model?.apply())
+      }
     }.width('100%').height('100%').padding(20).backgroundColor(UI.surface)
   }
 }

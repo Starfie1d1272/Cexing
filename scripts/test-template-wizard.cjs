@@ -4,7 +4,10 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs'), vm = require('node:vm');
 const ts = require('./ci/transpile-arkts.cjs');
 const src = fs.readFileSync('cexing/entry/src/main/ets/lib/TemplateWizardModel.ets', 'utf8');
-const sandbox = { exports: {} };
+const feedbackBox={exports:{},require:()=>({})};
+vm.runInNewContext(ts.transpileModule(fs.readFileSync('cexing/entry/src/main/ets/lib/ProfileApplyFeedback.ets','utf8')).outputText,feedbackBox);
+const feedback={...feedbackBox.exports.ProfileApplyFeedback,recovery:()=>''};
+const sandbox = { exports: {}, require:()=>({ProfileApplyFeedback:feedback}) };
 vm.runInNewContext(ts.transpileModule(src).outputText, sandbox);
 const Model = sandbox.exports.TemplateWizardModel;
 const deferred = () => { let resolve, reject; const promise = new Promise((a,b) => { resolve=a; reject=b; }); return { promise, resolve, reject }; };
@@ -58,10 +61,11 @@ const preview = { revision: 'version-synthetic', digest: 'synthetic', summary: '
 // Execute the real page's event methods, excluding only the ArkUI builder DSL.
 let pageSource = fs.readFileSync('cexing/entry/src/main/ets/pages/TemplateWizard.ets', 'utf8');
 pageSource = pageSource.slice(0, pageSource.indexOf('  @Builder')) + '\n}';
-pageSource = pageSource.replace(/@Component\n/g, '').replace(/@(State|Prop) /g, '').replace('export struct ', 'export class ');
+pageSource = pageSource.replace(/@Consume\('[^']*'\) /g, '').replace(/@Component\n/g, '').replace(/@(State|Prop|Consume) /g, '').replace('export struct ', 'export class ');
 let dialog = deferred(), dialogs = 0;
 const pageSandbox = { exports: {}, getContext: () => ({}), $r: () => '', require: name => {
   if (name.endsWith('/UiText')) return uiFixture.module;
+  if(name.endsWith('/ProfileApplyFeedback'))return {ProfileApplyFeedback:feedback};
   if (name === '@kit.ArkUI') return { promptAction: { showDialog: () => { dialogs++; return dialog.promise; } } };
   if (name === '../lib/AiProbeBinding') return { AiProbeBinding: class { revision() { return ''; } } };
   if (name === './NativeTheme') return { NativeTheme: {} };

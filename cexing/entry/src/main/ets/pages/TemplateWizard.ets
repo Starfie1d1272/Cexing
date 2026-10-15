@@ -1,4 +1,7 @@
 import { UiText } from '../lib/UiText';
+import { ProfileApplyFeedback } from '../lib/ProfileApplyFeedback';
+import { ProfileApplyRecovery } from '../lib/ProfileApplyRecovery';
+import { ProfileImportInput } from '../lib/ProfileImportInput';
 import { createTemplateUpdateSource } from '../lib/TemplateUpdateSource';
 import { TemplateUpdateReview } from './TemplateUpdateReview';
 import { TemplateUpdateSource } from '../lib/TemplateUpdateHost';
@@ -15,6 +18,11 @@ import { TemplateWizardHost, TemplateWizardModel, TemplateWizardView } from '../
 // ProfilePage's single owner supplies the transaction adapter and entry point.
 @Component
 export struct TemplateWizard {
+  @Consume('nav') navStack: NavPathStack;
+  @Consume('tabJump') tabJump: number;
+  @State private recovering: boolean = false;
+  @State private recoveryMessage: string = '';
+  private recoveryGeneration: number = 0;
   host?: TemplateWizardHost;
   editor?: EditorDraftHost;
   updateSource?: TemplateUpdateSource;
@@ -34,6 +42,7 @@ export struct TemplateWizard {
   private visible: boolean = false;
 
   aboutToAppear(): void {
+    this.recoveryGeneration++; this.recovering = false; this.recoveryMessage = '';
     this.visible = true; this.confirmationGeneration++; this.confirming = false;
     this.reviewingUpdate = false;
     this.activeUpdateSource = this.updateSource ?? (this.profileId.length > 0 ?
@@ -46,16 +55,53 @@ export struct TemplateWizard {
     this.model = new TemplateWizardModel(host, () => {
       if (this.model !== null) {
         this.view = this.model.snapshot();
-        this.aiRevision = this.view.ready && !this.view.busy && this.view.templateId === 'ai' ?
+        this.aiRevision = this.view.ready && !this.view.busy && !this.model.needsRepair() && this.view.templateId === 'ai' ?
           this.aiBinding.revision(getContext(this) as common.UIAbilityContext, this.profileId, this.view.target) : '';
-        this.updateAvailable = this.view.ready && !this.view.busy &&
+        this.updateAvailable = this.view.ready && !this.view.busy && !this.model.needsRepair() &&
           (this.activeUpdateSource?.available?.(this.view.templateId, this.view.target) ?? this.updateSource !== undefined);
       }
     });
-    this.model.load();
+    this.load();
   }
-  aboutToDisappear(): void { this.visible = false; this.confirmationGeneration++; this.confirming = false; this.model?.close(); }
-  private close(): void { this.visible = false; this.confirmationGeneration++; this.confirming = false; this.model?.close(); this.onClose(); }
+  aboutToDisappear(): void { this.visible = false; this.recoveryGeneration++; this.confirmationGeneration++; this.confirming = false; this.model?.close(); }
+  private close(): void { this.visible = false; this.recoveryGeneration++; this.confirmationGeneration++; this.confirming = false; this.model?.close(); this.onClose(); }
+  private load(): void {
+    this.model?.setApplyFailure(ProfileApplyFeedback.recovery(getContext(this) as common.UIAbilityContext));
+    this.model?.load();
+  }
+  private needsRecovery(): boolean {
+    return this.view.applyFailure === 'unconfirmed' || this.view.applyFailure === 'committed-pending';
+  }
+  private async recoverApply(): Promise<void> {
+    const model = this.model; const file = this.profileId;
+    if (!this.visible || this.recovering || model === null || model.busy || !this.needsRecovery()) { return; }
+    const epoch = ++this.recoveryGeneration;
+    const current = (): boolean => this.visible && !this.reviewingUpdate && epoch === this.recoveryGeneration &&
+      model === this.model && file === this.profileId;
+    this.recovering = true; this.recoveryMessage = '';
+    try {
+      const accepted = await ProfileApplyRecovery.reconnect(getContext(this) as common.UIAbilityContext, current);
+      if (!current() || accepted === null) { return; }
+      if (accepted) {
+        // Startup acceptance does not clear the persistent unknown fence. The
+        // connection view owns subsequent runtime confirmation and feedback.
+        promptAction.showToast({ message: UiText.get($r('app.string.apply_feedback_starting')), duration: 1800 });
+        if (!ProfileImportInput.hasPending()) { this.tabJump = 0; }
+        this.navStack.clear();
+      } else { this.recoveryMessage = UiText.get($r('app.string.apply_feedback_recovery_failed')); }
+    } catch (_) { if (current()) { this.recoveryMessage = UiText.get($r('app.string.apply_feedback_recovery_failed')); } }
+    finally { if (current()) { this.recovering = false; } }
+  }
+  private repairSelection(): void {
+    if (this.visible && !this.recovering && this.view.applyFailure === 'selection-required') {
+      this.navStack.pushPath({ name: 'zashboard' });
+    }
+  }
+  private failureMessage(): string {
+    const kind = this.view.applyFailure;
+    return kind !== undefined && kind !== '' ? (getContext(this) as common.UIAbilityContext)
+      .resourceManager.getStringByNameSync(ProfileApplyFeedback.key(kind)) : '';
+  }
   private async apply(): Promise<void> {
     const model = this.model;
     if (model === null || model.busy || model.preview === null) { return; }
@@ -83,7 +129,7 @@ export struct TemplateWizard {
     Button(label).constraintSize({ minHeight: 44 }).width('100%')
       .accessibilitySelected(this.view.templateId === id).backgroundColor(this.view.templateId === id ? UI.action : UI.soft)
       .fontColor(this.view.templateId === id ? UI.onAccent : UI.ink)
-      .enabled(this.view.ready === true && this.view.busy === false)
+      .enabled(this.view.ready === true && this.view.busy === false && !this.model?.needsRepair())
       .onClick(() => this.model?.choose(id, ''))
   }
   private displayMessage(message: string): string {
@@ -103,7 +149,7 @@ export struct TemplateWizard {
   build() {
     if (this.reviewingUpdate) {
       TemplateUpdateReview({ profileId: this.profileId, editor: this.activeEditor, source: this.activeUpdateSource,
-        onClose: () => { this.reviewingUpdate = false; this.model?.load(); } })
+        onClose: () => { this.reviewingUpdate = false; this.load(); } })
     } else {
     Column({ space: 12 }) {
       Row() {
@@ -126,19 +172,23 @@ export struct TemplateWizard {
         Select((this.view.templateId === 'region' ? this.view.selectors :
           this.view.groups).map((name: string): SelectOption => { return { value: this.view.labels?.[name] ?? name }; }))
           .selected(Math.max(0, (this.view.templateId === 'region' ? this.view.selectors : this.view.groups).indexOf(this.view.target)))
-          .accessibilityText(this.view.templateId === 'region' ? UiText.get($r('app.string.template_selector')) : UiText.get($r('app.string.template_exit'))).value(this.view.labels?.[this.view.target] ?? (this.view.target || UiText.get($r('app.string.template_choose')))).width('100%').enabled(this.view.busy === false)
+          .accessibilityText(this.view.templateId === 'region' ? UiText.get($r('app.string.template_selector')) : UiText.get($r('app.string.template_exit'))).value(this.view.labels?.[this.view.target] ?? (this.view.target || UiText.get($r('app.string.template_choose')))).width('100%').enabled(this.view.busy === false && !this.model?.needsRepair())
           .onSelect((index: number) => this.model?.choose(this.view.templateId,
             (this.view.templateId === 'region' ? this.view.selectors : this.view.groups)[index] ?? ''))
       }
       if (this.view.templateId === 'ai') {
         Text(UiText.get($r('app.string.template_ai_scope'))).fontSize(13).fontColor(UI.muted)
       }
-      if (this.view.templateId === 'ai' && this.view.ready) {
+      if (this.view.templateId === 'ai' && this.view.ready && !this.model?.needsRepair()) {
         AiProbeStatus({ revision: this.aiRevision })
       }
       if (this.view.templateId === 'automatic') {
         Text(UiText.get($r('app.string.template_auto_scope'))).fontSize(13).fontColor(UI.muted)
       }
+      if (this.view.applyFailure !== undefined && this.view.applyFailure !== '' && this.view.applyFailure !== 'failed') {
+        Text(this.failureMessage()).fontSize(14).fontColor(UI.error)
+      }
+      if (this.recoveryMessage.length > 0) { Text(this.recoveryMessage).fontSize(14).fontColor(UI.muted) }
       if (this.view.error.length > 0) {
         Text(this.displayMessage(this.view.error)).fontSize(14).fontColor(UI.error)
       }
@@ -150,13 +200,21 @@ export struct TemplateWizard {
       }
       }.width('100%')
       }.width('100%').layoutWeight(1)
-      if (this.view.ready !== true && this.view.busy === false) {
-        Button(UiText.get($r('app.string.template_retry'))).onClick(() => this.model?.load())
+      if (this.needsRecovery()) {
+        Button(UiText.get($r('app.string.apply_feedback_reconnect'))).constraintSize({ minHeight: 48 }).width('100%')
+          .enabled(!this.recovering).onClick(() => this.recoverApply())
+      } else if (this.view.applyFailure === 'selection-required') {
+        Button(UiText.get($r('app.string.apply_feedback_panel'))).constraintSize({ minHeight: 48 }).width('100%')
+          .enabled(!this.recovering).onClick(() => this.repairSelection())
       }
-      Button(this.view.busy ? UiText.get($r('app.string.template_working')) : this.view.hasPreview ? UiText.get($r('app.string.template_apply_plan')) : UiText.get($r('app.string.template_preview')))
+      if (this.view.ready !== true && this.view.busy === false && !this.model?.needsRepair()) {
+        Button(UiText.get($r('app.string.template_retry'))).onClick(() => this.load())
+      }
+      if (!this.model?.needsRepair()) { Button(this.view.busy ? UiText.get($r('app.string.template_working')) : this.view.hasPreview ? UiText.get($r('app.string.template_apply_plan')) : UiText.get($r('app.string.template_preview')))
         .width('100%').constraintSize({ minHeight: 48 }).backgroundColor(UI.action).fontColor(UI.onAccent)
-        .enabled(this.view.ready === true && this.view.busy === false)
+        .enabled(this.view.ready === true && this.view.busy === false && !this.model?.needsRepair())
         .onClick(() => { if (this.model?.preview) { this.apply(); } else { this.model?.inspect(); } })
+      }
     }.width('100%').height('100%').padding(20).backgroundColor(UI.surface)
     }
   }
