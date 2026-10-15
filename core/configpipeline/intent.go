@@ -438,6 +438,7 @@ func applyEditIntentPhase(ctx context.Context, root *yaml.Node, intent *EditInte
 				}
 			}
 		}
+		op = routingDisplayRevision(op, intent, bindings)
 		if err := applyEditOperation(root, op, baselines, bindings, sections, disabled, aliases); err != nil {
 			var typed *IntentError
 			if errors.As(err, &typed) {

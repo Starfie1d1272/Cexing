@@ -46,9 +46,10 @@ func PreviewSmartPolicy(root *yaml.Node, defaultEnabled bool, intent *EditIntent
 		// Explicit outlet algorithms are protected from global conversion.
 		if intent != nil && !intent.Disabled && intent.Template != nil && intent.Template.Routing != nil {
 			protected := false
+			names := RoutingGroupNames(*intent.Template.Routing)
 			for _, outlet := range intent.Template.Routing.Outlets {
 				choice := smartChoiceID(intent, targetID("proxy-groups", name.Value))
-				if choice == targetID("proxy-groups", RoutingGroupName(outlet.ID)) || choice == TemplateTarget("routing", RoutingOutletEntityID(RoutingGroupName(outlet.ID))) {
+				if choice == targetID("proxy-groups", names[outlet.ID]) || choice == TemplateTarget("routing", RoutingOutletTargetID(outlet.ID)) {
 					protected = true
 				}
 			}

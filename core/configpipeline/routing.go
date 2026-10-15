@@ -316,7 +316,90 @@ func RoutingOutletEntityID(name string) string {
 	sum := sha256.Sum256([]byte(name))
 	return "outlet/" + hex.EncodeToString(sum[:16])
 }
-func RoutingGroupName(id string) string { return "Cexing / " + id }
+
+// The old opaque namespace remains the entity key; display labels never enter it.
+func RoutingOutletTargetID(id string) string { return RoutingOutletEntityID("Cexing / " + id) }
+func RoutingGroupName(id string) string {
+	if id == "default" {
+		return "策星 · 默认出口"
+	}
+	if id == "ai" {
+		return "策星 · AI 服务"
+	}
+	return "策星 · 专用出口"
+}
+func RoutingGroupNames(p RoutingPlan) map[string]string {
+	names := map[string]string{}
+	used := map[string]int{}
+	outlets := append([]RoutingOutlet(nil), p.Outlets...)
+	sort.Slice(outlets, func(i, j int) bool { return outlets[i].ID < outlets[j].ID })
+	for _, outlet := range outlets {
+		label := ""
+		if outlet.ID == p.DefaultOutlet {
+			label = "默认出口"
+		} else {
+			ids := []string{}
+			for _, route := range p.Routes {
+				if route.Outlet == outlet.ID {
+					ids = append(ids, route.Services...)
+				}
+			}
+			sort.Strings(ids)
+			for _, id := range ids {
+				for _, service := range rulecatalog.Services {
+					if service.ID == id {
+						if label != "" {
+							label += " / "
+						}
+						label += service.Name
+					}
+				}
+			}
+			if label == "" {
+				label = "专用出口"
+			}
+			if len(outlet.Scope.Regions) > 0 {
+				label += " · " + strings.Join(outlet.Scope.Regions, "/")
+			}
+		}
+		label = "策星 · " + label
+		if len([]rune(label)) > 80 {
+			label = string([]rune(label)[:77]) + "…"
+		}
+		base := label
+		for number := 2; used[label] > 0; number++ {
+			label = base + fmt.Sprintf(" · %d", number)
+		}
+		used[label] = 1
+		names[outlet.ID] = label
+	}
+	return names
+}
+func routingProviderGroupName(parent, node string) string {
+	label := parent + " · " + node
+	if len([]rune(label)) > 100 {
+		sum := sha256.Sum256([]byte(node))
+		label = string([]rune(label)[:90]) + " · " + hex.EncodeToString(sum[:4])
+	}
+	return label
+}
+
+// Bind visible generated names to immutable outlet/node identities.
+func RoutingEntityBindings(p RoutingPlan) map[string]string {
+	names := RoutingGroupNames(p)
+	out := map[string]string{}
+	for _, outlet := range p.Outlets {
+		out[names[outlet.ID]] = RoutingOutletTargetID(outlet.ID)
+		for _, nodes := range p.ResolvedProviders {
+			for _, node := range nodes {
+				sum := sha256.Sum256([]byte(node))
+				oldKey := "Cexing / " + outlet.ID + " / node-" + hex.EncodeToString(sum[:8])
+				out[routingProviderGroupName(names[outlet.ID], node)] = RoutingOutletEntityID(oldKey)
+			}
+		}
+	}
+	return out
+}
 
 // ApplyRouting receives a fresh merged root. All mutations remain private until
 // the existing compiler's complete reference/resource validation and publication.
@@ -327,6 +410,7 @@ func ApplyRouting(ctx context.Context, root *yaml.Node, p RoutingPlan) error {
 	if p.Mode == "subscription" {
 		return nil
 	}
+	names := RoutingGroupNames(p)
 	catalog, err := PreviewRouting(root, p.ResolvedProviders, p.Assignments)
 	if err != nil {
 		return err
@@ -437,7 +521,7 @@ func ApplyRouting(ctx context.Context, root *yaml.Node, p RoutingPlan) error {
 				}
 			}
 		}
-		g := smartGroup(RoutingGroupName(o.ID), directMembers, uses)
+		g := smartGroup(names[o.ID], directMembers, uses)
 		set(g, "type", scalar(o.Algorithm))
 		if o.Algorithm != "smart" {
 			for _, key := range []string{"uselightgbm", "collectdata"} {
@@ -468,8 +552,7 @@ func ApplyRouting(ctx context.Context, root *yaml.Node, p RoutingPlan) error {
 						providers[provider] = []string{name}
 					}
 				}
-				sum := sha256.Sum256([]byte(name))
-				leafName := RoutingGroupName(o.ID) + " / node-" + hex.EncodeToString(sum[:8])
+				leafName := routingProviderGroupName(names[o.ID], name)
 				leaf := smartGroup(leafName, nil, providers)
 				set(leaf, "type", scalar("select"))
 				set(leaf, "uselightgbm", nil)
@@ -534,7 +617,7 @@ func ApplyRouting(ctx context.Context, root *yaml.Node, p RoutingPlan) error {
 				if (service == "category-ai-!cn") != aggregate {
 					continue
 				}
-				if err := emit(service, RoutingGroupName(r.Outlet)); err != nil {
+				if err := emit(service, names[r.Outlet]); err != nil {
 					return err
 				}
 			}
@@ -543,7 +626,7 @@ func ApplyRouting(ctx context.Context, root *yaml.Node, p RoutingPlan) error {
 	if err := emit("geolocation-cn", "DIRECT"); err != nil {
 		return err
 	}
-	rules.Content = append(rules.Content, scalar("GEOIP,CN,DIRECT"), scalar("MATCH,"+RoutingGroupName(p.DefaultOutlet)))
+	rules.Content = append(rules.Content, scalar("GEOIP,CN,DIRECT"), scalar("MATCH,"+names[p.DefaultOutlet]))
 	set(root, "rules", rules)
 	return nil
 }
@@ -578,4 +661,37 @@ func markRoutingInsertion(out *EditableSnapshot, session *TemplateSession) {
 			}
 		}
 	}
+}
+
+// Rebase only a generated display-name change, with every other byte of the
+// previously fingerprinted entity unchanged. Stable aliases remain authoritative;
+// member/algorithm/options changes still conflict normally.
+func routingDisplayRevision(op EditOperation, intent *EditIntent, bindings map[string]*yaml.Node) EditOperation {
+	if intent == nil || intent.Template == nil || intent.Template.TemplateID != "routing" || (op.Kind != "rename" && op.Kind != "delete") {
+		return op
+	}
+	current := bindings[op.Target]
+	if current == nil || field(current, "name") == nil {
+		return op
+	}
+	for _, snapshot := range []*TemplateSnapshot{intent.Template.Baseline, intent.Template.Mine} {
+		if snapshot == nil {
+			continue
+		}
+		for _, entry := range snapshot.Entries {
+			if entry.Section != "proxy-groups" || TemplateTarget("routing", entry.ID) != op.Target {
+				continue
+			}
+			old, err := jsonNode(entry.Value)
+			if err != nil || fingerprint(old) != op.Expected || field(old, "name") == nil {
+				continue
+			}
+			set(old, "name", scalar(field(current, "name").Value))
+			if fingerprint(old) == fingerprint(current) {
+				op.Expected = fingerprint(current)
+				return op
+			}
+		}
+	}
+	return op
 }

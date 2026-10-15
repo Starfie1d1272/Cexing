@@ -64,6 +64,7 @@ func Prepare(ctx context.Context, root *yaml.Node, p Plan) (TemplateSnapshot, ma
 		return nil
 	}
 	if p.TemplateID == "routing" && p.Routing.Mode == "managed" {
+		routingBindings := configpipeline.RoutingEntityBindings(*p.Routing)
 		for _, section := range []string{"proxy-groups", "rules", "rule-providers"} {
 			nodes := field(root, section)
 			if nodes == nil {
@@ -91,8 +92,8 @@ func Prepare(ctx context.Context, root *yaml.Node, p Plan) (TemplateSnapshot, ma
 							sum := sha256.Sum256([]byte(strings.Join(parts[:len(parts)-1], ",")))
 							id = "rule/" + hex.EncodeToString(sum[:16])
 						}
-					} else if name := field(node, "name"); name != nil && strings.HasPrefix(name.Value, "Cexing / ") && !existingRoutingNodes[node] {
-						id = configpipeline.RoutingOutletEntityID(name.Value)
+					} else if name := field(node, "name"); name != nil && routingBindings[name.Value] != "" && !existingRoutingNodes[node] {
+						id = routingBindings[name.Value]
 					}
 					if id != "" {
 						if err := add(id, section, node); err != nil {
