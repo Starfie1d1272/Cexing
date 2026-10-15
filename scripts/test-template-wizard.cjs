@@ -1,3 +1,4 @@
+const uiFixture = require('./ci/ui-fixtures.cjs');
 // Execute the actual draft model. This is a host state-machine check, not ArkUI.
 const assert = require('node:assert/strict');
 const fs = require('node:fs'), vm = require('node:vm');
@@ -60,12 +61,14 @@ pageSource = pageSource.slice(0, pageSource.indexOf('  @Builder')) + '\n}';
 pageSource = pageSource.replace(/@Component\n/g, '').replace(/@(State|Prop) /g, '').replace('export struct ', 'export class ');
 let dialog = deferred(), dialogs = 0;
 const pageSandbox = { exports: {}, getContext: () => ({}), $r: () => '', require: name => {
+  if (name.endsWith('/UiText')) return uiFixture.module;
   if (name === '@kit.ArkUI') return { promptAction: { showDialog: () => { dialogs++; return dialog.promise; } } };
   if (name === '../lib/AiProbeBinding') return { AiProbeBinding: class { revision() { return ''; } } };
   if (name === './NativeTheme') return { NativeTheme: {} };
   if (name === '../lib/TemplateHost') return { createTemplateWizardHost: () => { throw Error('explicit test host expected'); } };
   return { TemplateWizardModel: Model };
 } };
+Object.assign(pageSandbox, uiFixture.globals);
 vm.runInNewContext(ts.transpileModule(pageSource).outputText, pageSandbox);
 (async () => {
   let commits = 0, closed = 0;
