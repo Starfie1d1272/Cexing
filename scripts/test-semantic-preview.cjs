@@ -21,3 +21,5 @@ assert.match(api.describeMergeFailure(Error('PROVIDER_UNRESOLVED'), { id: 'app.s
 assert.match(api.describeMergeFailure(Error('provider 缓存已变化，请重试'), { id: 'app.string.editor_preview_failed' }), /重新预览/);
 assert.match(api.describeMergeFailure(Error('版本发布结果未知，请断开 VPN 后检查'), { id: 'app.string.editor_preview_failed' }), /未确认.*断开/);
 assert.ok(!api.describeMergeFailure(Error('https://private.invalid/?token=synthetic'), { id: 'app.string.editor_preview_failed' }).includes('private'));
+
+assert.match(api.describeMergeFailure(Error('备份恢复未确认，请重新打开应用后重试'), { id: 'app.string.editor_preview_failed' }), /重新打开应用/);

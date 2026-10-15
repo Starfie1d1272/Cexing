@@ -27,5 +27,5 @@ const semanticContext = { exports: {}, $r: id => ({ id: id.replace(/^app\.string
   require: key => key.endsWith('/UiText') ? c.exports : {} };
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('cexing/entry/src/main/ets/lib/CoreValidator.ets', 'utf8')).outputText, semanticContext);
 assert.equal(semanticContext.exports.CoreValidator.describeMergeChange({ section: 'rules', before: 5, after: 5, reordered: true }), 'Rules: reordered');
-assert.equal(semanticContext.exports.CoreValidator.describeMergePreview({ digest: 'opaque', changes: [], platformChanges: [{}] }), 'Device constraints used for 1 items');
+assert.equal(semanticContext.exports.CoreValidator.describeMergePreview({ digest: 'opaque', changes: [], platformChanges: [{}] }), 'Items using device constraints: 1');
 console.log('PASS: matching locale resources/format arguments and actual platform string boundary, without user-text reformatting');

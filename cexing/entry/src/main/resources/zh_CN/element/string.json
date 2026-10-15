@@ -1787,6 +1787,10 @@
     {
       "name": "merge_disconnect",
       "value": "请先在连接页断开 VPN 后重试"
+    },
+    {
+      "name": "failure_recovery_restart",
+      "value": "备份恢复未确认，请重新打开应用后重试"
     }
   ]
 }

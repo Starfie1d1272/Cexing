@@ -1754,7 +1754,7 @@
     },
     {
       "name": "merge_device_count",
-      "value": "Device constraints used for %d items"
+      "value": "Items using device constraints: %d"
     },
     {
       "name": "merge_no_changes",
@@ -1787,6 +1787,10 @@
     {
       "name": "merge_disconnect",
       "value": "Disconnect VPN on the connection page before retrying."
+    },
+    {
+      "name": "failure_recovery_restart",
+      "value": "Backup restore is unconfirmed. Reopen the app before retrying."
     }
   ]
 }
