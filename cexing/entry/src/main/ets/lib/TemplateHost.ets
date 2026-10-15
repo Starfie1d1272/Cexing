@@ -1,3 +1,4 @@
+import { UiText } from './UiText';
 import { EditorDraftHosts } from './EditorDraftHosts';
 import { common } from '@kit.AbilityKit';
 import { ConfigEditor, EditIntent, EditorDraftHost, EditorDraftSession, EditorDraftPreview } from './ConfigEditor';
@@ -11,11 +12,11 @@ function cloneIntent(session: EditorDraftSession): EditIntent {
   };
 }
 function summary(changes: MergeChange[]): string {
-  const labels: Record<string, string> = { 'proxies': '节点', 'proxy-groups': '策略组', 'rules': '规则',
-    'proxy-providers': '节点来源', 'rule-providers': '规则来源', 'dns': 'DNS', 'hosts': '域名映射' };
+  const labels: Record<string, string> = { 'proxies': UiText.get($r('app.string.template_nodes')), 'proxy-groups': UiText.get($r('app.string.template_groups')), 'rules': UiText.get($r('app.string.template_rules')),
+    'proxy-providers': UiText.get($r('app.string.template_proxy_sources')), 'rule-providers': UiText.get($r('app.string.template_rule_sources')), 'dns': 'DNS', 'hosts': UiText.get($r('app.string.template_hosts')) };
   return changes.filter((change: MergeChange) => labels[change.section] !== undefined).map((change: MergeChange) =>
-    change.before === change.after ? `${labels[change.section]}调整` :
-      `${labels[change.section]} ${change.before} → ${change.after}`).join(' · ') || '配置无变化';
+    change.before === change.after ? UiText.get($r('app.string.template_section_adjusted'), labels[change.section]) :
+      `${labels[change.section]} ${change.before} → ${change.after}`).join(' · ') || UiText.get($r('app.string.template_no_changes'));
 }
 
 /** Production adapter over the one shared EditorDraftHost. No file writes or

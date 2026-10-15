@@ -31,6 +31,262 @@
     {
       "name": "connection_card_description",
       "value": "查看连接状态，一键连接或断开"
+    },
+    {
+      "name": "template_replace_reenable",
+      "value": "Subscription rules will be replaced and disabled personal edits will be enabled."
+    },
+    {
+      "name": "template_reenable",
+      "value": "Disabled personal edits will also be enabled."
+    },
+    {
+      "name": "template_auto_scope",
+      "value": "Local networks connect directly. Other traffic uses the selected exit."
+    },
+    {
+      "name": "template_replace_title",
+      "value": "Replace subscription routing rules?"
+    },
+    {
+      "name": "template_apply_title",
+      "value": "Apply routing template?"
+    },
+    {
+      "name": "template_cancel",
+      "value": "Cancel"
+    },
+    {
+      "name": "template_replace_apply",
+      "value": "Replace and apply"
+    },
+    {
+      "name": "template_apply",
+      "value": "Apply"
+    },
+    {
+      "name": "template_title",
+      "value": "Routing templates"
+    },
+    {
+      "name": "template_back",
+      "value": "Back"
+    },
+    {
+      "name": "template_update",
+      "value": "Update template"
+    },
+    {
+      "name": "template_original",
+      "value": "Keep subscription unchanged"
+    },
+    {
+      "name": "template_region",
+      "value": "Smart selection by region"
+    },
+    {
+      "name": "template_ai",
+      "value": "Dedicated AI exit"
+    },
+    {
+      "name": "template_automatic",
+      "value": "Automatic routing"
+    },
+    {
+      "name": "template_selector",
+      "value": "Original proxy group"
+    },
+    {
+      "name": "template_exit",
+      "value": "Exit"
+    },
+    {
+      "name": "template_choose",
+      "value": "Choose"
+    },
+    {
+      "name": "template_ai_scope",
+      "value": "Common AI services use the selected exit. Other traffic follows the subscription."
+    },
+    {
+      "name": "template_retry",
+      "value": "Retry"
+    },
+    {
+      "name": "template_working",
+      "value": "Working"
+    },
+    {
+      "name": "template_apply_plan",
+      "value": "Apply template"
+    },
+    {
+      "name": "template_preview",
+      "value": "Preview"
+    },
+    {
+      "name": "template_update_title",
+      "value": "Update routing template"
+    },
+    {
+      "name": "template_pending",
+      "value": "Ready to apply"
+    },
+    {
+      "name": "template_personal",
+      "value": "Personal edit"
+    },
+    {
+      "name": "template_keep_mine",
+      "value": "Keep my edit"
+    },
+    {
+      "name": "template_use_new",
+      "value": "Use new template"
+    },
+    {
+      "name": "template_repreview",
+      "value": "Preview again"
+    },
+    {
+      "name": "template_apply_update",
+      "value": "Apply update"
+    },
+    {
+      "name": "template_read_failed",
+      "value": "Cannot read templates. Try again."
+    },
+    {
+      "name": "template_choose_exit",
+      "value": "Choose an exit"
+    },
+    {
+      "name": "template_validation_failed",
+      "value": "Template did not validate. Check the exit and subscription resources."
+    },
+    {
+      "name": "template_apply_failed",
+      "value": "Apply failed. Preview again before retrying."
+    },
+    {
+      "name": "template_compare_failed",
+      "value": "Cannot compare. Preview again."
+    },
+    {
+      "name": "template_update_failed",
+      "value": "Apply failed. Preview again."
+    },
+    {
+      "name": "template_advanced_required",
+      "value": "Some fields require advanced editing"
+    },
+    {
+      "name": "template_applied",
+      "value": "Template applied"
+    },
+    {
+      "name": "template_saved",
+      "value": "Saved. Applies when enabled."
+    },
+    {
+      "name": "template_update_applied",
+      "value": "Update applied"
+    },
+    {
+      "name": "template_result_unknown",
+      "value": "Result unconfirmed. Check the connection page."
+    },
+    {
+      "name": "template_nodes",
+      "value": "Nodes"
+    },
+    {
+      "name": "template_groups",
+      "value": "Proxy groups"
+    },
+    {
+      "name": "template_rules",
+      "value": "Rules"
+    },
+    {
+      "name": "template_proxy_sources",
+      "value": "Node sources"
+    },
+    {
+      "name": "template_rule_sources",
+      "value": "Rule sources"
+    },
+    {
+      "name": "template_hosts",
+      "value": "Host mappings"
+    },
+    {
+      "name": "template_no_changes",
+      "value": "No configuration changes"
+    },
+    {
+      "name": "template_change_count",
+      "value": "%d configuration changes"
+    },
+    {
+      "name": "template_expanded",
+      "value": "Expanded"
+    },
+    {
+      "name": "template_collapsed",
+      "value": "Collapsed"
+    },
+    {
+      "name": "ai_reachable",
+      "value": "Reachable"
+    },
+    {
+      "name": "ai_region_restricted",
+      "value": "Region restricted"
+    },
+    {
+      "name": "ai_limited",
+      "value": "Try again later"
+    },
+    {
+      "name": "ai_timeout",
+      "value": "Timed out"
+    },
+    {
+      "name": "ai_failed",
+      "value": "Connection failed"
+    },
+    {
+      "name": "ai_unknown",
+      "value": "Unconfirmed"
+    },
+    {
+      "name": "ai_checking",
+      "value": "Checking"
+    },
+    {
+      "name": "ai_unchecked",
+      "value": "Not checked"
+    },
+    {
+      "name": "ai_partial_restricted",
+      "value": "Some services region restricted"
+    },
+    {
+      "name": "ai_partial_reachable",
+      "value": "%d/3 reachable"
+    },
+    {
+      "name": "ai_route_unknown",
+      "value": "Current exit cannot be verified. Try another exit."
+    },
+    {
+      "name": "ai_retry_unavailable",
+      "value": "Connect and apply an AI template before retrying"
+    },
+    {
+      "name": "template_section_adjusted",
+      "value": "%s adjusted"
     }
   ]
 }

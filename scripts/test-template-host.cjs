@@ -1,3 +1,4 @@
+const uiFixture = require('./ci/ui-fixtures.cjs');
 const assert = require('node:assert/strict'), fs = require('node:fs'), vm = require('node:vm');
 const ts = require('./ci/transpile-arkts.cjs');
 let published = { schemaVersion: 1, revision: 'published', sourceRevision: 'source', disabled: true,
@@ -15,7 +16,7 @@ const editor = {
 };
 const modules = { './EditorDraftHosts': { EditorDraftHosts: { create: () => editor } }, './ConfigEditor': { ConfigEditor: { templatePlan: (templateId, version, targetGroup, region, replaceRules) => ({templateId, version, targetGroup, region, replaceRules}) } }, './EffectiveVersions': { EffectiveVersions: { read: () => ({ Profiles: { 'one.yaml': { ID: 'version-one' } } }),
  editIntent: () => structuredClone(published), regionPlan: () => null } } };
-const sandbox = { exports: {}, require: name => { assert.ok(name in modules, name); return modules[name]; } };
+const sandbox = { exports: {}, ...uiFixture.globals, require: name => { if (name.endsWith('/UiText')) return uiFixture.module; assert.ok(name in modules, name); return modules[name]; } };
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('cexing/entry/src/main/ets/lib/TemplateHost.ets', 'utf8')).outputText, sandbox);
 (async () => {
  const host = sandbox.exports.createTemplateWizardHost({ filesDir: '/private' }, 'one.yaml');
