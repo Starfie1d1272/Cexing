@@ -1,3 +1,5 @@
+import { promptAction } from '@kit.ArkUI';
+import { ProfileApplyRecovery } from '../lib/ProfileApplyRecovery';
 import { common } from '@kit.AbilityKit';
 import { EditorDraftHost } from '../lib/ConfigEditor';
 import { EditorDraftHosts } from '../lib/EditorDraftHosts';
@@ -12,6 +14,7 @@ export struct ProfileTemplatePage {
   @Consume('nav') navStack: NavPathStack;
   @Consume('profileRevision') profileRevision: number;
   @State private ready: boolean = false;
+  private recovering: boolean = false;
   private file: string = '';
   private editor: EditorDraftHost | undefined = undefined;
 
@@ -29,9 +32,27 @@ export struct ProfileTemplatePage {
     this.ready = true;
   }
 
+  private async recover(selection: boolean): Promise<void> {
+    if (!this.visible || !this.ready || this.recovering) { return; }
+    if (selection) { this.navStack.pushPath({ name: 'zashboard' }); return; }
+    this.recovering = true;
+    const context = getContext(this) as common.UIAbilityContext;
+    try {
+      const accepted = await ProfileApplyRecovery.reconnect(context, () => this.visible && this.ready);
+      if (!this.visible || !this.ready || accepted === null) { return; }
+      promptAction.showToast({ message: context.resourceManager.getStringByNameSync(
+        accepted ? 'apply_feedback_starting' : 'apply_feedback_recovery_failed'), duration: 1800 });
+      if (accepted) { this.release(); this.navStack.pop(); }
+    } catch (_) {
+      if (this.visible && this.ready) {
+        promptAction.showToast({ message: context.resourceManager.getStringByNameSync('apply_feedback_recovery_failed'), duration: 1800 });
+      }
+    } finally { this.recovering = false; }
+  }
+
   build() {
     if (this.ready && this.editor !== undefined) {
-      TemplateWizard({ profileId: this.file, editor: this.editor, onClose: () => {
+      TemplateWizard({ onRecovery: (selection: boolean) => this.recover(selection), profileId: this.file, editor: this.editor, onClose: () => {
         if (this.visible) { this.navStack.pop(); }
       } })
     }

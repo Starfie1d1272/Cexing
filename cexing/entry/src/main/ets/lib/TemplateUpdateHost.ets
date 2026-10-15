@@ -3,7 +3,7 @@ import { EditorDraftHosts } from './EditorDraftHosts';
 import { common } from '@kit.AbilityKit';
 import { EditIntent, EditorDraftHost, EditorDraftSession, EditorDraftPreview } from './ConfigEditor';
 import { TemplateConflict, TemplateSnapshot, TemplateUpdateHost, TemplateUpdatePreview,
-  TemplateUpdateRequest, TemplateUpdates } from './TemplateUpdates';
+  TemplateUpdateRequest, TemplateUpdates, TemplateConflictDetail } from './TemplateUpdates';
 
 /** Compiler-owned private data conversion. These callbacks must use the common
  * template schema/aliases, never a list Merge or a second persistence service. */
@@ -12,6 +12,7 @@ export interface TemplateUpdateSource {
   read: (session: EditorDraftSession) => Promise<TemplateUpdateRequest>;
   encode: (candidate: TemplateSnapshot, session: EditorDraftSession) => Promise<EditIntent>;
   label: (conflict: TemplateConflict) => string;
+  detail?: (conflict: TemplateConflict) => TemplateConflictDetail;
 }
 
 /** Consume the shared draft transaction exactly once for a resolved upgrade.
@@ -28,6 +29,8 @@ export function createTemplateUpdateHost(context: common.Context, profileId: str
   return {
     reset: (): void => { generation++; session = null; request = null; receipt = null; offered = null; },
     label: (conflict: TemplateConflict): string => source.label(conflict),
+    detail: (conflict: TemplateConflict): TemplateConflictDetail => source.detail?.(conflict) ?? {
+      title: source.label(conflict), mine: '我的修改', template: '新模板的修改' },
     preview: async (decisions: Record<string, string>): Promise<TemplateUpdatePreview> => {
       const epoch = ++generation; receipt = null; offered = null;
       try {

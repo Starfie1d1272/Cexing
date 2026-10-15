@@ -1,3 +1,4 @@
+import { ProfileApplyRecovery } from '../lib/ProfileApplyRecovery';
 import { common } from '@kit.AbilityKit';
 import { promptAction } from '@kit.ArkUI';
 import { EditorDraftHosts, EditorSourceCandidate } from '../lib/EditorDraftHosts';
@@ -19,6 +20,7 @@ export struct ProfileUpdatePage {
   @Consume('nav') navStack: NavPathStack;
   @Consume('profileRevision') profileRevision: number;
   @State private ready: boolean = false;
+  private recovering: boolean = false;
   @State private failed: boolean = false;
   private file: string = '';
   private request: ProfileUpdateRequest | null = null;
@@ -71,7 +73,7 @@ export struct ProfileUpdatePage {
         undo: (revision: string) => editor.undo(revision)
       };
       const host = createTemplateUpdateHost(context, this.file, bound, source);
-      this.host = { reset: host.reset, label: host.label, preview: host.preview,
+      this.host = { reset: host.reset, label: host.label, detail: host.detail, preview: host.preview,
         apply: async (preview: TemplateUpdatePreview): Promise<string> => {
           const result = await host.apply(preview);
           const paths = this.navStack.getAllPathName();
@@ -85,9 +87,27 @@ export struct ProfileUpdatePage {
     } catch (_) { this.failed = true; }
   }
 
+  private async recover(selection: boolean): Promise<void> {
+    if (!this.visible || !this.ready || this.recovering) { return; }
+    if (selection) { this.navStack.pushPath({ name: 'zashboard' }); return; }
+    this.recovering = true;
+    const context = getContext(this) as common.UIAbilityContext;
+    try {
+      const accepted = await ProfileApplyRecovery.reconnect(context, () => this.visible && this.ready);
+      if (!this.visible || !this.ready || accepted === null) { return; }
+      promptAction.showToast({ message: context.resourceManager.getStringByNameSync(
+        accepted ? 'apply_feedback_starting' : 'apply_feedback_recovery_failed'), duration: 1800 });
+      if (accepted) { this.release(); this.navStack.pop(); }
+    } catch (_) {
+      if (this.visible && this.ready) {
+        promptAction.showToast({ message: context.resourceManager.getStringByNameSync('apply_feedback_recovery_failed'), duration: 1800 });
+      }
+    } finally { this.recovering = false; }
+  }
+
   build() {
     if (this.ready && this.host !== undefined) {
-      TemplateUpdateReview({ profileId: this.file, host: this.host, onClose: () => {
+      TemplateUpdateReview({ onRecovery: (selection: boolean) => this.recover(selection), profileId: this.file, host: this.host, onClose: () => {
         this.release(); if (this.visible) { this.navStack.pop(); }
       } })
     } else if (this.failed) {

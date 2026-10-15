@@ -37,5 +37,12 @@ const valid = { ready: true, candidate, conflicts: [], validation: { revision: '
  await stale.apply(); assert.equal(stale.result, '');
  const precision = new Model({ preview: async () => { throw Error('TEMPLATE_UPDATE_PRECISION'); }, apply: async () => '', label: () => '' }, () => {});
  await precision.refresh(); assert.equal(precision.error, '部分高级字段需通过高级编辑修改');
+ for (const [raw,kind] of [['应用未确认，请重连恢复','unconfirmed'],['配置已保存，地区选择待重连恢复','saved-recovery'],['private: synthetic-token','retry']]) {
+  const outcome=new Model({preview:async()=>valid,apply:async()=>{throw Error(raw)},label:()=>''},()=>{});
+  await outcome.refresh();await outcome.apply();assert.equal(outcome.recoveryRequired,kind!=='retry');
+  assert.equal(outcome.preview,null);assert.ok(!(outcome.error+outcome.result).includes('synthetic-token'));
+  if(kind==='saved-recovery'){assert.equal(outcome.error,'');assert.match(outcome.result,/已保存.*重连恢复/)}
+  if(kind==='unconfirmed'){assert.match(outcome.error,/未确认.*重连恢复/);assert.ok(!outcome.error.includes('重新预览'))}
+ }
  console.log('PASS: template update worker bridge, unresolved/unvalidated gate, duplicate apply and stale/exit fencing');
 })().catch(error => { console.error(error); process.exitCode = 1; });

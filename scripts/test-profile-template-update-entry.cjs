@@ -1,6 +1,8 @@
 // Registered page -> actual default Source/Host/receipt flow. Platform and
 // worker responses are synthetic; real compiler/publication lives in Go tests.
 const assert = require('node:assert/strict'), fs = require('node:fs'), vm = require('node:vm');
+const uiFixture = require('./ci/ui-fixtures.cjs');
+let recoverCalls = 0, recoverResult = async current => current();
 const ts = require('./ci/transpile-arkts.cjs'), { resourceContext } = require('./ci/mock-profile-resources.cjs');
 let serial = 0, version = 'v1', writes = 0, applies = 0, reads = 0, encodes = 0, successfulOriginal = 'synthetic';
 const snapshot = { templateId: 'ai', version: 1, entries: [] };
@@ -10,6 +12,8 @@ let draft = { revision: 'published', intent: structuredClone(published) };
 const ticket = () => ({ file: 'one.yaml', profileIdentity: 'source', profileVersion: version,
   activeVersion: version, activeFile: 'one.yaml', draftRevision: draft.revision });
 const modules = {
+  './ProfileApplyRecovery': { ProfileApplyRecovery: { reconnect: async (_context, current) => { recoverCalls++; return recoverResult(current); } } },
+  './UiText': uiFixture.module,
   '@kit.ArkTS': { util: { generateRandomUUID: () => `session-${++serial}` } },
   './Settings': { Settings: { load: () => ({}), idle: async () => {} } },
   './CoreValidator': { CoreValidator: { prepareResources: async () => {} } },
@@ -45,10 +49,11 @@ function load(name, page = false) {
   const sandbox = { exports: {}, getContext: () => ({ ...resourceContext(), filesDir: '/synthetic' }), require: path => {
     if (modules[path]) return modules[path];
     const library = path.replace('../lib/', './'); if (modules[library]) return modules[library];
-    if (path === '@kit.ArkUI') return { promptAction: { showToast: value => assert.equal(value.message, '订阅已更新') } };
+    if (path === '@kit.ArkUI') return { promptAction: { showToast: value => assert.ok(['订阅已更新', '正在连接', '恢复未完成，请重试'].includes(value.message), value.message) } };
     if (path.startsWith('@') || path === './NativeTheme') return {};
     return load(path.split('/').pop(), /TemplateWizard$|TemplateUpdateReview$/.test(path));
   } };
+  Object.assign(sandbox, uiFixture.globals);
   cache[name] = sandbox.exports;
   vm.runInNewContext(ts.transpileModule(source).outputText, sandbox); return sandbox.exports;
 }
@@ -80,5 +85,18 @@ async function idle(model) { for (let i = 0; i < 30 && model.busy; i++) await ne
   const checkedCandidate = await candidateHost.preview({}); assert.equal(successfulOriginal, 'synthetic', 'real shared factory cannot publish during candidate preview');
   await candidateHost.apply(checkedCandidate); assert.equal(successfulOriginal, 'downloaded synthetic');
   assert.equal(applies, 2); assert.equal(paths.length, 0); assert.equal(downloaded.host, undefined);
+  // Real wrapper callbacks use shared recovery; hidden/duplicate/late work cannot navigate.
+  for (const RecoveryPage of [Page, update.ProfileUpdatePage]) {
+    const p = new RecoveryPage(); let pops = 0, panels = 0;
+    p.visible = true; p.ready = true; p.profileRevision = 0;
+    p.navStack = { pop: () => pops++, pushPath: path => { assert.equal(path.name, 'zashboard'); panels++; } };
+    await p.recover(true); assert.equal(panels, 1);
+    recoverResult = async () => null; await p.recover(false); assert.equal(pops, 0); assert.equal(p.ready, true);
+    let settle; recoverResult = () => new Promise(resolve => { settle = resolve; });
+    const before = recoverCalls, pending = p.recover(false); await p.recover(false);
+    assert.equal(recoverCalls, before + 1); p.visible = false; settle(true); await pending; assert.equal(pops, 0);
+    p.visible = true; recoverResult = async current => current(); await p.recover(false);
+    assert.equal(pops, 1); assert.equal(p.ready, false);
+  }
   console.log('PASS: production template entry -> default update Source/Host -> inert save/preview -> original receipt apply and route release (synthetic platform/worker)');
 })().catch(error => { console.error(error); process.exitCode = 1; });

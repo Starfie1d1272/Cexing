@@ -8,6 +8,7 @@ import { ProfileStore } from './ProfileStore';
 import { Settings } from './Settings';
 import { EditorSourceCandidate } from './EditorDraftHosts';
 import { CoreValidator } from './CoreValidator';
+import { describeTemplateConflict } from './TemplateConflictPresentation';
 
 interface SourceInput {
   profileId: string; profileVersion: string; original: string; globalMerge: string;
@@ -25,6 +26,7 @@ export function createTemplateUpdateSource(context: common.Context, profileId: s
   let revision = '';
   let stamp = '';
   let generation = 0;
+  let comparison: TemplateUpdateRequest | null = null;
   const call = async (input: SourceInput): Promise<SourceReply> => {
     const text = JSON.stringify({ op: 'template-update-preview', source: input });
     if (text.length > 50 * 1024 * 1024) { throw new Error('TEMPLATE_UPDATE_LIMIT'); }
@@ -46,7 +48,7 @@ export function createTemplateUpdateSource(context: common.Context, profileId: s
     },
     read: async (session: EditorDraftSession): Promise<TemplateUpdateRequest> => {
       const epoch = ++generation;
-      captured = null; stamp = ''; revision = '';
+      captured = null; comparison = null; stamp = ''; revision = '';
       if (session.profileId !== profileId || session.intent?.template === undefined) {
         throw new Error('TEMPLATE_UPDATE_SESSION');
       }
@@ -65,6 +67,7 @@ export function createTemplateUpdateSource(context: common.Context, profileId: s
         throw new Error('TEMPLATE_UPDATE_SOURCE_CHANGED');
       }
       captured = input; revision = session.revision; stamp = reply.stamp;
+      comparison = JSON.parse(JSON.stringify(reply.request)) as TemplateUpdateRequest;
       return reply.request;
     },
     encode: async (candidate: TemplateSnapshot, session: EditorDraftSession): Promise<EditIntent> => {
@@ -81,9 +84,12 @@ export function createTemplateUpdateSource(context: common.Context, profileId: s
       return reply.intent;
     },
     label: (conflict: TemplateConflict): string => {
+      if (comparison !== null) { return describeTemplateConflict(comparison, conflict).title; }
       const labels: Record<string, string> = { 'rules': '分流规则', 'proxy-groups': '策略组', 'proxies': '节点',
         'proxy-providers': '节点来源', 'rule-providers': '规则来源', 'dns': 'DNS', 'hosts': '域名映射' };
       return labels[conflict.section] ?? '个人修改';
-    }
+    },
+    detail: (conflict: TemplateConflict) => comparison !== null ? describeTemplateConflict(comparison, conflict) : {
+      title: '个人修改', mine: '请重新预览', template: '请重新预览' }
   };
 }

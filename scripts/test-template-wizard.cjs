@@ -4,7 +4,9 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs'), vm = require('node:vm');
 const ts = require('./ci/transpile-arkts.cjs');
 const src = fs.readFileSync('cexing/entry/src/main/ets/lib/TemplateWizardModel.ets', 'utf8');
-const sandbox = { exports: {} };
+const updates = { exports: {}, require: () => ({}) };
+vm.runInNewContext(ts.transpileModule(fs.readFileSync('cexing/entry/src/main/ets/lib/TemplateUpdates.ets','utf8')).outputText,updates);
+const sandbox = { exports: {}, require: () => updates.exports };
 vm.runInNewContext(ts.transpileModule(src).outputText, sandbox);
 const Model = sandbox.exports.TemplateWizardModel;
 const deferred = () => { let resolve, reject; const promise = new Promise((a,b) => { resolve=a; reject=b; }); return { promise, resolve, reject }; };
@@ -52,6 +54,15 @@ const preview = { revision: 'version-synthetic', digest: 'synthetic', summary: '
   fail = false; await failed.apply(); assert.equal(failed.result, '');
   await failed.inspect(); failed.choose('original', ''); await failed.apply(); assert.equal(failed.result, '');
   await failed.inspect(); await failed.apply(); assert.equal(failed.result, '已保存');
+  for (const raw of ['应用未确认，请重连恢复', '配置已保存，地区选择待重连恢复']) {
+    let previews = 0, loads = 0, applies = 0;
+    const blocked = new Model({ load: async () => { loads++; return inputs(); },
+      preview: async () => { previews++; return preview; }, apply: async () => { applies++; throw Error(raw); } }, () => {});
+    await blocked.load(); await blocked.inspect(); await blocked.apply();
+    assert.equal(blocked.ready, false); assert.equal(blocked.preview, null);
+    await blocked.load(); blocked.choose('ai', 'Pick'); await blocked.inspect(); await blocked.apply();
+    assert.equal(loads, 1); assert.equal(previews, 1); assert.equal(applies, 1, 'recovery outcomes cannot be replayed');
+  }
   console.log('PASS: template wizard duplicate clicks, confirmation, failure retry and late results');
 })().catch(error => { console.error(error); process.exitCode = 1; });
 

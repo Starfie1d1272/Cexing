@@ -1,6 +1,7 @@
 // Real profile event methods + wrapper + shared update Host. Synthetic source,
 // compiler and transaction port; real atomic publication is covered by core/Host tests.
 const assert = require('node:assert/strict'), fs = require('node:fs'), vm = require('node:vm');
+const uiFixture = require('./ci/ui-fixtures.cjs');
 const ts = require('./ci/transpile-arkts.cjs'), { resourceContext } = require('./ci/mock-profile-resources.cjs');
 let ticket, download, rejectDownload, downloads = 0, normalUpdates = 0, writes = 0, applies = 0, editorSource, comparedSource, releaseLoad;
 let published = { template: { templateId: 'ai', version: 1, targetGroup: 'Pick' } }, original = 'successful original';
@@ -22,6 +23,7 @@ const sourceFactory = (_ctx, file, source) => { assert.equal(file, 'one.yaml'); 
  return { read: async () => ({ kind: 'template', base: snapshot, mine: snapshot, next: snapshot }),
   encode: async (_value, session) => structuredClone(session.intent), label: () => 'synthetic' }; };
 const mods = {
+ '../lib/UiText': uiFixture.module,
  '@kit.ArkUI': { promptAction: { showToast: value => toasts.push(value.message) } },
  '../lib/ProfileImportInput': { ProfileImportInput: { take: () => { const value = queuedShare; queuedShare = null; return value; }, release() {} } },
  '../lib/ProfileTransactions': { ProfileTransactions: tx }, '../lib/EditorDraftHosts': { EditorDraftHosts: editorFactory },
@@ -29,14 +31,14 @@ const mods = {
  '../lib/EffectiveVersions': { EffectiveVersions: { read: () => ({ Profiles: { 'one.yaml': { ID: 'v1' } } }), editIntent: () => published } },
  '../lib/ProfileStore': { ProfileStore: { getActiveFile: () => 'one.yaml', downloadFromOrigin: () => { downloads++; return new Promise((resolve, reject) => { download = resolve; rejectDownload = reject; }); } } }
 };
-const hostBox = { exports: {}, require: name => name === './TemplateUpdates' ? { TemplateUpdates: { preview: async () => ({ ready: true, conflicts: [], candidate: snapshot }) } } : {} };
+const hostBox = { exports: {}, ...uiFixture.globals, require: name => name === './UiText' ? uiFixture.module : name === './TemplateUpdates' ? { TemplateUpdates: { preview: async () => ({ ready: true, conflicts: [], candidate: snapshot }) } } : {} };
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('cexing/entry/src/main/ets/lib/TemplateUpdateHost.ets', 'utf8')).outputText, hostBox);
 mods['../lib/TemplateUpdateHost'] = hostBox.exports;
 function page(name) {
  let text = fs.readFileSync(`cexing/entry/src/main/ets/pages/${name}.ets`, 'utf8');
  const marker = text.includes('  @Builder') ? '  @Builder' : '  build()'; text = text.slice(0, text.indexOf(marker)) + '\n}';
  text = text.split('\n').map(line => line.trimStart().startsWith('@') ? line.replace(/@\w+(?:\([^\n)]*\))?\s*/g, '') : line).join('\n').replace('export struct ', 'export class ');
- const box = { exports: {}, getContext: () => context, NavPathStack: class {}, require: name => mods[name] || {} };
+ const box = { exports: {}, ...uiFixture.globals, getContext: () => context, NavPathStack: class {}, require: name => mods[name] || {} };
  vm.runInNewContext(ts.transpileModule(text).outputText, box); return box.exports;
 }
 const update = page('ProfileUpdatePage'); mods['./ProfileUpdatePage'] = update;

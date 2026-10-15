@@ -14,11 +14,14 @@ export struct TemplateUpdateReview {
   @Prop profileId: string = '';
   private activeHost: TemplateUpdateHost | null = null;
   onClose: () => void = () => {};
+  onRecovery: (selection: boolean) => Promise<void> = async () => {};
+  @State private recoveryBusy: boolean = false;
   @State private conflicts: TemplateConflict[] = [];
   @State private ready: boolean = false;
   @State private busy: boolean = false;
   @State private summary: string = '';
   @State private message: string = '';
+  @State private recoveryRequired: boolean = false;
   private model: TemplateUpdateModel | null = null;
   aboutToAppear(): void {
     const source = this.source ?? (this.profileId.length > 0 ?
@@ -35,13 +38,31 @@ export struct TemplateUpdateReview {
       this.summary = model.preview?.validation?.summary ?? '';
       this.busy = model.busy;
       this.message = model.error || model.result;
+      this.recoveryRequired = model.recoveryRequired;
     });
     this.model.refresh();
   }
   aboutToDisappear(): void { this.model?.close(); }
   private close(): void { this.model?.close(); this.onClose(); }
+  private recoveryMessage(): string { return this.message; }
+  private needsRecovery(): boolean {
+    const message = this.recoveryMessage();
+    return message === '应用未确认，请返回连接页断开后重连恢复' || message === '配置已保存，地区选择待重连恢复';
+  }
+  private needsSelection(): boolean {
+    return this.recoveryMessage() === '请先在代理面板选择可用选项，再关闭或切换地区策略';
+  }
+  private async recover(): Promise<void> {
+    if (this.recoveryBusy || (!this.needsRecovery() && !this.needsSelection())) { return; }
+    this.recoveryBusy = true;
+    try { await this.onRecovery(this.needsSelection()); }
+    finally { this.recoveryBusy = false; }
+  }
   private displayMessage(message: string): string {
     if (message === '') { return ''; }
+    if (message === '应用未确认，请返回连接页断开后重连恢复') { return UiText.get($r('app.string.apply_feedback_unconfirmed')); }
+    if (message === '配置已保存，地区选择待重连恢复') { return UiText.get($r('app.string.apply_feedback_committed')); }
+    if (message === '请先在代理面板选择可用选项，再关闭或切换地区策略') { return UiText.get($r('app.string.apply_feedback_selection')); }
     if (message === '方案读取失败，请重试') { return UiText.get($r('app.string.template_read_failed')); }
     if (message === '请选择出口') { return UiText.get($r('app.string.template_choose_exit')); }
     if (message === '方案未通过校验，请检查出口和订阅资源') { return UiText.get($r('app.string.template_validation_failed')); }
@@ -64,6 +85,8 @@ export struct TemplateUpdateReview {
       ForEach(this.conflicts, (conflict: TemplateConflict) => {
         Column({ space: 8 }) {
           Text(this.activeHost?.label(conflict) ?? UiText.get($r('app.string.template_personal'))).fontSize(15).fontColor(UI.ink)
+          Text(UiText.get($r('app.string.template_conflict_mine'), this.activeHost?.detail?.(conflict).mine ?? UiText.get($r('app.string.template_personal')))).fontSize(14).fontColor(UI.muted)
+          Text(UiText.get($r('app.string.template_conflict_new'), this.activeHost?.detail?.(conflict).template ?? UiText.get($r('app.string.template_personal')))).fontSize(14).fontColor(UI.muted)
           Row({ space: 8 }) {
             Button(UiText.get($r('app.string.template_keep_mine'))).layoutWeight(1).backgroundColor(UI.soft).fontColor(UI.ink)
               .enabled(!this.busy).onClick(() => this.model?.choose(conflict.id, 'mine'))
@@ -75,10 +98,16 @@ export struct TemplateUpdateReview {
       if (this.message.length > 0) { Text(this.displayMessage(this.message)).fontSize(14).fontColor(UI.muted) }
       }.width('100%')
       }.width('100%').layoutWeight(1)
+      if (this.needsRecovery() || this.needsSelection()) {
+        Button(this.needsSelection() ? $r('app.string.apply_feedback_panel') : $r('app.string.apply_feedback_reconnect'))
+          .constraintSize({ minHeight: 44 }).enabled(!this.recoveryBusy)
+          .onClick(() => { this.recover(); })
+      }
       Row({ space: 8 }) {
         Button(UiText.get($r('app.string.template_back'))).layoutWeight(1).backgroundColor(UI.soft).fontColor(UI.ink).onClick(() => this.close())
-        Button(UiText.get($r('app.string.template_repreview'))).layoutWeight(1).backgroundColor(UI.soft).fontColor(UI.ink)
+        if (!this.recoveryRequired) { Button(UiText.get($r('app.string.template_repreview'))).layoutWeight(1).backgroundColor(UI.soft).fontColor(UI.ink)
           .enabled(!this.busy).onClick(() => this.model?.reset())
+        }
       }.width('100%')
       Button(this.busy ? UiText.get($r('app.string.template_working')) : UiText.get($r('app.string.template_apply_update'))).width('100%').constraintSize({ minHeight: 48 })
         .backgroundColor(UI.action).fontColor(UI.onAccent).enabled(!this.busy && this.ready)

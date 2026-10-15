@@ -2538,7 +2538,7 @@
     },
     {
       "name": "apply_feedback_selection",
-      "value": "请先在代理面板选择可用节点，再重试"
+      "value": "请先在代理面板选择可用选项，再重试"
     },
     {
       "name": "apply_feedback_failed",
@@ -2615,6 +2615,586 @@
     {
       "name": "profile_update_close_editor",
       "value": "请关闭编辑后重新更新"
+    },
+    {
+      "name": "profile_region_unknown",
+      "value": "地区策略结果未确认"
+    },
+    {
+      "name": "profile_region_created_later",
+      "value": "地区策略已创建，连接后选择新入口"
+    },
+    {
+      "name": "profile_region_selected",
+      "value": "地区入口已选择"
+    },
+    {
+      "name": "profile_region_created",
+      "value": "地区策略已创建，可稍后启用"
+    },
+    {
+      "name": "profile_region_unsaved",
+      "value": "地区策略未保存"
+    },
+    {
+      "name": "profile_region_unavailable",
+      "value": "当前订阅无法创建地区策略"
+    },
+    {
+      "name": "profile_region_restored",
+      "value": "已恢复原订阅策略，地区入口可重新启用"
+    },
+    {
+      "name": "profile_region_waiting",
+      "value": "地区入口已创建，待连接后选择"
+    },
+    {
+      "name": "profile_region_failed",
+      "value": "地区策略切换失败"
+    },
+    {
+      "name": "profile_delete_title",
+      "value": "删除订阅？"
+    },
+    {
+      "name": "profile_keep",
+      "value": "保留"
+    },
+    {
+      "name": "profile_delete",
+      "value": "删除"
+    },
+    {
+      "name": "profile_disconnect_delete",
+      "value": "请先断开连接，再删除当前订阅"
+    },
+    {
+      "name": "profile_deleted",
+      "value": "已删除"
+    },
+    {
+      "name": "profile_delete_failed",
+      "value": "删除失败，请重试"
+    },
+    {
+      "name": "profile_auto_failed",
+      "value": "自动更新失败"
+    },
+    {
+      "name": "profile_update_unavailable",
+      "value": "更新记录不可用"
+    },
+    {
+      "name": "profile_provider_missing",
+      "value": "订阅来源尚未就绪，请更新订阅后重试"
+    },
+    {
+      "name": "profile_resource_missing",
+      "value": "配置资源未准备好，请重试或更新应用"
+    },
+    {
+      "name": "profile_nodes_missing",
+      "value": "订阅没有可用节点，请检查订阅"
+    },
+    {
+      "name": "profile_invalid_reference",
+      "value": "配置引用无效，请检查原始配置"
+    },
+    {
+      "name": "profile_invalid_config",
+      "value": "配置校验未通过，请检查原始配置"
+    },
+    {
+      "name": "profile_apply_unknown",
+      "value": "应用结果未确认，请返回连接页检查"
+    },
+    {
+      "name": "profile_enable_failed",
+      "value": "启用失败，请重试或检查原始配置"
+    },
+    {
+      "name": "profile_connection_busy",
+      "value": "连接正在切换，请稍后重试"
+    },
+    {
+      "name": "profile_connection_unconfirmed",
+      "value": "连接状态待核对，请返回连接页重试断开"
+    },
+    {
+      "name": "profile_missing",
+      "value": "订阅不存在，请重新导入"
+    },
+    {
+      "name": "profile_apply_unconfirmed",
+      "value": "应用结果未确认"
+    },
+    {
+      "name": "profile_connection_changed",
+      "value": "连接状态已变化，请返回连接页检查"
+    },
+    {
+      "name": "profile_start_failed",
+      "value": "连接未能启动，请返回连接页重试"
+    },
+    {
+      "name": "profile_switch_unknown",
+      "value": "切换结果未确认"
+    },
+    {
+      "name": "profile_recover_required",
+      "value": "应用未确认，请重连恢复"
+    },
+    {
+      "name": "profile_reconnect_title",
+      "value": "重新连接？"
+    },
+    {
+      "name": "profile_reconnect_risk",
+      "value": "当前连接会暂时中断。"
+    },
+    {
+      "name": "profile_cancel",
+      "value": "取消"
+    },
+    {
+      "name": "profile_reconnect",
+      "value": "重新连接"
+    },
+    {
+      "name": "profile_not_started",
+      "value": "连接未开始，请重试"
+    },
+    {
+      "name": "profile_recovery_failed",
+      "value": "恢复未完成，请重试或前往连接页检查"
+    },
+    {
+      "name": "profile_updated",
+      "value": "已更新"
+    },
+    {
+      "name": "profile_auto_retry_failed",
+      "value": "未能更新，请检查网络及自动更新设置"
+    },
+    {
+      "name": "profile_update_incomplete",
+      "value": "更新未完成，请重试"
+    },
+    {
+      "name": "profile_updated_applied",
+      "value": "已更新并应用"
+    },
+    {
+      "name": "profile_updated_saved",
+      "value": "已更新，启用或启动后生效"
+    },
+    {
+      "name": "profile_update_failed",
+      "value": "更新失败，请检查网络后重试"
+    },
+    {
+      "name": "profile_url_copied",
+      "value": "订阅 URL 已复制"
+    },
+    {
+      "name": "profile_copy_failed",
+      "value": "复制失败"
+    },
+    {
+      "name": "profile_rename_failed",
+      "value": "重命名失败，请重试"
+    },
+    {
+      "name": "profile_read_failed",
+      "value": "读取配置失败"
+    },
+    {
+      "name": "profile_yaml_type",
+      "value": "YAML 配置|.yaml"
+    },
+    {
+      "name": "profile_exported",
+      "value": "已导出"
+    },
+    {
+      "name": "profile_export_failed",
+      "value": "导出失败，请重试"
+    },
+    {
+      "name": "profile_scan_unsupported",
+      "value": "当前设备不支持扫码，请使用链接或文件导入"
+    },
+    {
+      "name": "profile_scan_no_link",
+      "value": "未识别到订阅链接，请使用链接或文件导入"
+    },
+    {
+      "name": "profile_scan_failed",
+      "value": "扫码未能打开，请使用链接或文件导入"
+    },
+    {
+      "name": "profile_import_failed",
+      "value": "导入失败，请检查输入与网络后重试"
+    },
+    {
+      "name": "profile_file_failed",
+      "value": "文件导入失败，请重新选择 YAML 配置"
+    },
+    {
+      "name": "profile_paste_manually",
+      "value": "请手动粘贴链接或 YAML"
+    },
+    {
+      "name": "profile_other_region",
+      "value": "其他地区"
+    },
+    {
+      "name": "profile_current",
+      "value": "当前使用"
+    },
+    {
+      "name": "profile_url_type",
+      "value": "URL 订阅"
+    },
+    {
+      "name": "profile_local_type",
+      "value": "本地配置"
+    },
+    {
+      "name": "profile_details",
+      "value": "订阅详情"
+    },
+    {
+      "name": "profile_updating",
+      "value": "更新中…"
+    },
+    {
+      "name": "profile_retry_auto",
+      "value": "重试自动更新"
+    },
+    {
+      "name": "profile_templates",
+      "value": "分流方案"
+    },
+    {
+      "name": "profile_nodes_groups",
+      "value": "节点与策略组"
+    },
+    {
+      "name": "profile_rules_dns",
+      "value": "规则与 DNS"
+    },
+    {
+      "name": "profile_original",
+      "value": "原始配置"
+    },
+    {
+      "name": "profile_merge",
+      "value": "本订阅覆写"
+    },
+    {
+      "name": "profile_generated",
+      "value": "生成配置"
+    },
+    {
+      "name": "profile_region_edit",
+      "value": "修改 Smart 地区策略"
+    },
+    {
+      "name": "profile_region_disable",
+      "value": "关闭地区策略并恢复原配置"
+    },
+    {
+      "name": "profile_region_enable",
+      "value": "启用 Smart 地区策略"
+    },
+    {
+      "name": "profile_region_create",
+      "value": "创建 Smart 地区策略"
+    },
+    {
+      "name": "profile_rename",
+      "value": "重命名"
+    },
+    {
+      "name": "profile_export",
+      "value": "导出配置"
+    },
+    {
+      "name": "profile_enable",
+      "value": "启用订阅"
+    },
+    {
+      "name": "profile_update",
+      "value": "更新订阅"
+    },
+    {
+      "name": "profile_copy_url",
+      "value": "复制订阅链接"
+    },
+    {
+      "name": "profile_remove",
+      "value": "删除订阅"
+    },
+    {
+      "name": "profile_add",
+      "value": "添加订阅"
+    },
+    {
+      "name": "profile_scan",
+      "value": "扫码或从图片识别"
+    },
+    {
+      "name": "profile_link",
+      "value": "订阅链接"
+    },
+    {
+      "name": "profile_file",
+      "value": "配置文件"
+    },
+    {
+      "name": "profile_clipboard",
+      "value": "剪贴板"
+    },
+    {
+      "name": "profile_import_url",
+      "value": "从 URL 导入订阅"
+    },
+    {
+      "name": "profile_importing",
+      "value": "导入中…"
+    },
+    {
+      "name": "profile_import",
+      "value": "导入"
+    },
+    {
+      "name": "profile_rename_title",
+      "value": "重命名配置"
+    },
+    {
+      "name": "profile_new_name",
+      "value": "新名称（自动补 .yaml）"
+    },
+    {
+      "name": "profile_confirm",
+      "value": "确定"
+    },
+    {
+      "name": "profile_paste_title",
+      "value": "粘贴链接或 YAML"
+    },
+    {
+      "name": "profile_paste_placeholder",
+      "value": "订阅链接或完整配置"
+    },
+    {
+      "name": "profile_import_file_title",
+      "value": "导入配置文件？"
+    },
+    {
+      "name": "profile_imported",
+      "value": "已导入订阅"
+    },
+    {
+      "name": "profile_enabling",
+      "value": "启用中…"
+    },
+    {
+      "name": "profile_enable_connect",
+      "value": "启用并连接"
+    },
+    {
+      "name": "profile_enable_later",
+      "value": "稍后启用"
+    },
+    {
+      "name": "profile_region_title",
+      "value": "为订阅创建 Smart 策略？"
+    },
+    {
+      "name": "profile_region_risk",
+      "value": "仅按节点名称推测地区。原订阅及原 Selector 保留，可关闭后恢复。"
+    },
+    {
+      "name": "profile_preview_failed",
+      "value": "预览失败"
+    },
+    {
+      "name": "profile_by_region",
+      "value": "按地区"
+    },
+    {
+      "name": "profile_all_nodes",
+      "value": "全部节点"
+    },
+    {
+      "name": "profile_unchanged",
+      "value": "保持原样"
+    },
+    {
+      "name": "profile_provider_wait",
+      "value": "该 Selector 的 provider 节点尚未加载。连接或刷新 provider 后重试预览。"
+    },
+    {
+      "name": "profile_refresh_preview",
+      "value": "刷新预览"
+    },
+    {
+      "name": "profile_provider_pending",
+      "value": "provider 尚未就绪"
+    },
+    {
+      "name": "profile_create_enable",
+      "value": "创建并启用"
+    },
+    {
+      "name": "profile_create_only",
+      "value": "仅创建"
+    },
+    {
+      "name": "profile_uncertain",
+      "value": "应用未确认"
+    },
+    {
+      "name": "profile_recovering",
+      "value": "恢复中…"
+    },
+    {
+      "name": "profile_recover",
+      "value": "重连恢复"
+    },
+    {
+      "name": "profile_tab",
+      "value": "订阅"
+    },
+    {
+      "name": "profile_add_short",
+      "value": "添加"
+    },
+    {
+      "name": "profile_global",
+      "value": "全局覆写"
+    },
+    {
+      "name": "profile_global_scope",
+      "value": "适用于所有订阅 · 本订阅覆写优先"
+    },
+    {
+      "name": "profile_import_title",
+      "value": "导入订阅"
+    },
+    {
+      "name": "profile_traffic_expiry",
+      "value": "流量 %s/%s · 剩 %d 天"
+    },
+    {
+      "name": "profile_traffic_total",
+      "value": "流量 %s/%s"
+    },
+    {
+      "name": "profile_traffic_days",
+      "value": "流量 %s · 剩 %d 天"
+    },
+    {
+      "name": "profile_traffic_used",
+      "value": "流量 %s"
+    },
+    {
+      "name": "profile_switched",
+      "value": "已切换到「%s」"
+    },
+    {
+      "name": "profile_selected",
+      "value": "已选择「%s」，启动 VPN 后生效"
+    },
+    {
+      "name": "profile_renamed",
+      "value": "已重命名为 %s"
+    },
+    {
+      "name": "profile_region_count",
+      "value": "已解析节点 %d · 其他地区 %d"
+    },
+    {
+      "name": "profile_region_hk",
+      "value": "香港"
+    },
+    {
+      "name": "profile_region_tw",
+      "value": "台湾"
+    },
+    {
+      "name": "profile_region_jp",
+      "value": "日本"
+    },
+    {
+      "name": "profile_region_sg",
+      "value": "新加坡"
+    },
+    {
+      "name": "profile_region_us",
+      "value": "美国"
+    },
+    {
+      "name": "profile_region_kr",
+      "value": "韩国"
+    },
+    {
+      "name": "profile_region_uk",
+      "value": "英国"
+    },
+    {
+      "name": "profile_region_de",
+      "value": "德国"
+    },
+    {
+      "name": "profile_more",
+      "value": "更多操作"
+    },
+    {
+      "name": "profile_less",
+      "value": "收起操作"
+    },
+    {
+      "name": "profile_expanded",
+      "value": "已展开"
+    },
+    {
+      "name": "profile_collapsed",
+      "value": "已收起"
+    },
+    {
+      "name": "profile_export_risk",
+      "value": "配置可能含节点凭据和订阅地址，请妥善保管。"
+    },
+    {
+      "name": "profile_export_choose",
+      "value": "选择保存位置"
+    },
+    {
+      "name": "profile_node_region",
+      "value": "%s 的地区"
+    },
+    {
+      "name": "profile_exporting",
+      "value": "导出中…"
+    },
+    {
+      "name": "profile_region_saved_recovery",
+      "value": "配置已保存，地区选择待重连恢复"
+    },
+    {
+      "name": "profile_region_manual_repair",
+      "value": "请先在代理面板选择可用选项，再关闭地区策略"
+    },
+    {
+      "name": "template_conflict_mine",
+      "value": "我的：%s"
+    },
+    {
+      "name": "template_conflict_new",
+      "value": "新模板：%s"
     }
   ]
 }

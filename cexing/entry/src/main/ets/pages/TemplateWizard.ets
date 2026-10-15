@@ -24,6 +24,8 @@ export struct TemplateWizard {
   @State private updateAvailable: boolean = false;
   @Prop profileId: string = '';
   onClose: () => void = () => {};
+  onRecovery: (selection: boolean) => Promise<void> = async () => {};
+  @State private recoveryBusy: boolean = false;
   @State private view: TemplateWizardView = { templateId: 'original', target: '', busy: false,
     ready: false, error: '', result: '', summary: '', hasPreview: false, groups: [], selectors: [] };
   private confirming: boolean = false;
@@ -86,8 +88,25 @@ export struct TemplateWizard {
       .enabled(this.view.ready === true && this.view.busy === false)
       .onClick(() => this.model?.choose(id, ''))
   }
+  private recoveryMessage(): string { return this.view.error || this.view.result; }
+  private needsRecovery(): boolean {
+    const message = this.recoveryMessage();
+    return message === '应用未确认，请返回连接页断开后重连恢复' || message === '配置已保存，地区选择待重连恢复';
+  }
+  private needsSelection(): boolean {
+    return this.recoveryMessage() === '请先在代理面板选择可用选项，再关闭或切换地区策略';
+  }
+  private async recover(): Promise<void> {
+    if (this.recoveryBusy || (!this.needsRecovery() && !this.needsSelection())) { return; }
+    this.recoveryBusy = true;
+    try { await this.onRecovery(this.needsSelection()); }
+    finally { this.recoveryBusy = false; }
+  }
   private displayMessage(message: string): string {
     if (message === '') { return ''; }
+    if (message === '应用未确认，请返回连接页断开后重连恢复') { return UiText.get($r('app.string.apply_feedback_unconfirmed')); }
+    if (message === '配置已保存，地区选择待重连恢复') { return UiText.get($r('app.string.apply_feedback_committed')); }
+    if (message === '请先在代理面板选择可用选项，再关闭或切换地区策略') { return UiText.get($r('app.string.apply_feedback_selection')); }
     if (message === '方案读取失败，请重试') { return UiText.get($r('app.string.template_read_failed')); }
     if (message === '请选择出口') { return UiText.get($r('app.string.template_choose_exit')); }
     if (message === '方案未通过校验，请检查出口和订阅资源') { return UiText.get($r('app.string.template_validation_failed')); }
@@ -103,7 +122,7 @@ export struct TemplateWizard {
   build() {
     if (this.reviewingUpdate) {
       TemplateUpdateReview({ profileId: this.profileId, editor: this.activeEditor, source: this.activeUpdateSource,
-        onClose: () => { this.reviewingUpdate = false; this.model?.load(); } })
+        onRecovery: this.onRecovery, onClose: () => { this.reviewingUpdate = false; this.model?.load(); } })
     } else {
     Column({ space: 12 }) {
       Row() {
@@ -150,7 +169,12 @@ export struct TemplateWizard {
       }
       }.width('100%')
       }.width('100%').layoutWeight(1)
-      if (this.view.ready !== true && this.view.busy === false) {
+      if (this.needsRecovery() || this.needsSelection()) {
+        Button(this.needsSelection() ? $r('app.string.apply_feedback_panel') : $r('app.string.apply_feedback_reconnect'))
+          .constraintSize({ minHeight: 44 }).enabled(!this.recoveryBusy)
+          .onClick(() => { this.recover(); })
+      }
+      if (this.view.ready !== true && this.view.busy === false && !this.needsRecovery()) {
         Button(UiText.get($r('app.string.template_retry'))).onClick(() => this.model?.load())
       }
       Button(this.view.busy ? UiText.get($r('app.string.template_working')) : this.view.hasPreview ? UiText.get($r('app.string.template_apply_plan')) : UiText.get($r('app.string.template_preview')))

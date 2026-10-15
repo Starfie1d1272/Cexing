@@ -13,7 +13,7 @@ const versions = { read: () => state, regionPlan: () => null, editIntent: () => 
 const mods = { './ProfileRegionChoices': { ProfileRegionChoices: { selector: () => '', prepare: async () => ({ state: { pending: '' }, observeRemoved: '' }), committed: async () => {} } }, './ProfileStore': { ProfileStore: store }, './EffectiveVersions': { EffectiveVersions: versions },
   './CoreValidator': { CoreValidator: { prepareResources: async () => {} } },
   './VpnController': { VpnStatus: { Disconnected: 0, Connected: 2 }, VpnController: controller },
-  '@kit.CoreFileKit': { fileIo: { readTextSync: () => 'synthetic candidate' } }, './Settings': { Settings: { load: () => ({}) } } };
+  '@kit.CoreFileKit': { fileIo: { readTextSync: () => 'synthetic candidate' } }, './Settings': { Settings: { load: () => ({}), idle: async () => {} } } };
 const txBox = { exports: {}, require: name => mods[name] || {} };
 vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(root, 'cexing/entry/src/main/ets/lib/ProfileTransactions.ets'), 'utf8')).outputText, txBox);
 const tx = txBox.exports.ProfileTransactions;

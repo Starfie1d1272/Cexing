@@ -61,7 +61,7 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
       if (value) externalActive = value; return value; },
       release: value => { if (value && externalActive === value) externalActive = null; },
       hasPending: () => externalPending !== null,
-      parseText: value => value.startsWith('https://') ? { kind: 'url', value } : null } }, '@kit.CoreFileKit': {}, '@kit.ShareKit': {}, '@kit.ArkData': {},
+      parseText: value => value.startsWith('https://') ? { kind: 'url', value } : null } }, '../lib/ConnectionFailure': { ConnectionFailures: {} }, '@kit.CoreFileKit': {}, '@kit.ShareKit': {}, '@kit.ArkData': {},
     '../lib/DiagnosticExportSnapshots': {},
     '../lib/ProfileRecovery': { ProfileRecovery: { reconnect: (...args) => reconnectProfile(...args) } },
     '../lib/AutoUpdater': { AutoUpdater: { retry: (...args) => autoRetry(...args) } },
@@ -274,7 +274,7 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   const profiles = [{ file: 'fixture.yaml', name: 'Fixture', active: true },
     { file: 'candidate.yaml', name: 'Candidate', active: false }];
   const Profile = load('ProfilePage', { ...common,
-    '@kit.CoreFileKit': {}, '@kit.ArkTS': {}, '@kit.BasicServicesKit': {}, './ProfileEditPage': {}, './ProfileTemplatePage': { ProfileTemplateBus: { file: '' } }, './ProfileUpdatePage': { ProfileUpdateBus: { request: null } }, './ProfileProxyEditorPage': { ProfileProxyEditorBus: { file: '' } }, './RuleDnsEditorPage': { RuleDnsEditorBus: { file: '', section: '' } },
+    '../lib/ConnectionFailure': { ConnectionFailures: {} }, '@kit.CoreFileKit': {}, '@kit.ArkTS': {}, '@kit.BasicServicesKit': {}, './ProfileEditPage': {}, './ProfileTemplatePage': { ProfileTemplateBus: { file: '' } }, './ProfileUpdatePage': { ProfileUpdateBus: { request: null } }, './ProfileProxyEditorPage': { ProfileProxyEditorBus: { file: '' } }, './RuleDnsEditorPage': { RuleDnsEditorBus: { file: '', section: '' } },
     '../lib/CoreApi': { CoreApi: {} },
     '../lib/EffectiveVersions': { EffectiveVersions: { read: () => null } },
     '../lib/ProfileTransactions': { ProfileTransactions: { onIdle: () => () => {}, isBusy: () => false,
@@ -523,7 +523,7 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   let regionLists = 0, committedRegionEnabled = true;
   let regionFailureMessage = '地区策略已关闭，但原选项未恢复';
   const PartialDisable = load('ProfilePage', { ...common,
-    '@kit.CoreFileKit': {}, '@kit.ArkTS': {}, '@kit.BasicServicesKit': {}, './ProfileEditPage': {}, './ProfileTemplatePage': { ProfileTemplateBus: { file: '' } }, './ProfileUpdatePage': { ProfileUpdateBus: { request: null } }, './ProfileProxyEditorPage': { ProfileProxyEditorBus: { file: '' } }, './RuleDnsEditorPage': { RuleDnsEditorBus: { file: '', section: '' } },
+    '../lib/ConnectionFailure': { ConnectionFailures: {} }, '@kit.CoreFileKit': {}, '@kit.ArkTS': {}, '@kit.BasicServicesKit': {}, './ProfileEditPage': {}, './ProfileTemplatePage': { ProfileTemplateBus: { file: '' } }, './ProfileUpdatePage': { ProfileUpdateBus: { request: null } }, './ProfileProxyEditorPage': { ProfileProxyEditorBus: { file: '' } }, './RuleDnsEditorPage': { RuleDnsEditorBus: { file: '', section: '' } },
     '../lib/CoreApi': { CoreApi: {} },
     '../lib/EffectiveVersions': { EffectiveVersions: {
       read: () => ({ Profiles: { 'candidate.yaml': {} } }),
@@ -563,6 +563,8 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   await partialDisable.saveRegion(false); assert.equal(partialDisable.importError, '地区策略未完成，请重试');
   assert.ok(!partialDisable.importError.includes('synthetic-token'));
 
+  regionFailureMessage = '原手动选项已失效，请先手动选择可用节点再关闭地区策略';
+  await partialDisable.saveRegion(false); assert.match(partialDisable.importError, /代理面板.*可用选项/);
   active = 'fixture.yaml';
   controller.status = status.Connected; profile.confirmDelete(profiles[0]); dialog.secondaryButton.action();
   assert.equal(deleted, 0, 'running active profile must be protected');
