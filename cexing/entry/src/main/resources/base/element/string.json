@@ -3971,6 +3971,246 @@
     {
       "name": "template_region_advanced",
       "value": "Region adjustments"
+    },
+    {
+      "name": "routing_managed",
+      "value": "Cexing managed"
+    },
+    {
+      "name": "routing_one_click_smart",
+      "value": "One-tap Smart"
+    },
+    {
+      "name": "routing_recommended",
+      "value": "Cexing recommended"
+    },
+    {
+      "name": "routing_except",
+      "value": "Except"
+    },
+    {
+      "name": "routing_all_nodes",
+      "value": "All nodes"
+    },
+    {
+      "name": "routing_nodes",
+      "value": "nodes"
+    },
+    {
+      "name": "routing_exit",
+      "value": "Exit"
+    },
+    {
+      "name": "routing_default_exit",
+      "value": "Default exit"
+    },
+    {
+      "name": "routing_algorithm",
+      "value": "Selection method"
+    },
+    {
+      "name": "routing_services",
+      "value": "Dedicated routing"
+    },
+    {
+      "name": "routing_add",
+      "value": "Add"
+    },
+    {
+      "name": "routing_add_service",
+      "value": "Add service"
+    },
+    {
+      "name": "routing_countries",
+      "value": "Countries · empty means all"
+    },
+    {
+      "name": "routing_exclude_countries",
+      "value": "Exclude countries"
+    },
+    {
+      "name": "routing_unknown",
+      "value": "Other / unidentified"
+    },
+    {
+      "name": "routing_region_hint",
+      "value": "Regions are inferred from node names. Correct them here."
+    },
+    {
+      "name": "routing_order",
+      "value": "Fallback candidate order"
+    },
+    {
+      "name": "routing_advanced",
+      "value": "Advanced"
+    },
+    {
+      "name": "routing_node_scope",
+      "value": "Node scope · empty means all"
+    },
+    {
+      "name": "routing_exclude_nodes",
+      "value": "Exclude nodes"
+    },
+    {
+      "name": "routing_provider_scope",
+      "value": "Provider scope · empty means all"
+    },
+    {
+      "name": "routing_correct_regions",
+      "value": "Correct regions"
+    },
+    {
+      "name": "routing_expected_status",
+      "value": "Expected HTTP status"
+    },
+    {
+      "name": "routing_max_failed",
+      "value": "Maximum failures"
+    },
+    {
+      "name": "routing_lazy",
+      "value": "Lazy health checks"
+    },
+    {
+      "name": "routing_tolerance",
+      "value": "Tolerance (ms)"
+    },
+    {
+      "name": "routing_policy_priority",
+      "value": "Policy priority · pattern:factor"
+    },
+    {
+      "name": "routing_lightgbm",
+      "value": "Use offline model"
+    },
+    {
+      "name": "routing_prefer_asn",
+      "value": "Prefer ASN"
+    },
+    {
+      "name": "routing_collectdata",
+      "value": "Collect training samples"
+    },
+    {
+      "name": "routing_sample_rate",
+      "value": "Sample rate (greater than 0, up to 1)"
+    },
+    {
+      "name": "routing_raw_options",
+      "value": "Raw group options"
+    },
+    {
+      "name": "routing_invalid_options",
+      "value": "Check group options and numeric values"
+    },
+    {
+      "name": "routing_share_exit",
+      "value": "Shared exit"
+    },
+    {
+      "name": "routing_shared_hint",
+      "value": "Changes affect every service sharing this exit."
+    },
+    {
+      "name": "routing_separate",
+      "value": "Separate exit"
+    },
+    {
+      "name": "routing_custom_rules",
+      "value": "Custom rules / rule sets"
+    },
+    {
+      "name": "routing_legacy_preserved",
+      "value": "Your existing plan and personal changes are retained."
+    },
+    {
+      "name": "routing_legacy_edit",
+      "value": "Edit existing plan"
+    },
+    {
+      "name": "routing_dependencies",
+      "value": "Some personal changes depend on the existing plan."
+    },
+    {
+      "name": "routing_apply_title",
+      "value": "Apply managed routing"
+    },
+    {
+      "name": "routing_replace_confirmation",
+      "value": "Cexing will manage the rules section; your original rules remain recoverable."
+    },
+    {
+      "name": "routing_include_all",
+      "value": "Include all nodes and providers"
+    },
+    {
+      "name": "routing_include_proxies",
+      "value": "Include all nodes"
+    },
+    {
+      "name": "routing_include_providers",
+      "value": "Include all providers"
+    },
+    {
+      "name": "routing_filter",
+      "value": "Include filter"
+    },
+    {
+      "name": "routing_exclude_filter",
+      "value": "Exclude filter"
+    },
+    {
+      "name": "routing_exclude_type",
+      "value": "Exclude proxy types"
+    },
+    {
+      "name": "routing_draft_saved",
+      "value": "Draft saved"
+    },
+    {
+      "name": "routing_create_smart",
+      "value": "Create Smart entry"
+    },
+    {
+      "name": "routing_region_create_confirmation",
+      "value": "Choose the node scope first. Create only keeps your current selection; create and enable requests a single switch after the controller is ready. Subscription rules stay unchanged."
+    },
+    {
+      "name": "routing_scope_unavailable",
+      "value": "Node scope is unavailable. Check your subscription sources and retry."
+    },
+    {
+      "name": "routing_no_smart",
+      "value": "No compatible automatic groups. Create a Smart entry or use Cexing recommended."
+    },
+    {
+      "name": "routing_restore_edits",
+      "value": "Restore disabled personal changes in advanced editing first."
+    },
+    {
+      "name": "routing_validation_failed",
+      "value": "Check node scope, fallback order and subscription resources."
+    },
+    {
+      "name": "routing_urltest",
+      "value": "Automatic latency"
+    },
+    {
+      "name": "routing_fallback",
+      "value": "Ordered fallback"
+    },
+    {
+      "name": "routing_select",
+      "value": "Manual selection"
+    },
+    {
+      "name": "routing_except_hk",
+      "value": "Except Hong Kong"
+    },
+    {
+      "name": "routing_shared_prefix",
+      "value": "Shared by: "
     }
   ]
 }

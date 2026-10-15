@@ -15,7 +15,7 @@ const editor = {
  apply: async checked => { assert.equal(checked, receipt); assert.equal(checked.revision, `ticket-${revision}`); calls.push('apply'); committed++; published = structuredClone(draft); return 'applied'; }
 };
 const modules = { './ProfileTransactions': {ProfileTransactions:{previewRegion:async(_ctx,file,plan)=>{assert.equal(file,'one.yaml');assert.equal(plan.mode,'all');return {eligible:true,nodes:{one:'美国',two:'日本'},selectors:['Pick'],counts:{},unknown:0,providerPending:false};}}}, './CoreValidator': require('./ci/semantic-fixture.cjs'), './EditorDraftHosts': { EditorDraftHosts: { create: () => editor } }, './ConfigEditor': { ConfigEditor: { switchTemplate: async (_ctx,intent,next,pause) => dependencies > 0 && !pause ? {dependentCount:dependencies} : ({intent:{...structuredClone(intent),template:next,disabled:next.templateId==='original'?intent.disabled:false},dependentCount:0}),
-  templatePlan: (templateId, version, targetGroup, region, replaceRules) => ({templateId, version, targetGroup, region, replaceRules}) } }, './EffectiveVersions': { EffectiveVersions: { read: () => ({ Profiles: { 'one.yaml': { ID: 'version-one' } } }),
+  templatePlan: (templateId, version, targetGroup, region, replaceRules, routing) => ({templateId, version, targetGroup, region, replaceRules, routing}) } }, './EffectiveVersions': { EffectiveVersions: { read: () => ({ Profiles: { 'one.yaml': { ID: 'version-one' } } }),
  editIntent: () => structuredClone(published), regionPlan: () => null } } };
 const sandbox = { exports: {}, ...uiFixture.globals, require: name => { if (name.endsWith('/UiText')) return uiFixture.module; assert.ok(name in modules, name); return modules[name]; } };
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('cexing/entry/src/main/ets/lib/TemplateHost.ets', 'utf8')).outputText, sandbox);
@@ -44,5 +44,12 @@ vm.runInNewContext(ts.transpileModule(fs.readFileSync('cexing/entry/src/main/ets
  assert.equal(calls.length, writes + 2); dependencies = 0;
  const wrong = sandbox.exports.createTemplateWizardHost({}, 'two.yaml', editor);
  await assert.rejects(wrong.load(), /PROFILE_CHANGED/);
+ published={schemaVersion:1,revision:'source',sourceRevision:'source',operations:[],smartGroups:{personal:false}};
+ draft=structuredClone(published); revision=0;
+ editor.smartChoices=async()=>[{before:'url-test',choiceId:'auto',override:false},{before:'fallback',choiceId:'fallback',override:false},{before:'load-balance',choiceId:'balance',override:false},{before:'url-test',choiceId:'personal',override:true}];
+ const smartHost=sandbox.exports.createTemplateWizardHost({},'one.yaml',editor);await smartHost.load();
+ const smart=await smartHost.smart();assert.equal(smart.smartCount,1);assert.equal(draft.smartGroups.auto,true);assert.equal(draft.smartGroups.personal,false);assert.equal(draft.smartGroups.fallback,undefined);assert.equal(draft.smartGroups.balance,undefined);
+ await smartHost.apply({templateId:'original',version:1},smart,true);
+ editor.smartChoices=async()=>[];await smartHost.load();const priorCommits=committed;await assert.rejects(smartHost.smart(),/NO_COMPATIBLE/);assert.equal(committed,priorCommits);
  console.log('PASS: actual template host keeps personal intent, binds save/preview/apply receipt and refuses inactive/stale/wrong-profile application');
 })().catch(error => { console.error(error); process.exitCode = 1; });

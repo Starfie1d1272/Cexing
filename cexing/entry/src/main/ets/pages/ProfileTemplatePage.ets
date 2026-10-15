@@ -1,7 +1,7 @@
 import { common } from '@kit.AbilityKit';
 import { EditorDraftHost } from '../lib/ConfigEditor';
 import { EditorDraftHosts } from '../lib/EditorDraftHosts';
-import { TemplateWizard } from './TemplateWizard';
+import { RoutingWizard } from './RoutingWizard';
 
 export class ProfileTemplateBus {
   static file: string = '';
@@ -34,7 +34,7 @@ export struct ProfileTemplatePage {
 
   build() {
     if (this.ready && this.editor !== undefined) {
-      TemplateWizard({ registerBackGuard: (guard: (() => boolean) | null) => { ProfileTemplateBus.backGuard = guard; }, profileId: this.file, editor: this.editor, onClose: () => {
+      RoutingWizard({ registerBackGuard: (guard: (() => boolean) | null) => { ProfileTemplateBus.backGuard = guard; }, profileId: this.file, editor: this.editor, onClose: () => {
         if (this.visible) { this.navStack.pop(); }
       } })
     }

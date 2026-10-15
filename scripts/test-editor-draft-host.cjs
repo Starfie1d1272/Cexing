@@ -3,7 +3,7 @@ let corruptOwnCommit=false, original='original', projected='', candidateSeen=nul
 let draft={revision:'',intent:null},version='v1',settings={ipv6:false},provider='cache1',id=0,writes=0,applies=0,delay,resolve;
 const ticket=()=>({file:'one.yaml',profileIdentity:'source',profileVersion:version,activeVersion:version,activeFile:'one.yaml',draftRevision:draft.revision});
 const versions={read:()=>({Profiles:{'one.yaml':{ID:version}}}),globalContent:()=>'',regionPlan:()=>null,editIntent:()=>null};
-const tx={editTicket:ticket,saveEditDraft:async(_,t,i,guard)=>{if(delay)await new Promise(r=>resolve=r);if(guard)await guard();assert.equal(t.draftRevision,draft.revision);draft={revision:`draft${++id}`,intent:i?{...i,revision:`draft${id}`}:null};writes++},previewEditDraft:async(_,t,source)=>{candidateSeen=source;return ({digest:'digest',changes:[]})},applyEditDraft:async(_,t,d,guard,source)=>{assert.equal(d,'digest');await guard(false);version='v2';if(source)original=corruptOwnCommit?'external after commit':source.original;await guard(true);applies++;return 'saved'}};
+const tx={editTicket:ticket,saveEditDraft:async(_,t,i,guard)=>{if(delay)await new Promise(r=>resolve=r);if(guard)await guard();assert.equal(t.draftRevision,draft.revision);draft={revision:`draft${++id}`,intent:i?{...i,revision:`draft${id}`}:null};writes++;return draft.revision},previewEditDraft:async(_,t,source)=>{candidateSeen=source;return ({digest:'digest',changes:[]})},applyEditDraft:async(_,t,d,guard,source)=>{assert.equal(d,'digest');await guard(false);version='v2';if(source)original=corruptOwnCommit?'external after commit':source.original;await guard(true);applies++;return 'saved'}};
 const modules={'@kit.ArkTS':{util:{generateRandomUUID:()=>`token${++id}`}},'libentry.so':{versionAction:async(_,json)=>{let a=JSON.parse(json);if(a.expected!==version)return JSON.stringify({error:'stale'});if(a.original==='candidate'&&a.editIntent?.operations?.some(op=>op.id==='stale'))return JSON.stringify({error:'EDIT_CONFLICT'});return JSON.stringify({identity:JSON.stringify([a.original,a.metadata,a.overlay,a.globalMerge,a.editIntent,a.overrides,provider])})}},'./ConfigEditor':{ConfigEditor:{list:async(_,value)=>{projected=value;return {sourceRevision:'source',missingFieldRevision:'missing',sections:[]}},target:async()=>({value:{},item:{id:'target'}})}},'./Settings':{Settings:{load:()=>settings,idle:async()=>{}}},'./EffectiveVersions':{EffectiveVersions:versions},'./ProfileStore':{ProfileStore:{prepareContent:x=>x,getProfileContent:()=>original,getEnabledMerge:()=>'',readEditDraft:()=>draft}},'./ProfileTransactions':{ProfileTransactions:tx}};
 const sandbox={exports:{},require:n=>modules[n]??{}};vm.runInNewContext(ts.transpileModule(fs.readFileSync('cexing/entry/src/main/ets/lib/EditorDraftHosts.ets','utf8')).outputText,sandbox);
 (async()=>{
@@ -29,5 +29,21 @@ const sandbox={exports:{},require:n=>modules[n]??{}};vm.runInNewContext(ts.trans
  const nextHost=sandbox.exports.EditorDraftHosts.create({filesDir:'/synthetic'},'one.yaml',{original:'next candidate',metadata:{origin:'synthetic',updatedAt:3,sub:{}}});
  s=await nextHost.load();receipt=await nextHost.preview(s.revision);corruptOwnCommit=true;
  await assert.rejects(nextHost.apply(receipt),/变化/,'postcommit guard only permits the exact candidate Original');
+
+ corruptOwnCommit=false;original='original';version='v1';draft={revision:'safe',intent:{schemaVersion:1,revision:'safe',operations:[{id:'parent'}]}};
+ const preparedHost=sandbox.exports.EditorDraftHosts.create({filesDir:'/synthetic'},'one.yaml');
+ let validationError=true,holdValidation=null;
+ modules['./ConfigEditor'].ConfigEditor.preview=async()=>{if(holdValidation)await new Promise(r=>holdValidation=r);if(validationError)throw Error('invalid scope');return {digest:'digest',changes:[]};};
+ const proposal={schemaVersion:1,operations:[{id:'proposal'}]};
+ let loaded=await preparedHost.load();const beforeWrites=writes;
+ await assert.rejects(preparedHost.prepare(proposal,loaded.revision,()=>true),/invalid scope/);assert.equal(writes,beforeWrites);assert.equal(draft.intent.operations[0].id,'parent');
+ validationError=false;let active=true;holdValidation=true;
+ const cancelled=preparedHost.prepare(proposal,loaded.revision,()=>active);await new Promise(setImmediate);active=false;holdValidation();await assert.rejects(cancelled,/CANCELLED/);holdValidation=null;assert.equal(writes,beforeWrites);
+ loaded=await preparedHost.load();const priorPreview=tx.previewEditDraft;tx.previewEditDraft=async()=>{throw Error('preview failed');};
+ await assert.rejects(preparedHost.prepare(proposal,loaded.revision,()=>true),/preview failed/);assert.equal(draft.intent.operations[0].id,'parent','failed second preview restores prior draft');
+ loaded=await preparedHost.load();assert.equal(loaded.intent.operations[0].id,'parent');
+ tx.previewEditDraft=async()=>{active=false;return {digest:'digest',changes:[]};};active=true;
+ await assert.rejects(preparedHost.prepare(proposal,loaded.revision,()=>active),/CANCELLED/);assert.equal(draft.intent.operations[0].id,'parent','late cancellation restores owned draft');
+ tx.previewEditDraft=priorPreview;loaded=await preparedHost.load();const prepared=await preparedHost.prepare(proposal,loaded.revision,()=>true);assert.equal(prepared.session.intent.operations[0].id,'proposal');assert.equal(prepared.preview.digest,'digest');
  console.log('PASS: production editor host binds profile/draft/settings/provider, delayed save CAS, preview digest, own commit and undo');
 })().catch(e=>{console.error(e);process.exitCode=1});

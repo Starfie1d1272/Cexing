@@ -116,7 +116,7 @@ export struct ProxyMappingFormPage {
         .width('100%').constraintSize({ minHeight: 48 }).enabled(!this.submitting)
         .onChange((value: string) => {
           if (numeric) { this.form.setNumber(key, value); }
-          else { this.form.setText(key, value); }
+          else if (key === 'sample-rate') { this.form.setFraction(key, value); } else { this.form.setText(key, value); }
         })
     }.width('100%')
   }
@@ -188,6 +188,14 @@ export struct ProxyMappingFormPage {
   }
 
   @Builder
+  GroupFlag(label: string, key: string, defaultValue: boolean = false) {
+    Row() {
+      Text(label).fontSize(14).fontColor(UI.ink).layoutWeight(1)
+      Toggle({ type: ToggleType.Switch, isOn: this.form.flagOrDefault(key, defaultValue) }).accessibilityText(label).enabled(!this.submitting)
+        .onChange((value: boolean) => this.form.setFlag(key, value))
+    }.width('100%').constraintSize({ minHeight: 48 })
+  }
+  @Builder
   GroupFields() {
     Text($r('app.string.proxy_form_members')).fontSize(15).fontColor(UI.ink).width('100%')
     ForEach(this.members, (name: string, index: number) => {
@@ -215,6 +223,23 @@ export struct ProxyMappingFormPage {
       this.Field(this.t('proxy_form_check_url'), 'url')
       this.Field(this.t('proxy_form_check_interval'), 'interval', false, true)
       this.Field(this.t('proxy_form_timeout'), 'timeout', false, true)
+      this.Field(this.t('routing_expected_status'), 'expected-status')
+      this.Field(this.t('routing_max_failed'), 'max-failed-times', false, true)
+      this.GroupFlag(this.t('routing_lazy'), 'lazy', true)
+    }
+    this.GroupFlag(this.t('routing_include_all'), 'include-all')
+    this.GroupFlag(this.t('routing_include_proxies'), 'include-all-proxies')
+    this.GroupFlag(this.t('routing_include_providers'), 'include-all-providers')
+    this.Field(this.t('routing_filter'), 'filter')
+    this.Field(this.t('routing_exclude_filter'), 'exclude-filter')
+    this.Field(this.t('routing_exclude_type'), 'exclude-type')
+    if (this.type === 'smart' || this.type === 'url-test') { this.Field(this.t('routing_tolerance'), 'tolerance', false, true) }
+    if (this.type === 'smart') {
+      this.Field(this.t('routing_policy_priority'), 'policy-priority')
+      this.GroupFlag(this.t('routing_lightgbm'), 'uselightgbm')
+      this.GroupFlag(this.t('routing_collectdata'), 'collectdata')
+      this.Field(this.t('routing_sample_rate'), 'sample-rate')
+      this.GroupFlag(this.t('routing_prefer_asn'), 'prefer-asn')
     }
   }
 

@@ -1,7 +1,7 @@
 import { common } from '@kit.AbilityKit';
 import { util } from '@kit.ArkTS';
 import core from 'libentry.so';
-import { ConfigEditor, EditIntent, EditTarget, EditorDraftHost, EditorDraftSession, EditorDraftPreview } from './ConfigEditor';
+import { ConfigEditor, EditIntent, EditTarget, EditorDraftHost, EditorDraftSession, EditorDraftPreview, EditorDraftPrepared, RoutingCatalogue, SmartGroupChange } from './ConfigEditor';
 import { Settings } from './Settings';
 import { EffectiveVersions, RegionPlan } from './EffectiveVersions';
 import { ProfileStore, ProfileMetaExt } from './ProfileStore';
@@ -49,6 +49,22 @@ class ProfileEditorHost implements EditorDraftHost {
     }
   }
 
+  async routingCatalogue(revision: string): Promise<RoutingCatalogue> {
+    const input = await this.check(revision);
+    const raw = await core.versionAction(this.context.filesDir, JSON.stringify({ op: 'routing-catalogue',
+      original: input.original, overlay: input.overlay, globalMerge: input.global, updateGlobal: true,
+      expected: input.ticket.activeVersion, editIntent: input.intent }));
+    const reply = JSON.parse(raw) as Record<string, Object>;
+    await this.check(revision);
+    if (reply['error'] !== undefined || reply['routingCatalogue'] === undefined) { throw new Error('ROUTING_CATALOGUE_FAILED'); }
+    return reply['routingCatalogue'] as RoutingCatalogue;
+  }
+  async smartChoices(revision: string): Promise<SmartGroupChange[]> {
+    const input = await this.check(revision);
+    const view = await ConfigEditor.smartPreview(this.context, input.original, input.overlay,
+      input.ticket.activeVersion, false, input.intent ?? undefined, input.global, input.region ?? undefined);
+    await this.check(revision); return view;
+  }
   private capture(): HostInput {
     const original = ProfileStore.getProfileContent(this.context, this.file);
     if (original === null) { throw new Error('原始配置不存在'); }
@@ -143,6 +159,31 @@ class ProfileEditorHost implements EditorDraftHost {
     await ProfileTransactions.saveEditDraft(this.context, input.ticket, intent, async () => { await this.check(expectedRevision); }, this.source);
     this.resolved = true;
     return await this.load();
+  }
+  async prepare(intent: EditIntent, expectedRevision: string, current: () => boolean): Promise<EditorDraftPrepared> {
+    const before = await this.check(expectedRevision);
+    const guard = async (): Promise<void> => { if (!current()) { throw new Error('TEMPLATE_CANCELLED'); } await this.check(expectedRevision); };
+    // Read-only full compilation happens before any draft bytes are replaced.
+    await ConfigEditor.preview(this.context, before.original, before.overlay, before.ticket.activeVersion,
+      before.settings, Settings.load(this.context).smartAutoConvert, intent, before.region, before.global);
+    await guard();
+    const revision = await ProfileTransactions.saveEditDraft(this.context, before.ticket, intent, guard, this.source);
+    const owned: EditTicket = { file: before.ticket.file, profileIdentity: before.ticket.profileIdentity,
+      profileVersion: before.ticket.profileVersion, activeVersion: before.ticket.activeVersion,
+      activeFile: before.ticket.activeFile, draftRevision: revision };
+    try {
+      if (!current()) { throw new Error('TEMPLATE_CANCELLED'); }
+      const session = await this.load();
+      const preview = await this.preview(session.revision);
+      if (!current()) { throw new Error('TEMPLATE_CANCELLED'); }
+      return { session: session, preview: preview };
+    } catch (error) {
+      // Only our acknowledged draft revision can be restored; another writer
+      // or publication wins the existing ticket guard rather than being overwritten.
+      await ProfileTransactions.saveEditDraft(this.context, owned, before.intent, undefined, this.source);
+      this.session = null; this.input = null; this.shown = null;
+      throw error as Error;
+    }
   }
   async preview(expectedRevision: string): Promise<EditorDraftPreview> {
     const input = await this.check(expectedRevision);
