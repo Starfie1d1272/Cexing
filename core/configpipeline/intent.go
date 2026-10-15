@@ -765,7 +765,7 @@ func (c Compiler) EditTarget(ctx context.Context, r Request, section, id string)
 			out, err := editTargetFromRoot(root, section, targetID(section, names[i]))
 			out.Item.ID = id
 			out.Item.Disabled = session.DisabledNodes[node] && field(node, "type") != nil && field(node, "type").Value == "reject"
-			if section == "proxy-groups" {
+			if section == "proxy-groups" || section == "proxies" {
 				out.Item.SourceName = session.SourceGroups[node]
 			}
 			return out, err
@@ -807,12 +807,14 @@ func (c Compiler) boundEditSource(ctx context.Context, r Request) (*yaml.Node, *
 		merge(root, patch)
 	}
 	sourceGroups := map[*yaml.Node]string{}
-	groups, names, err := editNodes(root, "proxy-groups")
-	if err != nil {
-		return nil, nil, intentError("invalid_source", -1)
-	}
-	for i, n := range groups {
-		sourceGroups[n] = names[i]
+	for _, sourceSection := range []string{"proxy-groups", "proxies"} {
+		nodes, names, err := editNodes(root, sourceSection)
+		if err != nil {
+			return nil, nil, intentError("invalid_source", -1)
+		}
+		for i, n := range nodes {
+			sourceGroups[n] = names[i]
+		}
 	}
 	baselines, phase, err := prepareRegionResources(ctx, root, r)
 	if err != nil {
@@ -909,7 +911,7 @@ func (c Compiler) EditorList(ctx context.Context, r Request) (EditableSnapshot, 
 			item := &out.Sections[si].Items[i]
 			item.Disabled = session.DisabledNodes[n] && field(n, "type") != nil && field(n, "type").Value == "reject"
 			item.Name = names[i]
-			if section == "proxy-groups" {
+			if section == "proxy-groups" || section == "proxies" {
 				item.SourceName = session.SourceGroups[n]
 			}
 			if section == "rules" {

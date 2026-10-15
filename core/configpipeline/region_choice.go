@@ -8,8 +8,9 @@ import (
 // RegionChoice is host-owned selection intent, carried with successful provenance.
 // It never participates in YAML transformation or refers to another version.
 type RegionChoice struct {
-	Pending  string                `json:"pending"`
-	Previous *RegionPreviousChoice `json:"previous,omitempty"`
+	SourceNames bool                  `json:"sourceNames,omitempty"`
+	Pending     string                `json:"pending"`
+	Previous    *RegionPreviousChoice `json:"previous,omitempty"`
 }
 type RegionPreviousChoice struct {
 	Selector string  `json:"selector"`

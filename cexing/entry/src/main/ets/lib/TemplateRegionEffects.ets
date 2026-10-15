@@ -1,7 +1,7 @@
 /** Selection side effects for the existing profile transaction. This module
  * owns no files, version pointer, Controller client or publish operation. */
 export interface RegionPreviousChoice { selector: string; name: string; observed?: string; }
-export interface RegionChoiceState { pending: string; previous?: RegionPreviousChoice; }
+export interface RegionChoiceState { sourceNames?: boolean; pending: string; previous?: RegionPreviousChoice; }
 export interface RegionChoiceGroup { now: string; all: string[]; }
 export interface RegionChoiceTransition {
   state: RegionChoiceState;
@@ -81,6 +81,7 @@ export async function resumeRegionChoice(activeSelector: string,
   port: RegionChoicePort): Promise<RegionChoiceResult> {
   if (!port.current()) { return 'stale'; }
   let state = copy(port.read());
+  if (state.previous === undefined && state.pending === '') { return 'done'; }
   let groups = await port.groups();
   if (!port.current()) { return 'stale'; }
   if (state.previous !== undefined && state.previous.selector !== activeSelector) {

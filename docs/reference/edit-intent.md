@@ -80,7 +80,7 @@ Go-only `Compiler.EditorResourceSource` 仅复用既有 editSource/boundEditSour
 
 保留被新版模板移除的个人实体：Candidate 写在 `template.mine.entries`，共同 add 的 `target` 为其 `TemplateTarget`；仅接受已声明、未绑定、section 一致的 alias。add 实际插入才创建 binding；捕获包含它并保留实际位置，快照本身仍不执行配置。alias 未实际插入则留墓碑。普通 add 仍省略 target。已在 fresh baseline 的实体继续用 update/rename/move，不接受重复 add。
 
-显式 `editor-list` / `edit-target` 的组 `sourceName` 是双层 Merge 后、模板与个人操作前的源组名；个人改名只改变 name。模板选择使用 sourceName，界面标签使用 name。个人新增或模板生成组不提供 sourceName；默认摘要不增加私有名称。
+显式 `editor-list` / `edit-target` 的节点和组 `sourceName` 是双层 Merge 后、模板与个人操作前的来源名；个人改名只改变 name。模板选择使用 sourceName，界面标签使用 name。个人新增项目或模板生成组不提供 sourceName；默认摘要不增加私有名称。
 
 单节点停用使用 `kind: disable, section: proxies, target, expected`。共同编译器严格验证原节点 revision，生成保留同名的 reject adapter；组成员、规则、dialer-proxy 等引用全部保持。它既不删除其他对象/引用，也不自动换成 DIRECT 或其他出口。显式编辑视图标记 disabled；撤销移除该操作后从最新原文重建，未知字段和凭据只保留在原文/私有来源中。UI 应显示“停用后拒绝连接”这一必要决策，并将启用实现为移除此操作；delete 仍是删除，非法引用继续拒绝完整编译。
 
@@ -117,3 +117,5 @@ Go-only `Compiler.EditorResourceSource` 仅复用既有 editSource/boundEditSour
 地区生成需要 provider 成员时，编译器先在双层 Merge 的私有 root 上执行同一 intent 中的 provider 声明操作，再解析本地有效缓存并生成地区实体，最后执行其余个人操作。provider 操作不会在第二阶段重放；所有原始目标 guard 在第一阶段前保存，跨 provider rename 引用改写仍按原始基线严格核对。宿主缓存投影使用 `ApplyProviderResourceEdits`，不提前执行尚未生成的组/规则编辑；最终输出继续走原有完整验证和发布事务。
 
 分阶段执行保留原始操作序号及节点身份。延后执行的新增/更新只承接原顺序中晚于该写入的 provider 改名；mapping 只转换此次 patch 写入的引用字段，不重新改写整棵 root。改名之后才写入的旧名不会被“修复”，仍由完整引用校验拒绝。规则因资源改名改变文本时，原始目标/锚点 alias 跟随原节点，替换/删除同步迁移或清空；所有投影均作用于私有 root，不改持久 intent。
+
+地区选择在成功版本中以 sourceNames 标记来源名语义；运行 API 边界使用该不可变版本的已有 editor projection 映射节点/组改名，不能把历史 Profile 版本 ID 当作全局 Current fence。旧记录若名称同时可能指向不同实体，禁止猜测恢复；用户明确停止/切换且当前已有有效非 Smart 选择时保留当前选择。
