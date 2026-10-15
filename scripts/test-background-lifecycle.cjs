@@ -1,3 +1,4 @@
+const uiFixture = require('./ci/ui-fixtures.cjs');
 // Exercise actual ArkTS service code with deferred native lifecycle operations.
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -12,7 +13,7 @@ function load(name, modules, timers) {
     module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020
   } }).outputText;
   let next = 0;
-  const ctx = { exports: {}, require: key => {
+  const ctx = { exports: {}, ...uiFixture.globals, require: key => { if (key.endsWith('/UiText')) return uiFixture.module;
     assert.ok(key in modules, `Missing mock: ${key}`); return modules[key];
   }, setInterval: (fn, delay) => { timers.set(++next, { fn, delay }); return next; },
   clearInterval: id => timers.delete(id), clearTimeout: id => timers.delete(id), setTimeout: (fn, delay) => { timers.set(++next, { fn, delay }); return next; }, Date };

@@ -1,3 +1,4 @@
+const uiFixture = require('./ci/ui-fixtures.cjs');
 const assert = require('node:assert/strict'), fs = require('node:fs'), vm = require('node:vm');
 const ts = require('./ci/transpile-arkts.cjs');
 let source = fs.readFileSync('cexing/entry/src/main/ets/pages/SettingsReconnectButton.ets', 'utf8');
@@ -8,7 +9,8 @@ const modules = { '../lib/VpnController': { VpnController: { status: 2, configur
   '../lib/ProfileStore': { ProfileStore: { getActiveFile: () => 'synthetic.yaml' } },
   '../lib/ProfileRecovery': { ProfileRecovery: { reconnect: async (_, current) => { calls++; await new Promise(resolve => { finish = resolve; }); return current(); } } },
   '@kit.ArkUI': { promptAction: { showToast() {} } } };
-const sandbox = { exports: {}, require: key => modules[key] ?? {}, getContext: () => ({}), AlertDialog: { show: value => { dialog = value; } } };
+const sandbox = { exports: {}, require: key => key.endsWith('/UiText') ? uiFixture.module : modules[key] ?? {}, getContext: () => ({}), AlertDialog: { show: value => { dialog = value; } } };
+Object.assign(sandbox, uiFixture.globals);
 vm.runInNewContext(ts.transpileModule(source).outputText, sandbox);
 (async () => {
   const page = new sandbox.exports.SettingsReconnectButton(); page.navStack = { getAllPathName: () => [] }; page.aboutToAppear();

@@ -1,3 +1,4 @@
+import { UiText } from './UiText';
 /*
  * LiveViewKeeper.ets - dataTransfer 长时任务 + 系统实况窗常驻通知（后台保活）
  * VPN 连接成功且设置「后台运行」开启时申请 dataTransfer 长时任务
@@ -503,31 +504,31 @@ export namespace LiveViewKeeper {
       return;
     }
     const status = VpnController.status;
-    let capsuleTitle: string = 'Cexing · 代理已连接';
-    let mainTitle: string = 'Cexing 系统代理';
-    let text: string = '已连接 · 无活动流量';
-    let fileName: string = '规则模式';
+    let capsuleTitle: string = UiText.get($r('app.string.live_connected_title'));
+    let mainTitle: string = UiText.get($r('app.string.live_main_title'));
+    let text: string = UiText.get($r('app.string.live_idle'));
+    let fileName: string = UiText.get($r('app.string.live_rule_mode'));
     const modePart = modeName;
     if (status === VpnStatus.Connecting) {
-      capsuleTitle = 'Cexing · 连接中…';
-      mainTitle = 'Cexing 正在连接';
-      text = '正在建立 VPN 隧道…';
+      capsuleTitle = UiText.get($r('app.string.live_connecting_title'));
+      mainTitle = UiText.get($r('app.string.live_connecting'));
+      text = UiText.get($r('app.string.live_tunnel_start'));
       fileName = modePart;
     } else if (status === VpnStatus.Disconnecting) {
-      capsuleTitle = 'Cexing · 断开中…';
-      mainTitle = 'Cexing 正在断开';
-      text = '正在释放隧道…';
+      capsuleTitle = UiText.get($r('app.string.live_disconnecting_title'));
+      mainTitle = UiText.get($r('app.string.live_disconnecting'));
+      text = UiText.get($r('app.string.live_tunnel_stop'));
       fileName = modePart;
     } else {
-      const strategy = displayGroup.length > 0 ? '显示策略 ' + truncateName(displayGroup) : '';
+      const strategy = displayGroup.length > 0 ? UiText.get($r('app.string.live_strategy'), truncateName(displayGroup)) : '';
       fileName = modePart + (modePart.length > 0 && strategy.length > 0 ? ' · ' : '') + strategy;
       if (lastDownBps > 0 || lastUpBps > 0) {
-        text = '↓ ' + formatRate(lastDownBps) + ' · ↑ ' + formatRate(lastUpBps) + ' · 已运行 ' + formatUptime();
+        text = UiText.get($r('app.string.live_traffic'), formatRate(lastDownBps), formatRate(lastUpBps), formatUptime());
       } else {
-        text = '已连接 · 无活动流量';
+        text = UiText.get($r('app.string.live_idle'));
       }
       if (lastDelay >= 0 && lastDelayGroup === displayGroup && Date.now() - lastDelayAt < HEARTBEAT_INTERVAL_MS) {
-        text = text + ' · 探测 ' + lastDelay + ' ms';
+        text = text + UiText.get($r('app.string.live_probe'), lastDelay);
       }
     }
     const capsule: notificationManager.NotificationCapsule = {

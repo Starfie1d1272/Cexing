@@ -1,3 +1,4 @@
+import { UiText } from '../lib/UiText';
 import { common } from '@kit.AbilityKit';
 import { promptAction } from '@kit.ArkUI';
 import { VpnController, VpnStatus } from '../lib/VpnController';
@@ -40,7 +41,7 @@ export struct SettingsReconnectButton {
     const root = this.rootVisible;
     let file = '';
     try { file = ProfileStore.getActiveFile(context); }
-    catch (_) { promptAction.showToast({ message: '配置读取失败，请检查后重试' }); return; }
+    catch (_) { promptAction.showToast({ message: UiText.get($r('app.string.failure_config_read')) }); return; }
     const current = (): boolean => {
       try {
         const now = this.navStack.getAllPathName();
@@ -52,16 +53,16 @@ export struct SettingsReconnectButton {
     };
     this.confirming = true;
     AlertDialog.show({
-      title: '重连应用设置？', message: '会短暂断开 VPN。',
+      title: UiText.get($r('app.string.settings_reconnect_title')), message: UiText.get($r('app.string.settings_reconnect_warning')),
       cancel: () => { if (request === this.request) { this.request++; this.confirming = false; } },
-      primaryButton: { value: '取消', action: () => { if (request === this.request) { this.request++; this.confirming = false; } } },
-      secondaryButton: { value: '重连', action: async () => {
+      primaryButton: { value: UiText.get($r('app.string.action_cancel')), action: () => { if (request === this.request) { this.request++; this.confirming = false; } } },
+      secondaryButton: { value: UiText.get($r('app.string.action_reconnect')), action: async () => {
         if (request === this.request) { this.confirming = false; }
         if (!current() || epoch !== VpnController.configurationEpoch() || this.working) { return; }
         this.working = true;
         try {
           const accepted = await ProfileRecovery.reconnect(context, current);
-          if (current() && !accepted) { promptAction.showToast({ message: '连接未启动，请重试' }); }
+          if (current() && !accepted) { promptAction.showToast({ message: UiText.get($r('app.string.failure_connect_not_started')) }); }
         } catch (error) {
           if (current()) { promptAction.showToast({ message: (error as Error).message }); }
         } finally { if (this.active && request === this.request) { this.working = false; } }
@@ -70,8 +71,10 @@ export struct SettingsReconnectButton {
   }
   build() {
     if (this.connected) {
-      Button(this.working ? '正在重连' : '重连应用')
-        .width('100%').height(48).backgroundColor(UI.soft).fontColor(UI.ink)
+      Button(this.working ? UiText.get($r('app.string.settings_reconnecting')) : UiText.get($r('app.string.settings_reconnect_apply')))
+        .width('100%').constraintSize({ minHeight: 48 }).backgroundColor(UI.soft).fontColor(UI.ink)
+        .accessibilityDescription(!this.canApply ? UiText.get($r('app.string.a11y_unsaved_settings')) :
+          (this.working || this.confirming ? UiText.get($r('app.string.settings_reconnecting')) : ''))
         .enabled(this.canApply && !this.working && !this.confirming).onClick(() => this.confirm())
     }
   }
