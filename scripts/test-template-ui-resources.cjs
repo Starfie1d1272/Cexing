@@ -14,3 +14,8 @@ for (const page of [w,r]) {
 assert.equal(host.describeMergePreview({digest:'r',changes:[{section:'rules',before:2,after:2,reordered:true}]}),'Rules: reordered');assert.equal(host.describeMergePreview({digest:'r',changes:[{section:'proxies',before:1,after:3,added:2}]}),'Nodes: 2 added');assert.equal(host.describeMergePreview({digest:'r',changes:[{section:'private-unknown',before:1,after:3}]}),'Other configuration: content changed');assert.equal(host.describeMergePreview({digest:'r',changes:[{section:'rules',before:1,after:2,added:1},{section:'private-unknown',before:1,after:3}]}),'Rules: 1 added · Other configuration: content changed');assert.equal(host.describeMergePreview({digest:'r',changes:[]}),'No changes needed');
 locale='zh_CN';p.checking=false;p.results=[];assert.equal(p.summary(),'未检查');assert.equal(host.describeMergePreview({digest:'r',changes:[{section:'rules',before:2,after:2,reordered:true}]}),'规则：顺序已调整');
 console.log('PASS: actual template/probe status and Host display summaries in both locales, resource parameters, no false reachable or raw unknown-result text');
+
+const presenter=load('lib/TemplateConflictPresentation.ets').exports.describeTemplateConflict;
+const empty={templateId:'ai',version:1,entries:[]};
+locale='base';const en=presenter({base:empty,mine:empty,next:empty},{entity:'a',section:'rules',kind:'edit'});assert.match(en.title,/Routing rules/);assert.equal(en.mine,'Delete item');
+locale='zh_CN';const zh=presenter({base:empty,mine:empty,next:empty},{entity:'a',section:'rules',kind:'edit'});assert.match(zh.title,/分流规则/);assert.equal(zh.mine,'删除此项');

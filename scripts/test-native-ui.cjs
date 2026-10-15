@@ -440,9 +440,15 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   const writingFile = activationPage().page;
   const writing = writingFile.importFile('file://docs/writing.yaml');
   await new Promise(setImmediate); assert.equal(writingFile.importing, true);
-  writingFile.aboutToDisappear(); assert.equal(importCurrent(), false);
-  finishImportWrite('candidate.yaml'); await writing;
+  writingFile.aboutToDisappear(); assert.equal(importCurrent(), false); assert.equal(writingFile.importing, false, "leaving releases the cancelled import owner");
+  const finishOldImport = finishImportWrite;
+  writingFile.pageVisible = true;
+  const replacementImport = writingFile.importFile('file://docs/new.yaml');
+  await new Promise(setImmediate); assert.equal(writingFile.importing, true);
+  finishOldImport('candidate.yaml'); await writing;
+  assert.equal(writingFile.importing, true, 'old completion cannot release the replacement import');
   assert.equal(writingFile.importedFile, '', 'late async persistence cannot reopen an import sheet');
+  finishImportWrite('replacement.yaml'); await replacementImport; assert.equal(writingFile.importing, false);
   importAsync = async () => { throw Error('private disk failure'); };
   const failedWrite = activationPage().page; await failedWrite.importFile('file://docs/io.yaml');
   assert.equal(failedWrite.importedFile, ''); assert.equal(failedWrite.importing, false);

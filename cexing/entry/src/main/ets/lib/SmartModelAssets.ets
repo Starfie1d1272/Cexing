@@ -35,19 +35,19 @@ export class SmartModelAssets {
     if (!fileIo.accessSync(path)) { return false; }
     const stat = fileIo.lstatSync(path);
     if (stat.isSymbolicLink() || !stat.isFile() || stat.size !== SMART_MODEL_BYTES) { return false; }
-    const file = fileIo.openSync(path, fileIo.OpenMode.READ_ONLY | fileIo.OpenMode.NOFOLLOW);
+    const file = await fileIo.open(path, fileIo.OpenMode.READ_ONLY | fileIo.OpenMode.NOFOLLOW);
     try {
       const bytes = new Uint8Array(SMART_MODEL_BYTES);
       let offset = 0;
       while (offset < bytes.length) {
-        const chunk = new ArrayBuffer(Math.min(1024 * 1024, bytes.length - offset));
-        const length = fileIo.readSync(file.fd, chunk);
-        if (length <= 0) { return false; }
+        const chunk = new ArrayBuffer(Math.min(64 * 1024, bytes.length - offset));
+        const length = await fileIo.read(file.fd, chunk, { offset: offset });
+        if (length <= 0 || length > chunk.byteLength) { return false; }
         bytes.set(new Uint8Array(chunk, 0, length), offset);
         offset += length;
       }
       return SmartModelAssets.valid(bytes);
-    } finally { fileIo.closeSync(file); }
+    } finally { await fileIo.close(file); }
   }
 
   static prepare(context: common.Context): Promise<SmartModelPreparation> {
@@ -93,12 +93,15 @@ export class SmartModelAssets {
         if (stat.isSymbolicLink() || !stat.isFile()) { throw new Error('Unsafe model staging path'); }
         fileIo.unlinkSync(temp);
       }
-      const file = fileIo.openSync(temp, fileIo.OpenMode.WRITE_ONLY | fileIo.OpenMode.CREATE | fileIo.OpenMode.NOFOLLOW);
+      const file = await fileIo.open(temp, fileIo.OpenMode.WRITE_ONLY | fileIo.OpenMode.CREATE | fileIo.OpenMode.NOFOLLOW);
       try {
-        const bytes = bundled.buffer.slice(bundled.byteOffset, bundled.byteOffset + bundled.byteLength);
-        if (fileIo.writeSync(file.fd, bytes) !== bundled.length) { throw new Error('Short model write'); }
-        fileIo.fsyncSync(file.fd);
-      } finally { fileIo.closeSync(file); }
+        for (let offset = 0; offset < bundled.length; offset += 64 * 1024) {
+          const bytes = bundled.buffer.slice(bundled.byteOffset + offset,
+            bundled.byteOffset + Math.min(offset + 64 * 1024, bundled.byteLength));
+          if (await fileIo.write(file.fd, bytes, { offset: offset }) !== bytes.byteLength) { throw new Error('Short model write'); }
+        }
+        await fileIo.fsync(file.fd);
+      } finally { await fileIo.close(file); }
       if (!await SmartModelAssets.installed(temp)) { throw new Error('Staged model checksum mismatch'); }
       const hadPrevious = fileIo.accessSync(path);
       if (hadPrevious) { fileIo.renameSync(path, backup); }

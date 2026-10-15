@@ -3751,6 +3751,186 @@
     {
       "name": "profile_update_pending",
       "value": "Apply or discard the pending update first."
+    },
+    {
+      "name": "conflict_text_0",
+      "value": "Routing rules"
+    },
+    {
+      "name": "conflict_text_1",
+      "value": "Proxy group"
+    },
+    {
+      "name": "conflict_text_2",
+      "value": "Node"
+    },
+    {
+      "name": "conflict_text_3",
+      "value": "Node provider"
+    },
+    {
+      "name": "conflict_text_4",
+      "value": "Rule provider"
+    },
+    {
+      "name": "conflict_text_5",
+      "value": "Host mapping"
+    },
+    {
+      "name": "conflict_text_6",
+      "value": "Name"
+    },
+    {
+      "name": "conflict_text_7",
+      "value": "Type"
+    },
+    {
+      "name": "conflict_text_8",
+      "value": "Members"
+    },
+    {
+      "name": "conflict_text_9",
+      "value": "Provider"
+    },
+    {
+      "name": "conflict_text_10",
+      "value": "Check interval"
+    },
+    {
+      "name": "conflict_text_11",
+      "value": "Tolerance"
+    },
+    {
+      "name": "conflict_text_12",
+      "value": "Strategy"
+    },
+    {
+      "name": "conflict_text_13",
+      "value": "Port"
+    },
+    {
+      "name": "conflict_text_14",
+      "value": "Server"
+    },
+    {
+      "name": "conflict_text_15",
+      "value": "Address"
+    },
+    {
+      "name": "conflict_text_16",
+      "value": "Password"
+    },
+    {
+      "name": "conflict_text_17",
+      "value": "Identity"
+    },
+    {
+      "name": "conflict_text_18",
+      "value": "Headers"
+    },
+    {
+      "name": "conflict_text_19",
+      "value": "Access token"
+    },
+    {
+      "name": "conflict_text_20",
+      "value": "Selected outbound"
+    },
+    {
+      "name": "conflict_text_21",
+      "value": "Advanced rule (hidden)"
+    },
+    {
+      "name": "conflict_text_22",
+      "value": "Rule content hidden"
+    },
+    {
+      "name": "conflict_text_23",
+      "value": " (no DNS resolution)"
+    },
+    {
+      "name": "conflict_text_24",
+      "value": "Delete item"
+    },
+    {
+      "name": "conflict_text_25",
+      "value": "Empty"
+    },
+    {
+      "name": "conflict_text_26",
+      "value": "Hidden"
+    },
+    {
+      "name": "conflict_text_27",
+      "value": "Includes: "
+    },
+    {
+      "name": "conflict_text_28",
+      "value": "No items"
+    },
+    {
+      "name": "conflict_text_29",
+      "value": "Order"
+    },
+    {
+      "name": "conflict_text_30",
+      "value": "Content"
+    },
+    {
+      "name": "conflict_text_31",
+      "value": "Personal changes"
+    },
+    {
+      "name": "conflict_text_32",
+      "value": "Mine"
+    },
+    {
+      "name": "conflict_text_33",
+      "value": "New template"
+    },
+    {
+      "name": "conflict_dns",
+      "value": "DNS"
+    },
+    {
+      "name": "conflict_udp",
+      "value": "UDP"
+    },
+    {
+      "name": "conflict_remaining",
+      "value": "Remaining traffic → %s"
+    },
+    {
+      "name": "conflict_hidden_change",
+      "value": "%s changes (hidden)"
+    },
+    {
+      "name": "conflict_hidden_items",
+      "value": "%s items (hidden)"
+    },
+    {
+      "name": "conflict_from_item",
+      "value": "From item %s: "
+    },
+    {
+      "name": "conflict_item_count",
+      "value": " (%s items)"
+    },
+    {
+      "name": "conflict_field_changes",
+      "value": "%s field changes"
+    },
+    {
+      "name": "conflict_advanced_field",
+      "value": "Advanced field %s"
+    },
+    {
+      "name": "proxy_form_transport",
+      "value": "Transport"
+    },
+    {
+      "name": "proxy_form_type",
+      "value": "Type"
     }
   ]
 }

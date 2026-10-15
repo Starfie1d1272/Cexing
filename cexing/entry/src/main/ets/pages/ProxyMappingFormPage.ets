@@ -157,7 +157,7 @@ export struct ProxyMappingFormPage {
         }.width('100%')
       }
       Select(this.transportTypes().map((value: string) => new ProxyFormOption(value)))
-        .value(this.transport || 'tcp').enabled(!this.submitting).onSelect((_, value: string) => {
+        .accessibilityText($r('app.string.proxy_form_transport')).value(this.transport || 'tcp').enabled(!this.submitting).onSelect((_, value: string) => {
           this.transport = value; this.form.setText('network', value);
         })
       if (this.transport === 'ws') {
@@ -237,7 +237,7 @@ export struct ProxyMappingFormPage {
               }
             }
             this.Field(this.t('proxy_form_name'), 'name')
-            Select(this.types().map((value: string) => new ProxyFormOption(value))).value(this.type)
+            Select(this.types().map((value: string) => new ProxyFormOption(value))).accessibilityText($r('app.string.proxy_form_type')).value(this.type)
               .onSelect((_, value: string) => { this.type = value; this.form.setText('type', value); })
             if (this.section === 'proxies') {
               if (['ss', 'vmess', 'vless', 'trojan'].includes(this.type)) { this.NodeFields() }

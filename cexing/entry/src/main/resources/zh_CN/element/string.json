@@ -3751,6 +3751,186 @@
     {
       "name": "profile_update_pending",
       "value": "请先应用或撤销当前更新草稿"
+    },
+    {
+      "name": "conflict_text_0",
+      "value": "分流规则"
+    },
+    {
+      "name": "conflict_text_1",
+      "value": "策略组"
+    },
+    {
+      "name": "conflict_text_2",
+      "value": "节点"
+    },
+    {
+      "name": "conflict_text_3",
+      "value": "节点来源"
+    },
+    {
+      "name": "conflict_text_4",
+      "value": "规则来源"
+    },
+    {
+      "name": "conflict_text_5",
+      "value": "域名映射"
+    },
+    {
+      "name": "conflict_text_6",
+      "value": "名称"
+    },
+    {
+      "name": "conflict_text_7",
+      "value": "类型"
+    },
+    {
+      "name": "conflict_text_8",
+      "value": "成员"
+    },
+    {
+      "name": "conflict_text_9",
+      "value": "来源"
+    },
+    {
+      "name": "conflict_text_10",
+      "value": "检测间隔"
+    },
+    {
+      "name": "conflict_text_11",
+      "value": "容差"
+    },
+    {
+      "name": "conflict_text_12",
+      "value": "策略"
+    },
+    {
+      "name": "conflict_text_13",
+      "value": "端口"
+    },
+    {
+      "name": "conflict_text_14",
+      "value": "服务器"
+    },
+    {
+      "name": "conflict_text_15",
+      "value": "地址"
+    },
+    {
+      "name": "conflict_text_16",
+      "value": "密码凭据"
+    },
+    {
+      "name": "conflict_text_17",
+      "value": "身份凭据"
+    },
+    {
+      "name": "conflict_text_18",
+      "value": "请求头"
+    },
+    {
+      "name": "conflict_text_19",
+      "value": "访问凭据"
+    },
+    {
+      "name": "conflict_text_20",
+      "value": "指定出口"
+    },
+    {
+      "name": "conflict_text_21",
+      "value": "高级规则（内容隐藏）"
+    },
+    {
+      "name": "conflict_text_22",
+      "value": "规则内容已隐藏"
+    },
+    {
+      "name": "conflict_text_23",
+      "value": "（不解析域名）"
+    },
+    {
+      "name": "conflict_text_24",
+      "value": "删除此项"
+    },
+    {
+      "name": "conflict_text_25",
+      "value": "空值"
+    },
+    {
+      "name": "conflict_text_26",
+      "value": "内容隐藏"
+    },
+    {
+      "name": "conflict_text_27",
+      "value": "包含："
+    },
+    {
+      "name": "conflict_text_28",
+      "value": "无此类项目"
+    },
+    {
+      "name": "conflict_text_29",
+      "value": "排列顺序"
+    },
+    {
+      "name": "conflict_text_30",
+      "value": "内容"
+    },
+    {
+      "name": "conflict_text_31",
+      "value": "个人修改"
+    },
+    {
+      "name": "conflict_text_32",
+      "value": "我"
+    },
+    {
+      "name": "conflict_text_33",
+      "value": "新模板"
+    },
+    {
+      "name": "conflict_dns",
+      "value": "DNS"
+    },
+    {
+      "name": "conflict_udp",
+      "value": "UDP"
+    },
+    {
+      "name": "conflict_remaining",
+      "value": "其余流量 → %s"
+    },
+    {
+      "name": "conflict_hidden_change",
+      "value": "%s的修改（内容隐藏）"
+    },
+    {
+      "name": "conflict_hidden_items",
+      "value": "%s 项（内容隐藏）"
+    },
+    {
+      "name": "conflict_from_item",
+      "value": "第 %s 项起："
+    },
+    {
+      "name": "conflict_item_count",
+      "value": " 等 %s 项"
+    },
+    {
+      "name": "conflict_field_changes",
+      "value": "%s的字段修改"
+    },
+    {
+      "name": "conflict_advanced_field",
+      "value": "高级字段 %s"
+    },
+    {
+      "name": "proxy_form_transport",
+      "value": "传输方式"
+    },
+    {
+      "name": "proxy_form_type",
+      "value": "类型"
     }
   ]
 }

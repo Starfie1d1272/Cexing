@@ -153,13 +153,13 @@ export struct ProfilePage {
   }
 
   private onTabVisible(): void {
-    if (this.detailFile.length === 0 && this.currentVisibleTab !== 1) { this.cancelExport(); this.activationRequest++; this.importGeneration++; }
+    if (this.detailFile.length === 0 && this.currentVisibleTab !== 1) { this.cancelExport(); this.activationRequest++; this.importGeneration++; this.importing = false; }
     if (this.currentVisibleTab === 1) { this.refresh(); this.acceptExternalImport(); }
   }
 
   private onRootVisible(): void {
     if (this.rootVisible) { this.refresh(); this.acceptExternalImport(); }
-    if (this.detailFile.length === 0 && !this.rootVisible) { this.cancelExport(); this.activationRequest++; this.importGeneration++; }
+    if (this.detailFile.length === 0 && !this.rootVisible) { this.cancelExport(); this.activationRequest++; this.importGeneration++; this.importing = false; }
   }
 
   private changed(): void {
@@ -326,7 +326,7 @@ export struct ProfilePage {
     this.cancelExport();
     this.releaseExternalImport();
     this.pageVisible = false;
-    this.importGeneration++;
+    this.importGeneration++; this.importing = false;
     this.pageGeneration++;
     this.activationRequest++;
   }
@@ -679,7 +679,8 @@ export struct ProfilePage {
     try {
       if (!current()) { return; }
       const context = getContext(this) as common.UIAbilityContext;
-      const content = ProfileStore.getProfileContent(context, profile.file);
+      const content = await ProfileStore.getProfileContentAsync(context, profile.file, current);
+      if (!current()) { return; }
       if (content === null) { this.toast(UiText.get($r('app.string.profile_read_failed'))); return; }
       const docPicker = new picker.DocumentViewPicker(context);
       const options = new picker.DocumentSaveOptions();
@@ -704,7 +705,7 @@ export struct ProfilePage {
   }
 
   private cancelImport(): void {
-    this.importGeneration++;
+    this.importGeneration++; this.importing = false;
     this.activationRequest++;
     this.releaseExternalImport();
     this.inputUrl = '';
@@ -723,7 +724,7 @@ export struct ProfilePage {
     const candidate = ProfileImportInput.take();
     if (candidate === null) { return; }
     this.externalImport = candidate;
-    this.importGeneration++;
+    this.importGeneration++; this.importing = false;
     this.importError = '';
     if (candidate.kind === 'url') {
       this.inputUrl = candidate.value;
@@ -791,7 +792,7 @@ export struct ProfilePage {
     const page = this.pageGeneration;
     const request = ++this.importGeneration;
     try {
-      const file = await ProfileStore.importFromUrl(context, url);
+      const file = await ProfileStore.importFromUrl(context, url, () => this.pageVisible && page === this.pageGeneration && request === this.importGeneration);
       if (!this.pageVisible || page !== this.pageGeneration || request !== this.importGeneration) { return; }
       this.inputUrl = '';
       this.finishImport(file);
@@ -800,8 +801,7 @@ export struct ProfilePage {
         this.importError = UiText.get($r('app.string.profile_import_failed'));
       }
     } finally {
-      this.importing = false;
-      this.acceptExternalImport();
+      if (request === this.importGeneration) { this.importing = false; this.acceptExternalImport(); }
     }
   }
 
@@ -839,17 +839,24 @@ export struct ProfilePage {
       if (this.pageVisible && page === this.pageGeneration && request === this.importGeneration) {
         this.toast(UiText.get($r('app.string.profile_file_failed')));
       }
-    } finally { this.importing = false; this.acceptExternalImport(); }
+    } finally { if (request === this.importGeneration) { this.importing = false; this.acceptExternalImport(); } }
   }
 
   private async importClipboard(): Promise<void> {
+    if (this.importing) { return; }
+    this.importing = true;
+    const page = this.pageGeneration; const request = ++this.importGeneration;
+    const current = (): boolean => this.pageVisible && page === this.pageGeneration && request === this.importGeneration;
+    try {
     const context = getContext(this) as common.UIAbilityContext;
     let text = '';
     try {
       const data = await pasteboard.getSystemPasteboard().getData();
+      if (!current()) { return; }
       text = data.getPrimaryText().trim();
     } catch (e) {
-      Logger.warn(TAG, `clipboard read failed: ${JSON.stringify(e)}`);
+      if (!current()) { return; }
+      Logger.warn(TAG, 'clipboard read failed');
       // 普通应用无 READ_PASTEBOARD（system_basic 级权限），跨应用内容读不到：
       // 回退到手动粘贴表单，保留 URL 与 YAML 导入
       this.toast(UiText.get($r('app.string.profile_paste_manually')));
@@ -865,17 +872,21 @@ export struct ProfilePage {
     try {
       if (text.includes('proxies:') || text.includes('proxy-groups:') || text.includes('proxy-providers:')) {
         const name = `clipboard_${Date.now()}`;
-        const file = ProfileStore.importContent(context, name, text);
-        this.finishImport(file);
+        const file = await ProfileStore.importContentAsync(context, name, text, current);
+        if (current()) { this.finishImport(file); }
       } else {
-        const file = await ProfileStore.importFromUrl(context, text);
-        this.finishImport(file);
+        const file = await ProfileStore.importFromUrl(context, text, current);
+        if (current()) { this.finishImport(file); }
       }
       this.changed();
     } catch (e) {
+      if (!current()) { return; }
       this.importError = UiText.get($r('app.string.profile_import_failed'));
       this.sheetMode = SHEET_PASTE;
       this.showSheet = true;
+    }
+    } finally {
+      if (request === this.importGeneration) { this.importing = false; this.acceptExternalImport(); }
     }
   }
 
@@ -1156,17 +1167,21 @@ export struct ProfilePage {
     if (this.importing || this.inputPaste.trim().length === 0) { return; }
     this.importing = true;
     this.importError = '';
+    const page = this.pageGeneration; const request = ++this.importGeneration;
+    const current = (): boolean => this.pageVisible && page === this.pageGeneration && request === this.importGeneration;
     try {
       const context = getContext(this) as common.UIAbilityContext;
       const text = this.inputPaste.trim();
-      const file = /^https?:\/\//.test(text) ? await ProfileStore.importFromUrl(context, text) :
-        ProfileStore.importContent(context, `clipboard_${Date.now()}`, text);
+      const file = /^https?:\/\//.test(text) ? await ProfileStore.importFromUrl(context, text, current) :
+        await ProfileStore.importContentAsync(context, `clipboard_${Date.now()}`, text, current);
+      if (!current()) { return; }
       this.inputPaste = '';
       this.finishImport(file);
     } catch (e) {
+      if (!current()) { return; }
       this.importError = UiText.get($r('app.string.profile_import_failed'));
     } finally {
-      this.importing = false;
+      if (request === this.importGeneration) { this.importing = false; this.acceptExternalImport(); }
     }
   }
 
@@ -1364,7 +1379,7 @@ export struct ProfilePage {
         },
         shouldDismiss: (dismiss: SheetDismiss) => {
           if (this.sheetMode !== SHEET_GLOBAL && !this.importing && !this.activating && !this.regionBusy && !ProfileTransactions.isBusy()) {
-            this.importGeneration++; this.activationRequest++;
+            this.importGeneration++; this.importing = false; this.activationRequest++;
             dismiss.dismiss();
           }
         } })

@@ -13,7 +13,7 @@ import { suggestProfileName, profileNameFromUrl } from './ProfileName';
 import { EffectiveVersions } from './EffectiveVersions';
 import { RegionChoiceState } from './TemplateRegionEffects';
 import { EditIntent } from './ConfigEditor';
-import { BoundedFileReader, IMPORT_CONFIG_BYTES } from './BoundedFileReader';
+import { BoundedFileReader, IMPORT_CONFIG_BYTES, CORE_CONFIG_BYTES } from './BoundedFileReader';
 
 const TAG = 'profileStore';
 const ACTIVE_FILE = 'active.txt';
@@ -743,6 +743,17 @@ export namespace ProfileStore {
   }
 
   /** 读取指定配置内容（复用 getActiveContent 的 sanitize 修复逻辑）；文件不存在返回 null */
+  export async function getProfileContentAsync(context: common.Context, file: string,
+    current?: () => boolean): Promise<string | null> {
+    const state = EffectiveVersions.read(context);
+    const version = state?.Profiles[file];
+    const path = version !== undefined ? `${context.filesDir}/profile-versions/${version.ID}/original.yaml` : `${dir(context)}/${file}`;
+    if (!fileIo.accessSync(path)) { return null; }
+    const bytes = await BoundedFileReader.bytes(path, CORE_CONFIG_BYTES, current);
+    const content = await BoundedFileReader.decodeUtf8(bytes, current);
+    return version !== undefined ? content : sanitizeConfigContent(content);
+  }
+
   export function getProfileContent(context: common.Context, file: string): string | null {
     const state = EffectiveVersions.read(context);
     if (state !== null && state.Profiles[file] !== undefined) {
@@ -821,12 +832,13 @@ export namespace ProfileStore {
   }
 
   /** 从 URL 导入订阅，返回保存的文件名；失败抛错 */
-  export async function importFromUrl(context: common.Context, url: string): Promise<string> {
+  export async function importFromUrl(context: common.Context, url: string, current?: () => boolean): Promise<string> {
     const req = http.createHttp();
     try {
       const resp = await req.request(url, {
         method: http.RequestMethod.GET,
         expectDataType: http.HttpDataType.STRING,
+        maxLimit: IMPORT_CONFIG_BYTES,
         connectTimeout: 15000,
         readTimeout: 30000
       });
@@ -838,7 +850,7 @@ export namespace ProfileStore {
       validateConfig(content);
       const name = suggestProfileName(resp.header as Record<string, Object>,
         profileNameFromUrl(url, '新订阅'));
-      const saved = await saveAsync(context, name, content);
+      const saved = await saveAsync(context, name, content, current);
       setOrigin(context, saved, url);
       writeMetaEntryStrict(context, saved, metaEntryFromResp(resp, url));
       Logger.info(TAG, 'profile imported');
@@ -877,6 +889,7 @@ export namespace ProfileStore {
       const resp = await req.request(url, {
         method: http.RequestMethod.GET,
         expectDataType: http.HttpDataType.STRING,
+        maxLimit: IMPORT_CONFIG_BYTES,
         connectTimeout: 15000,
         readTimeout: 30000
       });

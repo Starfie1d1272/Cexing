@@ -8,7 +8,7 @@ import { ProfileStore } from './ProfileStore';
 import { Settings } from './Settings';
 import { EditorSourceCandidate } from './EditorDraftHosts';
 import { CoreValidator } from './CoreValidator';
-import { describeTemplateConflict } from './TemplateConflictPresentation';
+import { describeTemplateConflict, unavailableTemplateConflict } from './TemplateConflictPresentation';
 import { ProfileTransactions, EditTicket } from './ProfileTransactions';
 
 interface SourceInput {
@@ -105,11 +105,8 @@ export function createTemplateUpdateSource(context: common.Context, profileId: s
     },
     label: (conflict: TemplateConflict): string => {
       if (comparison !== null) { return describeTemplateConflict(comparison, conflict).title; }
-      const labels: Record<string, string> = { 'rules': '分流规则', 'proxy-groups': '策略组', 'proxies': '节点',
-        'proxy-providers': '节点来源', 'rule-providers': '规则来源', 'dns': 'DNS', 'hosts': '域名映射' };
-      return labels[conflict.section] ?? '个人修改';
+      return unavailableTemplateConflict(conflict).title;
     },
-    detail: (conflict: TemplateConflict) => comparison !== null ? describeTemplateConflict(comparison, conflict) : {
-      title: '个人修改', mine: '请重新预览', template: '请重新预览' }
+    detail: (conflict: TemplateConflict) => comparison !== null ? describeTemplateConflict(comparison, conflict) : unavailableTemplateConflict(conflict)
   };
 }

@@ -5,6 +5,7 @@ const path = require('node:path');
 const vm = require('node:vm');
 const ts = require('./ci/transpile-arkts.cjs');
 const source = fs.readFileSync(path.join(__dirname, '../cexing/entry/src/main/ets/lib/ProfileStore.ets'), 'utf8');
+assert.equal((source.match(/maxLimit: IMPORT_CONFIG_BYTES/g) ?? []).length, 2, 'URL import and update share the file byte limit');
 const js = ts.transpileModule(source, { compilerOptions: {
   module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020
 } }).outputText;

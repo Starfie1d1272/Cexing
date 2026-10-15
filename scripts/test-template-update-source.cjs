@@ -1,3 +1,4 @@
+const conflictUi = require('./ci/ui-fixtures.cjs');
 const assert = require('node:assert/strict'), fs = require('node:fs'), vm = require('node:vm');
 const ts = require('./ci/transpile-arkts.cjs');
 let expectedOriginal='prepared original', inputs = [], prepared = 0, pendingRead, precision = false;
@@ -6,7 +7,7 @@ const intent = { schemaVersion: 1, revision: 'intent', sourceRevision: 'source',
 let published = structuredClone(intent), paired, activeVersion='version-successful';
 const session = revision => ({ profileId: 'one.yaml', revision, intent: structuredClone(intent), snapshot: { sourceRevision: 'source', sections: [] } });
 const ticket=()=>({file:'one.yaml',profileIdentity:'identity',profileVersion:'version-successful',activeVersion:activeVersion,activeFile:'one.yaml',draftRevision:intent.revision});
-const presentation = { exports: {}, require: () => ({}) };
+const presentation = { exports: {}, ...conflictUi.globals, require: () => conflictUi.module };
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('cexing/entry/src/main/ets/lib/TemplateConflictPresentation.ets', 'utf8')).outputText, presentation);
 const modules = {
  './TemplateConflictPresentation': presentation.exports,
