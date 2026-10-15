@@ -267,7 +267,7 @@ export struct HomePage {
       if (this.status === VpnStatus.Connected) {
         Row({ space: 20 }) {
           this.Rate(true, UiText.get($r('app.string.home_upload')))
-          Divider().vertical(true).constraintSize({ minHeight: 48 }).color('#52616A')
+          Divider().vertical(true).height(48).color('#52616A')
           this.Rate(false, UiText.get($r('app.string.home_download')))
           SymbolGlyph($r('sys.symbol.chevron_right')).fontSize(14).fontColor([Color.White])
         }.padding({ top: 18, bottom: 18, left: 24, right: 24 }).width('100%').backgroundColor(UI.stage)
