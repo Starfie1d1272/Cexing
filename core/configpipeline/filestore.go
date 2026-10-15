@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 )
 
 // FileStore publishes a single atomic state.json pointer after core activation.
@@ -70,6 +71,15 @@ func (s FileStore) Load(ctx context.Context) (Snapshot, error) {
 	return state, nil
 }
 func (s FileStore) Stage(ctx context.Context, r Result) (Version, error) {
+	return s.StageWithRegionChoice(ctx, r, nil)
+}
+
+// StageWithRegionChoice publishes host selection provenance with the same files
+// and pointer as the compiler result; the compiler remains unchanged.
+func (s FileStore) StageWithRegionChoice(ctx context.Context, r Result, choice *RegionChoice) (Version, error) {
+	if err := CheckRegionChoice(choice); err != nil {
+		return Version{}, err
+	}
 	if err := CheckEditIntent(r.EditIntent); err != nil {
 		return Version{}, err
 	}
@@ -90,8 +100,22 @@ func (s FileStore) Stage(ctx context.Context, r Result) (Version, error) {
 	if err := os.MkdirAll(s.Root, 0700); err != nil {
 		return Version{}, err
 	}
+	root, err := os.OpenRoot(s.Root)
+	if err != nil {
+		return Version{}, err
+	}
+	guard, err := lockGC(root, syscall.LOCK_SH)
+	root.Close()
+	if err != nil {
+		return Version{}, errors.New("GC_BUSY")
+	}
+	defer guard.Close()
 	dir, err := os.MkdirTemp(s.Root, "version-")
 	if err != nil {
+		return Version{}, err
+	}
+	if err := writeSync(filepath.Join(dir, ".pending"), []byte("1")); err != nil {
+		_ = os.RemoveAll(dir)
 		return Version{}, err
 	}
 	complete := false
@@ -109,8 +133,9 @@ func (s FileStore) Stage(ctx context.Context, r Result) (Version, error) {
 		SmartConversion bool
 		RegionPlan      *RegionPlan
 		GlobalMerge     string
-		EditIntent      *EditIntent `json:",omitempty"`
-	}{r.Original, r.Overlays, r.Digest, r.ProfileID, r.Metadata, r.SmartConversion, r.RegionPlan, r.GlobalMerge, r.EditIntent})
+		EditIntent      *EditIntent   `json:",omitempty"`
+		RegionChoice    *RegionChoice `json:",omitempty"`
+	}{r.Original, r.Overlays, r.Digest, r.ProfileID, r.Metadata, r.SmartConversion, r.RegionPlan, r.GlobalMerge, r.EditIntent, choice})
 	if err != nil {
 		return Version{}, err
 	}
@@ -145,6 +170,16 @@ func (s FileStore) Commit(ctx context.Context, state Snapshot) error {
 
 // Publish also permits clearing the selected version after a confirmed stop.
 func (s FileStore) Publish(ctx context.Context, state Snapshot) error {
+	root, err := os.OpenRoot(s.Root)
+	if err != nil {
+		return err
+	}
+	guard, err := lockGC(root, syscall.LOCK_SH)
+	root.Close()
+	if err != nil {
+		return errors.New("GC_BUSY")
+	}
+	defer guard.Close()
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -194,9 +229,20 @@ func (s FileStore) Publish(ctx context.Context, state Snapshot) error {
 		return err
 	}
 	_ = syncDir(s.Root) // power-loss durability is filesystem/platform dependent
+	s.finishPublished(state)
 	return nil
 }
 func (s FileStore) Discard(ctx context.Context, v Version) error {
+	root, err := os.OpenRoot(s.Root)
+	if err != nil {
+		return err
+	}
+	guard, err := lockGC(root, syscall.LOCK_SH)
+	root.Close()
+	if err != nil {
+		return errors.New("GC_BUSY")
+	}
+	defer guard.Close()
 	if err := ctx.Err(); err != nil {
 		return err
 	}

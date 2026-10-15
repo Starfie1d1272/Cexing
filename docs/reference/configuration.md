@@ -53,12 +53,22 @@ DNS 独立监听固定为 `127.0.0.1:1053`，订阅与 Merge 的 `dns.listen` �
 
 覆盖完整 YAML 与 provider；保留节点；无重复组/规则、无悬空引用；缺必要节点明确失败；保持规则优先级；重复转换幂等；更新重新应用覆写；启动/重载平台字段一致；生成、保存和内核应用失败均可回退。合成测试与云端构建验证事务结构；真机上仍需核对启动和热重载实际生效、停止确认及网络转发。
 
+## 版本回收与读者
+
+成功发布或删除订阅后，现有事务门禁保持持有并在同一 worker 调用 GC。可达集合为 Current、Previous、全部 Profiles 及备份/回滚的额外 pins。编辑意图的 sourceRevision、draft revision 和字段指纹不是版本引用；原文/覆写文本草稿也不增加版本引用。
+
+Stage 的 `.pending` 只在成功 Publish 后移除。未提交候选、应用 unknown、备份恢复 journal、损坏/未知状态 schema、额外文件和任意 symlink 都使清理拒绝，不推测引用。GC 先完整验证目录与 provenance，再把不可达版本隔离为 `.gc-version-*`，删除来源记录最后完成；中断后只续清已验证隔离目录，未知文件不删除。状态指针在清理前后保持不变。GC 错误不能把已经提交的配置变成假失败。
+
+Go 异步读者须用 `FileStore.AcquireReadLease` 覆盖读取生命周期；读者、stage/publish/discard 和 GC 使用同一个跨进程文件锁。ArkTS 同步读取在一次门禁/调用内完成；不能在 await 后沿用旧 Version 对象，异步页面须重新核对 ticket。备份/回滚持久引用须显式传入 pins 或持有恢复 journal，不能仅保存在页面变量。
+
+`EffectiveVersions.storageReport` 供高级存储详情按需读取 `gc-status.json` 的容量、回收数量和固定错误码；complete=false 表示本次计量不完整，缺失报告不等于零用量。默认界面不要求用户管理版本文件。
+
 ## 设置保存与连接快照
 
 普通设置使用 `Settings.save(context, settings, fields)`，只提交明确修改的字段；同进程所有偏好写入（包括 Smart 与 LAN 独立授权）串行等待异步 flush，确认完成后才反馈成功。等待中的 Preferences cache 不作为已保存值。失败恢复缓存，跨页进入先等待队列并读回已确认快照。LAN 撤销/授权仍有独立确认及失败保护，未确认的授权写入拒绝新连接。
 
 每次启动的系统配置和 `HOST_SETTINGS` 来自同一份主进程已确认快照；VPN Extension 不跨进程重用 Preferences 缓存。启动后的偏好修改留到后续连接，设置中的“重连应用”须确认中断，取消、切页或旧会话确认不能重启新连接。
 
-配置事务持有 Controller 发布门禁以阻止新连接越过在途操作，停止仍可立即取消旧代次。apply、commit 与 rollback 的完成边界重新核对会话及操作身份；HTTP payload 携带 expectedSession，服务端在应用前核对，旧回滚不能作用于新内核。已发布后才发现会话变化时保留真实指针并进入 unknown，不报告 applied 或盲目覆盖新会话。
+配置事务持有 Controller 发布门禁以阻止新连接越过在途操作，停止仍可立即取消旧代次。apply、commit 与 rollback 的完成边界重新核对会话及操作身份；HTTP payload 携带 expectedSession，服务端在应用前核对，旧回滚不能作用于新内核。已发布后才发现会话变化时保留真实指针并进入 unknown，不报告 applied 或盲目覆盖新会话。 Smart 偏好与版本发布结果共同对账：仅确认未发布且旧指针未变时恢复旧偏好；已发布或发布结果无法确认时保留候选偏好，不将控制面 unknown 当作未提交。重命名前先检查全部目标侧车、草稿与元数据，拒绝碰撞后不得移动或覆盖任一来源资料。
 
 完整来源上限 15 MiB，生成 YAML 上限 16 MiB。Controller JSON 传输限额独立计入包装和最坏转义，解码后仍严格限制 YAML 字节；worker 请求亦有独立有界传输限制，不静默截断。文件导入读取用 BoundedFileReader，写入用 `ProfileStore.importContentAsync` 的有界异步短写循环及原子移动。

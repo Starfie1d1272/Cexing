@@ -8,10 +8,13 @@ import { ProfileStore, ProfileMetaExt } from './ProfileStore';
 import { VpnController, VpnStatus } from './VpnController';
 import { CoreValidator } from './CoreValidator';
 import { MergePreview } from './CoreValidator';
-import { EffectiveVersions, EffectiveState, RegionPlan, RegionPreview } from './EffectiveVersions';
+import { EffectiveVersions, EffectiveState, RegionPlan, RegionPreview, ProfileStorageReport } from './EffectiveVersions';
+import { ProfileRegionChoices } from './ProfileRegionChoices';
 import { Settings } from './Settings';
 
 export type ProfileApplyState = 'applied' | 'saved';
+
+export interface EditorSourceCandidate { original: string; metadata: ProfileMetaExt; }
 
 export interface EditTicket {
   file: string;
@@ -30,6 +33,8 @@ export interface PreviousVersionPreview {
   globalMergeChanged: boolean;
   smartPolicyChanged: boolean;
 }
+
+interface SmartPublication { committed: boolean; unresolved: boolean; expected?: string; }
 
 export namespace ProfileTransactions {
   let busy = false;
@@ -63,6 +68,12 @@ export namespace ProfileTransactions {
     if (uncertain) { throw new Error('应用未确认，请重连恢复'); }
     busy = true;
     releaseConfiguration = VpnController.holdConfiguration();
+  }
+
+  export async function refreshStorage(context: common.Context): Promise<ProfileStorageReport> {
+    enter(context);
+    try { return await EffectiveVersions.collect(context, EffectiveVersions.read(context)?.Current?.ID ?? ''); }
+    finally { leave(); }
   }
 
   function markUnknown(context: common.Context): void {
@@ -100,14 +111,31 @@ export namespace ProfileTransactions {
     markUnknown(context);
   }
 
+  async function rollbackSmartPreference(context: common.Context, previous: boolean,
+    publication: SmartPublication): Promise<void> {
+    // Runtime uncertainty and pointer publication are different facts. Only a
+    // confirmed unpublished pointer permits restoring the old preference.
+    if (publication.committed || publication.unresolved) { return; }
+    if (publication.expected !== undefined) {
+      try {
+        if ((EffectiveVersions.read(context)?.Current?.ID ?? '') !== publication.expected) {
+          markUnknown(context); return;
+        }
+      } catch (_) { markUnknown(context); return; }
+    }
+    try { await Settings.setSmartAutoConvert(context, previous); }
+    catch (_) { markUnknown(context); }
+  }
+
   async function publish(context: common.Context, file: string, original: string,
     overlay: string, metadata: string, select: boolean,
     isCurrent?: (published?: boolean) => boolean, regionOverride?: RegionPlan | null,
     globalOverride?: string, intentOverride?: EditIntent | null, expectedDigest?: string,
-    guard?: (published: boolean) => Promise<void>): Promise<ProfileApplyState> {
+    guard?: (published: boolean) => Promise<void>, smartPublication?: SmartPublication): Promise<ProfileApplyState> {
     const epoch = VpnController.configurationEpoch();
     const state = EffectiveVersions.read(context);
     const expected = state?.Current?.ID ?? '';
+    if (smartPublication !== undefined) { smartPublication.expected = expected; }
     const live = select ? await running(context) : false;
     const session = live ? await CoreApi.getControllerSession() : null;
     if (live && (session === null || epoch !== VpnController.configurationEpoch())) { markUnknown(context); throw new Error('应用未确认，请重连恢复'); }
@@ -126,7 +154,9 @@ export namespace ProfileTransactions {
       (saved !== undefined ? EffectiveVersions.editIntent(context, saved) : null);
     const region = regionOverride !== undefined ? regionOverride :
       (saved !== undefined ? EffectiveVersions.regionPlan(context, saved) : null);
-    const staged = await EffectiveVersions.stage(context, file, original, overlay, metadata, expected, region, globalOverride, intent);
+    const selector = ProfileRegionChoices.selector(intent, region);
+    const transition = await ProfileRegionChoices.prepare(context, file, saved, selector, live);
+    const staged = await EffectiveVersions.stage(context, file, original, overlay, metadata, expected, region, globalOverride, intent, transition.state);
     let applied = false;
     let published = false;
     try {
@@ -150,31 +180,52 @@ export namespace ProfileTransactions {
       if (guard !== undefined) { await guard(false); }
       if (!current()) { throw new Error('更新已取消'); }
       if (!(await sameSession())) { markUnknown(context); throw new Error('应用未确认，请重连恢复'); }
+      if (smartPublication !== undefined) { smartPublication.unresolved = true; }
       try {
         await EffectiveVersions.commit(context, staged.version, expected, select, globalOverride);
         published = true;
+        if (smartPublication !== undefined) { smartPublication.committed = true; smartPublication.unresolved = false; }
       } catch (e) {
         let after: EffectiveState | null = null;
         try { after = EffectiveVersions.read(context); }
         catch (_) { markUnknown(context); throw new Error('版本发布结果未知，请断开 VPN 后检查'); }
         const actual = select ? after?.Current?.ID : after?.Profiles[file]?.ID;
-        if (actual === staged.version.ID) { published = true; }
+        if (actual === staged.version.ID) {
+          published = true;
+          if (smartPublication !== undefined) { smartPublication.committed = true; smartPublication.unresolved = false; }
+        }
         else if ((after?.Current?.ID ?? '') !== expected) {
           markUnknown(context);
           throw new Error('版本发布结果未知，请断开 VPN 后检查');
-        } else { throw new Error((e as Error).message); }
+        } else {
+          if (smartPublication !== undefined) { smartPublication.unresolved = false; }
+          throw new Error((e as Error).message);
+        }
       }
       if (guard !== undefined) {
         try { await guard(true); } catch (_) { markUnknown(context); throw new Error('应用未确认，请重连恢复'); }
       }
       if (!(await sameSession()) || !current(true)) { markUnknown(context); throw new Error('应用未确认，请重连恢复'); }
+      // Publication is already durable; GC cannot turn success into a false
+      // rollback. Its bounded status is available only in advanced storage UI.
+      try { await EffectiveVersions.collect(context, select ? staged.version.ID : expected); } catch (_) {}
+      if (guard !== undefined) {
+        try { await guard(true); } catch (_) { markUnknown(context); throw new Error('应用未确认，请重连恢复'); }
+      }
+      if (!(await sameSession()) || !current(true)) { markUnknown(context); throw new Error('应用未确认，请重连恢复'); }
+      if (live) {
+        await ProfileRegionChoices.committed(context, file, staged.version, transition, selector,
+          () => VpnController.status === VpnStatus.Connected && epoch === VpnController.configurationEpoch() &&
+            EffectiveVersions.read(context)?.Current?.ID === staged.version.ID && current(true), sameSession);
+        if (!(await sameSession()) || !current(true)) { markUnknown(context); throw new Error('应用未确认，请重连恢复'); }
+      }
       return live ? 'applied' : 'saved';
     } catch (e) {
-      if (applied && !published && !ProfileStore.isApplyUncertain(context)) {
+      if (applied && !published && !uncertain && !ProfileStore.isApplyUncertain(context)) {
         if (await sameSession()) { await restore(context, previous, session ?? '', sameSession); }
         else { markUnknown(context); }
       }
-      if (!ProfileStore.isApplyUncertain(context)) {
+      if (!published && !uncertain && !ProfileStore.isApplyUncertain(context)) {
         try { await EffectiveVersions.discard(context, staged.version, expected); } catch (_) {}
       }
       throw new Error(ProfileStore.isApplyUncertain(context) ? '应用未确认，请重连恢复' : (e as Error).message);
@@ -226,11 +277,11 @@ export namespace ProfileTransactions {
     } finally { leave(); }
   }
 
-  export async function previewEditDraft(context: common.Context, ticket: EditTicket): Promise<MergePreview> {
+  export async function previewEditDraft(context: common.Context, ticket: EditTicket, source?: EditorSourceCandidate): Promise<MergePreview> {
     enter(context);
     try {
       checkEditTicket(context, ticket);
-      const original = ProfileStore.getProfileContent(context, ticket.file);
+      const original = source?.original ?? ProfileStore.getProfileContent(context, ticket.file);
       if (original === null) { throw new Error('原始配置不存在'); }
       const version = EffectiveVersions.read(context)?.Profiles[ticket.file];
       const region = version !== undefined ? EffectiveVersions.regionPlan(context, version) : null;
@@ -244,15 +295,16 @@ export namespace ProfileTransactions {
   }
 
   export async function applyEditDraft(context: common.Context, ticket: EditTicket,
-    expectedDigest?: string, guard?: (published: boolean) => Promise<void>): Promise<ProfileApplyState> {
+    expectedDigest?: string, guard?: (published: boolean) => Promise<void>,
+    source?: EditorSourceCandidate): Promise<ProfileApplyState> {
     enter(context);
     try {
       checkEditTicket(context, ticket);
-      const original = ProfileStore.getProfileContent(context, ticket.file);
+      const original = source?.original ?? ProfileStore.getProfileContent(context, ticket.file);
       if (original === null) { throw new Error('原始配置不存在'); }
       const intent = ProfileStore.readEditDraft(context, ticket.file).intent;
       return await publish(context, ticket.file, original, ProfileStore.getEnabledMerge(context, ticket.file),
-        metadata(context, ticket.file), ProfileStore.getActiveFile(context) === ticket.file,
+        source !== undefined ? JSON.stringify(source.metadata) : metadata(context, ticket.file), ProfileStore.getActiveFile(context) === ticket.file,
         (published?: boolean) => { checkEditTicket(context, ticket, published === true); return true; }, undefined, undefined, intent, expectedDigest, guard);
     } finally { leave(); }
   }
@@ -281,6 +333,7 @@ export namespace ProfileTransactions {
     enter(context);
     const smart = Settings.load(context).smartAutoConvert;
     let preferenceChanged = false;
+    const publication: SmartPublication = { committed: false, unresolved: false };
     try {
       const state = EffectiveVersions.read(context);
       const previous = state?.Previous;
@@ -299,11 +352,10 @@ export namespace ProfileTransactions {
       await Settings.setSmartAutoConvert(context, EffectiveVersions.smartConversion(context, previous));
       preferenceChanged = true;
       return await publish(context, previous.ProfileID, original, overlay, meta, true,
-        undefined, region, globalMerge, EffectiveVersions.editIntent(context, previous));
+        undefined, region, globalMerge, EffectiveVersions.editIntent(context, previous), undefined, undefined, publication);
     } catch (e) {
       if (preferenceChanged) {
-        try { await Settings.setSmartAutoConvert(context, smart); }
-        catch (_) { markUnknown(context); }
+        await rollbackSmartPreference(context, smart, publication);
       }
       throw new Error(ProfileStore.isApplyUncertain(context) ? '应用未确认，请重连恢复' : (e as Error).message);
     } finally { leave(); }
@@ -399,6 +451,7 @@ export namespace ProfileTransactions {
         }
         throw new Error((e as Error).message);
       }
+      try { await EffectiveVersions.collect(context, EffectiveVersions.read(context)?.Current?.ID ?? ''); } catch (_) {}
     }
     finally { leave(); }
   }
@@ -470,6 +523,7 @@ export namespace ProfileTransactions {
     enabled: boolean): Promise<ProfileApplyState> {
     enter(context);
     const previous = Settings.load(context).smartAutoConvert;
+    const publication: SmartPublication = { committed: false, unresolved: false };
     try {
       await Settings.setSmartAutoConvert(context, enabled);
       const file = ProfileStore.getActiveFile(context);
@@ -477,10 +531,10 @@ export namespace ProfileTransactions {
       const original = ProfileStore.getProfileContent(context, file);
       if (original === null) { throw new Error('当前配置不存在或读取失败'); }
       return await publish(context, file, ProfileStore.prepareContent(original),
-        ProfileStore.getEnabledMerge(context, file), metadata(context, file), true);
+        ProfileStore.getEnabledMerge(context, file), metadata(context, file), true,
+        undefined, undefined, undefined, undefined, undefined, undefined, publication);
     } catch (e) {
-      try { await Settings.setSmartAutoConvert(context, previous); }
-      catch (_) { markUnknown(context); }
+      await rollbackSmartPreference(context, previous, publication);
       throw new Error((e as Error).message);
     } finally { leave(); }
   }
@@ -501,104 +555,29 @@ export namespace ProfileTransactions {
     try {
       const original = ProfileStore.getProfileContent(context, file);
       if (original === null) { throw new Error('原始配置不存在'); }
-      let restore = '';
-      let restoreSelector = '';
-      if ((plan === null || !plan.enable || plan.disabled === true) &&
-        ProfileStore.getActiveFile(context) === file && VpnController.status === VpnStatus.Connected) {
-        const prior = EffectiveVersions.read(context)?.Current;
-        const selector = prior !== null && prior !== undefined ?
-          EffectiveVersions.regionPlan(context, prior)?.selector ?? '' : '';
-        if (selector !== '') {
-          const group = (await CoreApi.getProxies())?.[selector];
-          if (group?.now === `Cexing Smart ${selector}`) {
-            restoreSelector = selector;
-            restore = ProfileStore.previousRegionSelection(context, file);
-            if (restore === '' || !group.all.includes(restore)) {
-              throw new Error('原手动选项已失效，请先手动选择可用节点再关闭地区策略');
-            }
-          }
-        }
-      }
       const result = await publish(context, file, ProfileStore.prepareContent(original),
         ProfileStore.getEnabledMerge(context, file), metadata(context, file),
         activate || ProfileStore.getActiveFile(context) === file, undefined, plan);
-      if (plan === null || !plan.enable || plan.disabled === true) {
-        ProfileStore.clearPendingRegionSelection(context, file);
-        if (restore !== '') {
-          // The core may expose its first available option after the removed
-          // Smart entry disappears. Capture that choice before attempting restore.
-          try {
-            const observed = (await CoreApi.getProxies())?.[restoreSelector]?.now ?? '';
-            ProfileStore.setPreviousRegionObservation(context, file, observed);
-          } catch (_) {}
-          let restored = false;
-          try { restored = await CoreApi.selectProxy(restoreSelector, restore); } catch (_) {}
-          if (!restored) {
-            try {
-              restored = (await CoreApi.getProxies())?.[restoreSelector]?.now === restore;
-            } catch (_) {}
-          }
-          if (!restored) {
-            // The disabled version is already committed. Keep the previous choice for retry on reconnect.
-            throw new Error('地区策略已关闭，但原选项未恢复；请在代理面板手动选择，或重连后重试自动恢复');
-          }
-        }
-        if (restore !== '' || (VpnController.status === VpnStatus.Connected &&
-          ProfileStore.getActiveFile(context) === file) || plan === null) {
-          ProfileStore.clearPreviousRegionSelection(context, file);
-        }
-      } else {
-        ProfileStore.setPendingRegionSelection(context, file, plan.selector);
-        if (VpnController.status === VpnStatus.Connected &&
-          ProfileStore.getActiveFile(context) === file) {
-          await applyPendingRegionSelection(context);
-        }
-      }
       return result;
     } finally { leave(); }
   }
 
   /** Consume only a user's explicit selection request, once Controller is ready. */
   export async function applyPendingRegionSelection(context: common.Context): Promise<boolean> {
-    if (VpnController.status !== VpnStatus.Connected) { return false; }
-    const file = ProfileStore.getActiveFile(context);
-    if (file === '') { return false; }
-    const current = EffectiveVersions.read(context)?.Current;
-    if (current === null || current === undefined) { return false; }
-    const plan = EffectiveVersions.regionPlan(context, current);
-    if (plan !== null && (!plan.enable || plan.disabled === true)) {
-      const previous = ProfileStore.previousRegionSelection(context, file);
-      if (previous === '') { return false; }
-      const group = (await CoreApi.getProxies())?.[plan.selector];
-      if (group === undefined || !group.all.includes(previous)) { return false; }
-      if (group.now === previous) {
-        ProfileStore.clearPreviousRegionSelection(context, file);
-        return true;
-      }
-      const observed = ProfileStore.previousRegionObservation(context, file);
-      if (group.now !== '' && group.now !== `Cexing Smart ${plan.selector}` &&
-        (observed === '' || group.now !== observed)) {
-        // This differs from the observed reload fallback; do not infer or overwrite user intent.
-        return false;
-      }
-      const restored = await CoreApi.selectProxy(plan.selector, previous);
-      if (restored) { ProfileStore.clearPreviousRegionSelection(context, file); }
-      return restored;
-    }
-    const selector = ProfileStore.pendingRegionSelection(context, file);
-    if (selector === '') { return false; }
-    if (plan === null || plan.selector !== selector) {
-      ProfileStore.clearPendingRegionSelection(context, file);
-      return false;
-    }
-    const target = `Cexing Smart ${selector}`;
-    const group = (await CoreApi.getProxies())?.[selector];
-    if (group === undefined || !group.all.includes(target)) { return false; }
-    if (group.now !== target && group.now !== '') {
-      ProfileStore.setPreviousRegionSelection(context, file, group.now);
-    }
-    const selected = await CoreApi.selectProxy(selector, target);
-    if (selected) { ProfileStore.clearPendingRegionSelection(context, file); }
-    return selected;
+    if (busy || VpnController.status !== VpnStatus.Connected) { return false; }
+    enter(context);
+    try {
+      const file = ProfileStore.getActiveFile(context);
+      const version = EffectiveVersions.read(context)?.Current;
+      if (file === '' || version === null || version === undefined) { return false; }
+      const epoch = VpnController.configurationEpoch();
+      const session = await CoreApi.getControllerSession();
+      const current = (): boolean => VpnController.status === VpnStatus.Connected &&
+        VpnController.configurationEpoch() === epoch && ProfileStore.getActiveFile(context) === file &&
+        EffectiveVersions.read(context)?.Current?.ID === version.ID;
+      if (session === null || !current()) { return false; }
+      const sameSession = async (): Promise<boolean> => current() && await CoreApi.getControllerSession() === session && current();
+      return await ProfileRegionChoices.resume(context, file, version, current, sameSession);
+    } finally { leave(); }
   }
 }

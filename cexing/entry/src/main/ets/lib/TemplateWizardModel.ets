@@ -6,6 +6,7 @@ export type TemplatePlan = EditorTemplatePlan;
 export interface TemplateInputs {
   groups: string[];
   selectors: string[];
+  labels?: Record<string, string>;
   current: TemplatePlan;
 }
 export interface TemplatePreview {
@@ -33,6 +34,7 @@ export interface TemplateWizardView {
   hasPreview: boolean;
   groups: string[];
   selectors: string[];
+  labels?: Record<string, string>;
 }
 
 export class TemplateWizardModel {
@@ -55,7 +57,7 @@ export class TemplateWizardModel {
     return { templateId: this.templateId, target: this.target, busy: this.busy,
       ready: this.ready, error: this.error, result: this.result,
       summary: this.preview?.summary ?? '', hasPreview: this.preview !== null,
-      groups: this.inputs.groups, selectors: this.inputs.selectors };
+      groups: this.inputs.groups, selectors: this.inputs.selectors, labels: this.inputs.labels };
   }
 
   close(): void { this.open = false; this.epoch++; }

@@ -4,6 +4,7 @@ import { fileIo } from '@kit.CoreFileKit';
 import core from 'libentry.so';
 import { Settings } from './Settings';
 import { MergePreview } from './CoreValidator';
+import { RegionChoiceState } from './TemplateRegionEffects';
 import { EditIntent } from './ConfigEditor';
 
 export interface EffectiveVersion { ID: string; Path: string; ProfileID: string; }
@@ -12,6 +13,14 @@ export interface EffectiveState {
   Previous: EffectiveVersion | null;
   Profiles: Record<string, EffectiveVersion>;
   GlobalMerge?: string;
+}
+export interface ProfileStorageReport {
+  versions: number;
+  bytes: number;
+  removedVersions: number;
+  removedBytes: number;
+  complete: boolean;
+  code?: string;
 }
 export interface StagedVersion { version: EffectiveVersion; receipt: string; digest?: string; }
 export interface RegionPlan {
@@ -32,6 +41,7 @@ export interface RegionPreview {
   unknown: number;
 }
 interface VersionRequest {
+  regionChoice?: RegionChoiceState;
   op: string;
   editIntent?: EditIntent | null;
   profileId?: string;
@@ -129,6 +139,13 @@ export namespace EffectiveVersions {
     return plan ?? null;
   }
 
+  export function regionChoice(context: common.Context, version: EffectiveVersion): RegionChoiceState | null {
+    check(context, version);
+    const source = JSON.parse(fileIo.readTextSync(
+      `${context.filesDir}/profile-versions/${version.ID}/source.json`)) as Record<string, Object>;
+    return source['RegionChoice'] as RegionChoiceState ?? null;
+  }
+
   /** Missing legacy provenance means no structured edits. Drafts are never read here. */
   export function editIntent(context: common.Context, version: EffectiveVersion): EditIntent | null {
     check(context, version);
@@ -157,11 +174,11 @@ export namespace EffectiveVersions {
 
   export async function stage(context: common.Context, profileId: string, original: string,
     overlay: string, metadata: string, expected: string,
-    regionPlan: RegionPlan | null, globalMerge?: string, editIntent?: EditIntent | null): Promise<StagedVersion> {
+    regionPlan: RegionPlan | null, globalMerge?: string, editIntent?: EditIntent | null, regionChoice?: RegionChoiceState): Promise<StagedVersion> {
     const s = Settings.load(context);
     const overrides = JSON.stringify({ mixedPort: s.mixedPort, logLevel: s.logLevel,
       allowLan: s.allowLan, ipv6: s.ipv6, mode: s.mode, logToFile: s.logToFile });
-    const result = await call(context, { op: 'stage', profileId: profileId, original: original,
+    const result = await call(context, { op: 'stage', regionChoice: regionChoice, profileId: profileId, original: original,
       overlay: overlay, metadata: metadata, expected: expected, overrides: overrides,
       smartConversion: s.smartAutoConvert, regionPlan: regionPlan,
       globalMerge: globalMerge, updateGlobal: globalMerge !== undefined, editIntent: editIntent });
@@ -214,6 +231,24 @@ export namespace EffectiveVersions {
     await call(context, { op: 'commit', versionId: version.ID, profileId: version.ProfileID,
       expected: expected, active: active,
       globalMerge: globalMerge, updateGlobal: globalMerge !== undefined });
+  }
+
+  /** The transaction gate remains held until collection finishes on the single worker. */
+  export async function collect(context: common.Context, expected: string): Promise<ProfileStorageReport> {
+    const result = await call(context, { op: 'gc', expected: expected });
+    return result['storage'] as ProfileStorageReport;
+  }
+
+  /** Advanced storage UI only; missing status is unknown, never fabricated zero usage. */
+  export function storageReport(context: common.Context): ProfileStorageReport | null {
+    const path = `${context.filesDir}/profile-versions/gc-status.json`;
+    if (!fileIo.accessSync(path)) { return null; }
+    if (fileIo.statSync(path).size > 4096) { throw new Error('存储状态损坏'); }
+    const report = JSON.parse(fileIo.readTextSync(path)) as ProfileStorageReport;
+    if (![report.versions, report.bytes, report.removedVersions, report.removedBytes].every((value: number) =>
+      Number.isSafeInteger(value) && value >= 0) || typeof report.complete !== 'boolean' ||
+      (report.code !== undefined && !/^[A-Z0-9_]{1,80}$/.test(report.code))) { throw new Error('存储状态损坏'); }
+    return report;
   }
 
   export async function discard(context: common.Context, version: EffectiveVersion,

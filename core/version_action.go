@@ -14,26 +14,28 @@ import (
 var profileIDPattern = regexp.MustCompile(`(?i)^[^/\\\x00-\x1f]{1,128}\.ya?ml$`)
 
 type versionAction struct {
-	Op              string                     `json:"op"`
-	EditSection     string                     `json:"editSection,omitempty"`
-	EditTarget      string                     `json:"editTarget,omitempty"`
-	EditIntent      *configpipeline.EditIntent `json:"editIntent,omitempty"`
-	ProfileID       string                     `json:"profileId"`
-	Original        string                     `json:"original"`
-	GlobalMerge     *string                    `json:"globalMerge,omitempty"`
-	UpdateGlobal    bool                       `json:"updateGlobal,omitempty"`
-	Overlay         string                     `json:"overlay"`
-	Metadata        string                     `json:"metadata"`
-	Overrides       string                     `json:"overrides"`
-	Expected        string                     `json:"expected"`
-	VersionID       string                     `json:"versionId"`
-	Active          bool                       `json:"active"`
-	NewProfileID    string                     `json:"newProfileId"`
-	SmartConversion bool                       `json:"smartConversion"`
-	RegionPlan      *configpipeline.RegionPlan `json:"regionPlan,omitempty"`
+	RegionChoice    *configpipeline.RegionChoice `json:"regionChoice,omitempty"`
+	Op              string                       `json:"op"`
+	EditSection     string                       `json:"editSection,omitempty"`
+	EditTarget      string                       `json:"editTarget,omitempty"`
+	EditIntent      *configpipeline.EditIntent   `json:"editIntent,omitempty"`
+	ProfileID       string                       `json:"profileId"`
+	Original        string                       `json:"original"`
+	GlobalMerge     *string                      `json:"globalMerge,omitempty"`
+	UpdateGlobal    bool                         `json:"updateGlobal,omitempty"`
+	Overlay         string                       `json:"overlay"`
+	Metadata        string                       `json:"metadata"`
+	Overrides       string                       `json:"overrides"`
+	Expected        string                       `json:"expected"`
+	VersionID       string                       `json:"versionId"`
+	Active          bool                         `json:"active"`
+	NewProfileID    string                       `json:"newProfileId"`
+	SmartConversion bool                         `json:"smartConversion"`
+	RegionPlan      *configpipeline.RegionPlan   `json:"regionPlan,omitempty"`
 }
 
 type versionResponse struct {
+	Storage       *storageReport                     `json:"storage,omitempty"`
 	Identity      string                             `json:"identity,omitempty"`
 	Digest        string                             `json:"digest,omitempty"`
 	SmartPreview  *[]configpipeline.SmartGroupChange `json:"smartPreview,omitempty"`
@@ -54,7 +56,7 @@ func coreVersionAction(home, input string) string {
 		return coreDiagnosticAction(home, input)
 	}
 	if diagnostic.Op == "template-update-preview" {
-		return coreTemplateUpdateAction(input)
+		return coreTemplateUpdateAction(input, home)
 	}
 	var action versionAction
 	if len(input) > maxConfigBytes*6+2*1024*1024 || json.Unmarshal([]byte(input), &action) != nil ||
@@ -114,6 +116,9 @@ func executeVersionAction(home string, action versionAction) (versionResponse, e
 		return editFailure(err)
 	}
 	switch action.Op {
+	case "gc":
+		report := collectProfileVersions(ctx, store, prior)
+		return versionResponse{Storage: &report}, nil
 	case "editor-identity":
 		identity, e := editorIdentity(home, action, global)
 		if e != nil {
@@ -229,7 +234,7 @@ func executeVersionAction(home string, action versionAction) (versionResponse, e
 		result.Metadata = action.Metadata
 		result.SmartConversion = action.SmartConversion
 		result.RegionPlan = action.RegionPlan
-		version, err := store.Stage(ctx, result)
+		version, err := store.StageWithRegionChoice(ctx, result, action.RegionChoice)
 		if err != nil {
 			return versionResponse{}, errors.New("VERSION_STAGE_FAILED")
 		}

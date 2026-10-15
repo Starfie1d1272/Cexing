@@ -1,3 +1,5 @@
+import { ProfileStorageDetails } from './ProfileStorageDetails';
+import { UiText } from '../lib/UiText';
 import { SettingsReconnectButton } from './SettingsReconnectButton';
 import { NativeTheme as UI } from './NativeTheme';
 /*
@@ -43,32 +45,39 @@ export struct SettingsPage {
 
   private groups: SettingGroup[] = [
     {
-      title: '运行',
+      title: UiText.get($r('app.string.settings_running')),
       rows: [
-        { title: '打开应用自动恢复', sub: '', hasToggle: true, dest: '', action: '', toggleKey: 'autoRestore' },
-        { title: '后台运行', sub: '关闭页面后保持会话', hasToggle: true, dest: '', action: '', toggleKey: 'keepAlive' }
+        { title: UiText.get($r('app.string.settings_auto_restore')), sub: '', hasToggle: true, dest: '', action: '', toggleKey: 'autoRestore' },
+        { title: UiText.get($r('app.string.settings_background')), sub: UiText.get($r('app.string.settings_background_hint')), hasToggle: true, dest: '', action: '', toggleKey: 'keepAlive' }
       ]
     },
     {
-      title: '系统与连接',
+      title: UiText.get($r('app.string.settings_system_connection')),
       rows: [
-        { title: '网络设置', sub: '按应用分流 · IPv6', hasToggle: false, dest: 'network', action: '', toggleKey: '' },
-        { title: 'Smart', sub: '统计策略 · 离线模型', hasToggle: false, dest: 'smart', action: '', toggleKey: '' },
-        { title: '内核设置', sub: '端口 · 日志等级 · 局域网', hasToggle: false, dest: 'override', action: '', toggleKey: '' }
+        { title: UiText.get($r('app.string.nav_network')), sub: UiText.get($r('app.string.settings_network_hint')), hasToggle: false, dest: 'network', action: '', toggleKey: '' },
+        { title: 'Smart', sub: UiText.get($r('app.string.settings_smart_hint')), hasToggle: false, dest: 'smart', action: '', toggleKey: '' },
+
       ]
     },
     {
-      title: '订阅',
+      title: UiText.get($r('app.string.settings_advanced')),
       rows: [
-        { title: '自动更新订阅', sub: 'VPN 运行期间检查', hasToggle: true, dest: '', action: '', toggleKey: 'autoUpdate' },
-        { title: '更新间隔', sub: '', hasToggle: false, dest: '', action: 'interval', toggleKey: '' }
+        { title: UiText.get($r('app.string.nav_core')), sub: '', hasToggle: false, dest: 'override', action: '', toggleKey: '' },
+        { title: UiText.get($r('app.string.nav_resources')), sub: '', hasToggle: false, dest: 'resources', action: '', toggleKey: '' }
       ]
     },
     {
-      title: '诊断',
+      title: UiText.get($r('app.string.nav_profiles')),
       rows: [
-        { title: '诊断', sub: '', hasToggle: false, dest: 'diagnostics', action: '', toggleKey: '' },
-        { title: '记录内核日志', sub: '下次启动生效', hasToggle: true, dest: '', action: '', toggleKey: 'logToFile' },
+        { title: UiText.get($r('app.string.settings_auto_update')), sub: UiText.get($r('app.string.settings_update_hint')), hasToggle: true, dest: '', action: '', toggleKey: 'autoUpdate' },
+        { title: UiText.get($r('app.string.settings_interval')), sub: '', hasToggle: false, dest: '', action: 'interval', toggleKey: '' }
+      ]
+    },
+    {
+      title: UiText.get($r('app.string.nav_diagnostics')),
+      rows: [
+        { title: UiText.get($r('app.string.nav_diagnostics')), sub: '', hasToggle: false, dest: 'diagnostics', action: '', toggleKey: '' },
+        { title: UiText.get($r('app.string.settings_log_file')), sub: UiText.get($r('app.string.settings_next_start')), hasToggle: true, dest: '', action: '', toggleKey: 'logToFile' },
       ]
     }
   ];
@@ -98,7 +107,7 @@ export struct SettingsPage {
       this.readSettings(); this.ready = true;
     }).catch(() => {
       if (this.pageActive && generation === this.feedbackGeneration) {
-        promptAction.showToast({ message: '设置读取失败，请重试' });
+        promptAction.showToast({ message: UiText.get($r('app.string.failure_settings_read')) });
       }
     });
   }
@@ -123,14 +132,14 @@ export struct SettingsPage {
     catch (_) {
       if (!this.pageActive || generation !== this.feedbackGeneration) { return; }
       this.aboutToAppear();
-      promptAction.showToast({ message: '保存失败，请重试', duration: 2000 });
+      promptAction.showToast({ message: UiText.get($r('app.string.failure_save')), duration: 2000 });
       return;
     }
     if (this.keepAlive !== on) { return; }
     if (on && VpnController.status === VpnStatus.Connected) {
       const ok = await LiveViewKeeper.start(context);
       if (!this.pageActive || generation !== this.feedbackGeneration || !this.keepAlive) { return; }
-      promptAction.showToast({ message: ok ? '已开启后台运行' : '授权失败，无法开启', duration: 1500 });
+      promptAction.showToast({ message: ok ? UiText.get($r('app.string.settings_background_enabled')) : UiText.get($r('app.string.settings_background_denied')), duration: 1500 });
     } else if (!on) {
       await LiveViewKeeper.stop(context);
     }
@@ -146,12 +155,12 @@ export struct SettingsPage {
     catch (_) {
       if (!this.pageActive || generation !== this.feedbackGeneration) { return; }
       this.aboutToAppear();
-      promptAction.showToast({ message: '保存失败，请重试', duration: 2000 });
+      promptAction.showToast({ message: UiText.get($r('app.string.failure_save')), duration: 2000 });
       return;
     }
     if (on && this.autoUpdate === on) {
       if (this.pageActive && generation === this.feedbackGeneration) {
-        promptAction.showToast({ message: '已开启', duration: 1500 });
+        promptAction.showToast({ message: UiText.get($r('app.string.settings_enabled')), duration: 1500 });
       }
       // 立即补一轮检查（内核未运行/间隔未到时内部自动跳过）
       AutoUpdater.checkAndRun(context).catch(() => {
@@ -165,7 +174,7 @@ export struct SettingsPage {
     const sheets: SheetInfo[] = [];
     for (const h of INTERVAL_OPTIONS) {
       sheets.push({
-        title: `${h} 小时`,
+        title: UiText.get($r('app.string.settings_hours'), h),
         action: async () => {
           if (!this.pageActive || generation !== this.feedbackGeneration) { return; }
           const request = ++this.feedbackGeneration;
@@ -177,14 +186,14 @@ export struct SettingsPage {
           catch (_) {
             if (!this.pageActive || request !== this.feedbackGeneration) { return; }
             this.aboutToAppear();
-            promptAction.showToast({ message: '保存失败，请重试', duration: 2000 });
+            promptAction.showToast({ message: UiText.get($r('app.string.failure_save')), duration: 2000 });
           }
         }
       });
     }
     ActionSheet.show({
-      title: '更新间隔',
-      message: '自动更新订阅的检查周期',
+      title: UiText.get($r('app.string.settings_interval')),
+      message: UiText.get($r('app.string.settings_interval_hint')),
       sheets: sheets
     });
   }
@@ -225,7 +234,7 @@ export struct SettingsPage {
     catch (_) {
       if (!this.pageActive || generation !== this.feedbackGeneration) { return; }
       this.aboutToAppear();
-      promptAction.showToast({ message: '保存失败，请重试', duration: 2000 });
+      promptAction.showToast({ message: UiText.get($r('app.string.failure_save')), duration: 2000 });
       return;
     }
   }
@@ -240,11 +249,11 @@ export struct SettingsPage {
     catch (_) {
       if (!this.pageActive || generation !== this.feedbackGeneration) { return; }
       this.aboutToAppear();
-      promptAction.showToast({ message: '保存失败，请重试', duration: 2000 });
+      promptAction.showToast({ message: UiText.get($r('app.string.failure_save')), duration: 2000 });
       return;
     }
     if (this.pageActive && generation === this.feedbackGeneration) {
-      promptAction.showToast({ message: '已保存，下次连接生效', duration: 1500 });
+      promptAction.showToast({ message: UiText.get($r('app.string.settings_saved_next')), duration: 1500 });
     }
   }
 
@@ -260,6 +269,18 @@ export struct SettingsPage {
 
   @Builder
   RowItem(row: SettingRow) {
+    if (row.hasToggle) {
+      this.RowContent(row)
+    } else {
+      Button({ type: ButtonType.Normal }) { this.RowContent(row) }
+        .width('100%').padding(0).backgroundColor(Color.Transparent)
+        .accessibilityGroup(true).accessibilityText(row.title).accessibilityDescription(row.sub)
+        .onClick(() => this.onRowTap(row))
+    }
+  }
+
+  @Builder
+  RowContent(row: SettingRow) {
     Row() {
       Column({ space: 4 }) {
         Text(row.title)
@@ -272,19 +293,21 @@ export struct SettingsPage {
         }
       }
       .alignItems(HorizontalAlign.Start)
+      .accessibilityLevel('no')
       .layoutWeight(1)
       if (row.hasToggle) {
         Toggle({ type: ToggleType.Switch, isOn: this.toggleValue(row) })
-          .selectedColor(UI.accent)
+          .selectedColor(UI.accent).accessibilityText(row.title).accessibilityChecked(this.toggleValue(row))
+          .accessibilityDescription(this.ready ? row.sub : UiText.get($r('app.string.a11y_loading_settings')))
           .onChange((isOn: boolean) => {
             this.onToggleChange(row, isOn);
           })
       } else {
         if (row.action === 'interval') {
-          Text(`${this.autoUpdateIntervalHours} 小时`)
+          Text(UiText.get($r('app.string.settings_hours'), this.autoUpdateIntervalHours))
             .fontSize(14)
             .fontColor(UI.muted)
-            .height(48)
+            .constraintSize({ minHeight: 48 })
             .textAlign(TextAlign.Center)
             .margin({ right: 4 })
         }
@@ -300,11 +323,7 @@ export struct SettingsPage {
       pressed: { .backgroundColor(UI.soft) },
       normal: { .backgroundColor(Color.Transparent) }
     })
-    .onClick(() => {
-      if (!row.hasToggle) {
-        this.onRowTap(row);
-      }
-    })
+
   }
 
   @Builder
@@ -333,13 +352,13 @@ export struct SettingsPage {
     Column({ space: 12 }) {
       SettingsReconnectButton()
       Row() {
-        Text('设置')
+        Text(UiText.get($r('app.string.action_settings')))
           .fontSize(26)
           .fontWeight(FontWeight.Bold)
           .fontColor(UI.ink)
       }
       .width('100%')
-      .height(48)
+      .constraintSize({ minHeight: 48 })
       .alignItems(VerticalAlign.Center)
       .margin({ top: 8, bottom: 4 })
 
@@ -356,6 +375,7 @@ export struct SettingsPage {
             }
           }
         }, (group: SettingGroup) => group.title)
+        ListItem() { ProfileStorageDetails() }
       }
       .width('100%')
       .layoutWeight(1)

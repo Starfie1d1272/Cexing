@@ -1,26 +1,28 @@
+import { UiText } from './UiText';
 /*
  * LiveViewKeeper.ets - dataTransfer 长时任务 + 系统实况窗常驻通知（后台保活）
  * VPN 连接成功且设置「后台运行」开启时申请 dataTransfer 长时任务
  * （MODE_DATA_TRANSFER + SUBMODE_LIVE_VIEW_NOTIFICATION），系统代理创建
  * "上传下载"实况窗（typeCode 8）；每 60s publish 更新（取消规则以 SDK/系统为准），
- * 每 5min 对出口节点延迟测速（出口延迟展示，不保证免于系统低速取消）。
+ * 每 5min 探测显示策略（不代表全局出口或所有网站延迟）。
  * 数据面全走 REST 单次请求；日志 tag 'liveview'。
  * 取代 lib/BackgroundKeeper.ets（经典 BackgroundMode.DATA_TRANSFER 通知方案）。
  */
 import { backgroundTaskManager } from '@kit.BackgroundTasksKit';
 import { wantAgent, common } from '@kit.AbilityKit';
 import { notificationManager } from '@kit.NotificationKit';
-import { CoreApi, ProxyInfo, formatRate } from './CoreApi';
+import { CoreApi, formatRate } from './CoreApi';
 import { Settings } from './Settings';
 import { VpnController, VpnStatus } from './VpnController';
 import { Logger } from './Logger';
+import { LiveViewStrategy } from './LiveViewStrategy';
 import { TrafficStats } from './TrafficStats';
 
 const TAG = 'liveview';
 
 /** 实况窗刷新周期：60s（不保证系统授予持续运行） */
 const UPDATE_INTERVAL_MS = 60 * 1000;
-/** 心跳（出口延迟测速）周期：5min */
+/** 心跳（显示策略探测）周期：5min */
 const HEARTBEAT_INTERVAL_MS = 5 * 60 * 1000;
 /** 系统取消后的自愈重申请延迟 */
 const REAPPLY_DELAY_MS = 30 * 1000;
@@ -123,11 +125,14 @@ export namespace LiveViewKeeper {
   }
   let lastUpBps: number = 0;
   let lastDownBps: number = 0;
-  /** 出口节点/模式名缓存（每 5min 心跳刷新） */
-  let exitNode: string = '';
+  /** 显示策略/模式名缓存（每 5min 心跳刷新） */
+  let displayGroup: string = '';
+  let metadataGeneration: number = 0;
   let modeName: string = '';
   /** 最近一次成功测速延迟 ms（-1 = 无） */
   let lastDelay: number = -1;
+  let lastDelayAt: number = 0;
+  let lastDelayGroup: string = '';
   /** 自愈重申请时间戳（1 小时窗口内最多 3 次） */
   const reapplyLog: number[] = [];
 
@@ -335,9 +340,10 @@ export namespace LiveViewKeeper {
     connectedAt = 0;
     lastUpBps = 0;
     lastDownBps = 0;
-    exitNode = '';
+    displayGroup = '';
+    metadataGeneration++;
     modeName = '';
-    lastDelay = -1;
+    clearDelay();
   }
 
   function onCancel(info: backgroundTaskManager.ContinuousTaskCancelInfo): void {
@@ -443,120 +449,53 @@ export namespace LiveViewKeeper {
     const t = TrafficStats.rate();
     lastUpBps = t !== null ? t.up : 0;
     lastDownBps = t !== null ? t.down : 0;
+    await refreshMeta(generation);
     await publishLiveView(generation);
     Logger.info(TAG, 'live view updated rate=' + Math.round(lastDownBps + lastUpBps) + ' progress=' + progressValue());
   }
 
-  /** 5min 心跳：刷新出口节点/模式缓存 + 出口延迟测速（真实代理流量） */
-  async function doHeartbeat(generation: number): Promise<void> {
-    if (!isCurrent(generation)) {
-      return;
-    }
-    let node: string = '';
-    let delayMs: number = -1;
-    const proxies = await CoreApi.getProxies();
-    if (!isCurrent(generation)) {
-      return;
-    }
-    if (proxies !== null) {
-      let group: string = '';
-      if (lastContext !== null) {
-        group = Settings.load(lastContext).mainGroup;
-      }
-      let sel: ProxyInfo | null = null;
-      if (group.length > 0 && group !== 'GLOBAL' && proxies[group] !== undefined &&
-        proxies[group].type === 'Selector') {
-        sel = proxies[group];
-      } else {
-        const names = Object.keys(proxies);
-        for (const name of names) {
-          const p = proxies[name];
-          if (p.type === 'Selector' && name !== 'GLOBAL') {
-            sel = p;
-            group = name;
-            break;
-          }
-        }
-        if (sel !== null && lastContext !== null) {
-          const s = Settings.load(lastContext);
-          s.mainGroup = group;
-          try { await Settings.save(lastContext, s, ['mainGroup']); } catch (_) { Logger.warn(TAG, 'main group preference save failed'); }
-        }
-      }
-      if (sel !== null) {
-        node = sel.now;
-        if (node !== 'DIRECT' && node !== 'REJECT') {
-          const d = await CoreApi.delayTest(node);
-          if (!isCurrent(generation)) {
-            return;
-          }
-          if (d !== null && d >= 0) {
-            lastDelay = d;
-            delayMs = d;
-          }
-        }
-      }
-    }
-    const cfg = await CoreApi.getConfigs();
-    if (!isCurrent(generation)) {
-      return;
-    }
-    if (cfg !== null) {
-      modeName = cfg.mode;
-    }
-    if (node.length > 0) {
-      exitNode = node === 'DIRECT' || node === 'REJECT' ? '直连' : node;
-    }
-    if (delayMs >= 0) {
-      Logger.info(TAG, 'heartbeat delay=' + delayMs + 'ms');
-    } else {
-      Logger.info(TAG, 'heartbeat skipped');
-    }
+  function clearDelay(): void {
+    lastDelay = -1; lastDelayAt = 0; lastDelayGroup = '';
   }
 
-  /** 刷新出口节点/模式名缓存（启动时调用一次，让首帧文案准确） */
+  /** Explicit display changes invalidate in-flight probes; no real policy is switched. */
+  export async function refreshDisplayGroup(): Promise<void> {
+    if (!running) { return; }
+    const generation = workGeneration;
+    clearDelay();
+    await refreshMeta(generation);
+    await publishLiveView(generation);
+  }
+
+  /** Probe the display group itself; the result is not attributed to a leaf or website. */
+  async function doHeartbeat(generation: number): Promise<void> {
+    if (!isCurrent(generation)) { return; }
+    clearDelay();
+    await refreshMeta(generation);
+    if (!isCurrent(generation) || displayGroup.length === 0) { return; }
+    const group = displayGroup;
+    const metadata = metadataGeneration;
+    const delay = await CoreApi.delayTest(group);
+    if (!isCurrent(generation) || metadata !== metadataGeneration || group !== displayGroup) { return; }
+    if (delay !== null && Number.isFinite(delay) && delay >= 0) {
+      lastDelay = delay; lastDelayAt = Date.now(); lastDelayGroup = group;
+    }
+    await publishLiveView(generation);
+  }
+
+  /** Read-only Controller snapshots. An unavailable saved group remains unknown. */
   async function refreshMeta(generation: number): Promise<void> {
-    const proxies = await CoreApi.getProxies();
-    if (!isCurrent(generation)) {
-      return;
-    }
-    if (proxies !== null) {
-      let group: string = '';
-      if (lastContext !== null) {
-        group = Settings.load(lastContext).mainGroup;
-      }
-      let sel: ProxyInfo | null = null;
-      if (group.length > 0 && group !== 'GLOBAL' && proxies[group] !== undefined &&
-        proxies[group].type === 'Selector') {
-        sel = proxies[group];
-      } else {
-        const names = Object.keys(proxies);
-        for (const name of names) {
-          const p = proxies[name];
-          if (p.type === 'Selector' && name !== 'GLOBAL') {
-            sel = p;
-            group = name;
-            break;
-          }
-        }
-        if (sel !== null && lastContext !== null) {
-          const s = Settings.load(lastContext);
-          s.mainGroup = group;
-          try { await Settings.save(lastContext, s, ['mainGroup']); } catch (_) { Logger.warn(TAG, 'main group preference save failed'); }
-        }
-      }
-      if (sel !== null) {
-        const now = sel.now;
-        exitNode = now === 'DIRECT' || now === 'REJECT' ? '直连' : now;
-      }
-    }
-    const cfg = await CoreApi.getConfigs();
-    if (!isCurrent(generation)) {
-      return;
-    }
-    if (cfg !== null) {
-      modeName = cfg.mode;
-    }
+    const metadata = ++metadataGeneration;
+    const proxiesRequest = CoreApi.getProxies();
+    const configsRequest = CoreApi.getConfigs();
+    const proxies = await proxiesRequest;
+    const cfg = await configsRequest;
+    if (!isCurrent(generation) || metadata !== metadataGeneration) { return; }
+    const requested = lastContext !== null ? Settings.load(lastContext).mainGroup : '';
+    const next = proxies !== null ? LiveViewStrategy.choose(proxies, requested) : '';
+    if (next !== displayGroup || proxies === null) { clearDelay(); }
+    displayGroup = next;
+    modeName = cfg !== null ? LiveViewStrategy.mode(cfg.mode) : '';
   }
 
   /** 按当前状态发布/更新实况窗 */
@@ -565,30 +504,31 @@ export namespace LiveViewKeeper {
       return;
     }
     const status = VpnController.status;
-    let capsuleTitle: string = 'Cexing · 代理已连接';
-    let mainTitle: string = 'Cexing 系统代理';
-    let text: string = '已连接 · 无活动流量';
-    let fileName: string = '规则模式';
-    const modePart = truncateName(modeName.length > 0 ? modeName : '规则') + '模式';
+    let capsuleTitle: string = UiText.get($r('app.string.live_connected_title'));
+    let mainTitle: string = UiText.get($r('app.string.live_main_title'));
+    let text: string = UiText.get($r('app.string.live_idle'));
+    let fileName: string = UiText.get($r('app.string.live_rule_mode'));
+    const modePart = modeName;
     if (status === VpnStatus.Connecting) {
-      capsuleTitle = 'Cexing · 连接中…';
-      mainTitle = 'Cexing 正在连接';
-      text = '正在建立 VPN 隧道…';
+      capsuleTitle = UiText.get($r('app.string.live_connecting_title'));
+      mainTitle = UiText.get($r('app.string.live_connecting'));
+      text = UiText.get($r('app.string.live_tunnel_start'));
       fileName = modePart;
     } else if (status === VpnStatus.Disconnecting) {
-      capsuleTitle = 'Cexing · 断开中…';
-      mainTitle = 'Cexing 正在断开';
-      text = '正在释放隧道…';
+      capsuleTitle = UiText.get($r('app.string.live_disconnecting_title'));
+      mainTitle = UiText.get($r('app.string.live_disconnecting'));
+      text = UiText.get($r('app.string.live_tunnel_stop'));
       fileName = modePart;
     } else {
-      fileName = exitNode.length > 0 ? modePart + ' · 出口 ' + truncateName(exitNode) : modePart;
+      const strategy = displayGroup.length > 0 ? UiText.get($r('app.string.live_strategy'), truncateName(displayGroup)) : '';
+      fileName = modePart + (modePart.length > 0 && strategy.length > 0 ? ' · ' : '') + strategy;
       if (lastDownBps > 0 || lastUpBps > 0) {
-        text = '↓ ' + formatRate(lastDownBps) + ' · ↑ ' + formatRate(lastUpBps) + ' · 已运行 ' + formatUptime();
+        text = UiText.get($r('app.string.live_traffic'), formatRate(lastDownBps), formatRate(lastUpBps), formatUptime());
       } else {
-        text = '已连接 · 无活动流量';
+        text = UiText.get($r('app.string.live_idle'));
       }
-      if (lastDelay >= 0) {
-        text = text + ' · 延迟 ' + lastDelay + ' ms';
+      if (lastDelay >= 0 && lastDelayGroup === displayGroup && Date.now() - lastDelayAt < HEARTBEAT_INTERVAL_MS) {
+        text = text + UiText.get($r('app.string.live_probe'), lastDelay);
       }
     }
     const capsule: notificationManager.NotificationCapsule = {

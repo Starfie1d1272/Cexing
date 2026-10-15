@@ -216,3 +216,47 @@ func TestIndependentReordersMergeWithoutConflict(t *testing.T) {
 		t.Fatal(ids)
 	}
 }
+
+func TestSharedReaddedEntityOrderRequiresExplicitChoice(t *testing.T) {
+	for _, section := range []string{"rules", "proxies", "proxy-groups"} {
+		t.Run(section, func(t *testing.T) {
+			value := func(id string) Entity {
+				v := `"DOMAIN,synthetic,AI"`
+				if section != "rules" {
+					v = `{"name":"` + id + `","type":"select","proxies":["DIRECT"]}`
+				}
+				return entry("rule/"+id, section, v)
+			}
+			a, x, c := value("a"), value("x"), value("c")
+			request := UpdateRequest{Kind: "template", Base: snap(1, a, c), Mine: snap(1, a, x, c), Next: snap(2, x, a, c)}
+			result, err := PreviewUpdate(context.Background(), request)
+			if err != nil || result.Ready || result.Candidate != nil || len(result.Conflicts) != 1 || result.Conflicts[0].Kind != "order" {
+				t.Fatal("contradictory shared insertion silently accepted", result, err)
+			}
+			for _, choice := range []string{"mine", "template"} {
+				request.Decisions = map[string]string{result.Conflicts[0].ID: choice}
+				resolved, err := PreviewUpdate(context.Background(), request)
+				if err != nil || !resolved.Ready {
+					t.Fatal("explicit order resolution rejected", resolved, err)
+				}
+				want := []string{"rule/a", "rule/x", "rule/c"}
+				if choice == "template" {
+					want = []string{"rule/x", "rule/a", "rule/c"}
+				}
+				got := []string{}
+				for _, e := range resolved.Candidate.Entries {
+					got = append(got, e.ID)
+				}
+				if !reflect.DeepEqual(got, want) {
+					t.Fatal("choice lost", choice, got)
+				}
+			}
+			request.Decisions = nil
+			request.Next = snap(2, a, x, c)
+			result, err = PreviewUpdate(context.Background(), request)
+			if err != nil || !result.Ready || len(result.Candidate.Entries) != 3 {
+				t.Fatal("compatible shared insertion rejected", result, err)
+			}
+		})
+	}
+}

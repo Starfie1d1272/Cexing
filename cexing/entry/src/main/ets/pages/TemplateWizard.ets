@@ -1,3 +1,9 @@
+import { createTemplateUpdateSource } from '../lib/TemplateUpdateSource';
+import { TemplateUpdateReview } from './TemplateUpdateReview';
+import { TemplateUpdateSource } from '../lib/TemplateUpdateHost';
+import { EditorDraftHosts } from '../lib/EditorDraftHosts';
+import { AiProbeStatus } from './AiProbeStatus';
+import { AiProbeBinding } from '../lib/AiProbeBinding';
 import { common } from '@kit.AbilityKit';
 import { EditorDraftHost } from '../lib/ConfigEditor';
 import { createTemplateWizardHost } from '../lib/TemplateHost';
@@ -10,22 +16,40 @@ import { TemplateWizardHost, TemplateWizardModel, TemplateWizardView } from '../
 export struct TemplateWizard {
   host?: TemplateWizardHost;
   editor?: EditorDraftHost;
+  updateSource?: TemplateUpdateSource;
+  private activeUpdateSource?: TemplateUpdateSource;
+  private activeEditor?: EditorDraftHost;
+  @State private reviewingUpdate: boolean = false;
+  @State private updateAvailable: boolean = false;
   @Prop profileId: string = '';
   onClose: () => void = () => {};
   @State private view: TemplateWizardView = { templateId: 'original', target: '', busy: false,
     ready: false, error: '', result: '', summary: '', hasPreview: false, groups: [], selectors: [] };
   private confirming: boolean = false;
   private confirmationGeneration: number = 0;
+  @State private aiRevision: string = '';
+  private aiBinding: AiProbeBinding = new AiProbeBinding();
   private model: TemplateWizardModel | null = null;
   private visible: boolean = false;
 
   aboutToAppear(): void {
     this.visible = true; this.confirmationGeneration++; this.confirming = false;
+    this.reviewingUpdate = false;
+    this.activeUpdateSource = this.updateSource ?? (this.profileId.length > 0 ?
+      createTemplateUpdateSource(getContext(this) as common.UIAbilityContext, this.profileId) : undefined);
+    this.activeEditor = this.editor ?? (this.profileId.length > 0 ?
+      EditorDraftHosts.create(getContext(this) as common.UIAbilityContext, this.profileId) : undefined);
     const host = this.host ?? (this.profileId.length > 0 ?
-      createTemplateWizardHost(getContext(this) as common.UIAbilityContext, this.profileId, this.editor) : undefined);
+      createTemplateWizardHost(getContext(this) as common.UIAbilityContext, this.profileId, this.activeEditor) : undefined);
     if (host === undefined) { return; }
     this.model = new TemplateWizardModel(host, () => {
-      if (this.model !== null) { this.view = this.model.snapshot(); }
+      if (this.model !== null) {
+        this.view = this.model.snapshot();
+        this.aiRevision = this.view.ready && !this.view.busy && this.view.templateId === 'ai' ?
+          this.aiBinding.revision(getContext(this) as common.UIAbilityContext, this.profileId, this.view.target) : '';
+        this.updateAvailable = this.view.ready && !this.view.busy &&
+          (this.activeUpdateSource?.available?.(this.view.templateId, this.view.target) ?? this.updateSource !== undefined);
+      }
     });
     this.model.load();
   }
@@ -62,12 +86,22 @@ export struct TemplateWizard {
       .onClick(() => this.model?.choose(id, ''))
   }
   build() {
+    if (this.reviewingUpdate) {
+      TemplateUpdateReview({ profileId: this.profileId, editor: this.activeEditor, source: this.activeUpdateSource,
+        onClose: () => { this.reviewingUpdate = false; this.model?.load(); } })
+    } else {
     Column({ space: 12 }) {
       Row() {
         Text('分流方案').fontSize(22).fontWeight(FontWeight.Bold).fontColor(UI.ink)
         Blank()
         Button('返回').backgroundColor(UI.soft).fontColor(UI.ink).onClick(() => this.close())
       }.width('100%')
+      Scroll() {
+      Column({ space: 12 }) {
+      if (this.updateAvailable) {
+        Button('更新方案').backgroundColor(UI.soft).fontColor(UI.ink)
+          .enabled(this.view.ready && !this.view.busy).onClick(() => { this.reviewingUpdate = true; })
+      }
       this.option('original', '保持订阅原样')
       this.option('region', '按地区智能选择')
       this.option('ai', 'AI 专用出口')
@@ -75,12 +109,17 @@ export struct TemplateWizard {
       if (this.view.templateId !== 'original' && this.view.ready === true) {
         Text(this.view.templateId === 'region' ? '原策略组' : '出口').fontSize(14).fontColor(UI.muted)
         Select((this.view.templateId === 'region' ? this.view.selectors :
-          this.view.groups).map((name: string): SelectOption => { return { value: name }; }))
-          .value(this.view.target || '请选择').width('100%').enabled(this.view.busy === false)
-          .onSelect((_index: number, value: string) => this.model?.choose(this.view.templateId, value))
+          this.view.groups).map((name: string): SelectOption => { return { value: this.view.labels?.[name] ?? name }; }))
+          .selected(Math.max(0, (this.view.templateId === 'region' ? this.view.selectors : this.view.groups).indexOf(this.view.target)))
+          .value(this.view.labels?.[this.view.target] ?? (this.view.target || '请选择')).width('100%').enabled(this.view.busy === false)
+          .onSelect((index: number) => this.model?.choose(this.view.templateId,
+            (this.view.templateId === 'region' ? this.view.selectors : this.view.groups)[index] ?? ''))
       }
       if (this.view.templateId === 'ai') {
         Text('常用 AI 服务使用所选出口，其余流量沿用订阅。').fontSize(13).fontColor(UI.muted)
+      }
+      if (this.view.templateId === 'ai' && this.view.ready) {
+        AiProbeStatus({ revision: this.aiRevision })
       }
       if (this.view.templateId === 'automatic') {
         Text('本地网络直连，其余流量使用所选出口。').fontSize(13).fontColor(UI.muted)
@@ -94,7 +133,8 @@ export struct TemplateWizard {
       if (this.view.hasPreview) {
         Text(this.view.summary).fontSize(14).fontColor(UI.muted)
       }
-      Blank()
+      }.width('100%')
+      }.width('100%').layoutWeight(1)
       if (this.view.ready !== true && this.view.busy === false) {
         Button('重试').onClick(() => this.model?.load())
       }
@@ -103,5 +143,6 @@ export struct TemplateWizard {
         .enabled(this.view.ready === true && this.view.busy === false)
         .onClick(() => { if (this.model?.preview) { this.apply(); } else { this.model?.inspect(); } })
     }.width('100%').height('100%').padding(20).backgroundColor(UI.surface)
+    }
   }
 }

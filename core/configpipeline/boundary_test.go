@@ -202,8 +202,8 @@ func TestSensitiveBoundaryPreservesLastSuccess(t *testing.T) {
 		t.Fatal("last success changed")
 	}
 	entries, err := os.ReadDir(store.Root)
-	if err != nil || len(entries) != 2 {
-		t.Fatal("rejected candidate left files")
+	if err != nil || len(entries) != 3 {
+		t.Fatal("rejected candidate left files beyond state, version and GC coordination lock")
 	}
 }
 

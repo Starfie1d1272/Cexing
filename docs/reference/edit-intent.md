@@ -73,3 +73,25 @@ GC 引用清单不新增版本引用：`sourceRevision`/`revision`/target/field 
 生产事务将编译器返回的完整 EditIntent（含生成的 baseline/Mine/墓碑）写入同一 source.json；成功后同 revision 的已应用侧车读取为最新成功 provenance，订阅重算不会被旧侧车遮蔽。未应用的新 UUID 草稿仍独立保留。Host 的输入身份忽略这两个编译器生成快照本身，来源/profile/draft ticket、模板选项、个人 operations、Smart、Merge、设置和实际 provider 字节仍比较；自身成功规范化不会误报外部改动。
 
 Go-only `Compiler.EditorResourceSource` 仅复用既有 editSource/boundEditSource，给宿主读取本地 provider 身份，保证模板 alias 与个人操作的投影一致；不走完整资源验证、不联网，不把私有 YAML root 返回 ArkTS、默认摘要或诊断。模板比较的 Candidate→个人 delta 与冲突选择仍由模板页消费 `EditorDraftHosts.create` 的同一会话，提交前必须取得完整编译预览，不能把纯三方比较当成已应用。
+
+### 共同绑定补充
+
+共同快照的模板版本校验正整数；实际 `profiletemplates.Plan.Validate`/生成器仍决定支持目录，生产未知版本完整编译继续拒绝。`template-update-preview` 将 home 转交既有 source/encode worker，不新增 envelope。三方共同新增/重加实体同样参与顺序图，矛盾顺序需显式选择。
+
+保留被新版模板移除的个人实体：Candidate 写在 `template.mine.entries`，共同 add 的 `target` 为其 `TemplateTarget`；仅接受已声明、未绑定、section 一致的 alias。add 实际插入才创建 binding；捕获包含它并保留实际位置，快照本身仍不执行配置。alias 未实际插入则留墓碑。普通 add 仍省略 target。已在 fresh baseline 的实体继续用 update/rename/move，不接受重复 add。
+
+显式 `editor-list` / `edit-target` 的组 `sourceName` 是双层 Merge 后、模板与个人操作前的源组名；个人改名只改变 name。模板选择使用 sourceName，界面标签使用 name。个人新增或模板生成组不提供 sourceName；默认摘要不增加私有名称。
+
+单节点停用使用 `kind: disable, section: proxies, target, expected`。共同编译器严格验证原节点 revision，生成保留同名的 reject adapter；组成员、规则、dialer-proxy 等引用全部保持。它既不删除其他对象/引用，也不自动换成 DIRECT 或其他出口。显式编辑视图标记 disabled；撤销移除该操作后从最新原文重建，未知字段和凭据只保留在原文/私有来源中。UI 应显示“停用后拒绝连接”这一必要决策，并将启用实现为移除此操作；delete 仍是删除，非法引用继续拒绝完整编译。
+
+## 下载原文候选
+
+`EditorDraftHosts.create(context, file, sourceOverride?)` 接受导出的 `EditorSourceCandidate { original: string; metadata: ProfileMetaExt }`。工厂复制候选，后续调用方修改无效。下载或冲突页面不得先写成功 Original；同一候选交给 `createTemplateUpdateSource(context, file, sourceOverride?)`，由共同 host 完成 save、完整 preview 和 receipt apply。
+
+候选可能与旧个人操作的 precondition 冲突。未解决时 load/target 读取成功原文的编辑视图，身份同时绑定该 authoring 投影和纯候选资源；save 解决后切换候选投影。preview/apply 始终校验真实候选，metadata 也进入身份比较。原成功 Original、profile/current/draft、设置、Merge 和 provider 的 CAS 持续有效；提交后只允许 Original 精确等于本候选。Original、metadata 与成功 intent 在同次 stage/verify/apply/commit 发布；未应用草稿不改变启动来源。
+
+## 地区选择与同次发布
+
+共同 publisher 调用 `TemplateRegionEffects.prepareRegionChoice`，把初始 `RegionChoice` 与编译结果写入同一 source.json；`FileStore.StageWithRegionChoice` 只扩展持久化，不改变 compiler 转换。GC 和备份严格来源读取均识别、校验这个可选字段，不增加版本引用。
+
+成功提交后调用 committed，重连调用 resume。消费状态沿用 `.region-select.json` 并绑定 versionId，旧 pending/previous 仅在来源缺少新字段时迁移。同 selector 的更新保留已消费请求；移除/换组先恢复原手动选项，离线不推断未观察的 reload fallback，后来的手动选择优先。控制面读写受原事务门禁、active version、epoch 和 session 约束；失败不撤销已提交事实。无可恢复选项时在发布前拒绝，并提供手动选择的修复操作。

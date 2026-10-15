@@ -1,3 +1,4 @@
+import { UiText } from '../lib/UiText';
 import { SettingsReconnectButton } from './SettingsReconnectButton';
 import { NativeTheme as UI } from './NativeTheme';
 /*
@@ -9,7 +10,7 @@ import { promptAction } from '@kit.ArkUI';
 import { Settings } from '../lib/Settings';
 import { buildVpnApplicationPolicy, validVpnBundleName, vpnRouteExceptions } from '../lib/VpnController';
 
-const ACCESS_MODES: string[] = ['全部应用', '仅选中应用', '排除选中应用'];
+const ACCESS_MODES: string[] = [UiText.get($r('app.string.network_all')), UiText.get($r('app.string.network_only')), UiText.get($r('app.string.network_except'))];
 const ACCESS_VALUES: string[] = ['all', 'white', 'black'];
 
 @Component
@@ -35,7 +36,7 @@ export struct NetworkSettingsPage {
       this.readSettings(); this.ready = true;
     }).catch(() => {
       if (this.pageActive && generation === this.saveGeneration) {
-        promptAction.showToast({ message: '设置读取失败，请重试' });
+        promptAction.showToast({ message: UiText.get($r('app.string.network_read_failed')) });
       }
     });
   }
@@ -65,12 +66,12 @@ export struct NetworkSettingsPage {
     } catch (_) {
       if (!this.pageActive || generation !== this.saveGeneration) { return; }
       this.aboutToAppear();
-      promptAction.showToast({ message: '保存失败，请重试', duration: 2000 });
+      promptAction.showToast({ message: UiText.get($r('app.string.network_save_failed')), duration: 2000 });
     }
   }
 
   private changedHint(): void {
-    promptAction.showToast({ message: '已保存，下次启动 VPN 生效', duration: 1500 });
+    promptAction.showToast({ message: UiText.get($r('app.string.network_saved')), duration: 1500 });
   }
 
   private addPackage(): void {
@@ -78,11 +79,11 @@ export struct NetworkSettingsPage {
     const pkg = this.inputPkg.trim();
     const context = getContext(this) as common.UIAbilityContext;
     if (!validVpnBundleName(pkg) || pkg === context.applicationInfo.name) {
-      promptAction.showToast({ message: '请输入其他应用的有效包名', duration: 1500 });
+      promptAction.showToast({ message: UiText.get($r('app.string.network_invalid_package')), duration: 1500 });
       return;
     }
     if (this.accessList.indexOf(pkg) >= 0) {
-      promptAction.showToast({ message: '应用已添加', duration: 1500 });
+      promptAction.showToast({ message: UiText.get($r('app.string.network_added')), duration: 1500 });
       return;
     }
     const next = [...this.accessList, pkg];
@@ -126,26 +127,26 @@ export struct NetworkSettingsPage {
   @Builder
   AddPkgDialog() {
     Column({ space: 14 }) {
-      Text('添加应用包名')
+      Text(UiText.get($r('app.string.network_add_package')))
         .fontSize(17)
         .fontWeight(FontWeight.Medium)
         .fontColor(UI.ink)
-      TextInput({ placeholder: '如 com.example.app', text: this.inputPkg }).height(48)
+      TextInput({ placeholder: UiText.get($r('app.string.network_package_placeholder')), text: this.inputPkg }).constraintSize({ minHeight: 48 })
         .width('100%')
         .onChange((v: string) => {
           this.inputPkg = v;
         })
       Row({ space: 12 }) {
-        Button('取消')
-          .height(48)
+        Button(UiText.get($r('app.string.network_cancel')))
+          .constraintSize({ minHeight: 48 })
           .layoutWeight(1)
           .backgroundColor(UI.soft)
           .fontColor(UI.ink)
           .onClick(() => {
             this.cancelAddPackage();
           })
-        Button('添加')
-          .height(48).backgroundColor(UI.action).fontColor(UI.onAccent)
+        Button(UiText.get($r('app.string.network_add')))
+          .constraintSize({ minHeight: 48 }).backgroundColor(UI.action).fontColor(UI.onAccent)
           .layoutWeight(1)
           .onClick(() => {
             this.addPackage();
@@ -161,14 +162,14 @@ export struct NetworkSettingsPage {
   @Builder
   RouteDetails() {
     Column({ space: 12 }) {
-      Text('系统路由例外').fontSize(17).fontWeight(FontWeight.Medium).fontColor(UI.ink)
-      Text('以下地址直接使用当前网络，匹配的流量不进入 VPN。')
+      Text(UiText.get($r('app.string.network_routes'))).fontSize(17).fontWeight(FontWeight.Medium).fontColor(UI.ink)
+      Text(UiText.get($r('app.string.network_route_help')))
         .fontSize(13).fontColor(UI.muted).width('100%')
       ForEach(vpnRouteExceptions(), (cidr: string) => {
         Text(cidr).fontSize(14).fontColor(UI.ink).width('100%')
       }, (cidr: string) => cidr)
-      Text('每次连接自动恢复默认例外。').fontSize(13).fontColor(UI.muted).width('100%')
-      Button('完成').width('100%').height(48).backgroundColor(UI.action).fontColor(UI.onAccent)
+      Text(UiText.get($r('app.string.network_route_defaults'))).fontSize(13).fontColor(UI.muted).width('100%')
+      Button(UiText.get($r('app.string.network_done'))).width('100%').constraintSize({ minHeight: 48 }).backgroundColor(UI.action).fontColor(UI.onAccent)
         .onClick(() => { this.showRouteDetails = false; })
     }.padding(20).backgroundColor(UI.surface)
   }
@@ -178,7 +179,7 @@ export struct NetworkSettingsPage {
       Column({ space: 16 }) {
         SettingsReconnectButton()
         Column() {
-          this.ToggleRow('IPv6', '下次启动生效', this.ipv6, (v: boolean) => {
+          this.ToggleRow('IPv6', UiText.get($r('app.string.network_next_start')), this.ipv6, (v: boolean) => {
             this.ipv6 = v;
             this.persist(['ipv6']);
           })
@@ -189,7 +190,7 @@ export struct NetworkSettingsPage {
 
         Column({ space: 0 }) {
           Row() {
-            Text('按应用分流')
+            Text(UiText.get($r('app.string.network_per_app')))
               .fontSize(13)
               .fontColor(UI.muted)
             Blank()
@@ -199,9 +200,9 @@ export struct NetworkSettingsPage {
 
           Row({ space: 0 }) {
             ForEach(ACCESS_MODES, (label: string, index: number) => {
-              Text(label)
+              Text(label).accessibilityRole(AccessibilityRoleType.BUTTON).accessibilitySelected(this.accessIndex === index)
                 .fontSize(14)
-                .height(48)
+                .constraintSize({ minHeight: 48 })
                 .layoutWeight(1)
                 .textAlign(TextAlign.Center)
                 .fontWeight(this.accessIndex === index ? FontWeight.Medium : FontWeight.Regular)
@@ -227,7 +228,7 @@ export struct NetworkSettingsPage {
           if (this.accessIndex > 0) {
             if (this.accessIndex === 1 && this.accessList.filter((pkg: string) =>
               validVpnBundleName(pkg) && pkg !== (getContext(this) as common.UIAbilityContext).applicationInfo.name).length === 0) {
-              Text('请添加要连接的应用').fontSize(13).fontColor(UI.error)
+              Text(UiText.get($r('app.string.network_add_required'))).fontSize(13).fontColor(UI.error)
                 .width('100%').padding({ left: 14, right: 14, bottom: 6 })
             }
             ForEach(this.accessList, (pkg: string) => {
@@ -240,18 +241,19 @@ export struct NetworkSettingsPage {
                   .maxLines(1)
                   .textOverflow({ overflow: TextOverflow.Ellipsis })
                 Row() {
-                  SymbolGlyph($r('sys.symbol.xmark'))
+                  SymbolGlyph($r('sys.symbol.xmark')).accessibilityLevel('no')
                     .fontSize(16)
                     .fontColor([UI.muted])
                 }
                 .width(48)
-                .height(48)
+                .constraintSize({ minHeight: 48 })
                 .justifyContent(FlexAlign.Center)
                 .margin({ left: 8 })
                 .stateStyles({
                   pressed: { .opacity(0.6) },
                   normal: { .opacity(1.0) }
                 })
+                .accessibilityRole(AccessibilityRoleType.BUTTON).accessibilityText(UiText.get($r('app.string.network_remove_app'), pkg))
                 .onClick(() => {
                   this.accessList = this.accessList.filter((x) => x !== pkg);
                   this.persist(['accessList']);
@@ -265,7 +267,7 @@ export struct NetworkSettingsPage {
               SymbolGlyph($r('sys.symbol.plus'))
                 .fontSize(14)
                 .fontColor([UI.accentText])
-              Text('添加包名')
+              Text(UiText.get($r('app.string.network_add_short')))
                 .fontSize(14)
                 .fontColor(UI.accentText)
             }
@@ -276,6 +278,7 @@ export struct NetworkSettingsPage {
               pressed: { .opacity(0.6) },
               normal: { .opacity(1.0) }
             })
+            .accessibilityRole(AccessibilityRoleType.BUTTON).accessibilityText(UiText.get($r('app.string.network_add_package')))
             .onClick(() => {
               this.inputPkg = '';
               this.showAddDialog = true;
@@ -286,10 +289,10 @@ export struct NetworkSettingsPage {
         .backgroundColor(UI.surface)
         .borderRadius(24)
 
-        Button('系统路由例外').height(48).width('100%').backgroundColor(UI.soft).fontColor(UI.ink)
+        Button(UiText.get($r('app.string.network_routes'))).constraintSize({ minHeight: 48 }).width('100%').backgroundColor(UI.soft).fontColor(UI.ink)
           .onClick(() => { this.showRouteDetails = true; })
 
-        Text('手动输入应用包名 · 本应用始终直连')
+        Text(UiText.get($r('app.string.network_package_help')))
           .fontSize(13)
           .fontColor(UI.muted)
           .width('100%')

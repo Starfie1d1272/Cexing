@@ -11,6 +11,7 @@ import { util } from '@kit.ArkTS';
 import { Logger } from './Logger';
 import { suggestProfileName, profileNameFromUrl } from './ProfileName';
 import { EffectiveVersions } from './EffectiveVersions';
+import { RegionChoiceState } from './TemplateRegionEffects';
 import { EditIntent } from './ConfigEditor';
 import { BoundedFileReader } from './BoundedFileReader';
 
@@ -494,6 +495,24 @@ export namespace ProfileStore {
     return getMergeDraft(context, file);
   }
 
+  /** Runtime consumption belongs only to this exact immutable version. */
+  export function runtimeRegionChoice(context: common.Context, file: string, versionId: string): RegionChoiceState | null {
+    const p = `${ensureDir(context)}/${file}.region-select.json`;
+    if (!fileIo.accessSync(p)) { return null; }
+    const raw = JSON.parse(fileIo.readTextSync(p)) as Record<string, Object>;
+    if (raw['versionId'] !== versionId) { return null; }
+    const state = raw['state'] as RegionChoiceState;
+    if (state === undefined || typeof state.pending !== 'string' ||
+      (state.previous !== undefined && (typeof state.previous.selector !== 'string' ||
+      typeof state.previous.name !== 'string'))) { throw new Error('地区选择记录损坏'); }
+    return state;
+  }
+
+  export function saveRuntimeRegionChoice(context: common.Context, file: string,
+    versionId: string, state: RegionChoiceState): void {
+    atomicText(`${ensureDir(context)}/${file}.region-select.json`, JSON.stringify({ versionId: versionId, state: state }));
+  }
+
   export function pendingRegionSelection(context: common.Context, file: string): string {
     const p = `${ensureDir(context)}/${file}.region-select.json`;
     if (!fileIo.accessSync(p)) { return ''; }
@@ -576,13 +595,20 @@ export namespace ProfileStore {
     const d = ensureDir(context);
     const oldPath = `${d}/${oldFile}`;
     const newPath = `${d}/${target}`;
+    const suffixes: string[] = ['.url', '.last-good', '.merge.json', '.region-select.json',
+      '.region-previous.json', '.update.json', '.intent.json'];
+    // moveFileSync may replace a destination. Reject every managed collision
+    // before moving the raw source or materializing an immutable-only source.
+    const newDraft = draftPath(context, target);
+    if (pendingImports.includes(target) || fileIo.accessSync(newPath) || fileIo.accessSync(newDraft) ||
+      suffixes.some((suffix: string) => fileIo.accessSync(`${newPath}${suffix}`)) ||
+      readMetaStrict(context)[target] !== undefined) {
+      throw new Error('目标名称已有资料，请使用其他名称');
+    }
     if (!fileIo.accessSync(oldPath)) {
       const original = getProfileContent(context, oldFile);
       if (original === null) { throw new Error('配置文件不存在'); }
       atomicText(oldPath, original);
-    }
-    if (fileIo.accessSync(newPath)) {
-      throw new Error(`已存在同名配置：${target}`);
     }
     try {
       fileIo.moveFileSync(oldPath, newPath);
@@ -591,8 +617,7 @@ export namespace ProfileStore {
     }
     const moved: string[][] = [];
     try {
-      for (const suffix of ['.url', '.last-good', '.merge.json', '.region-select.json',
-        '.region-previous.json', '.update.json', '.intent.json']) {
+      for (const suffix of suffixes) {
         const from = `${oldPath}${suffix}`;
         const to = `${newPath}${suffix}`;
         if (fileIo.accessSync(from)) {
@@ -602,7 +627,6 @@ export namespace ProfileStore {
       }
       const oldDraft = draftPath(context, oldFile);
       if (fileIo.accessSync(oldDraft)) {
-        const newDraft = draftPath(context, target);
         fileIo.moveFileSync(oldDraft, newDraft);
         moved.push([oldDraft, newDraft]);
       }

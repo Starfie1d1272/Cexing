@@ -59,8 +59,9 @@ let pageSource = fs.readFileSync('cexing/entry/src/main/ets/pages/TemplateWizard
 pageSource = pageSource.slice(0, pageSource.indexOf('  @Builder')) + '\n}';
 pageSource = pageSource.replace(/@Component\n/g, '').replace(/@(State|Prop) /g, '').replace('export struct ', 'export class ');
 let dialog = deferred(), dialogs = 0;
-const pageSandbox = { exports: {}, $r: () => '', require: name => {
+const pageSandbox = { exports: {}, getContext: () => ({}), $r: () => '', require: name => {
   if (name === '@kit.ArkUI') return { promptAction: { showDialog: () => { dialogs++; return dialog.promise; } } };
+  if (name === '../lib/AiProbeBinding') return { AiProbeBinding: class { revision() { return ''; } } };
   if (name === './NativeTheme') return { NativeTheme: {} };
   if (name === '../lib/TemplateHost') return { createTemplateWizardHost: () => { throw Error('explicit test host expected'); } };
   return { TemplateWizardModel: Model };

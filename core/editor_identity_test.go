@@ -35,4 +35,9 @@ func TestEditorIdentityBindsLocalResourcesAndSettings(t *testing.T) {
 	if e != nil || fourth == third {
 		t.Fatal("settings not bound", e)
 	}
+	a.Metadata = `{"origin":"candidate"}`
+	fifth, e := editorIdentity(home, a, "")
+	if e != nil || fifth == fourth {
+		t.Fatal("candidate metadata not bound", e)
+	}
 }

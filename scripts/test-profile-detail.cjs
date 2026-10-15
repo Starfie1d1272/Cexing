@@ -1,3 +1,4 @@
+const uiFixture = require('./ci/ui-fixtures.cjs');
 // Read-only generated result lifecycle with synthetic content; no device/UI claim.
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -25,6 +26,7 @@ const modules = {
   './ProfileEditPage': { ProfileEditBus: bus }
 };
 const sandbox = { exports: {}, getContext: () => ({}), require: name => modules[name] ?? {} };
+Object.assign(sandbox, uiFixture.globals); modules['../lib/UiText'] = uiFixture.module;
 vm.runInNewContext(ts.transpileModule(source).outputText, sandbox);
 (async () => {
   const page = new sandbox.exports.ProfileGeneratedPage();
