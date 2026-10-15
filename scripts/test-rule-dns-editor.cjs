@@ -1,7 +1,9 @@
+const uiFixture=require('./ci/ui-fixtures.cjs');
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const ts=require('./ci/transpile-arkts.cjs');
 const read=name=>fs.readFileSync(`cexing/entry/src/main/ets/${name}`,'utf8');
-function load(source,modules,extra={}){const box={exports:{},require:n=>{assert.ok(n in modules,n);return modules[n];},...extra};vm.runInNewContext(ts.transpileModule(source).outputText,box);return box.exports;}
+function load(source,modules,extra={}){const box={exports:{},...uiFixture.globals,require:n=>{if(n.endsWith('/UiText'))return uiFixture.module;assert.ok(n in modules,n);return modules[n];},...extra};vm.runInNewContext(ts.transpileModule(source).outputText,box);return box.exports;}
+const text=load(read('lib/RuleDnsText.ets'),{});
 const forms=load(read('lib/RuleDnsForms.ets'),{}),drafts=load(read('lib/RuleDnsDraft.ets'),{});
 const gate=()=>{let resolve;const promise=new Promise(r=>{resolve=r;});return {promise,resolve};};
 const snapshot={sourceRevision:'source',missingFieldRevision:'missing-revision',sections:[{section:'rules',items:[{id:'rule',revision:'rev',type:'DOMAIN',name:'规则 1'},{id:'match',revision:'end',type:'MATCH',name:'规则 2'}]},{section:'dns',items:[{id:'dns',revision:'dns-rev',name:'DNS'}]},{section:'proxy-groups',items:[{id:'group',revision:'g',name:'Synthetic group'}]}]};
@@ -14,7 +16,7 @@ const host={load:async()=>{loads++;return {profileId:'synthetic.yaml',revision,i
  preview:async expected=>{previews++;assert.equal(expected,revision);if(fail)throw Error('conflict');return {revision,digest:'validated',changes:{digest:'validated',changes:[{section:'rules',before:2,after:2}]}};},
  apply:async preview=>{assert.equal(preview.revision,revision);assert.equal(preview.digest,'validated');applies++;if(applyFailure)throw Error('应用未确认，请重连恢复');if(pending)await pending.promise;return 'applied';},
  undo:async expected=>{assert.equal(expected,revision);intent.operations=[];revision='undo';return host.load();}};
-const modules={'../lib/CoreValidator':{CoreValidator:{describeMergePreview:value=>{assert.equal(value.digest,'validated');return '规则：顺序已调整';}}},'../lib/EditorDraftHosts':{EditorDraftHosts:{create:(_,file)=>{assert.equal(file,'synthetic.yaml');return host;}}},
+const modules={'../lib/RuleDnsText':text,'../lib/CoreValidator':{CoreValidator:{describeMergePreview:value=>{assert.equal(value.digest,'validated');return '规则：顺序已调整';}}},'../lib/EditorDraftHosts':{EditorDraftHosts:{create:(_,file)=>{assert.equal(file,'synthetic.yaml');return host;}}},
  '../lib/ProfileTransactions':{ProfileTransactions:{isBusy:()=>false,editTicket:()=>({file:'synthetic.yaml',activeFile:'synthetic.yaml',activeVersion:'active',draftRevision:'draft'})}},
  '../lib/ProfileStore':{ProfileStore:{}},'../lib/EffectiveVersions':{EffectiveVersions:{read:()=>({Profiles:{}})}},'../lib/VpnController':{VpnController:{status:0},VpnStatus:{Connected:2}},
  '../lib/RuleDnsForms':forms,'../lib/RuleDnsDraft':drafts,'../lib/RuleProviderStatus':{RuleProviderStatus:{}},'@kit.ArkTS':{util:{generateRandomUUID:()=> 'synthetic-operation'}},'./RuleDnsEditForm':{},'./NativeTheme':{}};

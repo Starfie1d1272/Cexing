@@ -31,6 +31,378 @@
     {
       "name": "connection_card_description",
       "value": "查看连接状态，一键连接或断开"
+    },
+    {
+      "name": "rule_unwired",
+      "value": "Editor is unavailable"
+    },
+    {
+      "name": "rule_interval_required",
+      "value": "Enter an update interval"
+    },
+    {
+      "name": "rule_hosts_required",
+      "value": "Enter a hosts name"
+    },
+    {
+      "name": "rule_target",
+      "value": "Target"
+    },
+    {
+      "name": "rule_direct",
+      "value": "Direct"
+    },
+    {
+      "name": "rule_reject",
+      "value": "Reject"
+    },
+    {
+      "name": "rule_providers",
+      "value": "Rule providers"
+    },
+    {
+      "name": "rule_domain",
+      "value": "Exact domain"
+    },
+    {
+      "name": "rule_suffix",
+      "value": "Domain suffix"
+    },
+    {
+      "name": "rule_keyword",
+      "value": "Domain keyword"
+    },
+    {
+      "name": "rule_ipv4",
+      "value": "IPv4 range"
+    },
+    {
+      "name": "rule_ipv6",
+      "value": "IPv6 range"
+    },
+    {
+      "name": "rule_final",
+      "value": "Final rule"
+    },
+    {
+      "name": "rule_remote",
+      "value": "Remote"
+    },
+    {
+      "name": "rule_local",
+      "value": "Local"
+    },
+    {
+      "name": "rule_domain_type",
+      "value": "Domain"
+    },
+    {
+      "name": "rule_ip_range",
+      "value": "IP range"
+    },
+    {
+      "name": "rule_classical",
+      "value": "Mixed rules"
+    },
+    {
+      "name": "rule_text",
+      "value": "Text"
+    },
+    {
+      "name": "rule_real_ip",
+      "value": "Real IP"
+    },
+    {
+      "name": "rule_advanced_fields",
+      "value": "Advanced fields"
+    },
+    {
+      "name": "rule_type",
+      "value": "Type"
+    },
+    {
+      "name": "rule_condition",
+      "value": "Match condition"
+    },
+    {
+      "name": "rule_position",
+      "value": "Insert position"
+    },
+    {
+      "name": "rule_no_resolve",
+      "value": "Do not resolve domains"
+    },
+    {
+      "name": "rule_name",
+      "value": "Name"
+    },
+    {
+      "name": "rule_source",
+      "value": "Source"
+    },
+    {
+      "name": "rule_content",
+      "value": "Content"
+    },
+    {
+      "name": "rule_format",
+      "value": "Format"
+    },
+    {
+      "name": "rule_address",
+      "value": "Resource address"
+    },
+    {
+      "name": "rule_relative_path",
+      "value": "Relative path"
+    },
+    {
+      "name": "rule_interval",
+      "value": "Update interval (seconds)"
+    },
+    {
+      "name": "rule_dns_mode",
+      "value": "Resolution mode"
+    },
+    {
+      "name": "rule_nameservers",
+      "value": "DNS servers, one per line"
+    },
+    {
+      "name": "rule_bootstrap",
+      "value": "Bootstrap DNS servers, one per line"
+    },
+    {
+      "name": "rule_hosts_values",
+      "value": "Addresses, one per line"
+    },
+    {
+      "name": "rule_advanced",
+      "value": "Advanced edit"
+    },
+    {
+      "name": "rule_cancel",
+      "value": "Cancel"
+    },
+    {
+      "name": "rule_preview",
+      "value": "Preview"
+    },
+    {
+      "name": "rule_open_failed",
+      "value": "Cannot open editor. Try again."
+    },
+    {
+      "name": "rule_changed",
+      "value": "Configuration changed. Reopen the editor."
+    },
+    {
+      "name": "rule_not_running",
+      "value": "This subscription is not running"
+    },
+    {
+      "name": "rule_apply_first",
+      "value": "Apply changes first"
+    },
+    {
+      "name": "rule_runtime_changed",
+      "value": "Running configuration changed. Try again."
+    },
+    {
+      "name": "rule_runtime_unknown",
+      "value": "Runtime state unconfirmed"
+    },
+    {
+      "name": "rule_update_failed",
+      "value": "Update failed. Try again."
+    },
+    {
+      "name": "rule_runtime_failed",
+      "value": "Cannot read runtime state yet"
+    },
+    {
+      "name": "rule_validation_failed",
+      "value": "Changes did not validate. Edit or undo them."
+    },
+    {
+      "name": "rule_draft_discarded",
+      "value": "Draft discarded"
+    },
+    {
+      "name": "rule_final_unreadable",
+      "value": "Cannot read the final rule. Try again."
+    },
+    {
+      "name": "rule_final_exists",
+      "value": "A final rule already exists. Edit it instead."
+    },
+    {
+      "name": "rule_applied",
+      "value": "Applied"
+    },
+    {
+      "name": "rule_saved",
+      "value": "Saved"
+    },
+    {
+      "name": "rule_final_order",
+      "value": "Keep the final rule last"
+    },
+    {
+      "name": "rule_view_status",
+      "value": "View status"
+    },
+    {
+      "name": "rule_update",
+      "value": "Update"
+    },
+    {
+      "name": "rule_error_details",
+      "value": "Error details"
+    },
+    {
+      "name": "rule_new_name",
+      "value": "New name"
+    },
+    {
+      "name": "rule_rename",
+      "value": "Rename"
+    },
+    {
+      "name": "rule_default",
+      "value": "Default"
+    },
+    {
+      "name": "rule_recommended",
+      "value": "Recommended"
+    },
+    {
+      "name": "rule_rules",
+      "value": "Rules"
+    },
+    {
+      "name": "rule_delete",
+      "value": "Delete"
+    },
+    {
+      "name": "rule_add",
+      "value": "Add"
+    },
+    {
+      "name": "rule_apply",
+      "value": "Apply"
+    },
+    {
+      "name": "rule_undo",
+      "value": "Undo"
+    },
+    {
+      "name": "rule_discard",
+      "value": "Discard draft"
+    },
+    {
+      "name": "rule_enable",
+      "value": "Enable edits"
+    },
+    {
+      "name": "rule_disable",
+      "value": "Disable edits"
+    },
+    {
+      "name": "rule_retry",
+      "value": "Retry"
+    },
+    {
+      "name": "rule_before",
+      "value": "Before rule %d"
+    },
+    {
+      "name": "rule_count",
+      "value": "%d rules"
+    },
+    {
+      "name": "rule_references",
+      "value": " · Referenced by %d rules"
+    },
+    {
+      "name": "rule_fill_required",
+      "value": "Enter a rule and target"
+    },
+    {
+      "name": "rule_no_resolve_unsupported",
+      "value": "This rule does not support no-resolve"
+    },
+    {
+      "name": "rule_final_required",
+      "value": "The final rule must remain last"
+    },
+    {
+      "name": "rule_order_unchanged",
+      "value": "Rule position unchanged"
+    },
+    {
+      "name": "rule_dns_listener",
+      "value": "DNS listeners are managed by the system"
+    },
+    {
+      "name": "rule_field_unread",
+      "value": "Field version unavailable. Reopen the editor."
+    },
+    {
+      "name": "rule_provider_type_invalid",
+      "value": "Check the rule provider type"
+    },
+    {
+      "name": "rule_interval_invalid",
+      "value": "Update interval must be 0–604800 seconds"
+    },
+    {
+      "name": "rule_http_required",
+      "value": "Enter an HTTP or HTTPS address"
+    },
+    {
+      "name": "rule_path_required",
+      "value": "Enter a relative path inside the private directory"
+    },
+    {
+      "name": "rule_dns_invalid",
+      "value": "Check the DNS servers"
+    },
+    {
+      "name": "rule_dns_delete",
+      "value": "The DNS section cannot be deleted"
+    },
+    {
+      "name": "rule_single_required",
+      "value": "Enter a single rule"
+    },
+    {
+      "name": "rule_hosts_address",
+      "value": "Enter hosts addresses"
+    },
+    {
+      "name": "rule_json_object",
+      "value": "Advanced fields must be a JSON object"
+    },
+    {
+      "name": "rule_apply_unknown",
+      "value": "Apply unconfirmed. Reconnect to recover."
+    },
+    {
+      "name": "rule_busy",
+      "value": "A configuration operation is in progress. Try again shortly."
+    },
+    {
+      "name": "rule_expanded",
+      "value": "Expanded"
+    },
+    {
+      "name": "rule_collapsed",
+      "value": "Collapsed"
+    },
+    {
+      "name": "rule_remove_named",
+      "value": "Delete %s"
     }
   ]
 }
