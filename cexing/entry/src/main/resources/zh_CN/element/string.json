@@ -994,7 +994,7 @@
     },
     {
       "name": "editor_preview_failed",
-      "value": "覆写预览失败，请检查内容后重试"
+      "value": "覆写预览失败"
     },
     {
       "name": "editor_global_applied",
@@ -1653,149 +1653,6 @@
       "value": "连接"
     },
     {
-<<<<<<< HEAD
-=======
-      "name": "merge_nodes",
-      "value": "节点"
-    },
-    {
-      "name": "merge_node_sources",
-      "value": "节点源"
-    },
-    {
-      "name": "merge_groups",
-      "value": "策略组"
-    },
-    {
-      "name": "merge_rules",
-      "value": "规则"
-    },
-    {
-      "name": "merge_rule_sources",
-      "value": "规则源"
-    },
-    {
-      "name": "merge_listeners",
-      "value": "监听"
-    },
-    {
-      "name": "merge_mode",
-      "value": "模式"
-    },
-    {
-      "name": "merge_controller",
-      "value": "控制接口"
-    },
-    {
-      "name": "merge_panel",
-      "value": "面板"
-    },
-    {
-      "name": "merge_lan",
-      "value": "局域网代理"
-    },
-    {
-      "name": "merge_bind",
-      "value": "代理监听"
-    },
-    {
-      "name": "merge_ports",
-      "value": "代理端口"
-    },
-    {
-      "name": "merge_other",
-      "value": "其他配置"
-    },
-    {
-      "name": "merge_protected",
-      "value": "%s：使用设备约束"
-    },
-    {
-      "name": "merge_cleared",
-      "value": "%s：已清空"
-    },
-    {
-      "name": "merge_types_members",
-      "value": "%s：类型和成员已调整"
-    },
-    {
-      "name": "merge_types",
-      "value": "%s：类型已调整"
-    },
-    {
-      "name": "merge_members",
-      "value": "%s：成员已调整"
-    },
-    {
-      "name": "merge_reordered",
-      "value": "%s：顺序已调整"
-    },
-    {
-      "name": "merge_modified",
-      "value": "%s：修改 %d 项"
-    },
-    {
-      "name": "merge_added_count",
-      "value": "%s：新增 %d 项"
-    },
-    {
-      "name": "merge_removed_count",
-      "value": "%s：移除 %d 项"
-    },
-    {
-      "name": "merge_added",
-      "value": "%s：已添加"
-    },
-    {
-      "name": "merge_removed",
-      "value": "%s：已移除"
-    },
-    {
-      "name": "merge_content",
-      "value": "%s：内容已调整"
-    },
-    {
-      "name": "merge_device_count",
-      "value": "%d 项使用设备约束"
-    },
-    {
-      "name": "merge_no_changes",
-      "value": "无需更改"
-    },
-    {
-      "name": "merge_repair_resources",
-      "value": "资源未就绪，请断开 VPN 并在设置中修复资源后重试"
-    },
-    {
-      "name": "merge_update_package",
-      "value": "资源包无法使用，请更新应用后重试"
-    },
-    {
-      "name": "merge_update_source",
-      "value": "订阅来源未就绪，请更新订阅后重新预览"
-    },
-    {
-      "name": "merge_repreview",
-      "value": "预览已变化，请重新预览后再应用"
-    },
-    {
-      "name": "merge_reread",
-      "value": "配置无法读取，请返回订阅页重新导入后重试"
-    },
-    {
-      "name": "merge_wait",
-      "value": "已有配置操作正在进行，请稍后重试"
-    },
-    {
-      "name": "merge_disconnect",
-      "value": "请先在连接页断开 VPN 后重试"
-    },
-    {
-      "name": "failure_recovery_restart",
-      "value": "备份恢复未确认，请重新打开应用后重试"
-    },
-    {
->>>>>>> 77b1551f52487d507d9ffe4ae311e93549672668
       "name": "template_replace_reenable",
       "value": "将替换订阅规则，并启用已停用的个人修改。"
     },
@@ -2740,7 +2597,6 @@
       "value": "无法修改节点状态，请重新读取"
     },
     {
-<<<<<<< HEAD
       "name": "profile_update_expired",
       "value": "更新已失效，请返回重试"
     },
@@ -3347,7 +3203,148 @@
     {
       "name": "profile_not_updated",
       "value": "尚未更新"
-=======
+    },
+    {
+      "name": "merge_nodes",
+      "value": "节点"
+    },
+    {
+      "name": "merge_node_sources",
+      "value": "节点源"
+    },
+    {
+      "name": "merge_groups",
+      "value": "策略组"
+    },
+    {
+      "name": "merge_rules",
+      "value": "规则"
+    },
+    {
+      "name": "merge_rule_sources",
+      "value": "规则源"
+    },
+    {
+      "name": "merge_listeners",
+      "value": "监听"
+    },
+    {
+      "name": "merge_mode",
+      "value": "模式"
+    },
+    {
+      "name": "merge_controller",
+      "value": "控制接口"
+    },
+    {
+      "name": "merge_panel",
+      "value": "面板"
+    },
+    {
+      "name": "merge_lan",
+      "value": "局域网代理"
+    },
+    {
+      "name": "merge_bind",
+      "value": "代理监听"
+    },
+    {
+      "name": "merge_ports",
+      "value": "代理端口"
+    },
+    {
+      "name": "merge_other",
+      "value": "其他配置"
+    },
+    {
+      "name": "merge_protected",
+      "value": "%s：使用设备约束"
+    },
+    {
+      "name": "merge_cleared",
+      "value": "%s：已清空"
+    },
+    {
+      "name": "merge_types_members",
+      "value": "%s：类型和成员已调整"
+    },
+    {
+      "name": "merge_types",
+      "value": "%s：类型已调整"
+    },
+    {
+      "name": "merge_members",
+      "value": "%s：成员已调整"
+    },
+    {
+      "name": "merge_reordered",
+      "value": "%s：顺序已调整"
+    },
+    {
+      "name": "merge_modified",
+      "value": "%s：修改 %d 项"
+    },
+    {
+      "name": "merge_added_count",
+      "value": "%s：新增 %d 项"
+    },
+    {
+      "name": "merge_removed_count",
+      "value": "%s：移除 %d 项"
+    },
+    {
+      "name": "merge_added",
+      "value": "%s：已添加"
+    },
+    {
+      "name": "merge_removed",
+      "value": "%s：已移除"
+    },
+    {
+      "name": "merge_content",
+      "value": "%s：内容已调整"
+    },
+    {
+      "name": "merge_device_count",
+      "value": "%d 项使用设备约束"
+    },
+    {
+      "name": "merge_no_changes",
+      "value": "无需更改"
+    },
+    {
+      "name": "merge_repair_resources",
+      "value": "资源未就绪，请断开 VPN 并在设置中修复资源后重试"
+    },
+    {
+      "name": "merge_update_package",
+      "value": "资源包无法使用，请更新应用后重试"
+    },
+    {
+      "name": "merge_update_source",
+      "value": "订阅来源未就绪，请更新订阅后重新预览"
+    },
+    {
+      "name": "merge_repreview",
+      "value": "预览已变化，请重新预览后再应用"
+    },
+    {
+      "name": "merge_reread",
+      "value": "配置无法读取，请返回订阅页重新导入后重试"
+    },
+    {
+      "name": "merge_wait",
+      "value": "已有配置操作正在进行，请稍后重试"
+    },
+    {
+      "name": "merge_disconnect",
+      "value": "请先在连接页断开 VPN 后重试"
+    },
+    {
+      "name": "failure_recovery_restart",
+      "value": "备份恢复未确认，请重新打开应用后重试"
+    },
+    {
       "name": "settings_dns_read_failed",
       "value": "订阅读取失败，请重试"
     },
@@ -3742,7 +3739,6 @@
     {
       "name": "merge_open_connection",
       "value": "前往连接页恢复"
->>>>>>> 77b1551f52487d507d9ffe4ae311e93549672668
     }
   ]
 }
