@@ -4,7 +4,7 @@
 
 ## 启用
 
-「设置 → Smart」的自动转换默认开启，可随时关闭。配置事务对生成的运行副本，在 Merge 后、平台投影与 Mihomo 校验前，默认仅把 `url-test` 组改为 `smart`，`load-balance` 保留原算法，仅逐组明确选择转换时改为 Smart；组名、节点/提供者成员、Selector/Fallback、手选入口和规则引用保留。生成组请求离线 LightGBM 模型，关闭训练 CSV 收集和 ASN 偏好；模型缺失或无效时 Smart 使用统计策略。关闭开关会经同一事务从原始订阅与 Merge 重新生成原组类型；订阅更新、切换与下次启动重新应用当前开关。原始 YAML 不修改。
+「设置 → Smart」的自动转换默认开启，可随时关闭。配置事务对生成的运行副本，在 Merge 后、平台投影与 Mihomo 校验前，默认仅把 `url-test` 组改为 `smart`，`load-balance` 保留原算法，仅启用的 `EditIntent.SmartGroups` 明确选择转换时改为 Smart；组名、节点/提供者成员、Selector/Fallback、手选入口和规则引用保留。生成组请求离线 LightGBM 模型，关闭训练 CSV 收集和 ASN 偏好；模型缺失或无效时 Smart 使用统计策略。关闭开关会经同一事务从原始订阅与 Merge 重新生成原组类型；订阅更新、切换与下次启动重新应用当前开关。原始 YAML 不修改。
 
 已有 `smart` 组保持原有参数。没有可转换组的纯 Selector 配置不自动新增组；地区模板另行预览和确认。页面的开关是生成策略意图，运行中的实际 Smart 组与模型加载、预测次数以 Controller 状态为准。
 
@@ -47,4 +47,4 @@ lgbm-auto-update: false
 
 Linux 检查通过实际回环 HTTP 节点、mixed listener、规则和 Smart 统计回调证明模型参与；`scripts/test-smart-loader.sh` 用真实 bridge.cpp 与宿主链接拦截验证缺符号/完整 ABI 路径，其日志桩不证明 OHOS TLS。
 
-未签名 OHOS HAP 的模块身份、平台参数、四个动态 ABI、独立 strip 字节、非空资源及固定模型和 GPL 正文由 `scripts/ci/verify-hap.py` 检查，普通与优化 Python 不能绕过。构建记录还绑定本地生产 Go 源码摘要及文件集合，源码修改/新增不能复用旧核心；构建记录在模块完整性复验通过后才生效，失败不遗留成功记录；记录保护受信工作目录内的构建身份，不是签名供应链证明。生成产物不提交、不签名、不安装、不发布。手机仍须验收真实 TUN、TLS/REALITY、UDP/DNS、IPv6、后台与网络切换；Hokit 签名安装和用户设备操作由本地会话完成。原生文件选择/上传和应用级重启已接入；手机仍需确认重启后 VPN Extension 进程换代。
+未签名 OHOS HAP 的模块身份、平台参数、全部七个生产动态 ABI（四个基础兼容符号与三个扩展，清单见 `scripts/ci/abi_contract.py`）、独立 strip 字节、非空资源及固定模型和 GPL 正文由 `scripts/ci/verify-hap.py` 检查，普通与优化 Python 不能绕过。构建记录还绑定本地生产 Go 源码摘要及文件集合，源码修改/新增不能复用旧核心；构建记录在模块完整性复验通过后才生效，失败不遗留成功记录；记录保护受信工作目录内的构建身份，不是签名供应链证明。生成产物不提交、不签名、不安装、不发布。手机仍须验收真实 TUN、TLS/REALITY、UDP/DNS、IPv6、后台与网络切换；Hokit 签名安装和用户设备操作由本地会话完成。原生文件选择/上传和应用级重启已接入；手机仍需确认重启后 VPN Extension 进程换代。
