@@ -1,6 +1,6 @@
 const assert = require('node:assert/strict'), fs = require('node:fs'), vm = require('node:vm');
 const ts = require('./ci/transpile-arkts.cjs');
-let inputs = [], prepared = 0, pendingRead, precision = false;
+let expectedOriginal='prepared original', inputs = [], prepared = 0, pendingRead, precision = false;
 const snapshot = { templateId: 'ai', version: 1, entries: [] };
 const intent = { schemaVersion: 1, revision: 'intent', sourceRevision: 'source', operations: [], template: { templateId: 'ai', version: 1, targetGroup: 'Pick' } };
 let published = structuredClone(intent);
@@ -9,7 +9,7 @@ const modules = {
  'libentry.so': { versionAction: async (root, raw) => {
   if (precision) return JSON.stringify({ error: 'TEMPLATE_UPDATE_PRECISION' });
   assert.equal(root, '/synthetic'); const value = JSON.parse(raw); assert.equal(value.op, 'template-update-preview'); inputs.push(value.source);
-  assert.equal(value.source.profileVersion, 'version-successful'); assert.equal(value.source.original, 'prepared original');
+  assert.equal(value.source.profileVersion, 'version-successful'); assert.equal(value.source.original, expectedOriginal);
   assert.equal(value.source.globalMerge, 'global'); assert.equal(value.source.overlay, 'local');
   assert.equal(value.source.url, undefined); assert.equal(value.source.home, undefined);
   if (value.source.action === 'encode') { assert.equal(value.source.stamp, 'a'.repeat(64)); return JSON.stringify({ intent: { ...value.source.intent, template: { ...value.source.intent.template, baseline: snapshot, mine: snapshot } } }); }
@@ -39,6 +39,10 @@ vm.runInNewContext(ts.transpileModule(fs.readFileSync('cexing/entry/src/main/ets
  const newer = session('new-page'); await source.read(newer); release();
  await assert.rejects(older, /SESSION/); await source.encode(snapshot, newer);
  assert.equal(source.label({ section: 'rules' }), '分流规则');
+ const downloaded={original:'downloaded',metadata:{origin:'synthetic',sub:{},updatedAt:1}};
+ const candidateSource=sandbox.exports.createTemplateUpdateSource({filesDir:'/synthetic'},'one.yaml',downloaded);
+ downloaded.original='caller mutation';expectedOriginal='prepared downloaded';
+ await candidateSource.read(session('candidate'));await candidateSource.encode(snapshot,session('candidate'));
  precision = true; await assert.rejects(source.read(session('precise')), /PRECISION/);
  console.log('PASS: real update source uses existing worker/context/provenance, binds candidate encoding and rejects changed/late sessions');
 })().catch(error => { console.error(error); process.exitCode = 1; });
