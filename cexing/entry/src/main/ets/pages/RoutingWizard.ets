@@ -65,6 +65,11 @@ export struct RoutingWizard {
   private managed(): boolean { return this.view.plan.routing?.mode === 'managed' || ['ai', 'automatic'].includes(this.view.plan.templateId); }
   private working(): boolean { return this.view.busy || this.confirming || this.model?.blocked() === true; }
   private routing(): RoutingPlan | undefined { return this.view.plan.routing === undefined ? undefined : JSON.parse(JSON.stringify(this.view.plan.routing)) as RoutingPlan; }
+  private outletLabel(id: string): string {
+    if (id === this.view.plan.routing?.defaultOutlet) { return this.t('routing_default_exit'); }
+    const routes = this.view.plan.routing?.routes.filter(route => route.outlet === id) ?? [];
+    return routes.length > 0 ? routes.map(route => this.routeLabel(route)).join(' / ') : this.scopeLabel(this.outletByID(id));
+  }
   private outletByID(id: string): RoutingOutlet | undefined { return this.view.plan.routing?.outlets.find(value => value.id === id); }
   private algorithmLabel(id: string): string { return id === 'smart' ? 'Smart' : this.t(id === 'url-test' ? 'routing_urltest' : id === 'fallback' ? 'routing_fallback' : 'routing_select'); }
   private scopeLabel(outlet?: RoutingOutlet): string {
@@ -214,9 +219,9 @@ export struct RoutingWizard {
                 .onChange((checked: boolean) => { this.services = checked ? this.services.concat([service.id]) : this.services.filter(id => id !== service.id); })
             }.width('100%').constraintSize({ minHeight: 44 })
           }, (service: RoutingService) => service.id)
-          Select((this.view.plan.routing?.outlets ?? []).map((outlet: RoutingOutlet): SelectOption => ({ value: outlet.id })))
-            .value(this.outlet.id).constraintSize({ minHeight: 48 }).accessibilityText(this.t('routing_share_exit'))
-            .onSelect((_, value: string) => { const routeID = this.editingRoute; const services = this.services.slice(); this.editOutlet(value); this.editingRoute = routeID; this.services = services; })
+          Select((this.view.plan.routing?.outlets ?? []).map((outlet: RoutingOutlet): SelectOption => ({ value: this.outletLabel(outlet.id) })))
+            .value(this.outletLabel(this.outlet.id)).constraintSize({ minHeight: 48 }).accessibilityText(this.t('routing_share_exit'))
+            .onSelect((index: number) => { const value = this.view.plan.routing?.outlets[index]?.id; if (value === undefined) { return; } const routeID = this.editingRoute; const services = this.services.slice(); this.editOutlet(value); this.editingRoute = routeID; this.services = services; })
           Button(this.t('routing_separate')).constraintSize({ minHeight: 44 }).backgroundColor(UI.soft).fontColor(UI.ink).onClick(() => { this.independent(this.editingRoute); })
           Button(this.t('proxy_form_remove')).constraintSize({ minHeight: 44 }).backgroundColor(Color.Transparent).fontColor(UI.error).onClick(() => { this.removeRoute(this.editingRoute); this.editing = false; })
         }
