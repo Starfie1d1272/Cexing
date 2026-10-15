@@ -420,3 +420,22 @@ func TestRuleSummaryTypesUseParserWhitelistWithoutPayload(t *testing.T) {
 		}
 	}
 }
+
+func TestEditorProjectionPreservesNodeAndGroupSourceNames(t *testing.T) {
+	for _, section := range []string{"proxies", "proxy-groups"} {
+		t.Run(section, func(t *testing.T) {
+			source := editFixture(t)
+			target := editTarget(t, source, section, 0)
+			plan := editPlan(t, source, EditOperation{ID: "rename", Kind: "rename", Section: section, Target: target.Item.ID, Expected: target.Item.Revision, Name: "renamed-source"})
+			view, err := editCompiler().EditorList(context.Background(), Request{Original: source, Intent: plan})
+			if err != nil { t.Fatal(err) }
+			for _, part := range view.Sections {
+				if part.Section != section { continue }
+				for _, item := range part.Items {
+					if item.Name == "renamed-source" && item.SourceName == target.Name { return }
+				}
+			}
+			t.Fatal("renamed item lost its source identity")
+		})
+	}
+}

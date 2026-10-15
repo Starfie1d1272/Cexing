@@ -12,7 +12,7 @@ import (
 func TestRegionChoiceStagesWithOriginalAndIntentBeforeOnePublication(t *testing.T) {
 	ctx := context.Background()
 	store := FileStore{Root: filepath.Join(t.TempDir(), "versions")}
-	choice := &RegionChoice{Pending: "Main", Previous: &RegionPreviousChoice{Selector: "Old", Name: "Manual"}}
+	choice := &RegionChoice{SourceNames: true, Pending: "Main", Previous: &RegionPreviousChoice{Selector: "Old", Name: "Manual"}}
 	intent := &EditIntent{SchemaVersion: 1, Revision: "draft", SourceRevision: "source", Operations: []EditOperation{}}
 	result := Result{Original: []byte("proxies: []\n"), YAML: []byte("proxies: []\n"), ProfileID: "one.yaml", Metadata: `{"origin":"synthetic"}`, EditIntent: intent}
 	version, err := store.StageWithRegionChoice(ctx, result, choice)
@@ -33,7 +33,7 @@ func TestRegionChoiceStagesWithOriginalAndIntentBeforeOnePublication(t *testing.
 		Metadata     string
 		EditIntent   *EditIntent
 	}
-	if json.Unmarshal(data, &source) != nil || source.RegionChoice.Pending != "Main" || source.RegionChoice.Previous.Name != "Manual" || string(source.Original) != string(result.Original) || source.Metadata != result.Metadata || source.EditIntent.Revision != "draft" {
+	if json.Unmarshal(data, &source) != nil || !source.RegionChoice.SourceNames || source.RegionChoice.Pending != "Main" || source.RegionChoice.Previous.Name != "Manual" || string(source.Original) != string(result.Original) || source.Metadata != result.Metadata || source.EditIntent.Revision != "draft" {
 		t.Fatalf("lost atomic provenance: %s", data)
 	}
 	snapshot.Current = &version
