@@ -8,6 +8,7 @@ import { TemplateConflict, TemplateSnapshot, TemplateUpdateHost, TemplateUpdateP
 /** Compiler-owned private data conversion. These callbacks must use the common
  * template schema/aliases, never a list Merge or a second persistence service. */
 export interface TemplateUpdateSource {
+  cancel?: () => void;
   available?: (templateId: string, target: string) => boolean;
   read: (session: EditorDraftSession) => Promise<TemplateUpdateRequest>;
   encode: (candidate: TemplateSnapshot, session: EditorDraftSession) => Promise<EditIntent>;
@@ -26,7 +27,7 @@ export function createTemplateUpdateHost(context: common.Context, profileId: str
   let fingerprint = '';
   let generation = 0;
   return {
-    reset: (): void => { generation++; session = null; request = null; receipt = null; offered = null; },
+    reset: (): void => { generation++; source.cancel?.(); session = null; request = null; receipt = null; offered = null; },
     label: (conflict: TemplateConflict): string => source.label(conflict),
     preview: async (decisions: Record<string, string>): Promise<TemplateUpdatePreview> => {
       const epoch = ++generation; receipt = null; offered = null;
