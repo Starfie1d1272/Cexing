@@ -17,6 +17,22 @@ export namespace ProfileTransactions {
 
   export function isBusy(): boolean { return busy; }
 
+  let idleListeners: Array<() => void> = [];
+  /** Settlement only: no success claim. Unsubscribe when the observer leaves. */
+  export function onIdle(listener: () => void): () => void {
+    idleListeners.push(listener);
+    return (): void => { idleListeners = idleListeners.filter((entry: () => void) => entry !== listener); };
+  }
+
+  function leave(): void {
+    busy = false;
+    const listeners = idleListeners.slice();
+    for (const listener of listeners) {
+      try { listener(); } catch (_) { /* An observer cannot change the transaction result. */ }
+    }
+  }
+
+
   function enter(context: common.Context): void {
     if (busy) { throw new Error('已有配置操作正在进行，请稍后重试'); }
     if (ProfileStore.isApplyUncertain(context)) { uncertain = true; }
@@ -137,7 +153,7 @@ export namespace ProfileTransactions {
       if (original === null) { throw new Error('目标配置不存在或读取失败'); }
       return await publish(context, file, ProfileStore.prepareContent(original),
         ProfileStore.getEnabledMerge(context, file), metadata(context, file), true);
-    } finally { busy = false; }
+    } finally { leave(); }
   }
 
   /** Before a disconnected start, migrate old versions through the same gate. */
@@ -157,7 +173,7 @@ export namespace ProfileTransactions {
       if (original === null) { throw new Error('当前配置不存在或读取失败'); }
       await publish(context, file, ProfileStore.prepareContent(original),
         ProfileStore.getEnabledMerge(context, file), metadata(context, file), true);
-    } finally { busy = false; }
+    } finally { leave(); }
   }
 
   export async function edit(context: common.Context, file: string, content: string): Promise<ProfileApplyState> {
@@ -167,7 +183,7 @@ export namespace ProfileTransactions {
       const active = ProfileStore.getActiveFile(context) === file;
       return await publish(context, file, candidate, ProfileStore.getEnabledMerge(context, file),
         metadata(context, file, true), active);
-    } finally { busy = false; }
+    } finally { leave(); }
   }
 
   export async function update(context: common.Context, file: string,
@@ -179,7 +195,7 @@ export namespace ProfileTransactions {
       const active = ProfileStore.getActiveFile(context) === file;
       return await publish(context, file, downloaded.content, ProfileStore.getEnabledMerge(context, file),
         JSON.stringify(downloaded.meta), active, isCurrent);
-    } finally { busy = false; }
+    } finally { leave(); }
   }
 
   export async function rename(context: common.Context, file: string, name: string): Promise<string> {
@@ -197,7 +213,7 @@ export namespace ProfileTransactions {
       }
       return target;
     }
-    finally { busy = false; }
+    finally { leave(); }
   }
 
   export async function remove(context: common.Context, file: string): Promise<void> {
@@ -220,7 +236,7 @@ export namespace ProfileTransactions {
         throw new Error((e as Error).message);
       }
     }
-    finally { busy = false; }
+    finally { leave(); }
   }
 
   /** Preview and store an inert per-profile overlay. Production application remains a separate transaction. */
@@ -236,7 +252,7 @@ export namespace ProfileTransactions {
       const preview = await EffectiveVersions.previewMerge(context, original, overlay, region);
       ProfileStore.saveMergeDraft(context, file, overlay);
       return preview;
-    } finally { busy = false; }
+    } finally { leave(); }
   }
 
   /** Preview a common baseline against the active source and its local exception. */
@@ -252,7 +268,7 @@ export namespace ProfileTransactions {
       const region = saved !== undefined ? EffectiveVersions.regionPlan(context, saved) : null;
       return await EffectiveVersions.previewMerge(context, original,
         ProfileStore.getEnabledMerge(context, file), region, overlay);
-    } finally { busy = false; }
+    } finally { leave(); }
   }
 
   /** Global text and the active version share one atomic state publication. */
@@ -265,7 +281,7 @@ export namespace ProfileTransactions {
       if (original === null) { throw new Error('当前原始配置读取失败'); }
       return await publish(context, file, original, ProfileStore.getEnabledMerge(context, file),
         metadata(context, file), true, undefined, undefined, overlay);
-    } finally { busy = false; }
+    } finally { leave(); }
   }
 
   /** Enable or remove a Merge overlay through the same version and core transaction. */
@@ -280,7 +296,7 @@ export namespace ProfileTransactions {
       // The committed version remains authoritative if sidecar metadata cannot be written.
       try { ProfileStore.setMergeEnabled(context, file, overlay); } catch (_) {}
       return result;
-    } finally { busy = false; }
+    } finally { leave(); }
   }
 
   /** Recompile the active original and Merge through the normal version gate. */
@@ -300,7 +316,7 @@ export namespace ProfileTransactions {
       try { Settings.setSmartAutoConvert(context, previous); }
       catch (_) { markUnknown(context); }
       throw new Error((e as Error).message);
-    } finally { busy = false; }
+    } finally { leave(); }
   }
 
   export async function previewRegion(context: common.Context, file: string,
@@ -371,7 +387,7 @@ export namespace ProfileTransactions {
         }
       }
       return result;
-    } finally { busy = false; }
+    } finally { leave(); }
   }
 
   /** Consume only a user's explicit selection request, once Controller is ready. */
