@@ -14,13 +14,13 @@ REST 与原生 WS 使用 `Authorization: Bearer <secret>`。浏览器 WS 只能�
 
 ## 配置引擎接口
 
-`PUT /configs` 与 `/configs/` 仅接受一个非空 `path` 或 `payload`，可选 `overrides` 为现有 ArkTS UserOverrides 的 JSON 字符串。路径必须是 filesDir 内非符号链接的 `.yaml/.yml/.json` 文件，排除 credential 和 UI 目录。payload 最大 16 MiB；未知请求字段拒绝。`force` 查询参数为兼容现有调用而保留，宿主始终完整应用。
+`PUT /configs` 与 `/configs/` 仅接受一个非空 `path` 或 `payload`，可选 `overrides` 为现有 ArkTS UserOverrides 的 JSON 字符串，可选 `expectedSession` 为 Controller 会话标识。服务端在运行锁内、应用前核对非空 `expectedSession` 与当前会话；不匹配返回 409。路径必须是 filesDir 内非符号链接的 `.yaml/.yml/.json` 文件，排除 credential、诊断和 UI 目录。payload 最大 16 MiB；未知请求字段拒绝。`force` 查询参数为兼容现有调用而保留，宿主始终完整应用。
 
-`CoreApi.reloadConfig(absPath: string, overrides?: string): Promise<boolean>` 保持现有调用有效；新配置事务可传最新设置覆写。省略 overrides 使用本次启动或最近成功重载的设置。不在此处重造 Merge 引擎。原始配置 → 外部 Merge/策略引擎 → 宿主受控入口 → 支持的设置覆写 → 平台最终约束 → Mihomo 校验 → 应用。
+`CoreApi.reloadConfig(absPath: string, overrides?: string): Promise<boolean>` 保留路径重载及可选设置覆写的两参数接口，不发送 expectedSession。省略 overrides 使用本次启动或最近成功重载的设置。生产配置事务使用 `CoreApi.applyConfigText(content: string, expectedSession?: string): Promise<ConfigApplyResult>`，发送 payload 与会话标识；2xx 返回 applied，非 2xx 返回 rejected，凭据不可用或传输失败返回 unknown。`ProfileTransactions` 在应用与回退时均传入捕获的会话标识。候选编译、版本发布和 unknown 恢复沿用[配置契约](configuration.md#设置保存与连接快照)，不由这个 REST 入口另建事务。
 
-平台最终约束每次启动和重载统一施加：Controller 地址/Secret/CORS、UI 目录与禁止自动下载、禁用内核自动建 TUN/iptables/系统时间写入。额外 `listeners[].type=tun` 明确拒绝，防止经通用监听器绕过自动 TUN 禁用。系统 fd 的 TUN 使用宿主 gVisor、`172.19.0.1/30`、MTU 9000、DNS 劫持 `0.0.0.0:53`，不消费订阅的 tun 扩展字段。重载调用 executor 不重建 Controller 或系统 TUN，既有 REST/WS 认证与 UI 参数保留。
+平台最终约束每次启动和重载统一施加：Controller 地址/Secret/CORS、UI 目录与禁止自动下载、禁用内核自动建 TUN/iptables/系统时间写入。额外 `listeners[].type=tun` 明确拒绝，防止经通用监听器绕过自动 TUN 禁用。系统 fd 的 TUN 使用宿主 gVisor、IPv4 `172.19.0.1/30`、MTU 9000 和 DNS 劫持 `0.0.0.0:53`；开启宿主 IPv6 时另加 `fdfe:dcba:9876::1/126` 与 `[::]:53`，关闭时两者均不设置。不消费订阅的 tun 扩展字段；运行中 IPv6 服从已建立系统 TUN 的连接快照。`defaultTunOptions` 与 `TestSystemTunNetworkContract` 固定这些参数，实际手机双栈转发仍按 #92 验收。重载调用 executor 不重建 Controller 或系统 TUN，既有 REST/WS 认证与 UI 参数保留。
 
-返回 204 表示解析通过并执行 Mihomo ApplyConfig；400 为无效请求/配置，409 为宿主未初始化。上游 ApplyConfig 没有事务失败返回值；此接口不能宣称 provider 加载或网络转发已成功，更不能替代配置事务线的保存/应用回退。失败解析在 ApplyConfig 前结束；错误不回显任意 YAML 值。ProfileStore 原始数据格式不变。
+返回 204 表示解析通过并执行 Mihomo ApplyConfig；400 为无效请求/配置，409 为宿主未初始化、Controller 会话失效或 expectedSession 不匹配。上游 ApplyConfig 没有事务失败返回值；此接口不能宣称 provider 加载或网络转发已成功，更不能替代配置事务线的保存/应用回退。失败解析在 ApplyConfig 前结束；错误不回显任意 YAML 值。ProfileStore 原始数据格式不变。
 
 `PATCH /configs` 仅接受 `mode`（rule/global/direct）与 `log-level`（上游枚举）；其他字段一并拒绝，不能通过 PATCH 建 TUN 或更改平台边界。`/restart` 与 `/upgrade` 整个路由树在服务器拒绝（405），Geo 更新/规则写入维持上游 embed 限制。需要重启走原生 VPN 生命周期。
 
@@ -35,14 +35,14 @@ CORS 仅允许 `http://127.0.0.1:9090`，不开放通配来源或 private-networ
 
 兼容线 PR #2 的 platformSnapshot 可以记录固定回环端口、TUN 地址/MTU 和 UI 私有根句柄；Secret 只传不透明句柄或“已初始化”的状态，不能把 `getControllerAccess()` 的敏感对象放入候选、摘要、diff 或验证回执。配置引擎处理受保护字段时可给出 PROTECTED_FIELD，运行宿主仍重新施加最终强约束。
 
-providerSnapshot、固定 coreIdentity/capabilitiesDigest、validationReceipt、expectedActiveRevision 的生成、过期检测和激活比较交换由配置事务线负责。当前 REST 重载只提供受约束的运行应用边界，没有实现这些事务字段或 provider 完整健康确认。基线不支持 Smart；此安全改动不增加 Smart 或模型能力。
+providerSnapshot、固定 coreIdentity/capabilitiesDigest、validationReceipt、expectedActiveRevision 的生成、过期检测和激活比较交换由配置事务线负责。当前 REST 重载提供受约束且可按 expectedSession 核对会话的运行应用边界，不接收上述版本事务字段，也不确认 provider 完整健康。生产已使用锁定 Smart fork；Smart 组和离线模型的状态、预测证据与手机边界见 [Smart 契约](smart-beta.md#验证与手机边界)。
 
 
 ## 冷恢复的意图代次
 
 `VpnController.recover(onDone?)` 的探活提交由独立恢复代次保护。新一次 recover、有效 start、所有显式 stop（含仍为 Disconnected 的取消）和 `cancelRecovery()` 都使旧探活失效；过期结果既不提交 Connected，也不触发旧 onDone。新鲜探活与非断开态的现有完成语义保留。恢复代次与启动 IPC 的 startAttempt 分离，取消探活不会破坏正在进行的启动就绪检查。
 
-运行时线 PR #4 可在 `AppRuntime.cancelRestore()` 调用 `VpnController.cancelRecovery()`，覆盖只取消恢复/当前 Ability 销毁而没有 start/stop 的情况；这只是失效在途探活，不停止 VPN 或后台任务。本分支未修改 AppRuntime/EntryAbility。显式 start→stop→Disconnected 的竞态在本分支已封闭，纯运行时取消需该调用合流。Controller 探活仍不能证明系统 VPN 健康。
+`AppRuntime.cancelRestore()` 已调用 `VpnController.cancelRecovery()`，同时递增恢复代次并清理恢复定时器；`abilityDestroyed` 仅在销毁的是当前上下文时调用，旧 Ability 的迟到销毁不会撤销新上下文。取消恢复只使在途探活与回调失效，不停止 VPN 或后台任务。Controller 探活仍不能证明系统 VPN 健康。
 
 
 ## UI 故障降级与私有资源边界
@@ -59,13 +59,13 @@ UI 故障与凭据故障分离：凭据异常仍拒绝启动；UI 缺失、普�
 
 `enforcePlatformSecurity(map[string]any)` 仅调用上述投影，再把应用 Secret 注入内存 map；只允许 preparePlatformConfig 的瞬时解析/内核运行用途，严禁交给 candidate/成功版本、digest/差异预览、错误/日志或验证回执存储。原始订阅的顶层 Controller secret 也不继承到生成配置。候选的完整 Mihomo 校验可以使用不含 Secret 的投影；运行时应用前再由唯一宿主入口瞬时注入，而不是把 Secret 写进“临时”配置文件后再删除。
 
-本分支没有接入或修改 #5 的 configpipeline 文件；配置作者须对 candidate、成功版本与预览添加“应用 Secret 从未落盘”的验收，并在生产适配时选择可持久化投影。Go preparePlatformConfig 内部的 yaml.Marshal 缓冲仅驻留内存，不作为文件/回执输出。
+生产 `compileLayeredMerge` 的 Platform adapter 已复用 `projectPlatformConfig`，候选、成功版本与预览遵守平台 Secret 不落盘的边界。Go preparePlatformConfig 内部的 yaml.Marshal 缓冲仅驻留内存，不作为文件/回执输出；版本暂存、应用与发布继续走[既有配置事务](configuration.md#有效配置事务)。
 
 ## Controller 关闭完成边界
 
 Controller 使用宿主同步 `net.Listen(tcp4,127.0.0.1:9090)` 和自有 Server 生命周期，停止时使会话代次失效、关闭 HTTP/全部已接受的连接（包含上游 Hijack 的 WS）、等待 Serve 退出，再返回。已升级 WS 使用强制 TCP 终止，避免半关闭后仍能缓冲写入；下一次 start 在同一生命周期锁内先完成前次关闭。排队的 PUT/PATCH 在取得运行锁后再次检查会话代次，旧会话不能在停止后重新应用配置。没有依赖延迟重试或异步 ReCreateServer 来宣称停止完成。
 
-为了保留锁定内核原有 REST/WS 路由、认证和扩展路由，宿主只用 go:linkname 绑定锁定 Smart fork 的私有 router(bool,string,string,route.Cors) 工厂；监听器仍只有宿主这一份。没有复制上游 API 实现、修改模块缓存或增加第二台 HTTP 服务，go.mod/go.sum 与四个 C ABI 不变。这是明确的私有 Go 耦合，不能外推为稳定公开接口；内核升级/候选 Smart 必须核对工厂源码签名、完整链接构建及真实启停回归。本分支未关闭 Go 链接检查。
+为了保留锁定内核原有 REST/WS 路由、认证和扩展路由，宿主只用 go:linkname 绑定锁定 Smart fork 的私有 router(bool,string,string,route.Cors) 工厂；监听器仍只有宿主这一份。没有复制上游 API 实现或增加第二台 HTTP 服务；保留四个基础兼容 ABI 和三个生产扩展。这是明确的私有 Go 耦合，内核升级必须通过[私有 router 升级契约](platform.md#私有-controller-router-升级契约)的源码/签名门禁、完整链接构建及真实启停回归。
 
 另外，上游 executor 在 ExternalUI 非空时会尝试 AutoDownloadUI，即便 URL 为空。因此运行态 config.Controller.ExternalUI 明确置空以禁用该 updater，静态根由宿主显式 SetUIPath 管理；这不是 SetUIPath(空字符串)。持久化投影仍标记受控 external-ui=ui，重载从不把它交给 hub.ApplyConfig 重建路由。
 
@@ -77,9 +77,9 @@ Controller HTTP/WS 的停止不代表代理侧 generic inbound 已停止。coreS
 
 停止先对日志 handler 注册加关闭栅栏，再关闭 socket/取消会话，等待这些受控日志 handler 清理完成。**仅等待 Serve 退出不是 handler 清理证明；也不无限等待所有 API handler**，后者可能正在等待 coreStop 持有的运行锁。已排队配置写入仍靠会话代次拒绝。
 
-新增完整 race 检查暴露锁定 Mihomo generic HTTP 的上游同步风险：入站 IP/跳过认证全局切片和默认 authenticator 的读写没有统一同步。停止后的重新监听功能已验证，但这不等于并发安全重启已通过。此风险未在本线通过依赖更换、缓存补丁或测试抑制修复；具体证据见资源清理报告，需要父任务协调依赖层整改。
+锁定 Mihomo 的入站允许 IP、禁止 IP 和跳过认证前缀切片已由固定 `inbound-policy-race.patch` 改为原子快照，设置和公开读取均复制切片。`build-core.sh` 在构建专用模块缓存应用补丁，构建后核对补丁/文件摘要并把记录绑定到新库，再还原源码复验模块完整性；`verify-hap.py` 核对包所用构建记录的补丁身份和源文件集合。匹配失败阻断构建，不修改开发者共享缓存。这限定了相应策略读写点的同步边界，不证明所有入站转发连接退出或全部上游并发路径均已验收。
 
 
 ## 代理默认认证对象的同步
 
-默认代理 AuthStore 通过公开接口在 package init 一次性安装同步委托，之后不换 Default 身份。Get/SetAuthenticator 同步，已有 immutable snapshot、nil 和用户认证语义保留；它与 Controller Bearer Secret 分开。这个 wrapper 改动解决了第四项 authenticator race，不解决 upstream inbound 的三个私有前缀切片读写。产品链、实际双栈与未应用上游提案见 [race 边界报告](https://github.com/Starfie1d1272/Cexing/blob/df757138/docs/evidence/controller-security/2026-10-12-race-boundary.md)；不得把部分解决当成完整 race 已通过。
+默认代理 AuthStore 通过公开接口在 package init 一次性安装同步委托，之后不换 Default 身份。Get/SetAuthenticator 同步，已有 immutable snapshot、nil 和用户认证语义保留；它与 Controller Bearer Secret 分开。该委托保护默认 authenticator 的 Get/Set；三个私有前缀切片由上述固定补丁保护。[历史 race 边界报告](https://github.com/Starfie1d1272/Cexing/blob/df757138/docs/evidence/controller-security/2026-10-12-race-boundary.md)记录整改前的发现与当时提案，不代表当前补丁未应用；其观测范围也不扩展为所有代理流量或真机并发安全证明。
