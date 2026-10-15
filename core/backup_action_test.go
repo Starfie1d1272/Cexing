@@ -316,3 +316,52 @@ func TestBackupJournalFencesOtherPublications(t *testing.T) {
 		t.Fatal("read blocked or pointer changed", e)
 	}
 }
+
+func TestBackupAcceptsRegionProvenanceWithoutExportingRuntimeChoices(t *testing.T) {
+	h := backupHome(t)
+	p := backupFixture(t, h)
+	backupArm(t, h, p)
+	backupDo(t, h, versionAction{Op: "backup-commit", BackupToken: p.Token})
+	backupDo(t, h, versionAction{Op: "backup-ack", BackupToken: p.Token})
+	backupDo(t, h, versionAction{Op: "backup-finish", BackupToken: p.Token})
+	state, e := executeVersionAction(h, versionAction{Op: "read"})
+	if e != nil {
+		t.Fatal(e)
+	}
+	observed := "synthetic-runtime-observed"
+	stage, e := executeVersionAction(h, versionAction{Op: "stage", Expected: state.State.Current.ID, ProfileID: "one.yaml", Original: backupSource, Metadata: "{}", Overrides: `{"mixedPort":7890}`, RegionChoice: &configpipeline.RegionChoice{Pending: "Main", Previous: &configpipeline.RegionPreviousChoice{Selector: "Old", Name: "synthetic-runtime-manual", Observed: &observed}}})
+	if e != nil {
+		t.Fatal(e)
+	}
+	_, e = executeVersionAction(h, versionAction{Op: "commit", Expected: state.State.Current.ID, VersionID: stage.Version.ID, Active: true})
+	if e != nil {
+		t.Fatal(e)
+	}
+	prefs, _ := json.Marshal(backupPrefs())
+	exported := backupDo(t, h, versionAction{Op: "backup-export", Expected: stage.Version.ID, BackupPreferences: prefs})
+	raw, e := os.ReadFile(filepath.Join(h, "backups", exported.File))
+	if e != nil {
+		t.Fatal(e)
+	}
+	if bytes.Contains(raw, []byte("synthetic-runtime")) || bytes.Contains(raw, []byte("regionChoice")) {
+		t.Fatal("export leaked runtime choice")
+	}
+	restored := backupDo(t, h, versionAction{Op: "backup-prepare", Expected: stage.Version.ID, BackupFile: exported.File})
+	root, e := os.OpenRoot(filepath.Join(h, "backups"))
+	if e != nil {
+		t.Fatal(e)
+	}
+	defer root.Close()
+	plan, e := loadBackupPlan(root, restored.Token)
+	if e != nil {
+		t.Fatal(e)
+	}
+	source, e := os.ReadFile(filepath.Join(h, "profile-versions", plan.Versions[0].ID, "source.json"))
+	if e != nil {
+		t.Fatal(e)
+	}
+	var provenance struct{ RegionChoice *configpipeline.RegionChoice }
+	if json.Unmarshal(source, &provenance) != nil || provenance.RegionChoice == nil || provenance.RegionChoice.Previous != nil || provenance.RegionChoice.Pending != "" {
+		t.Fatal("restore replayed runtime choice")
+	}
+}
