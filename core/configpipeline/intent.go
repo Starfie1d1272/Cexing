@@ -361,6 +361,11 @@ func ApplyEditIntent(ctx context.Context, root *yaml.Node, intent *EditIntent) e
 	return applyBoundEditIntent(ctx, root, intent, nil, nil)
 }
 func applyBoundEditIntent(ctx context.Context, root *yaml.Node, intent *EditIntent, bindings map[string]*yaml.Node, disabled map[*yaml.Node]bool) error {
+	return applyEditIntentPhase(ctx, root, intent, bindings, disabled, nil, 0)
+}
+
+// phase 0: normal batch; 1: provider resources; 2: remaining personal edits.
+func applyEditIntentPhase(ctx context.Context, root *yaml.Node, intent *EditIntent, bindings map[string]*yaml.Node, disabled map[*yaml.Node]bool, baselines map[*yaml.Node]*yaml.Node, phase int) error {
 	if err := CheckEditIntent(intent); err != nil {
 		return err
 	}
@@ -373,25 +378,18 @@ func applyBoundEditIntent(ctx context.Context, root *yaml.Node, intent *EditInte
 			sections[TemplateTarget(intent.Template.TemplateID, e.ID)] = e.Section
 		}
 	}
-	baselines := map[*yaml.Node]*yaml.Node{}
-	// Snapshot every original target before any reference rewrite touches it.
-	for _, section := range editableSections {
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-		nodes, _, err := editNodes(root, section)
+	if baselines == nil {
+		var err error
+		baselines, err = snapshotEditBaselines(ctx, root)
 		if err != nil {
-			return intentError("invalid_source", -1)
-		}
-		for _, node := range nodes {
-			base, err := normalize(node, map[*yaml.Node]bool{})
-			if err != nil {
-				return intentError("invalid_source", -1)
-			}
-			baselines[node] = base
+			return err
 		}
 	}
 	for i, op := range intent.Operations {
+		resource := op.Section == "proxy-providers" || op.Section == "rule-providers"
+		if (phase == 1 && !resource) || (phase == 2 && resource) {
+			continue
+		}
 		if err := ctx.Err(); err != nil {
 			return err
 		}
@@ -777,6 +775,10 @@ func (c Compiler) boundEditSource(ctx context.Context, r Request) (*yaml.Node, *
 	for i, n := range groups {
 		sourceGroups[n] = names[i]
 	}
+	baselines, phase, err := prepareRegionResources(ctx, root, r)
+	if err != nil {
+		return nil, nil, err
+	}
 	if r.Region != nil && !r.Region.Disabled && (r.Intent == nil || r.Intent.Disabled || r.Intent.Template == nil) {
 		if err := ApplyRegion(ctx, root, *r.Region); err != nil {
 			return nil, nil, intentError("region_failed", -1)
@@ -805,7 +807,7 @@ func (c Compiler) boundEditSource(ctx context.Context, r Request) (*yaml.Node, *
 	if _, err := parse(encoded); err != nil {
 		return nil, nil, intentError("invalid_source", -1)
 	}
-	if err := applyBoundEditIntent(ctx, root, r.Intent, sessionTargets(session), session.DisabledNodes); err != nil {
+	if err := applyEditIntentPhase(ctx, root, r.Intent, sessionTargets(session), session.DisabledNodes, baselines, phase); err != nil {
 		return nil, nil, err
 	}
 	if err := ctx.Err(); err != nil {
@@ -934,4 +936,26 @@ func fieldFingerprint(section, key string, n *yaml.Node) string {
 	}
 	sum := sha256.Sum256(data)
 	return hex.EncodeToString(sum[:])
+}
+
+func snapshotEditBaselines(ctx context.Context, root *yaml.Node) (map[*yaml.Node]*yaml.Node, error) {
+	baselines := map[*yaml.Node]*yaml.Node{}
+	// Snapshot every original target before any reference rewrite touches it.
+	for _, section := range editableSections {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		nodes, _, err := editNodes(root, section)
+		if err != nil {
+			return nil, intentError("invalid_source", -1)
+		}
+		for _, node := range nodes {
+			base, err := normalize(node, map[*yaml.Node]bool{})
+			if err != nil {
+				return nil, intentError("invalid_source", -1)
+			}
+			baselines[node] = base
+		}
+	}
+	return baselines, nil
 }
