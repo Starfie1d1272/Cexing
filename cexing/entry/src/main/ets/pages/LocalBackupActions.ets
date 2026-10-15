@@ -1,3 +1,4 @@
+import { UiText } from '../lib/UiText';
 import { common } from '@kit.AbilityKit';
 import { picker } from '@kit.CoreFileKit';
 import { promptAction } from '@kit.ArkUI';
@@ -37,9 +38,9 @@ export struct LocalBackupActions {
   private exportConfirm(): void {
     if (this.working) { return; }
     const generation = ++this.generation; this.working = true;
-    AlertDialog.show({ title: '导出本地备份', message: '备份含订阅地址和节点凭据，请妥善保管。',
-      primaryButton: { value: '取消', action: () => { if (this.current(generation)) { this.generation++; this.working = false; } } },
-      secondaryButton: { value: '选择保存位置', action: () => { this.exportFile(generation); } },
+    AlertDialog.show({ title: UiText.get($r('app.string.backup_export')), message: UiText.get($r('app.string.backup_export_risk')),
+      primaryButton: { value: UiText.get($r('app.string.backup_cancel')), action: () => { if (this.current(generation)) { this.generation++; this.working = false; } } },
+      secondaryButton: { value: UiText.get($r('app.string.backup_choose_location')), action: () => { this.exportFile(generation); } },
       cancel: () => { if (this.current(generation)) { this.generation++; this.working = false; } } });
   }
   private async exportFile(generation: number): Promise<void> {
@@ -50,12 +51,12 @@ export struct LocalBackupActions {
     try {
       const doc = new picker.DocumentViewPicker(context);
       const options = new picker.DocumentSaveOptions();
-      options.newFileNames = ['Cexing-backup.json']; options.fileSuffixChoices = ['备份|.json'];
+      options.newFileNames = ['Cexing-backup.json']; options.fileSuffixChoices = [UiText.get($r('app.string.backup_file_type'))];
       const uris = await doc.save(options);
       if (!current() || uris.length === 0) { return; }
       await LocalBackup.exportTo(context, uris[0], current);
-      if (current()) { promptAction.showToast({ message: '备份已保存' }); }
-    } catch (_) { if (current()) { promptAction.showToast({ message: '导出未完成，请重试' }); } }
+      if (current()) { promptAction.showToast({ message: UiText.get($r('app.string.backup_saved')) }); }
+    } catch (_) { if (current()) { promptAction.showToast({ message: UiText.get($r('app.string.backup_export_failed')) }); } }
     finally { if (current()) { this.working = false; } }
   }
   private async importFile(): Promise<void> {
@@ -73,41 +74,50 @@ export struct LocalBackupActions {
       preview = await LocalBackup.preview(context, uris[0], current);
       if (!current()) { await LocalBackup.cancel(context, preview); return; }
       this.pending = preview; this.confirmRestore(context, preview, generation);
-    } catch (_) { if (current()) { this.working = false; promptAction.showToast({ message: '备份无法读取或验证，请检查文件' }); } }
+    } catch (_) { if (current()) { this.working = false; promptAction.showToast({ message: UiText.get($r('app.string.backup_invalid')) }); } }
   }
   private confirmRestore(context: common.UIAbilityContext, preview: BackupResult, generation: number): void {
     const current = (): boolean => this.current(generation);
     const epoch = VpnController.configurationEpoch();
     const conflicts = preview.names.filter((name) => name.from !== name.to);
     const interrupt = VpnController.status !== VpnStatus.Disconnected || VpnController.needsStop();
-    const message = `导入 ${preview.profiles} 个订阅并恢复设置。` +
-      (conflicts.length > 0 ? ` ${conflicts.length} 个同名订阅将另存为新名称。` : '') +
-      (preview.globalChanged ? ' 全局覆写将更新。' : '') + (interrupt ? ' 将先断开 VPN。' : '');
+    const message = UiText.get($r('app.string.backup_restore_count'), preview.profiles) +
+      (conflicts.length > 0 ? UiText.get($r('app.string.backup_conflicts'), conflicts.length) : '') +
+      (preview.globalChanged ? UiText.get($r('app.string.backup_global_changed')) : '') + (interrupt ? UiText.get($r('app.string.backup_disconnect_risk')) : '');
     const cancel = (): void => {
       if (this.restoring === generation) { return; }
       if (this.pending === preview) { this.pending = null; }
       LocalBackup.cancel(context, preview).catch(() => {});
       if (current()) { this.generation++; this.working = false; }
     };
-    AlertDialog.show({ title: '恢复备份', message: message,
-      primaryButton: { value: '取消', action: cancel }, cancel: cancel,
-      secondaryButton: { value: interrupt ? '断开并恢复' : '恢复', action: async () => {
+    AlertDialog.show({ title: UiText.get($r('app.string.backup_restore')), message: message,
+      primaryButton: { value: UiText.get($r('app.string.backup_cancel')), action: cancel }, cancel: cancel,
+      secondaryButton: { value: interrupt ? UiText.get($r('app.string.backup_disconnect_restore')) : UiText.get($r('app.string.backup_restore_action')), action: async () => {
         if (this.restoring === generation) { return; }
         if (!current() || epoch !== VpnController.configurationEpoch()) { cancel(); return; }
         this.restoring = generation;
         try {
           await LocalBackup.restore(context, preview, current, interrupt);
-          if (current()) { promptAction.showToast({ message: '已恢复，下次连接生效' }); }
+          if (current()) { promptAction.showToast({ message: UiText.get($r('app.string.backup_restored')) }); }
         } catch (error) {
-          if (current()) { promptAction.showToast({ message: (error as Error).message }); }
+          if (current()) { promptAction.showToast({ message: this.restoreFailure(error) }); }
           await LocalBackup.cancel(context, preview).catch(() => {});
         } finally { if (this.pending === preview) { this.pending = null; } if (current()) { this.working = false; } }
       } } });
   }
+  private restoreFailure(error: Object): string {
+    const message = (error as Error).message;
+    if (message === '备份恢复未确认，请重新打开应用后重试') { return UiText.get($r('app.string.backup_restore_unknown')); }
+    if (message === '恢复失败，原资料已保留') { return UiText.get($r('app.string.backup_restore_prior')); }
+    if (message === '断开未确认，请重试' || message === '需要确认断开 VPN' || message === '请先确认断开 VPN') {
+      return UiText.get($r('app.string.backup_stop_unconfirmed'));
+    }
+    return UiText.get($r('app.string.backup_restore_failed'));
+  }
   build() {
     Column({ space: 8 }) {
-      Button('导出本地备份').width('100%').height(48).onClick(() => this.exportConfirm())
-      Button('恢复本地备份').width('100%').height(48).onClick(() => this.importFile())
+      Button(UiText.get($r('app.string.backup_export'))).width('100%').constraintSize({ minHeight: 48 }).enabled(!this.working).accessibilityDescription(this.working ? UiText.get($r('app.string.backup_working')) : '').onClick(() => this.exportConfirm())
+      Button(UiText.get($r('app.string.backup_restore_local'))).width('100%').constraintSize({ minHeight: 48 }).enabled(!this.working).accessibilityDescription(this.working ? UiText.get($r('app.string.backup_working')) : '').onClick(() => this.importFile())
     }.enabled(!this.working).width('100%').padding(14).backgroundColor(UI.surface).borderRadius(24)
   }
 }

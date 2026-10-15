@@ -1911,6 +1911,134 @@
     {
       "name": "template_other_changes",
       "value": "其他配置已调整"
+    },
+    {
+      "name": "backup_export",
+      "value": "导出本地备份"
+    },
+    {
+      "name": "backup_export_risk",
+      "value": "备份含订阅地址和节点凭据，请妥善保管。"
+    },
+    {
+      "name": "backup_cancel",
+      "value": "取消"
+    },
+    {
+      "name": "backup_choose_location",
+      "value": "选择保存位置"
+    },
+    {
+      "name": "backup_file_type",
+      "value": "备份|.json"
+    },
+    {
+      "name": "backup_saved",
+      "value": "备份已保存"
+    },
+    {
+      "name": "backup_export_failed",
+      "value": "导出未完成，请重试"
+    },
+    {
+      "name": "backup_invalid",
+      "value": "备份无法读取或验证，请检查文件"
+    },
+    {
+      "name": "backup_restore",
+      "value": "恢复备份"
+    },
+    {
+      "name": "backup_restore_local",
+      "value": "恢复本地备份"
+    },
+    {
+      "name": "backup_restore_count",
+      "value": "导入 %d 个订阅并恢复设置。"
+    },
+    {
+      "name": "backup_conflicts",
+      "value": " %d 个同名订阅将另存为新名称。"
+    },
+    {
+      "name": "backup_global_changed",
+      "value": " 全局覆写将更新。"
+    },
+    {
+      "name": "backup_disconnect_risk",
+      "value": " 将先断开 VPN。"
+    },
+    {
+      "name": "backup_disconnect_restore",
+      "value": "断开并恢复"
+    },
+    {
+      "name": "backup_restored",
+      "value": "已恢复，下次连接生效"
+    },
+    {
+      "name": "backup_restore_unknown",
+      "value": "备份恢复未确认，请重新打开应用后重试"
+    },
+    {
+      "name": "backup_restore_prior",
+      "value": "恢复失败，原资料已保留"
+    },
+    {
+      "name": "backup_stop_unconfirmed",
+      "value": "断开未确认，请重试"
+    },
+    {
+      "name": "backup_restore_failed",
+      "value": "恢复未完成，请重试"
+    },
+    {
+      "name": "backup_working",
+      "value": "正在处理备份"
+    },
+    {
+      "name": "storage_no_stats",
+      "value": "暂无统计，请重试"
+    },
+    {
+      "name": "storage_incomplete",
+      "value": "暂无法整理，请稍后重试"
+    },
+    {
+      "name": "storage_stats_failed",
+      "value": "暂无法统计，请稍后重试"
+    },
+    {
+      "name": "storage_summary",
+      "value": "%d 个版本 · %s MiB"
+    },
+    {
+      "name": "storage_collapse",
+      "value": "收起存储详情"
+    },
+    {
+      "name": "storage_details",
+      "value": "存储详情"
+    },
+    {
+      "name": "storage_working",
+      "value": "正在统计"
+    },
+    {
+      "name": "storage_refresh",
+      "value": "刷新"
+    },
+    {
+      "name": "storage_expanded",
+      "value": "已展开"
+    },
+    {
+      "name": "storage_collapsed",
+      "value": "已收起"
+    },
+    {
+      "name": "backup_restore_action",
+      "value": "恢复"
     }
   ]
 }

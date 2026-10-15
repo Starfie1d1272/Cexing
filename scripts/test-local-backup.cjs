@@ -1,3 +1,4 @@
+const uiFixture = require('./ci/ui-fixtures.cjs');
 const assert = require('node:assert/strict'), fs = require('node:fs'), vm = require('node:vm');
 const ts = require('./ci/transpile-arkts.cjs');
 const source = fs.readFileSync('cexing/entry/src/main/ets/lib/Settings.ets','utf8');
@@ -48,7 +49,7 @@ function fixture({journal = null, disk = new Map()} = {}) {
  let src=fs.readFileSync('cexing/entry/src/main/ets/pages/LocalBackupActions.ets','utf8');src=(src.slice(0,src.indexOf('  build()'))+'\n}').split('\n').map(l=>l.trimStart().startsWith('@')?l.replace(/@\w+(?:\([^\n)]*\))?\s*/g,''):l).join('\n').replace('export struct ','export class ');
  let dialog,restores=0,cancels=0,epoch=1,resolveRestore,paths=[],pickers=0,finishPicker,selections=[];
  const modules={'@kit.CoreFileKit':{picker:{DocumentSaveOptions:class{},DocumentSelectOptions:class{},DocumentViewPicker:class{select(){return new Promise(r=>selections.push(r))}save(){pickers++;return new Promise(r=>finishPicker=r)}}}},'../lib/LocalBackup':{LocalBackup:{restore:async()=>{restores++;await new Promise(r=>resolveRestore=r)},cancel:async()=>{cancels++}}},'../lib/VpnController':{VpnStatus:{Disconnected:0},VpnController:{status:0,needsStop:()=>false,configurationEpoch:()=>epoch}},'@kit.ArkUI':{promptAction:{showToast(){}}}};
- const sandbox={exports:{},require:n=>modules[n]??{},getContext:()=>({}),AlertDialog:{show:d=>dialog=d}};vm.runInNewContext(ts.transpileModule(src).outputText,sandbox);
+ const sandbox={exports:{},require:n=>n.endsWith('/UiText')?uiFixture.module:modules[n]??{},getContext:()=>({}),AlertDialog:{show:d=>dialog=d}};Object.assign(sandbox,uiFixture.globals);vm.runInNewContext(ts.transpileModule(src).outputText,sandbox);
  const p=new sandbox.exports.LocalBackupActions();p.navStack={getAllPathName:()=>paths};p.aboutToAppear();p.exportConfirm();assert.match(dialog.message,/凭据/);const cancelledDialog=dialog;dialog.primaryButton.action();assert.equal(p.working,false);cancelledDialog.secondaryButton.action();assert.equal(pickers,0,'cancelled risk consent cannot reopen the picker');
  p.exportConfirm();dialog.secondaryButton.action();dialog.secondaryButton.action();assert.equal(pickers,1,'one picker per consent');finishPicker([]);await new Promise(r=>setImmediate(r));
  for(const oldResult of [[],['old-uri']]){
