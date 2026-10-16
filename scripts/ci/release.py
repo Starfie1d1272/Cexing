@@ -256,6 +256,12 @@ def publish(folder):
     app = json.loads((folder / 'build-identity.json').read_text())['app']
     require(str(app['versionCode']) == os.environ['VERSION_CODE'], 'Wrong preflight versionCode')
     require(remote_commit(tag) == sha, 'Live tag changed; refusing publication')
+    latest = api(API + '/releases/latest', optional=True)
+    if latest is not None:
+        prior = TAG.fullmatch(latest['tag_name'])
+        current = TAG.fullmatch(tag)
+        require(prior is not None and tuple(map(int, prior.groups())) <= tuple(map(int, current.groups())),
+                'A newer or unrecognized latest Release exists; refusing to downgrade')
     remote = api(API + '/releases/tags/' + tag, optional=True)
     if remote is not None:
         require(remote['tag_name'] == tag, 'Wrong existing release')

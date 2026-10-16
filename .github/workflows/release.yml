@@ -53,6 +53,9 @@ jobs:
     needs: [resolve, build]
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    concurrency:
+      group: cexing-release-publication
+      cancel-in-progress: false
     # The only write token: create/update this Release and upload its assets.
     # Build and dependency execution have contents:read and never receive it.
     permissions:

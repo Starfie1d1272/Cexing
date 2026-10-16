@@ -108,6 +108,16 @@ class ReleaseTests(unittest.TestCase):
                 r.publish(self.root)
             api.assert_not_called()
 
+    def test_older_retry_cannot_downgrade_latest(self):
+        self.bundle()
+        env = {'RELEASE_TAG': 'v0.1.0', 'SOURCE_SHA': 'a' * 40, 'SOURCE_TREE': 'b' * 40,
+               'GITHUB_WORKFLOW_SHA': 'c' * 40, 'GITHUB_RUN_ID': '123', 'GITHUB_RUN_ATTEMPT': '1', 'VERSION_CODE': '1'}
+        with patch.dict(os.environ, env), patch.object(r, 'remote_commit', return_value='a' * 40), patch.object(r, 'api', return_value={'tag_name': 'v0.2.0'}) as api:
+            with self.assertRaises(ValueError):
+                r.publish(self.root)
+            self.assertEqual(api.call_count, 1)
+            self.assertEqual(api.call_args.args[0], r.API + '/releases/latest')
+
     def test_module_source_rejects_sum_drift_before_packaging(self):
         identity = {'core': {'Deps': [{'Path': 'example.invalid/module', 'Version': 'v1.0.0', 'Sum': 'h1:expected'}]}}
         with patch.object(r, 'command', return_value=b'{"Sum":"h1:different"}'):
