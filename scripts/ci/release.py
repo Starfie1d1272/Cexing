@@ -224,6 +224,22 @@ def api(path, method='GET', payload=None, optional=False):
     return value
 
 
+def find_release(tag):
+    # GET /releases/tags/{tag} omits drafts, even with the current owner connection.
+    # List all pages, including drafts; never confuse an API error with absence.
+    matches = []
+    for page in range(1, 101):
+        rows = api(API + f'/releases?per_page=100&page={page}')
+        require(isinstance(rows, list) and all(isinstance(row, dict) for row in rows), 'Invalid release listing')
+        matches.extend(row for row in rows if row.get('tag_name') == tag)
+        if len(rows) < 100:
+            break
+    else:
+        raise ValueError('Release listing exceeded pagination limit')
+    require(len(matches) <= 1, 'Multiple releases use this tag; manual inspection required')
+    return matches[0] if matches else None
+
+
 def remote_commit(tag):
     obj = api(API + '/git/ref/tags/' + tag)['object']
     # Support lightweight and annotated tags without altering them.
@@ -262,7 +278,7 @@ def publish(folder):
         current = TAG.fullmatch(tag)
         require(prior is not None and tuple(map(int, prior.groups())) <= tuple(map(int, current.groups())),
                 'A newer or unrecognized latest Release exists; refusing to downgrade')
-    remote = api(API + '/releases/tags/' + tag, optional=True)
+    remote = find_release(tag)
     if remote is not None:
         require(remote['tag_name'] == tag, 'Wrong existing release')
         missing = reconcile(remote, folder, hashes)

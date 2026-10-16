@@ -99,6 +99,20 @@ class ReleaseTests(unittest.TestCase):
                     with self.assertRaises(optional_result):
                         r.api('unused', optional=True)
 
+    def test_release_lookup_includes_drafts_all_pages_and_refuses_ambiguity(self):
+        draft = {'id': 414472452, 'tag_name': 'v0.1.0', 'draft': True, 'assets': []}
+        first = [{'tag_name': 'v0.0.0'}] * 100
+        with patch.object(r, 'api', side_effect=[first, [draft]]) as api:
+            self.assertEqual(r.find_release('v0.1.0'), draft)
+            self.assertEqual(api.call_count, 2)
+            self.assertIn('page=2', api.call_args.args[0])
+        with patch.object(r, 'api', return_value=[draft, dict(draft)]):
+            with self.assertRaises(ValueError):
+                r.find_release('v0.1.0')
+        with patch.object(r, 'api', side_effect=ValueError('API denied')):
+            with self.assertRaises(ValueError):
+                r.find_release('v0.1.0')
+
     def test_live_tag_mismatch_stops_before_any_remote_write(self):
         self.bundle()
         env = {'RELEASE_TAG': 'v0.1.0', 'SOURCE_SHA': 'a' * 40, 'SOURCE_TREE': 'b' * 40,
