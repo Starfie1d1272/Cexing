@@ -45,7 +45,12 @@ concurrency:
   cancel-in-progress: false
 jobs:
   full:
-    if: github.repository == 'Starfie1d1272/Cexing' && (inputs.release_tag != '' || (github.event_name == 'workflow_dispatch' && startsWith(github.ref, 'refs/heads/')))
+    if: >-
+      github.repository == 'Starfie1d1272/Cexing' &&
+      ((inputs.release_tag == '' && github.event_name == 'workflow_dispatch' && startsWith(github.ref, 'refs/heads/')) ||
+       (inputs.release_tag != '' &&
+        ((github.event_name == 'push' && github.ref == format('refs/tags/{0}', inputs.release_tag)) ||
+         (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'))))
     # Never attach this runner to pull_request / pull_request_target events.
     runs-on: ${{ inputs.runner == 'self-hosted' && fromJSON('["self-hosted", "linux", "x64", "harmonyos-ci"]') || 'ubuntu-24.04' }}
     environment: harmonyos-ci
