@@ -14,6 +14,7 @@ python3 scripts/ci/check-toolchain.py
 python3 scripts/update-routing-rules.py --verify
 node scripts/ci/source-check.cjs
 python3 scripts/ci/test-private-stderr.py
+python3 scripts/ci/test-release.py
 if [ -f third_party/zashboard/source.json ]; then
   python3 scripts/ci/timed.py zashboard bash scripts/ci/prepare-zashboard.sh
 fi

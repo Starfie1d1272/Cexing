@@ -1,6 +1,6 @@
 # CI 与构建身份
 
-Quick 在 GitHub 托管 Ubuntu runner 上执行；Full 只由人工调度到 GitHub-hosted Ubuntu 或预装授权 SDK 的可信 runner。两者均不签名、不安装设备、不发布到商店或自动合并。Full 完成校验后保存该次 CI 构建的未签名测试包。仓库、应用名称和 bundleName 保持源声明。
+Quick 在 GitHub 托管 Ubuntu runner 上执行；Full 由人工调度或 tag 发行工作流复用，在 GitHub-hosted Ubuntu 或预装授权 SDK 的可信 runner 构建。两者均不签名、不安装设备、不发布到商店或自动合并。Full 完成校验后保存该次 CI 构建的未签名测试包。仓库、应用名称和 bundleName 保持源声明。
 
 ## Quick
 
@@ -58,9 +58,9 @@ Full 要求干净、已提交的 checkout。Go 解压模块、编译、npm 和 H
 
 ## GitHub 配置
 
-Quick 在 PR、main/本 CI 分支 push 和人工调度运行，只授予 `contents: read`，checkout 不保留凭据，无共享 Go 缓存。
+Quick 在 PR、main/本 CI 分支 push 和人工调度运行，只授予 `contents: read`，checkout 不保留凭据，只缓存经每次校验的公开 Go 下载归档，不共享解压模块或编译缓存。
 
-Full 只有 `workflow_dispatch`。默认 `runner=github-hosted` 运行在 `ubuntu-24.04`，自动安装固定 Go、Node、JDK 27 和固定 CLT/SDK。`runner=self-hosted` 仅是可选备用，要求标签 `self-hosted, linux, x64, harmonyos-ci`，不要求用户购买或维护服务器。
+Full 提供 `workflow_dispatch` 与仅用于发行编排的 `workflow_call`。默认 `runner=github-hosted` 运行在 `ubuntu-24.04`，自动安装固定 Go、Node、JDK 27 和固定 CLT/SDK。`runner=self-hosted` 仅是可选备用，要求标签 `self-hosted, linux, x64, harmonyos-ci`，不要求用户购买或维护服务器。
 
 调度前审查本次提交，填写 `reviewed_sha`（所选分支完整 40 位 SHA）和 `authorized_sdk=true`。仅允许本仓库分支，须由有调度权限的维护者人工审查明确 SHA；不运行 PR 或 `pull_request_target`，不接受任意 checkout ref。任务仅 `contents: read`，checkout 不保留凭据。仓库管理员应为 `harmonyos-ci` environment 配置受信分支限制与审批；环境名称本身不建立审批规则。人工 SHA 复核也不等于 GitHub 的独立 reviewer 审批。请保护允许的分支和 workflow 写权限。
 
@@ -85,3 +85,19 @@ Full 成功完成所有检查后，将该次 CI 构建的未签名 HAP、build-i
 Dependabot 每周一上海时间 09:00 检查 npm 工具依赖和 Actions。`toolchain-updates.yml` 同时查询 Go 官方稳定版、Node 正式发行版、Adoptium JDK、ErBWs SDK 镜像及 npm pnpm，提出更高的 Go/Node/JDK 版本并同步 workflow 声明；SDK/pnpm 候选写入 PR 供配套兼容验证，镜像落后时不降级。pnpm 涉及供应商 wrapper 与 Zashboard 资源清单，不能由通用 npm bot 单独替换。SDK/Hvigor/ohpm 的配套版本由下载归档验证后一起更新，不能凭 SDK Release tag 猜测。
 
 升级 PR 必须执行 Quick 和经审查 SHA 的人工 Full；自建 bot 显式调度 Quick，Full 不自动调度。升级失败不自动合并，main 继续使用已经验证的组合。没有自动合并配置。Dependabot/定时工作流在本 PR 合并 main 后才开始生效；自建更新 workflow 使用仅本仓库 `contents: write`、`pull-requests: write` 和 `actions: write`（显式调度 Quick，避免内置 Token 创建的 PR 不触发检查） 的内置 GITHUB_TOKEN，仓库还需允许 Actions 创建 PR。未获此设置权限时如实失败，不要求个人 PAT。API 故障也会失败，不伪造“已升级”。
+
+## Tag 发行与失败重试
+
+`Release unsigned HAP` 接受本仓库 `vMAJOR.MINOR.PATCH` tag push；tag 指向的提交必须已包含在 main 历史中。创建发行 tag 即请求在既有 `harmonyos-ci` 环境按已接受的工具链许可运行构建；工作流不更改 environment、分支保护或其他安全设置。tag 必须与 `AppScope/app.json5` 的 versionName 相等，versionCode 为正 int32、buildVersion 与其一致，并高于祖先发行 tag 的 versionCode。版本文件在此门禁要求保留当前严格 JSON 子集，解析失败直接拒绝。
+
+发行调用同一个 Full 工作流，检出精确 tag commit，重跑完整构建、真实模型测试和 HAP 校验；不额外再构建一次 HAP。Full 的手动测试包入口继续保留。构建任务只有 `contents: read`；独立 publish job 才授予 `contents: write`，用于普通 Release 正文、状态与资产写入。全部使用本次 Actions 内置短期 GITHUB_TOKEN，不需要 PAT、新 secret 或账号设置变更。SDK 仍使用已有可选镜像配置，不缓存 SDK。
+
+仅发布 Full 在同一次 run 成功上传并下载复核的精确 artifact ID。publish job 不执行 HAP、应用代码或 artifact 内脚本；独立检查文件集合、SHA256SUMS、commit/tree、版本、构建 run/attempt 与发行控制源码身份。HAP、原 build-identity.json 和 notices 不改写；release-provenance.json 单列控制工作流 commit。源码包包含 tag 的项目源码、构建脚本/补丁、实际链接的 Go 依赖精确 ZIP/模块元数据、锁定 Zashboard 源码和发行控制脚本；各 Go Sum 必须匹配构建记录。额外提供 GeoIP、Go/LLVM/native 运行库与补充声明。原 CI 的发行批准标志不等同于许可授权，保持原值。
+
+publish 先读取现有 Release：API 错误不当成“不存在”；同名资产必须逐个名称、大小、SHA-256 完全相同，差异或未知资产直接失败，不使用 `--clobber`，不删除资产或修改 tag。允许继续上传同一构建剩余资产，全部匹配后才公开普通 Release，并明确标注早期测试与 #92 未完成验收。公开后匿名重新下载每个资产，核对字节摘要、latest API 与实时 tag commit；下载或授权失败仍使任务失败，不能宣称完成。
+
+失败后优先使用 GitHub **Re-run failed jobs**：保留已成功构建的 artifact 与原 build attempt，不重建相同包。重新调度整个 workflow 会重新构建；如果已有资产字节不同，将拒绝替换。artifact 过期或旧字节不能恢复时，保持原发行待人工核查，不能靠删除资产或移动 tag 绕过。
+
+旧 tag 中没有发行工作流时，在合并并独审通过的 main 上手动调度 `release.yml`，输入现有 tag 与审查过的完整 expected_sha。它仍构建原 tag 的干净 checkout，控制脚本从本次 main 的固定 workflow commit 读取；不会往旧源码写入新脚本。为兼容旧版校验器，只在 Full 子进程中把 GITHUB_SHA 显式设置为实际检出的源码 SHA；原工作流 commit 在 release-provenance 中另列，不冒充从 main 或其他分支源码构建。若旧源码与当前工具链/资源声明不兼容，则如实失败，不改 tag。此入口只允许 main，不接受分支、任意 shell 命令、任意 artifact/run ID 或任意源码 URL。
+
+Quick 与 Full 共用按 OS/架构、go.mod、go.sum、工具链声明分键的公开 Go 下载归档缓存。每次复制到隔离模块缓存并执行完整性检查，Smart 补丁仍在另一个隔离缓存中处理。Quick 也在两阶段之间复用原始下载归档，避免重复联网下载；不共享已解压/打补丁模块、Go 编译缓存或 HAP。Zashboard 缓存键包含来源/manifest/补丁、准备脚本与工具链，每次仍验证完整资源集合。缓存命中不是跳过测试或产物验证的理由。

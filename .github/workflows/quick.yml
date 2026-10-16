@@ -25,5 +25,11 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '26.11.1'
+      - name: Set verified public archive cache
+        run: echo "CI_GO_DOWNLOAD_CACHE=$RUNNER_TEMP/public-go-downloads" >> "$GITHUB_ENV"
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/public-go-downloads
+          key: public-go-downloads-v2-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('core/go.mod', 'core/go.sum', 'scripts/ci/toolchain.json') }}
       - run: npm ci --prefix scripts/ci --ignore-scripts --no-audit --no-fund
       - run: bash scripts/ci/quick.sh
