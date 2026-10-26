@@ -9,6 +9,7 @@ import { http } from '@kit.NetworkKit';
 import { bundleManager, common } from '@kit.AbilityKit';
 import { util } from '@kit.ArkTS';
 import { Logger } from './Logger';
+import { SubscriptionInfo } from './SubscriptionInfo';
 import { ImportFailure, ImportFailures } from './ImportFailure';
 import { suggestProfileName, profileNameFromUrl } from './ProfileName';
 import { EffectiveVersions } from './EffectiveVersions';
@@ -30,11 +31,21 @@ export interface ProfileMeta {
 }
 
 /** 订阅流量信息（来自 HTTP 响应头 subscription-userinfo） */
+export interface SubValidity {
+  upload: boolean;
+  download: boolean;
+  total: boolean;
+  expire: boolean;
+  header: string;
+  fetchedAt: number;
+}
+
 export interface SubInfo {
   upload: number;
   download: number;
   total: number;
   expire: number;
+  validity?: SubValidity;
 }
 
 /** 侧车 meta.json 中单个 profile 的扩展信息 */
@@ -329,52 +340,12 @@ export namespace ProfileStore {
     }
   }
 
-  /** 解析 subscription-userinfo 响应头（upload=1; download=2; total=3; expire=4，字段可缺失） */
-  function parseSubInfo(raw: string): SubInfo {
-    const out: SubInfo = { upload: 0, download: 0, total: 0, expire: 0 };
-    if (raw.length === 0) {
-      return out;
-    }
-    const parts = raw.split(';');
-    for (const part of parts) {
-      const eq = part.indexOf('=');
-      if (eq <= 0) {
-        continue;
-      }
-      const k = part.substring(0, eq).trim();
-      const v = Number(part.substring(eq + 1).trim());
-      // !(v >= 0) 同时命中 NaN（转换失败）与负数
-      if (!(v >= 0)) {
-        continue;
-      }
-      if (k === 'upload') {
-        out.upload = v;
-      } else if (k === 'download') {
-        out.download = v;
-      } else if (k === 'total') {
-        out.total = v;
-      } else if (k === 'expire') {
-        out.expire = v;
-      }
-    }
-    return out;
-  }
-
-  /** 从 HTTP 响应构造 meta 条目（头键名为小写 subscription-userinfo） */
+  /** Subscription metadata and its observation time travel with the existing source transaction. */
   function metaEntryFromResp(resp: http.HttpResponse, url: string): ProfileMetaExt {
-    let raw = '';
-    try {
-      const headers = resp.header as Record<string, Object>;
-      const v = headers['subscription-userinfo'];
-      raw = typeof v === 'string' ? v : '';
-    } catch (e) {
-      // 无该头，忽略
-    }
-    return {
-      origin: url,
-      sub: parseSubInfo(raw),
-      updatedAt: Math.floor(Date.now() / 1000)
-    };
+    const fetchedAt = Math.floor(Date.now() / 1000);
+    return { origin: url,
+      sub: SubscriptionInfo.parse(resp.header as Record<string, Object>, fetchedAt),
+      updatedAt: fetchedAt };
   }
 
   export function list(context: common.Context): ProfileMeta[] {

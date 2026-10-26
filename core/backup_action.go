@@ -19,6 +19,15 @@ import (
 	"unicode/utf8"
 )
 
+type backupSubValidity struct {
+	Upload    bool    `json:"upload"`
+	Download  bool    `json:"download"`
+	Total     bool    `json:"total"`
+	Expire    bool    `json:"expire"`
+	Header    string  `json:"header"`
+	FetchedAt float64 `json:"fetchedAt"`
+}
+
 const maxBackupBytes = 64 * 1024 * 1024
 
 var backupFilePattern = regexp.MustCompile(`^backup-(import|export)-[A-Za-z0-9_-]+\.json$`)
@@ -218,9 +227,12 @@ func validBackupProfile(p backupProfile) bool {
 		return false
 	}
 	var meta struct {
-		Origin    string                                            `json:"origin"`
-		Sub       struct{ Upload, Download, Total, Expire float64 } `json:"sub"`
-		UpdatedAt float64                                           `json:"updatedAt"`
+		Origin string `json:"origin"`
+		Sub    struct {
+			Upload, Download, Total, Expire float64
+			Validity                        *backupSubValidity `json:"validity,omitempty"`
+		} `json:"sub"`
+		UpdatedAt float64 `json:"updatedAt"`
 	}
 	if decodeBackupJSON(p.Metadata, &meta) != nil {
 		return false
@@ -228,6 +240,36 @@ func validBackupProfile(p backupProfile) bool {
 	for _, v := range []float64{meta.Sub.Upload, meta.Sub.Download, meta.Sub.Total, meta.Sub.Expire, meta.UpdatedAt} {
 		if math.IsNaN(v) || math.IsInf(v, 0) || v < 0 {
 			return false
+		}
+	}
+	if v := meta.Sub.Validity; v != nil {
+		if math.IsNaN(v.FetchedAt) || math.IsInf(v.FetchedAt, 0) || v.FetchedAt < 0 || v.FetchedAt > 8640000000000 || math.Trunc(v.FetchedAt) != v.FetchedAt {
+			return false
+		}
+		any := v.Upload || v.Download || v.Total || v.Expire
+		switch v.Header {
+		case "present":
+			if !any {
+				return false
+			}
+		case "missing", "invalid":
+			if any || v.FetchedAt != 0 {
+				return false
+			}
+		default:
+			return false
+		}
+		for _, field := range []struct {
+			value float64
+			known bool
+			limit float64
+		}{
+			{meta.Sub.Upload, v.Upload, 9007199254740991}, {meta.Sub.Download, v.Download, 9007199254740991},
+			{meta.Sub.Total, v.Total, 9007199254740991}, {meta.Sub.Expire, v.Expire, 8640000000000},
+		} {
+			if field.known && (field.value > field.limit || math.Trunc(field.value) != field.value) {
+				return false
+			}
 		}
 	}
 	return true

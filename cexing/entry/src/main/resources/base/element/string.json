@@ -4243,6 +4243,62 @@
     {
       "name": "import_error_http_generic",
       "value": "Subscription server returned an unexpected status. Try again later."
+    },
+    {
+      "name": "subscription_not_provided",
+      "value": "Not provided"
+    },
+    {
+      "name": "subscription_total_only",
+      "value": "Total %s; remaining not provided"
+    },
+    {
+      "name": "subscription_remaining_missing",
+      "value": "Remaining not provided"
+    },
+    {
+      "name": "subscription_remaining",
+      "value": "Remaining: %s"
+    },
+    {
+      "name": "subscription_over_quota",
+      "value": "Over quota · remaining 0 MiB"
+    },
+    {
+      "name": "subscription_exhausted",
+      "value": "Quota exhausted · remaining 0 MiB"
+    },
+    {
+      "name": "subscription_expiry_missing",
+      "value": "Expiry not provided"
+    },
+    {
+      "name": "subscription_expired",
+      "value": "Expired"
+    },
+    {
+      "name": "subscription_expires_soon",
+      "value": "Expires in %d days"
+    },
+    {
+      "name": "subscription_expires_date",
+      "value": "Expires %s"
+    },
+    {
+      "name": "subscription_expired_date",
+      "value": "%s (expired)"
+    },
+    {
+      "name": "subscription_usage",
+      "value": "Used: %s / Total: %s"
+    },
+    {
+      "name": "subscription_expiry",
+      "value": "Expiry: %s"
+    },
+    {
+      "name": "subscription_updated",
+      "value": "Subscription info updated: %s"
     }
   ]
 }

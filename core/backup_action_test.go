@@ -365,3 +365,55 @@ func TestBackupAcceptsRegionProvenanceWithoutExportingRuntimeChoices(t *testing.
 		t.Fatal("restore replayed runtime choice")
 	}
 }
+
+func TestBackupSubscriptionValidityCompatibility(t *testing.T) {
+	legacy := `{"origin":"https://example.invalid/sub","sub":{"upload":0,"download":0,"total":100,"expire":0},"updatedAt":1}`
+	current := `{"origin":"https://example.invalid/sub","sub":{"upload":0,"download":0,"total":100,"expire":0,"validity":{"upload":true,"download":true,"total":true,"expire":false,"header":"present","fetchedAt":100}},"updatedAt":100}`
+	for _, metadata := range []string{legacy, current} {
+		p := backupProfile{Name: "synthetic.yaml", Original: backupSource, Metadata: json.RawMessage(metadata)}
+		if !validBackupProfile(p) {
+			t.Fatal("subscription metadata compatibility rejected")
+		}
+	}
+	for _, bad := range []string{
+		strings.Replace(current, `"fetchedAt":100`, `"fetchedAt":-1`, 1),
+		strings.Replace(current, `"fetchedAt":100`, `"fetchedAt":100.5`, 1),
+		strings.Replace(current, `"header":"present"`, `"header":"missing"`, 1),
+		strings.Replace(current, `"upload":true`, `"upload":"true"`, 1),
+		strings.Replace(current, `"total":100`, `"total":9007199254740992`, 1),
+		strings.Replace(current, `"fetchedAt":100`, `"fetchedAt":100,"unknown":true`, 1),
+	} {
+		if validBackupProfile(backupProfile{Name: "synthetic.yaml", Original: backupSource, Metadata: json.RawMessage(bad)}) {
+			t.Fatal("invalid validity record accepted")
+		}
+	}
+	// The existing backup worker must keep the optional record byte-for-byte.
+	h := backupHome(t)
+	m := backupManifest{SchemaVersion: 1, Preferences: backupPrefs(), Active: "synthetic.yaml", Profiles: []backupProfile{{Name: "synthetic.yaml", Original: backupSource, Metadata: json.RawMessage(current)}}}
+	if err := os.MkdirAll(filepath.Join(h, "backups"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeBackupJSON(filepath.Join(h, "backups", "backup-import-subscription.json"), m); err != nil {
+		t.Fatal(err)
+	}
+	plan := backupDo(t, h, versionAction{Op: "backup-prepare", BackupFile: "backup-import-subscription.json"})
+	backupArm(t, h, plan)
+	backupDo(t, h, versionAction{Op: "backup-commit", BackupToken: plan.Token})
+	backupDo(t, h, versionAction{Op: "backup-ack", BackupToken: plan.Token})
+	backupDo(t, h, versionAction{Op: "backup-finish", BackupToken: plan.Token})
+	state, err := executeVersionAction(h, versionAction{Op: "read"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state.State == nil || state.State.Current == nil {
+		t.Fatal("restored subscription absent")
+	}
+	source, err := os.ReadFile(filepath.Join(h, "profile-versions", state.State.Current.ID, "source.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var saved struct{ Metadata string }
+	if json.Unmarshal(source, &saved) != nil || saved.Metadata != current {
+		t.Fatal("subscription validity not preserved by restore")
+	}
+}

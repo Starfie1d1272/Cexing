@@ -1,6 +1,7 @@
 import { EditorSourceCandidate } from '../lib/EditorDraftHosts';
 import { ProfileApplyFeedback, ProfileApplyFailureKind } from '../lib/ProfileApplyFeedback';
 import { UiText } from '../lib/UiText';
+import { SubscriptionInfo, SubscriptionView } from '../lib/SubscriptionInfo';
 import { NativeTheme as UI } from './NativeTheme';
 /*
  * Profile 列表（激活/更新/编辑/重命名/导出/删除）+ 订阅导入（URL/文件/剪贴板，入口在右上 ＋ 半屏菜单）
@@ -57,6 +58,8 @@ export class ProfileDetailBus {
 
 @Component
 export struct ProfilePage {
+  @StorageLink('subscriptionStatusEpoch') @Watch('onSubscriptionForeground') subscriptionStatusEpoch: number = 0;
+  @State subscriptionNow: number = 0;
   @StorageLink('profileImportRequest') @Watch('acceptExternalImport') importRequest: number = 0;
   @Prop detailFile: string = '';
   @Consume('profileRevision') @Watch('refresh') profileRevision: number;
@@ -333,7 +336,12 @@ export struct ProfilePage {
     this.activationRequest++;
   }
 
+  private onSubscriptionForeground(): void {
+    if (this.pageVisible) { this.refresh(); }
+  }
+
   private refresh(): void {
+    this.subscriptionNow = Math.floor(Date.now() / 1000);
     const context = getContext(this) as common.UIAbilityContext;
     this.profiles = ProfileStore.list(context);
     this.metas = ProfileStore.getMeta(context);
@@ -366,13 +374,11 @@ export struct ProfilePage {
   }
 
   private lastUpdated(file: string): string {
-    const stamp = this.updateTimes[file] ?? 0;
-    return stamp > 0 ? UiText.get($r('app.string.profile_last_updated'), new Date(stamp).toLocaleString()) :
-      UiText.get($r('app.string.profile_not_updated'));
+    return SubscriptionInfo.view(this.metas[file]?.sub, true, this.subscriptionNow).updated;
   }
 
   private detailKey(p: ProfileMeta): string {
-    return `${p.file}|${p.active ? '1' : '0'}|${this.metaStamp(p.file)}|${this.profileRevision}`;
+    return `${p.file}|${p.active ? '1' : '0'}|${this.metaStamp(p.file)}|${this.profileRevision}|${this.subscriptionNow}`;
   }
 
   private isUrlProfile(file: string): boolean {
@@ -380,34 +386,14 @@ export struct ProfilePage {
     return ProfileStore.getOrigin(context, file).length > 0;
   }
 
-  /** 流量格式化：GB 一位小数，否则 MB 一位小数 */
-  private fmtTraffic(bytes: number): string {
-    if (bytes >= 1024 * 1024 * 1024) {
-      return `${(bytes / 1024 / 1024 / 1024).toFixed(1)} GB`;
-    }
-    return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  private subscription(p: ProfileMeta): SubscriptionView {
+    return SubscriptionInfo.view(this.metas[p.file]?.sub, this.isUrlProfile(p.file), this.subscriptionNow);
   }
 
-  private daysLeft(expire: number): number {
-    return Math.max(0, Math.ceil((expire - Date.now() / 1000) / 86400));
-  }
-
-  private subText(p: ProfileMeta): string {
-    const m = this.metas[p.file];
-    if (m !== undefined && (m.sub.expire > 0 || m.sub.total > 0)) {
-      const used = m.sub.upload + m.sub.download;
-      if (m.sub.total > 0) {
-        if (m.sub.expire > 0) {
-          return UiText.get($r('app.string.profile_traffic_expiry'), this.fmtTraffic(used), this.fmtTraffic(m.sub.total), this.daysLeft(m.sub.expire));
-        }
-        return UiText.get($r('app.string.profile_traffic_total'), this.fmtTraffic(used), this.fmtTraffic(m.sub.total));
-      }
-      if (m.sub.expire > 0) {
-        return UiText.get($r('app.string.profile_traffic_days'), this.fmtTraffic(used), this.daysLeft(m.sub.expire));
-      }
-      return UiText.get($r('app.string.profile_traffic_used'), this.fmtTraffic(used));
-    }
-    return `${(p.size / 1024).toFixed(1)} KB · ${new Date(p.mtime * 1000).toLocaleDateString()}`;
+  private rowAccessibility(p: ProfileMeta): string {
+    const state = p.active ? UiText.get($r('app.string.profile_current')) :
+      (this.isUrlProfile(p.file) ? UiText.get($r('app.string.profile_url_type')) : UiText.get($r('app.string.profile_local_type')));
+    return `${p.name} · ${state}` + (this.isUrlProfile(p.file) ? ` · ${this.subscription(p).summary}` : '');
   }
 
   private activationError(error: Error): string {
@@ -938,10 +924,13 @@ export struct ProfilePage {
             .maxLines(2).textOverflow({ overflow: TextOverflow.Ellipsis })
           Text(p.active ? UiText.get($r('app.string.profile_current')) : (this.isUrlProfile(p.file) ? UiText.get($r('app.string.profile_url_type')) : UiText.get($r('app.string.profile_local_type'))))
             .fontSize(13).fontColor(UI.muted)
+          if (this.isUrlProfile(p.file)) {
+            Text(this.subscription(p).summary).fontSize(13).fontColor(UI.muted).width('100%')
+          }
         }.alignItems(HorizontalAlign.Start).layoutWeight(1)
         SymbolGlyph($r('sys.symbol.chevron_right')).accessibilityLevel('no').fontSize(16).fontColor([UI.muted])
       }.padding(18).width('100%')
-    }.fontColor(UI.ink).accessibilityText(p.name).accessibilitySelected(p.active).width('100%').constraintSize({ minHeight: 84 }).backgroundColor(UI.surface).borderRadius(24)
+    }.fontColor(UI.ink).accessibilityText(this.rowAccessibility(p)).accessibilitySelected(p.active).width('100%').constraintSize({ minHeight: 84 }).backgroundColor(UI.surface).borderRadius(24)
       .onClick(() => {
         ProfileDetailBus.current = p.file;
         this.navStack.pushPath({ name: 'profileDetail' });
@@ -967,7 +956,11 @@ export struct ProfilePage {
           Text(p.active ? UiText.get($r('app.string.profile_current')) : UiText.get($r('app.string.profile_details'))).fontSize(13).fontColor(UI.muted).width('100%')
           Text(p.name).fontSize(28).fontWeight(FontWeight.Bold).fontColor(UI.ink).width('100%')
           Text(this.isUrlProfile(p.file) ? UiText.get($r('app.string.profile_url_type')) : UiText.get($r('app.string.profile_local_type'))).fontSize(14).fontColor(UI.muted).width('100%')
-          Text(this.subText(p)).fontSize(14).fontColor(UI.muted).width('100%')
+          if (this.isUrlProfile(p.file)) {
+            Text(this.subscription(p).usage).fontSize(14).fontColor(UI.muted).width('100%')
+            Text(this.subscription(p).remaining).fontSize(14).fontColor(UI.muted).width('100%')
+            Text(this.subscription(p).expiry).fontSize(14).fontColor(UI.muted).width('100%')
+          }
           if (this.isUrlProfile(p.file)) { Text(this.lastUpdated(p.file)).fontSize(14).fontColor(UI.muted).width('100%') }
           if (this.updateFeedback[p.file] !== undefined) {
             Text(this.updateFeedback[p.file]).fontSize(14).fontColor(UI.error).width('100%')
@@ -1364,7 +1357,7 @@ export struct ProfilePage {
             List({ space: 12 }) {
               ForEach(this.profiles, (p: ProfileMeta) => {
                 ListItem() { this.ProfileRow(p) }
-              }, (p: ProfileMeta) => p.file + '|' + (p.active ? '1' : '0') + '|' + this.metaStamp(p.file))
+              }, (p: ProfileMeta) => this.detailKey(p))
             }.width('100%').scrollBar(BarState.Off)
           }.onRefreshing(() => { this.onPullRefresh(); }).width('100%').layoutWeight(1)
         }

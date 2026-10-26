@@ -4243,6 +4243,62 @@
     {
       "name": "import_error_http_generic",
       "value": "订阅服务响应异常，请稍后重试"
+    },
+    {
+      "name": "subscription_not_provided",
+      "value": "未提供"
+    },
+    {
+      "name": "subscription_total_only",
+      "value": "总量 %s，剩余未提供"
+    },
+    {
+      "name": "subscription_remaining_missing",
+      "value": "剩余流量未提供"
+    },
+    {
+      "name": "subscription_remaining",
+      "value": "剩余流量：%s"
+    },
+    {
+      "name": "subscription_over_quota",
+      "value": "已超额 · 剩余 0 MiB"
+    },
+    {
+      "name": "subscription_exhausted",
+      "value": "已用尽 · 剩余 0 MiB"
+    },
+    {
+      "name": "subscription_expiry_missing",
+      "value": "到期未提供"
+    },
+    {
+      "name": "subscription_expired",
+      "value": "已过期"
+    },
+    {
+      "name": "subscription_expires_soon",
+      "value": "%d 天后到期"
+    },
+    {
+      "name": "subscription_expires_date",
+      "value": "%s 到期"
+    },
+    {
+      "name": "subscription_expired_date",
+      "value": "%s（已过期）"
+    },
+    {
+      "name": "subscription_usage",
+      "value": "已用：%s / 总量：%s"
+    },
+    {
+      "name": "subscription_expiry",
+      "value": "到期时间：%s"
+    },
+    {
+      "name": "subscription_updated",
+      "value": "订阅信息更新：%s"
     }
   ]
 }
