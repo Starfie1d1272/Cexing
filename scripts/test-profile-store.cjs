@@ -36,7 +36,13 @@ const io = {
   accessSync: name => data.has(name) || name === '/files/profiles',
   mkdirSync: () => {},
   openSync: name => { data.set(name, ''); return { fd: name }; },
-  writeSync: (name, value) => { data.set(name, value); },
+  writeSync: (name, value, options) => {
+    if (typeof value === 'string') { data.set(name, value); return Buffer.byteLength(value); }
+    const old = Buffer.from(data.get(name) ?? ''), bytes = Buffer.from(value);
+    const next = Buffer.alloc((options?.offset ?? 0) + bytes.length); old.copy(next); bytes.copy(next, options?.offset ?? 0);
+    data.set(name, next.toString()); return bytes.length;
+  },
+  fsyncSync() {},
   closeSync: () => {},
   readTextSync: name => data.get(name),
   listFileSync: dir => [...data.keys()].filter(name => name.startsWith(dir + '/') &&
@@ -68,12 +74,14 @@ const http = { RequestMethod: { GET: 'GET' }, HttpDataType: { STRING: 'string' }
       header: { 'subscription-userinfo': 'upload=1; download=2; total=953482739712' } };
   }, destroy: () => { destroyed++; }
 }) };
+const importFailures = require('./ci/import-failure-fixture.cjs').load();
 const context = { exports: {}, require: name => {
   if (name === '@kit.CoreFileKit') return { fileIo: io };
   if (name === '@kit.NetworkKit') return { http };
   if (name === '@kit.AbilityKit') return { bundleManager: { BundleFlag: { GET_BUNDLE_INFO_DEFAULT: 0 }, getBundleInfoForSelfSync: () => ({ versionName: appVersion }) } };
   if (name === '@kit.ArkTS') return { util: { generateRandomUUID: () => `synthetic-${++identityCounter}`, TextEncoder: { create: () => ({ encodeInto: text => new TextEncoder().encode(text) }) } } };
   if (name.endsWith('BoundedFileReader')) return { BoundedFileReader: { checkConfigSize() {} } };
+  if (name.endsWith('ImportFailure')) return importFailures;
   if (name.endsWith('Logger')) return { Logger: { info() {}, warn() {}, error() {} } };
   if (name.endsWith('ProfileName')) return { suggestProfileName: () => 'remote', profileNameFromUrl: () => 'remote' };
   if (name.endsWith('EffectiveVersions')) return { EffectiveVersions: {
@@ -156,7 +164,8 @@ const ctx = { filesDir: '/files' };
   await store.deleteProfile(ctx, deleted);
   io.unlink = unlink;
   const replacement = store.importContent(ctx, 'reused', 'proxies: [source-b]');
-  assert.equal(replacement, deleted);
+  assert.notEqual(replacement, deleted, 'an orphan schedule reserves the old name');
+  assert.equal(data.has(`/files/profiles/${deleted}.update.json`), true, 'orphan schedule remains untouched');
   assert.notEqual(store.updateState(ctx, replacement).id, 'source-A');
   assert.equal(store.updateState(ctx, replacement).succeededAt, 0, 'new import never reuses an orphan schedule');
   const unicode = 'proxies: [节点😀, short-write]', closedBeforeImports = asyncClosed;
@@ -166,7 +175,7 @@ const ctx = { filesDir: '/files' };
   await assert.rejects(store.importContentAsync(ctx, 'cancelled', unicode, () => currentImport), /取消/);
   assert.equal(data.has('/files/profiles/cancelled.yaml'), false); assert.equal(asyncClosed, closedBeforeImports + 2);
   afterAsyncWrite = null; failAsyncWrite = true;
-  await assert.rejects(store.importContentAsync(ctx, 'failed-write', unicode), /disk full/);
+  await assert.rejects(store.importContentAsync(ctx, 'failed-write', unicode), error => error.kind === 'storage');
   assert.equal(data.has('/files/profiles/failed-write.yaml'), false); assert.equal(asyncClosed, closedBeforeImports + 3);
   failAsyncWrite = false;
   const version = { ID: 'version-test', Path: '/files/profile-versions/version-test/config.yaml', ProfileID: renamed };
@@ -239,7 +248,8 @@ const ctx = { filesDir: '/files' };
     forceBase64 = failure === 'format'; responseCode = failure === 'http' ? 503 : 200;
     const before = [...data.entries()], pointer = JSON.stringify(effectiveState);
     const error = failure === 'http' ? /HTTP 503/ : /不是合法的 mihomo 配置/;
-    await assert.rejects(store.importFromUrl(ctx, 'https://example.invalid/subscription'), error);
+    await assert.rejects(store.importFromUrl(ctx, 'https://example.invalid/subscription'), failureError =>
+      failureError.kind === (failure === 'http' ? 'http' : 'format'));
     await assert.rejects(tx.update(ctx, remote), error);
     assert.deepEqual([...data.entries()], before, 'failed import/update preserves all existing subscriptions and metadata');
     assert.equal(JSON.stringify(effectiveState), pointer, 'failed update preserves the effective pointer');

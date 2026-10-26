@@ -4211,6 +4211,38 @@
     {
       "name": "routing_shared_prefix",
       "value": "Shared by: "
+    },
+    {
+      "name": "import_error_network",
+      "value": "Cannot download. Check your network and try again."
+    },
+    {
+      "name": "import_error_timeout",
+      "value": "Download timed out. Try again."
+    },
+    {
+      "name": "import_error_http",
+      "value": "Server returned HTTP %d. Check the subscription or try later."
+    },
+    {
+      "name": "import_error_format",
+      "value": "Unsupported configuration. Choose a Clash YAML configuration."
+    },
+    {
+      "name": "import_error_size",
+      "value": "Configuration exceeds 15 MiB. Choose a smaller configuration."
+    },
+    {
+      "name": "import_error_storage",
+      "value": "Cannot save the configuration. Check storage and try again."
+    },
+    {
+      "name": "import_error_cleanup",
+      "value": "Import failed and cleanup is incomplete. Try again."
+    },
+    {
+      "name": "import_error_http_generic",
+      "value": "Subscription server returned an unexpected status. Try again later."
     }
   ]
 }
