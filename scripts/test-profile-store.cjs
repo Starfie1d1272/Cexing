@@ -53,14 +53,29 @@ const io = {
     unlinkReject = reject;
   }) : Promise.resolve(data.delete(name))
 };
+const syntheticYaml = 'proxies: [{name: synthetic, type: ss, server: 192.0.2.1, port: 443, cipher: aes-128-gcm, password: synthetic}]';
+let requestCount = 0, destroyed = 0;
+let responseCode = 200, forceBase64 = false, responseYaml = syntheticYaml;
+let appVersion = '0.1.0';
+const requests = [];
+const http = { RequestMethod: { GET: 'GET' }, HttpDataType: { STRING: 'string' }, createHttp: () => ({
+  request: async (url, options) => {
+    requests.push({ url, options });
+    requestCount++;
+    // Subscription services commonly negotiate their response from the client UA.
+    const clash = /clash|mihomo/i.test(options.header?.['User-Agent'] ?? '');
+    return { responseCode, result: clash && !forceBase64 ? responseYaml : Buffer.from('ss://synthetic@example.invalid:443').toString('base64'),
+      header: { 'subscription-userinfo': 'upload=1; download=2; total=953482739712' } };
+  }, destroy: () => { destroyed++; }
+}) };
 const context = { exports: {}, require: name => {
   if (name === '@kit.CoreFileKit') return { fileIo: io };
-  if (name === '@kit.NetworkKit') return { http: {} };
-  if (name === '@kit.AbilityKit') return {};
+  if (name === '@kit.NetworkKit') return { http };
+  if (name === '@kit.AbilityKit') return { bundleManager: { BundleFlag: { GET_BUNDLE_INFO_DEFAULT: 0 }, getBundleInfoForSelfSync: () => ({ versionName: appVersion }) } };
   if (name === '@kit.ArkTS') return { util: { generateRandomUUID: () => `synthetic-${++identityCounter}`, TextEncoder: { create: () => ({ encodeInto: text => new TextEncoder().encode(text) }) } } };
   if (name.endsWith('BoundedFileReader')) return { BoundedFileReader: { checkConfigSize() {} } };
   if (name.endsWith('Logger')) return { Logger: { info() {}, warn() {}, error() {} } };
-  if (name.endsWith('ProfileName')) return {};
+  if (name.endsWith('ProfileName')) return { suggestProfileName: () => 'remote', profileNameFromUrl: () => 'remote' };
   if (name.endsWith('EffectiveVersions')) return { EffectiveVersions: {
     editIntent: () => publishedIntent,
     read: () => { if (invalidPointer) throw Error('invalid pointer'); return effectiveState; },
@@ -173,5 +188,62 @@ const ctx = { filesDir: '/files' };
   assert.equal(store.readEditDraft(ctx,renamed).intent.template,undefined,'unapplied private draft remains isolated');
   invalidPointer = true;
   assert.throws(() => store.getActiveFile(ctx), /invalid pointer/);
-  console.log('PASS: unique imports, uppercase YAML listing/rename, awaited deletion and effective-version precedence');
+  effectiveState = null; invalidPointer = false; failMetaMove = false;
+  const remote = await store.importFromUrl(ctx, 'https://example.invalid/subscription');
+  assert.equal(store.getProfileContent(ctx, remote), syntheticYaml);
+  const candidate = await store.downloadFromOrigin(ctx, remote);
+  assert.equal(candidate.content, syntheticYaml);
+  assert.equal(candidate.meta.sub.total, 953482739712);
+  assert.equal(requestCount, 2); assert.equal(destroyed, 2);
+  assert.equal(store.getOrigin(ctx, remote), 'https://example.invalid/subscription');
+  assert.equal(store.getMeta(ctx)[remote].sub.total, 953482739712);
+  const versions = context.require('./EffectiveVersions').EffectiveVersions;
+  versions.regionPlan = () => null;
+  versions.overlay = () => '';
+  versions.stage = async (_, file, original, overlay, metadata) => {
+    const version = { ID: 'synthetic-updated', Path: '/versions/updated', ProfileID: file };
+    data.set(version.Path, original);
+    data.set(`/files/profile-versions/${version.ID}/original.yaml`, original);
+    data.set(`/files/profile-versions/${version.ID}/source.json`, JSON.stringify({ Metadata: metadata }));
+    return { version, receipt: '' };
+  };
+  versions.commit = async (_, version) => { effectiveState = { Current: null, Profiles: { [remote]: version } }; };
+  const txContext = { exports: {}, require: name => {
+    if (name.endsWith('ProfileStore')) return { ProfileStore: store };
+    if (name.endsWith('EffectiveVersions')) return { EffectiveVersions: versions };
+    if (name.endsWith('VpnController')) return { VpnStatus: { Disconnected: 0 }, VpnController: {
+      status: 0, holdConfiguration: () => () => {}, configurationEpoch: () => 0 } };
+    if (name.endsWith('Settings')) return { Settings: { load() {}, async idle() {} } };
+    if (name.endsWith('CoreValidator')) return { CoreValidator: { async prepareResources() {} } };
+    if (name.endsWith('ProfileRegionChoices')) return { ProfileRegionChoices: {
+      selector: () => '', prepare: async () => ({ state: null }) } };
+    return context.require(name);
+  } };
+  vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(__dirname,
+    '../cexing/entry/src/main/ets/lib/ProfileTransactions.ets'), 'utf8'), { compilerOptions: {
+    module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020
+  } }).outputText, txContext);
+  // Use the actual update transaction and HTTP download, with only platform/version storage mocked.
+  const tx = txContext.exports.ProfileTransactions;
+  appVersion = '0.2.0';
+  responseYaml = syntheticYaml.replace('name: synthetic', 'name: updated');
+  assert.equal(await tx.update(ctx, remote), 'saved');
+  assert.equal(store.getProfileContent(ctx, remote), responseYaml);
+  assert.equal(store.getOrigin(ctx, remote), 'https://example.invalid/subscription');
+  assert.equal(store.getMeta(ctx)[remote].sub.total, 953482739712);
+  assert.equal(requests[0].options.header['User-Agent'], 'ClashMeta/1.0 Cexing/0.1.0');
+  assert.equal(requests[1].options.header['User-Agent'], requests[0].options.header['User-Agent']);
+  assert.equal(requests[2].options.header['User-Agent'], 'ClashMeta/1.0 Cexing/0.2.0');
+  assert.ok(requests.every(request => request.url === 'https://example.invalid/subscription'));
+  for (const failure of ['format', 'http']) {
+    forceBase64 = failure === 'format'; responseCode = failure === 'http' ? 503 : 200;
+    const before = [...data.entries()], pointer = JSON.stringify(effectiveState);
+    const error = failure === 'http' ? /HTTP 503/ : /不是合法的 mihomo 配置/;
+    await assert.rejects(store.importFromUrl(ctx, 'https://example.invalid/subscription'), error);
+    await assert.rejects(tx.update(ctx, remote), error);
+    assert.deepEqual([...data.entries()], before, 'failed import/update preserves all existing subscriptions and metadata');
+    assert.equal(JSON.stringify(effectiveState), pointer, 'failed update preserves the effective pointer');
+  }
+  assert.equal(requestCount, 7); assert.equal(destroyed, requestCount);
+  console.log('PASS: subscription UA negotiation, actual import/update, failure preservation; unique imports, uppercase YAML listing/rename, awaited deletion and effective-version precedence');
 })().catch(error => { console.error(error); process.exitCode = 1; });
