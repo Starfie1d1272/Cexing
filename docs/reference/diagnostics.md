@@ -68,3 +68,7 @@ Linux 合成回归不证明 HarmonyOS 沙箱、进程强杀或真机崩溃捕获
 ## 参考设计
 
 只读核对 [Mizar 支持包](https://github.com/Starfie1d1272/Mizar/blob/c5a2633d15e0d7efd0c5d4ca1bf71ff8932c7dd8/apps/companion/src/support/routes.ts) 的分源状态、原始错误码、原因链与显式省略，[Mizar 日志契约](https://github.com/Starfie1d1272/Mizar/blob/c5a2633d15e0d7efd0c5d4ca1bf71ff8932c7dd8/apps/companion/src/support/logs.ts) 的有界字段与包内身份关联；保留跨重启会话，避免只依赖当前快照和短尾摘要。内核接口按仓库锁定 Mihomo 的 resolver/adapter 生命周期使用，没有复制参考项目源码、添加依赖或执行其程序。
+
+## 配置启用失败
+
+配置 stage、verify、commit 失败也写入既有本地 host 诊断日志，保留固定阶段及允许的错误码，不写入原始 YAML、文件名、来源 URL、节点或任意异常文本。离线校验的资源缺失、provider 未就绪等固定类别跨编译边界保留；非白名单的校验器错误仍脱敏。诊断写入失败不能改变原配置事务结果；支持包不能补回安装本改动之前未记录的失败。

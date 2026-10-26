@@ -398,6 +398,11 @@ export struct ProfilePage {
 
   private activationError(error: Error): string {
     const message = error.message ?? '';
+    // The native version bridge returns closed codes, not parser text or YAML.
+    if (message === '配置版本操作失败: CONFIG_INVALID' ||
+      message === '配置版本操作失败: CORE_VALIDATION_FAILED') {
+      return UiText.get($r('app.string.profile_invalid_config'));
+    }
     if (/provider|来源资源/i.test(message)) { return UiText.get($r('app.string.profile_provider_missing')); }
     if (/资源|RESOURCE/.test(message)) { return UiText.get($r('app.string.profile_resource_missing')); }
     if (/空节点|没有节点/.test(message)) { return UiText.get($r('app.string.profile_nodes_missing')); }

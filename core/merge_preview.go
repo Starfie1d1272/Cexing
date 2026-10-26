@@ -119,7 +119,10 @@ func compileLayeredMergeWithIntent(home, original, global, overlay, overrides st
 	validator := func(_ context.Context, content []byte) error {
 		var err error
 		receipt, err = validateCandidateWithReceipt(home, string(content), overrides)
-		return err
+		if err != nil {
+			return configpipeline.NewValidationFailure(err.Error())
+		}
+		return nil
 	}
 	var overlays [][]byte
 	for _, layer := range []string{global, overlay} {
