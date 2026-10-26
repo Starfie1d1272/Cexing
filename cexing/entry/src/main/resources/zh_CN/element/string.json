@@ -4211,6 +4211,38 @@
     {
       "name": "routing_shared_prefix",
       "value": "共用："
+    },
+    {
+      "name": "import_error_network",
+      "value": "无法下载，请检查网络后重试"
+    },
+    {
+      "name": "import_error_timeout",
+      "value": "下载超时，请重试"
+    },
+    {
+      "name": "import_error_http",
+      "value": "订阅服务返回 HTTP %d，请检查订阅或稍后重试"
+    },
+    {
+      "name": "import_error_format",
+      "value": "不支持此配置，请使用 Clash YAML 配置"
+    },
+    {
+      "name": "import_error_size",
+      "value": "配置超过 15 MiB，请使用较小的配置"
+    },
+    {
+      "name": "import_error_storage",
+      "value": "无法读写配置，请检查存储后重试"
+    },
+    {
+      "name": "import_error_cleanup",
+      "value": "导入失败且资料未完全清理，请重试"
+    },
+    {
+      "name": "import_error_http_generic",
+      "value": "订阅服务响应异常，请稍后重试"
     }
   ]
 }

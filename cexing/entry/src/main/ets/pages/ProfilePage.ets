@@ -10,6 +10,7 @@ import { common } from '@kit.AbilityKit';
 import { picker } from '@kit.CoreFileKit';
 import { util } from '@kit.ArkTS';
 import { ConnectionFailures } from '../lib/ConnectionFailure';
+import { ImportFailures } from '../lib/ImportFailure';
 import { scanBarcode, scanCore } from '@kit.ScanKit';
 import { ProfileImportInput, ProfileImportCandidate } from '../lib/ProfileImportInput';
 import { BoundedFileReader } from '../lib/BoundedFileReader';
@@ -797,9 +798,9 @@ export struct ProfilePage {
       if (!this.pageVisible || page !== this.pageGeneration || request !== this.importGeneration) { return; }
       this.inputUrl = '';
       this.finishImport(file);
-    } catch (_) {
+    } catch (error) {
       if (this.pageVisible && page === this.pageGeneration && request === this.importGeneration) {
-        this.importError = UiText.get($r('app.string.profile_import_failed'));
+        this.importError = ImportFailures.label(error as Error, 'request');
       }
     } finally {
       if (request === this.importGeneration) { this.importing = false; this.acceptExternalImport(); }
@@ -838,7 +839,8 @@ export struct ProfilePage {
       this.finishImport(file);
     } catch (e) {
       if (this.pageVisible && page === this.pageGeneration && request === this.importGeneration) {
-        this.toast(UiText.get($r('app.string.profile_file_failed')));
+        const message = ImportFailures.label(e as Error, 'read');
+        if (message !== '') { this.toast(message); }
       }
     } finally { if (request === this.importGeneration) { this.importing = false; this.acceptExternalImport(); } }
   }
@@ -882,7 +884,8 @@ export struct ProfilePage {
       this.changed();
     } catch (e) {
       if (!current()) { return; }
-      this.importError = UiText.get($r('app.string.profile_import_failed'));
+      this.importError = ImportFailures.label(e as Error, 'prepare');
+      if (this.importError === '') { return; }
       this.sheetMode = SHEET_PASTE;
       this.showSheet = true;
     }
@@ -1174,7 +1177,7 @@ export struct ProfilePage {
       this.finishImport(file);
     } catch (e) {
       if (!current()) { return; }
-      this.importError = UiText.get($r('app.string.profile_import_failed'));
+      this.importError = ImportFailures.label(e as Error, 'prepare');
     } finally {
       if (request === this.importGeneration) { this.importing = false; this.acceptExternalImport(); }
     }

@@ -22,7 +22,7 @@ function load(name, modules, extra = {}) {
     require: key => { if (key.endsWith('/ProfileApplyFeedback')) {
       const box = { exports: {}, require: dependency => modules['../lib/' + dependency.split('/').pop()] || {} };
       vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(pages, '../lib/ProfileApplyFeedback.ets'), 'utf8')).outputText, box); return box.exports;
-    } if (key.endsWith('/UiText')) return uiFixture.module; if (key.endsWith('/CoreValidator') && !(key in modules)) return require('./ci/semantic-fixture.cjs'); assert.ok(key in modules, `Missing mock ${key}`); return modules[key]; }, ...extra };
+    } if (key.endsWith('/ImportFailure')) return require('./ci/import-failure-fixture.cjs').load(); if (key.endsWith('/UiText')) return uiFixture.module; if (key.endsWith('/CoreValidator') && !(key in modules)) return require('./ci/semantic-fixture.cjs'); assert.ok(key in modules, `Missing mock ${key}`); return modules[key]; }, ...extra };
   Object.assign(sandbox, uiFixture.globals);
   vm.runInNewContext(code, sandbox);
   const component = sandbox.exports[name];

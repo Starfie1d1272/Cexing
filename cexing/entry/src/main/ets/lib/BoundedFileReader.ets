@@ -59,7 +59,11 @@ export namespace BoundedFileReader {
 
   export async function yaml(uri: string, current?: () => boolean): Promise<string> {
     const data = await bytes(uri, IMPORT_CONFIG_BYTES, current);
-    return await decodeUtf8(data, current);
+    try { return await decodeUtf8(data, current); }
+    catch (error) {
+      if ((error as Error).message === '导入已取消') { throw new Error('导入已取消'); }
+      throw new Error('配置编码无效');
+    }
   }
 
   export async function decodeUtf8(data: ArrayBuffer, current?: () => boolean, start: number = 0): Promise<string> {
