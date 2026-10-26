@@ -21,6 +21,7 @@ export default class EntryAbility extends UIAbility {
   }
 
   onForeground(): void {
+    AppStorage.setOrCreate('subscriptionStatusEpoch', Date.now());
     AppRuntime.foreground();
   }
 

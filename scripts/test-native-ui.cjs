@@ -22,7 +22,7 @@ function load(name, modules, extra = {}) {
     require: key => { if (key.endsWith('/ProfileApplyFeedback')) {
       const box = { exports: {}, require: dependency => modules['../lib/' + dependency.split('/').pop()] || {} };
       vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(pages, '../lib/ProfileApplyFeedback.ets'), 'utf8')).outputText, box); return box.exports;
-    } if (key.endsWith('/ImportFailure')) return require('./ci/import-failure-fixture.cjs').load(); if (key.endsWith('/UiText')) return uiFixture.module; if (key.endsWith('/CoreValidator') && !(key in modules)) return require('./ci/semantic-fixture.cjs'); assert.ok(key in modules, `Missing mock ${key}`); return modules[key]; }, ...extra };
+    } if (key.endsWith('/SubscriptionInfo')) return require('./ci/subscription-fixture.cjs'); if (key.endsWith('/ImportFailure')) return require('./ci/import-failure-fixture.cjs').load(); if (key.endsWith('/UiText')) return uiFixture.module; if (key.endsWith('/CoreValidator') && !(key in modules)) return require('./ci/semantic-fixture.cjs'); assert.ok(key in modules, `Missing mock ${key}`); return modules[key]; }, ...extra };
   Object.assign(sandbox, uiFixture.globals);
   vm.runInNewContext(code, sandbox);
   const component = sandbox.exports[name];
@@ -454,9 +454,11 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   const failedWrite = activationPage().page; await failedWrite.importFile('file://docs/io.yaml');
   assert.equal(failedWrite.importedFile, ''); assert.equal(failedWrite.importing, false);
   assert.ok(!toasts.some(value => value.includes('private disk')));
-  const times = activationPage().page; times.updateTimes = { 'a.yaml': 1000, 'b.yaml': 2000 };
+  const times = activationPage().page; const quota = require('./ci/subscription-fixture.cjs').SubscriptionInfo;
+  times.metas = { 'a.yaml': { sub: quota.parse({'subscription-userinfo':'total=1'}, 1000) }, 'b.yaml': { sub: quota.parse({'subscription-userinfo':'total=1'}, 2000) } };
+  times.updateTimes = { 'a.yaml': 9000000, 'b.yaml': 9000000 };
   assert.notEqual(times.lastUpdated('a.yaml'), times.lastUpdated('b.yaml'));
-  assert.equal(times.lastUpdated('missing.yaml'), '尚未更新');
+  assert.equal(times.lastUpdated('missing.yaml'), '订阅信息更新：未提供');
   importAsync = async (_context, _name, _content, current) => { assert.ok(current()); importedWrites++; return 'candidate.yaml'; };
   sourceOrigins = { 'fixture.yaml': 'https://example.invalid/a', 'candidate.yaml': 'https://example.invalid/b' };
   sourceStates = {

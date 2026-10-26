@@ -5,7 +5,7 @@ exports.create = () => {
   const data = new Map(), dirs = new Set(['/files/profiles']), fds = new Map(), events = [], logs = [], modules = {};
   let sequence = 0, nextFd = 0;
   const env = { data, events, logs, state: null, fault: null, hook: null, networkError: null, code: 200,
-    body: 'proxies: [{name: synthetic, type: direct}]', options: [], destroyed: 0 };
+    body: 'proxies: [{name: synthetic, type: direct}]', headers: {'subscription-userinfo':'upload=1; download=2; total=300'}, clock: () => Date.now(), options: [], destroyed: 0 };
   const event = (op, target) => { events.push({op,target}); if(env.hook)env.hook(op,target); if(env.fault)env.fault(op,target); };
   const target = fd => { assert.ok(fds.has(fd),'fd must be open'); return fds.get(fd); };
   const open = (name, flags) => { event('open',name); if(flags!==0)data.set(name,Buffer.alloc(0)); else assert.ok(data.has(name)); const fd=++nextFd;fds.set(fd,name);return {fd}; };
@@ -26,10 +26,10 @@ exports.create = () => {
   const failures=require('./import-failure-fixture.cjs').load(logger);
   Object.assign(modules,{'@kit.CoreFileKit':{fileIo:io},'@kit.ArkTS':{util:{generateRandomUUID:()=>`import-${++sequence}`,TextEncoder:{create:()=>({encodeInto:s=>new TextEncoder().encode(s)})},TextDecoder:{create:(_,options)=>{const d=new TextDecoder('utf-8',options);return{decodeToString:(b,o)=>d.decode(b,o)}}}}},
     '@kit.AbilityKit':{bundleManager:{BundleFlag:{GET_BUNDLE_INFO_DEFAULT:0},getBundleInfoForSelfSync:()=>({versionName:'0.1.0'})}},
-    '@kit.NetworkKit':{http:{RequestMethod:{GET:'GET'},HttpDataType:{STRING:'string'},createHttp:()=>({request:async(url,options)=>{env.options.push(options);if(env.networkError)throw env.networkError;return {responseCode:env.code,result:env.body,header:{'subscription-userinfo':'upload=1; download=2; total=300'}}},destroy:()=>env.destroyed++})}},
-    './Logger':{Logger:logger},'./ImportFailure':failures,'./EffectiveVersions':{EffectiveVersions:{read:()=>env.state,editIntent:()=>null}}});
-  const load = name => { if(modules[name])return modules[name];const box={exports:{},setTimeout,require:n=>{assert.ok(n in modules||n==='./BoundedFileReader'||n==='./ProfileName',n);return modules[n]??load(n)}};vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(__dirname,'../../cexing/entry/src/main/ets/lib',name.replace('./','')+'.ets'),'utf8')).outputText,box);return modules[name]=box.exports; };
-  env.store=load('./ProfileStore').ProfileStore;env.reader=load('./BoundedFileReader').BoundedFileReader;env.failures=failures;env.io=io;env.ctx={filesDir:'/files'};env.fds=fds;
+    '@kit.NetworkKit':{http:{RequestMethod:{GET:'GET'},HttpDataType:{STRING:'string'},createHttp:()=>({request:async(url,options)=>{env.options.push(options);if(env.networkError)throw env.networkError;return {responseCode:env.code,result:env.body,header:env.headers}},destroy:()=>env.destroyed++})}},
+    './SubscriptionInfo':require('./subscription-fixture.cjs'),'./Logger':{Logger:logger},'./ImportFailure':failures,'./EffectiveVersions':{EffectiveVersions:{read:()=>env.state,editIntent:()=>null}}});
+  const load = name => { if(modules[name])return modules[name];const box={exports:{},setTimeout,Date:class extends Date{static now(){return env.clock()}},require:n=>{assert.ok(n in modules||n==='./BoundedFileReader'||n==='./ProfileName'||n==='./ProfileTransactions'||n==='./AutoUpdater',n);return modules[n]??load(n)}};vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(__dirname,'../../cexing/entry/src/main/ets/lib',name.replace('./','')+'.ets'),'utf8')).outputText,box);return modules[name]=box.exports; };
+  env.store=load('./ProfileStore').ProfileStore;env.reader=load('./BoundedFileReader').BoundedFileReader;env.failures=failures;env.io=io;env.ctx={filesDir:'/files'};env.fds=fds;env.modules=modules;env.load=load;
   env.text=p=>data.get(p)?.toString();env.put=(p,v)=>data.set(p,Buffer.from(v));
   return env;
 };

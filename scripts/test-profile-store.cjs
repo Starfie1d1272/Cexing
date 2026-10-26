@@ -81,6 +81,7 @@ const context = { exports: {}, require: name => {
   if (name === '@kit.AbilityKit') return { bundleManager: { BundleFlag: { GET_BUNDLE_INFO_DEFAULT: 0 }, getBundleInfoForSelfSync: () => ({ versionName: appVersion }) } };
   if (name === '@kit.ArkTS') return { util: { generateRandomUUID: () => `synthetic-${++identityCounter}`, TextEncoder: { create: () => ({ encodeInto: text => new TextEncoder().encode(text) }) } } };
   if (name.endsWith('BoundedFileReader')) return { BoundedFileReader: { checkConfigSize() {} } };
+  if (name.endsWith('SubscriptionInfo')) return require('./ci/subscription-fixture.cjs');
   if (name.endsWith('ImportFailure')) return importFailures;
   if (name.endsWith('Logger')) return { Logger: { info() {}, warn() {}, error() {} } };
   if (name.endsWith('ProfileName')) return { suggestProfileName: () => 'remote', profileNameFromUrl: () => 'remote' };
