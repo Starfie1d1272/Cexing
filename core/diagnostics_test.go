@@ -40,7 +40,7 @@ func TestDiagnosticRestartPreservesFailureAndCorrelation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(bundle, "proxy_dial") || !strings.Contains(bundle, "errno:111") || !strings.Contains(bundle, "kernel-previous") {
+	if !strings.Contains(bundle, "proxy_dial") || !strings.Contains(bundle, fmt.Sprintf("errno:%d", syscall.ECONNREFUSED)) || !strings.Contains(bundle, "kernel-previous") {
 		t.Fatal("prior failure absent", bundle)
 	}
 	previous := readDiagnosticSource(s.root, "kernel-previous")
@@ -430,7 +430,7 @@ func TestDiagnosticInvalidProjectionAndJoinedCausesStayExplicit(t *testing.T) {
 		t.Fatal(err)
 	}
 	joined := s.failure(errors.Join(syscall.ECONNREFUSED, context.DeadlineExceeded), 0)
-	if len(joined.Causes) != 2 || joined.Causes[0].Code != "errno:111" || joined.Causes[1].Code != "deadline_exceeded" {
+	if len(joined.Causes) != 2 || joined.Causes[0].Code != fmt.Sprintf("errno:%d", syscall.ECONNREFUSED) || joined.Causes[1].Code != "deadline_exceeded" {
 		t.Fatal("joined causes collapsed", joined)
 	}
 	many := s.failure(errors.Join(syscall.ECONNREFUSED, syscall.EIO, syscall.EPERM, syscall.ENOENT, syscall.EPIPE), 0)
