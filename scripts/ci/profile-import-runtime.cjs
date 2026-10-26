@@ -11,7 +11,7 @@ exports.create = () => {
   const open = (name, flags) => { event('open',name); if(flags!==0)data.set(name,Buffer.alloc(0)); else assert.ok(data.has(name)); const fd=++nextFd;fds.set(fd,name);return {fd}; };
   const write = (fd, value, options) => { const name=target(fd);event('write',name);const bytes=Buffer.from(value),offset=options?.offset??0,n=Math.min(bytes.length,8191);const old=data.get(name),next=Buffer.alloc(Math.max(old.length,offset+n));old.copy(next);bytes.copy(next,offset,0,n);data.set(name,next);return n; };
   const close = file => { const name=target(file.fd);event('close',name);fds.delete(file.fd); };
-  const move = (from,to) => { event('rename',to);assert.ok(data.has(from));data.set(to,data.get(from));data.delete(from); };
+  const move = (from,to,mode=0) => { event('rename',to);if(mode===1&&data.has(to))throw Error('synthetic destination exists');assert.ok(data.has(from));data.set(to,data.get(from));data.delete(from); };
   const io = { OpenMode:{READ_ONLY:0,READ_WRITE:2,CREATE:64,TRUNC:512},
     accessSync:p=>data.has(p)||dirs.has(p),mkdirSync:p=>dirs.add(p),
     listFileSync:p=>[...data.keys()].filter(n=>n.startsWith(p+'/')&&!n.slice(p.length+1).includes('/')).map(n=>n.slice(p.length+1)),

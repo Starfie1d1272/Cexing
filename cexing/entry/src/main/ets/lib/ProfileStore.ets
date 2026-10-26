@@ -925,7 +925,7 @@ export namespace ProfileStore {
     }
   }
 
-  interface ImportSidecar { path: string; content: string; }
+  interface ImportSidecar { path: string; content: string; written: boolean; }
   interface NewImport {
     file: string;
     temp: string;
@@ -973,7 +973,7 @@ export namespace ProfileStore {
   }
 
   /** Dedicated unique temps avoid touching another writer's pending file. */
-  function importAtomicText(path: string, content: string, job: NewImport): void {
+  function importAtomicText(path: string, content: string, job: NewImport, replace: boolean = false): void {
     const temp = `${path}.import-${job.id}`;
     if (fileIo.accessSync(temp)) { throw new ImportFailure('storage', job.stage); }
     job.temps.push(temp);
@@ -982,7 +982,7 @@ export namespace ProfileStore {
       writeImportSync(opened.fd, content);
       fileIo.fsyncSync(opened.fd);
     } finally { closeImportSync(opened); }
-    fileIo.moveFileSync(temp, path);
+    fileIo.moveFileSync(temp, path, replace ? 0 : 1);
   }
 
   function closeImportSync(opened: fileIo.File): void {
@@ -1009,31 +1009,49 @@ export namespace ProfileStore {
     job.stage = 'sidecars';
     const path = `${dir(context)}/${job.file}`;
     const state: ProfileUpdateState = { id: job.id, attemptedAt: 0, succeededAt: 0, failedAt: 0, retryAt: 0 };
-    job.sidecars.push({ path: path + '.update.json', content: JSON.stringify(state) });
-    if (job.metadata.origin !== '') { job.sidecars.push({ path: path + '.url', content: job.metadata.origin }); }
-    for (const sidecar of job.sidecars) { importAtomicText(sidecar.path, sidecar.content, job); }
+    job.sidecars.push({ path: path + '.update.json', content: JSON.stringify(state), written: false });
+    if (job.metadata.origin !== '') { job.sidecars.push({ path: path + '.url', content: job.metadata.origin, written: false }); }
+    for (const sidecar of job.sidecars) {
+      importAtomicText(sidecar.path, sidecar.content, job);
+      sidecar.written = true;
+    }
     // Re-read here: another async import may have committed since name reservation.
     const all = readMetaStrict(context);
     if (all[job.file] !== undefined) { throw new ImportFailure('storage', 'sidecars'); }
     all[job.file] = job.metadata;
-    importAtomicText(metaPath(context), JSON.stringify(all), job);
+    importAtomicText(metaPath(context), JSON.stringify(all), job, true);
     job.metaWritten = true;
   }
 
   function rollbackImport(context: common.Context, job: NewImport): void {
     let failed = false;
+    // If another writer changed a committed sidecar, its entire source is no longer ours to clean.
+    for (const sidecar of job.sidecars) {
+      if (!sidecar.written) { continue; }
+      try {
+        if (!fileIo.accessSync(sidecar.path) || fileIo.readTextSync(sidecar.path) !== sidecar.content) { failed = true; }
+      } catch (_) { failed = true; }
+    }
     if (job.metaWritten) {
+      try {
+        const entry = readMetaStrict(context)[job.file];
+        if (entry !== undefined && JSON.stringify(entry) !== JSON.stringify(job.metadata)) { failed = true; }
+      } catch (_) { failed = true; }
+    }
+    const owned = !failed;
+    if (owned && job.metaWritten) {
       try {
         const all = readMetaStrict(context);
         if (all[job.file] !== undefined) {
           if (JSON.stringify(all[job.file]) !== JSON.stringify(job.metadata)) { throw new Error('changed'); }
           const kept: Record<string, ProfileMetaExt> = {};
           for (const name of Object.keys(all)) { if (name !== job.file) { kept[name] = all[name]; } }
-          importAtomicText(metaPath(context), JSON.stringify(kept), job);
+          importAtomicText(metaPath(context), JSON.stringify(kept), job, true);
         }
       } catch (_) { failed = true; }
     }
     for (const sidecar of job.sidecars) {
+      if (!owned || !sidecar.written) { continue; }
       try {
         if (fileIo.accessSync(sidecar.path)) {
           if (fileIo.readTextSync(sidecar.path) !== sidecar.content) { throw new Error('changed'); }
@@ -1055,7 +1073,7 @@ export namespace ProfileStore {
     checkImport(current);
     job.stage = 'publish';
     if (fileIo.accessSync(`${dir(context)}/${job.file}`)) { throw new ImportFailure('storage', 'publish'); }
-    fileIo.moveFileSync(job.temp, `${dir(context)}/${job.file}`);
+    fileIo.moveFileSync(job.temp, `${dir(context)}/${job.file}`, 1);
     return job.file;
   }
 
