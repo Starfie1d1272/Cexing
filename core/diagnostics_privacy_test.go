@@ -178,7 +178,7 @@ func TestDiagnosticDictionaryExhaustionFailsClosedWithoutLosingErrno(t *testing.
 	s.privacyMu.Unlock()
 	s.registerPrivateConfig(map[string]any{"password": "CapacityPrivatePassword"})
 	failure := s.failure(fmt.Errorf("CapacityPrivateNode CapacityPrivatePassword: %w", syscall.ECONNREFUSED), 0)
-	if failure.Code != "errno:111" || !failure.DetailOmitted || len(failure.Causes) != 1 {
+	if failure.Code != fmt.Sprintf("errno:%d", syscall.ECONNREFUSED) || !failure.DetailOmitted || len(failure.Causes) != 1 {
 		t.Fatal("capacity fallback lost error structure")
 	}
 	if err = s.record(diagnosticEvent{Operation: "vpn", Stage: "proxy_dial", Outcome: "failed", Error: failure}); err != nil {
@@ -188,7 +188,7 @@ func TestDiagnosticDictionaryExhaustionFailsClosedWithoutLosingErrno(t *testing.
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(string(data), "CapacityPrivateNode") || strings.Contains(string(data), "CapacityPrivatePassword") || !strings.Contains(string(data), "errno:111") || !strings.Contains(string(data), "detailOmitted") {
+	if strings.Contains(string(data), "CapacityPrivateNode") || strings.Contains(string(data), "CapacityPrivatePassword") || !strings.Contains(string(data), fmt.Sprintf("errno:%d", syscall.ECONNREFUSED)) || !strings.Contains(string(data), "detailOmitted") {
 		t.Fatal("unsafe/unmarked capacity fallback")
 	}
 }
