@@ -191,6 +191,10 @@ func (c Compiler) Compile(ctx context.Context, r Request) (Result, error) {
 		return Result{}, err
 	}
 	if err := c.Validate(ctx, append([]byte(nil), output...)); err != nil {
+		var failure *ValidationFailure
+		if errors.As(err, &failure) && failure != nil {
+			return Result{}, NewValidationFailure(failure.Error())
+		}
 		return Result{}, errors.New("full configuration validation failed")
 	}
 	if err := ctx.Err(); err != nil {

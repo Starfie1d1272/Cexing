@@ -102,6 +102,9 @@ func coreVersionAction(home, input string) string {
 	if err != nil {
 		response = versionResponse{Error: err.Error()}
 	}
+	if response.Error != "" && (action.Op == "stage" || action.Op == "verify" || action.Op == "commit") {
+		recordProfileVersionFailure(home, action.Op, response.Error)
+	}
 	data, marshalErr := json.Marshal(response)
 	if marshalErr != nil {
 		return `{"error":"VERSION_FAILED"}`
@@ -270,7 +273,7 @@ func executeVersionAction(home string, action versionAction) (versionResponse, e
 		}
 		receipt, err := validateCandidateWithReceipt(home, string(content), action.Overrides)
 		if err != nil {
-			return versionResponse{}, errors.New("VERSION_VERIFY_FAILED")
+			return versionResponse{}, configpipeline.NewValidationFailure(err.Error())
 		}
 		return versionResponse{Receipt: receipt}, nil
 	case "stage":
@@ -288,6 +291,10 @@ func executeVersionAction(home string, action versionAction) (versionResponse, e
 		if err != nil || len(result.YAML) > maxConfigBytes {
 			if _, ok := err.(*configpipeline.IntentError); ok {
 				return editFailure(err)
+			}
+			var failure *configpipeline.ValidationFailure
+			if errors.As(err, &failure) && failure != nil {
+				return versionResponse{}, failure
 			}
 			return versionResponse{}, errors.New("VERSION_COMPILE_FAILED")
 		}
@@ -394,7 +401,7 @@ func executeVersionAction(home string, action versionAction) (versionResponse, e
 
 func editFailure(err error) (versionResponse, error) {
 	var failure *configpipeline.IntentError
-	if errors.As(err, &failure) {
+	if errors.As(err, &failure) && failure != nil {
 		return versionResponse{Error: "EDIT_INTENT_FAILED", EditError: failure}, nil
 	}
 	return versionResponse{}, errors.New("EDIT_INTENT_FAILED")

@@ -394,6 +394,13 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   const rejected = readyPage(); await rejected.activateAndConnect();
   assert.equal(rejected.showSheet, true); assert.match(rejected.importError, /来源尚未就绪/);
   assert.ok(!rejected.importError.includes('private-token'));
+  for (const [code, expected] of [['RESOURCE_MISSING', /资源未准备好/],
+    ['PROVIDER_UNRESOLVED', /来源尚未就绪/], ['CORE_VALIDATION_FAILED', /配置/]]) {
+    activateResult = async () => { throw Error('配置版本操作失败: ' + code); };
+    const failed = readyPage(); await failed.activateAndConnect();
+    assert.match(failed.importError, expected); assert.equal(failed.showSheet, true);
+    assert.equal(start, startsBeforeImport + 1, 'failed activation must not start VPN');
+  }
   activateResult = async () => { active = 'candidate.yaml'; return 'saved'; };
   smartPrepare = async () => { throw Error('配置资源缺失'); };
   const resources = readyPage(); await resources.activateAndConnect();
