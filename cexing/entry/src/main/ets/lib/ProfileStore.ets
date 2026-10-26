@@ -6,7 +6,7 @@
  */
 import { fileIo } from '@kit.CoreFileKit';
 import { http } from '@kit.NetworkKit';
-import { common } from '@kit.AbilityKit';
+import { bundleManager, common } from '@kit.AbilityKit';
 import { util } from '@kit.ArkTS';
 import { Logger } from './Logger';
 import { suggestProfileName, profileNameFromUrl } from './ProfileName';
@@ -831,12 +831,19 @@ export namespace ProfileStore {
     atomicText(`${ensureDir(context)}/${file}.url`, url);
   }
 
+  /** Ask subscription origins for Clash YAML using the installed product version. */
+  function subscriptionUserAgent(): string {
+    const info = bundleManager.getBundleInfoForSelfSync(bundleManager.BundleFlag.GET_BUNDLE_INFO_DEFAULT);
+    return `ClashMeta/1.0 Cexing/${info.versionName}`;
+  }
+
   /** 从 URL 导入订阅，返回保存的文件名；失败抛错 */
   export async function importFromUrl(context: common.Context, url: string, current?: () => boolean): Promise<string> {
     const req = http.createHttp();
     try {
       const resp = await req.request(url, {
         method: http.RequestMethod.GET,
+        header: { 'User-Agent': subscriptionUserAgent() },
         expectDataType: http.HttpDataType.STRING,
         maxLimit: IMPORT_CONFIG_BYTES,
         connectTimeout: 15000,
@@ -888,6 +895,7 @@ export namespace ProfileStore {
     try {
       const resp = await req.request(url, {
         method: http.RequestMethod.GET,
+        header: { 'User-Agent': subscriptionUserAgent() },
         expectDataType: http.HttpDataType.STRING,
         maxLimit: IMPORT_CONFIG_BYTES,
         connectTimeout: 15000,

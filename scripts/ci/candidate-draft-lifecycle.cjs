@@ -19,6 +19,7 @@ const io={OpenMode:{READ_ONLY:0,READ_WRITE:2,CREATE:64,TRUNC:512},
 const settings={smartAutoConvert:false,mixedPort:7890,logLevel:'info',allowLan:false,ipv6:false,mode:'rule',logToFile:false};
 function runtime(options={}){
  const modules={'@kit.ArkTS':{util:{generateRandomUUID:()=>crypto.randomUUID(),TextEncoder:{create:()=>({encodeInto:s=>new TextEncoder().encode(s)})},TextDecoder:{create:(_,o)=>{const d=new TextDecoder('utf-8',o);return {decodeToString:(b,opt)=>d.decode(b,opt)}}}}},
+ '@kit.AbilityKit':{bundleManager:{BundleFlag:{GET_BUNDLE_INFO_DEFAULT:0},getBundleInfoForSelfSync:()=>({versionName:'0.1.0'})}},
  '@kit.CoreFileKit':{fileIo:io},'@kit.NetworkKit':{http:{}},'libentry.so':{versionAction:async(_,s)=>{const input=JSON.parse(s);if(beforeAction)await beforeAction(input);const reply=await action(input);if(afterAction)await afterAction(input,reply);if(input.op==='commit'&&loseCommitAck){failWrite=true;throw Error('synthetic lost commit reply')}return reply}},
  './UiText':ui.module,'./Settings':{Settings:{load:()=>settings,idle:async()=>{},setSmartAutoConvert:async(_,v)=>{settings.smartAutoConvert=v}}},'./Logger':{Logger:{info(){},warn(){},error(){}}},
  './CoreValidator':{CoreValidator:{...require('./semantic-fixture.cjs').CoreValidator,prepareResources:async()=>{}}},'./VpnController':{VpnStatus:{Disconnected:0,Connected:2},VpnController:{status:0,holdConfiguration:()=>()=>{},configurationEpoch:()=>0}},'./CoreApi':{CoreApi:{}}};
