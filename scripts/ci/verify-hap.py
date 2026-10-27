@@ -128,6 +128,10 @@ with zipfile.ZipFile(hap) as archive, tempfile.TemporaryDirectory() as directory
             sha(geosite) == geodata['geosite']['expectedSha256'] == geodata['geosite']['downloadedSha256'],
             'GeoSite upstream/actual/package identity')
     require(bool(archive.read('resources/rawfile/override.yaml')), 'nonempty default configuration')
+    for file in sorted((root / 'third_party/geodata').rglob('*')):
+        if file.is_file():
+            name = 'resources/rawfile/geodata-notices/' + file.relative_to(root / 'third_party/geodata').as_posix()
+            require(archive.read(name) == file.read_bytes(), 'bundled GeoData notice: ' + name)
     for notice in ['LICENSE', 'source.json']:
         require(archive.read('resources/rawfile/routing-rules/' + notice) ==
                 (root / 'third_party/routing-rules' / notice).read_bytes(), 'bundled routing rule notice: ' + notice)
