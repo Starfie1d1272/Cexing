@@ -45,6 +45,6 @@ node scripts/test-background-lifecycle.cjs
 git diff --check
 ```
 
-用 ZIP 工具检查 HAP CRC，确认包含 `libmihomo.so`、`libentry.so`、`libc++_shared.so`、`override.yaml` 和 `geodata/geoip.metadb`；读取包内库的 ELF 架构及摘要。跨编译与 mock 测试只证明各自覆盖的构建/状态机行为，网络与后台运行用 [设备指南](device.md) 验收。
+用 ZIP 工具检查 HAP CRC，确认包含 `libmihomo.so`、`libentry.so`、`libc++_shared.so`、`override.yaml` 和 `geodata/geoip.metadb`、`geodata/geosite.dat`；读取包内库的 ELF 架构及摘要。跨编译与 mock 测试只证明各自覆盖的构建/状态机行为，网络与后台运行用 [设备指南](device.md) 验收。
 
 内核脚本在临时缓存中验证原始模块、应用所选 gVisor 补丁，构建后临时还原该文件再次执行完整性检查。旧手动补丁曾改写开发者缓存的环境仍须核对历史差异，或用新隔离缓存验证；不忽略其他依赖完整性失败。固定工具组合、Quick/Full 入口与包内版本/ABI/资源检查见 [CI 指南](ci.md)。

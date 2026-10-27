@@ -17,6 +17,7 @@ with tempfile.TemporaryDirectory(prefix='hap-clean-') as temporary:
     project = host / 'cexing'
     (project / 'entry/src/main/resources/rawfile/geodata').mkdir(parents=True)
     (project / 'entry/src/main/resources/rawfile/geodata/geoip.metadb').touch()
+    (project / 'entry/src/main/resources/rawfile/geodata/geosite.dat').touch()
     (host / 'core').mkdir()
     (host / 'third_party/zashboard').mkdir(parents=True)
     (host / 'third_party/zashboard/source.json').write_text('{}')

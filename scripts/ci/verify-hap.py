@@ -123,6 +123,10 @@ with zipfile.ZipFile(hap) as archive, tempfile.TemporaryDirectory() as directory
     require(geodata['policy'] == 'latest-stable', 'GeoIP latest selection policy')
     digest = sha(archive.read('resources/rawfile/geodata/geoip.metadb'))
     require(digest == geodata['expectedSha256'] == geodata['downloadedSha256'], 'GeoIP upstream/actual/package identity')
+    geosite = archive.read('resources/rawfile/geodata/geosite.dat')
+    require(len(geosite) == geodata['geosite']['bytes'] and
+            sha(geosite) == geodata['geosite']['expectedSha256'] == geodata['geosite']['downloadedSha256'],
+            'GeoSite upstream/actual/package identity')
     require(bool(archive.read('resources/rawfile/override.yaml')), 'nonempty default configuration')
     for notice in ['LICENSE', 'source.json']:
         require(archive.read('resources/rawfile/routing-rules/' + notice) ==

@@ -9,6 +9,10 @@ python3 "$REPO_ROOT/scripts/prepare-smart-model.py" --verify
   echo '[build-hap] Missing GeoIP snapshot; run bash scripts/prepare-geodata.sh first' >&2
   exit 1
 }
+[ -f "$PROJECT_ROOT/entry/src/main/resources/rawfile/geodata/geosite.dat" ] || {
+  echo '[build-hap] Missing GeoSite snapshot; run bash scripts/prepare-geodata.sh first' >&2
+  exit 1
+}
 cd "$PROJECT_ROOT"
 # This entry owns the single required clean for both direct builds and Full.
 python3 "$REPO_ROOT/scripts/ci/timed.py" hvigor-clean hvigorw clean --no-daemon

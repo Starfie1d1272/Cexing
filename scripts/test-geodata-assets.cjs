@@ -40,8 +40,8 @@ function fixture() {
   const sandbox = { exports: {}, require: n => { assert.ok(n in modules); return modules[n]; }, Uint8Array, ArrayBuffer, Date };
   vm.runInNewContext(code, sandbox);
   const context = { filesDir: root, resourceManager: { getRawFileContent: async name => {
-    assert.equal(name, 'geodata/geoip.metadb');
-    if (faults.offline) throw Error('package missing');
+    assert.ok(['geodata/geoip.metadb', 'geodata/geosite.dat'].includes(name));
+    if (faults.offline || (faults.geositeMissing && name === 'geodata/geosite.dat')) throw Error('package missing');
     return bundled.slice();
   } } };
   return { assets: sandbox.exports.GeoDataAssets, context, faults, root, target: path.join(root, 'geoip.metadb'), cleanup: () => fs.rmSync(root, { recursive: true, force: true }) };
@@ -54,10 +54,22 @@ function fixture() {
     assert.deepEqual(fs.readdirSync(f.root), [], 'inspect must be read only');
     await f.assets.restore(f.context, { cancelled: false });
     assert.equal(await f.assets.inspect(f.context), 'ready');
+    assert.deepEqual(fs.readFileSync(path.join(f.root, 'geosite.dat')), Buffer.from(bundled));
+    fs.unlinkSync(path.join(f.root, 'geosite.dat'));
+    assert.equal(await f.assets.inspect(f.context), 'missing');
+    await f.assets.restore(f.context, { cancelled: false });
     fs.writeFileSync(f.target, Buffer.from([9, 8]));
     assert.equal(await f.assets.inspect(f.context), 'invalid');
     await f.assets.restore(f.context, { cancelled: false });
     assert.deepEqual(fs.readFileSync(f.target), Buffer.from(bundled));
+    // Failure to prepare the second resource keeps its prior file intact.
+    const site = path.join(f.root, 'geosite.dat');
+    fs.writeFileSync(site, Buffer.from([7, 6]));
+    f.faults.geositeMissing = true;
+    await assert.rejects(f.assets.restore(f.context, { cancelled: false }));
+    assert.deepEqual(fs.readFileSync(site), Buffer.from([7, 6]));
+    delete f.faults.geositeMissing;
+    await f.assets.restore(f.context, { cancelled: false });
     // An empty prior file is corrupt but recoverable.
     fs.writeFileSync(f.target, Buffer.alloc(0));
     await f.assets.restore(f.context, { cancelled: false });
