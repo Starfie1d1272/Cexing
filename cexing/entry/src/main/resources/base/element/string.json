@@ -4299,6 +4299,14 @@
     {
       "name": "subscription_updated",
       "value": "Subscription info updated: %s"
+    },
+    {
+      "name": "geosite_missing_named",
+      "value": "GeoSite category %s is missing. Update the app and try again."
+    },
+    {
+      "name": "geosite_missing_generic",
+      "value": "A required GeoSite category is missing. Update the app and try again."
     }
   ]
 }

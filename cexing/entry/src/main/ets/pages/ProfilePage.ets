@@ -398,6 +398,11 @@ export struct ProfilePage {
 
   private activationError(error: Error): string {
     const message = error.message ?? '';
+    const missingGeoSite = ProfileApplyFeedback.missingGeoSite(message);
+    if (missingGeoSite !== '') {
+      return missingGeoSite === '*' ? UiText.get($r('app.string.geosite_missing_generic')) :
+        UiText.get($r('app.string.geosite_missing_named'), missingGeoSite);
+    }
     // The native version bridge returns closed codes, not parser text or YAML.
     if (message === '配置版本操作失败: CONFIG_INVALID' ||
       message === '配置版本操作失败: CORE_VALIDATION_FAILED') {
@@ -595,7 +600,9 @@ export struct ProfilePage {
         const pending = (error as Error).message === '请先应用或撤销当前更新草稿';
         const kind = this.recoveryFailure || ProfileApplyFeedback.classify((error as Error).message);
         this.toast(kind !== 'failed' ? context.resourceManager.getStringByNameSync(ProfileApplyFeedback.key(kind)) :
-          pending ? UiText.get($r('app.string.profile_update_pending')) : UiText.get($r('app.string.profile_update_incomplete')));
+          pending ? UiText.get($r('app.string.profile_update_pending')) :
+          ProfileApplyFeedback.missingGeoSite((error as Error).message) !== '' ? this.activationError(error as Error) :
+          UiText.get($r('app.string.profile_update_incomplete')));
       }
     } finally {
       this.updatingFile = '';
