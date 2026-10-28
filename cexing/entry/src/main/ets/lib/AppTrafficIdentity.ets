@@ -67,6 +67,8 @@ export class AppTrafficIdentity {
       // Official UDP lookup may fall back to the local tuple. Do not infer a UID ourselves.
       const uid = await connection.getConnectOwnerUid(protocol, request.local, request.remote);
       if (uid < 0) { reply.status = 'notFound'; return reply; }
+      // Ordinary GET_BUNDLE_INFO does not establish third-party cross-UID access.
+      // Keep failures unknown until a supported public attribution route is verified.
       const bundleName = await bundleManager.getBundleNameByUid(uid);
       if (bundleName.length === 0) { reply.status = 'notFound'; return reply; }
       reply.uid = uid;

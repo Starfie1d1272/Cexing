@@ -125,8 +125,6 @@ export interface AppTrafficSummary {
   state: string;
   startedAt: number;
   endedAt: number;
-  savedAt: number;
-  unsaved: boolean;
   partial: boolean;
   totals: AppTrafficRoutes;
   apps: AppTrafficRow[];
@@ -209,23 +207,18 @@ export namespace CoreApi {
     }
   }
 
-  /** Current TUN session, or the last checkpoint while the Controller is offline. */
+  /** Live TUN session only. An unavailable Controller returns null; no disk fallback. */
   export async function getAppTraffic(): Promise<AppTrafficSummary | null> {
     const response = await request(http.RequestMethod.GET, '/ohos/app-traffic');
+    if (response === null || response.length > 1024 * 1024) { return null; }
     try {
-      const text = response !== null ? response : fileIo.readTextSync(`${filesDir}/app-traffic/summary.json`);
-      if (text.length > 1024 * 1024) { return null; }
-      const summary = JSON.parse(text) as AppTrafficSummary;
-      if (!validAppTrafficSummary(summary)) { return null; }
-      if (response === null && summary.state === 'running') {
-        summary.state = 'interrupted';
-        summary.partial = true;
-      }
-      return summary;
+      const summary = JSON.parse(response) as AppTrafficSummary;
+      return validAppTrafficSummary(summary) ? summary : null;
     } catch (_) { return null; }
   }
 
-  /** Resolve only an observed bundle. Caller owns/release()s the returned PixelMap. */
+  /** Best effort for visible bundles only; third-party cross-UID access is not established.
+   * Caller owns/release()s the returned PixelMap. */
   export async function getAppTrafficPresentation(bundleName: string): Promise<AppTrafficPresentation | null> {
     if (bundleName.length === 0 || bundleName.length > 256) { return null; }
     try {
@@ -585,8 +578,8 @@ function validAppTrafficSummary(summary: AppTrafficSummary): boolean {
   if (summary === null || typeof summary !== 'object' || summary.schemaVersion !== 1 ||
     typeof summary.session !== 'string' || !/^[0-9a-f]{32}$/.test(summary.session) ||
     (summary.state !== 'running' && summary.state !== 'closed') ||
-    typeof summary.unsaved !== 'boolean' || typeof summary.partial !== 'boolean' ||
-    ![summary.startedAt, summary.endedAt, summary.savedAt].every((time: number) =>
+    typeof summary.partial !== 'boolean' ||
+    ![summary.startedAt, summary.endedAt].every((time: number) =>
       typeof time === 'number' && Number.isFinite(time) && time >= 0) ||
     !validAppTrafficRoutes(summary.totals) || !Array.isArray(summary.apps) || summary.apps.length > 129) { return false; }
   return summary.apps.every((row: AppTrafficRow) => row !== null && typeof row === 'object' &&
