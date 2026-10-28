@@ -4299,6 +4299,102 @@
     {
       "name": "subscription_updated",
       "value": "Subscription info updated: %s"
+    },
+    {
+      "name": "traffic_unknown_app",
+      "value": "Unidentified"
+    },
+    {
+      "name": "traffic_started_at",
+      "value": "Started at %s"
+    },
+    {
+      "name": "traffic_apps_loading",
+      "value": "Loading app usage…"
+    },
+    {
+      "name": "traffic_apps_unavailable",
+      "value": "App usage is temporarily unavailable. Retrying…"
+    },
+    {
+      "name": "traffic_apps_empty",
+      "value": "No app usage recorded for this session"
+    },
+    {
+      "name": "traffic_session_ended",
+      "value": "Session ended"
+    },
+    {
+      "name": "traffic_exclude_title",
+      "value": "Exclude %s from VPN?"
+    },
+    {
+      "name": "traffic_exclude_warning",
+      "value": "Saved changes take effect after reconnecting. New connections from this app will bypass the VPN and no longer be recorded."
+    },
+    {
+      "name": "traffic_exclude_confirm",
+      "value": "Save exclusion"
+    },
+    {
+      "name": "traffic_proxy",
+      "value": "Proxy"
+    },
+    {
+      "name": "traffic_direct",
+      "value": "Core direct"
+    },
+    {
+      "name": "traffic_unclassified",
+      "value": "Unclassified"
+    },
+    {
+      "name": "traffic_apps",
+      "value": "App usage"
+    },
+    {
+      "name": "traffic_proxy_order",
+      "value": "Session · proxy usage ↓"
+    },
+    {
+      "name": "traffic_app_totals",
+      "value": "Total %s · Direct %s"
+    },
+    {
+      "name": "traffic_identity_unsupported",
+      "value": "This system cannot identify apps. Usage is grouped as unidentified."
+    },
+    {
+      "name": "traffic_scope",
+      "value": "Traffic through the VPN core only; excludes apps that bypass VPN."
+    },
+    {
+      "name": "traffic_app_total",
+      "value": "App total"
+    },
+    {
+      "name": "traffic_recent_rules",
+      "value": "Recent matched rules"
+    },
+    {
+      "name": "traffic_no_rules",
+      "value": "No recent rule details retained"
+    },
+    {
+      "name": "traffic_exclude_action",
+      "value": "Exclude this app from VPN"
+    },
+    {
+      "name": "traffic_unknown_no_exclude",
+      "value": "Identify the app before changing its VPN access."
+    },
+    {
+      "name": "traffic_exclusion_undo",
+      "value": "Undo application exclusion"
+    },
+    {
+      "name": "traffic_excluded",
+      "value": "App excluded from VPN"
     }
   ]
 }

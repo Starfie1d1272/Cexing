@@ -10,10 +10,12 @@ source = source.split('\n').map(line => line.trimStart().startsWith('@') ?
   line.replace(/@\w+(?:\([^\n)]*\))?\s*/g, '') : line).join('\n').replace('export struct', 'export class');
 let now = 300000, tick, stream, stops = 0;
 const listeners = new Set();
-const controller = { status: 2, onChanged: fn => listeners.add(fn), offChanged: fn => listeners.delete(fn) };
+const controller = { status: 2, trafficSession: () => 'vpn-session', onChanged: fn => listeners.add(fn), offChanged: fn => listeners.delete(fn) };
 let points = [{ at: 1000, up: 1, down: 2 }, { at: now - 5000, up: 3, down: 4 }, { at: now, up: 5, down: 6 }];
 const modules = {
-  '../lib/CoreApi': { CoreApi: { StreamWatcher: class {
+  '../lib/Settings': { AppSettings: class {}, Settings: { load: () => ({}), onChanged() {}, offChanged() {} } },
+  '@kit.ArkUI': { promptAction: { showToast() {} } },
+  '../lib/CoreApi': { CoreApi: { getAppTraffic: async () => null, getControllerSession: async () => 'core-session', StreamWatcher: class {
     start(path, cb) { assert.equal(path, '/traffic'); stream = cb; }
     stop() { stream = null; stops++; }
   } }, formatRate: n => `${n} B/s` },

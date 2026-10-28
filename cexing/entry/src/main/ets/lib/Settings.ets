@@ -37,6 +37,12 @@ export class AppSettings {
   smartAutoConvert: boolean = true;
 }
 
+export class ApplicationAccessEdit {
+  mode: string = 'all';
+  list: string[] = [];
+  revision: number = 0;
+}
+
 export namespace Settings {
   const listeners: (() => void)[] = [];
   export function onChanged(listener: () => void): void { if (!listeners.includes(listener)) { listeners.push(listener); } }
@@ -55,6 +61,7 @@ export namespace Settings {
 
   let store: preferences.Preferences | null = null;
   let committed: AppSettings | null = null;
+  let accessRevision: number = 0;
   let tail: Promise<void> = Promise.resolve();
   let recoveryError: boolean = false;
   let recoveryChecked: boolean = false;
@@ -181,12 +188,38 @@ export namespace Settings {
       try {
         writeCache(p, next);
         await p.flush();
-        committed = next; notify();
+        committed = next;
+        if (fields.includes('accessMode') || fields.includes('accessList')) { accessRevision++; }
+        notify();
       } catch (_) {
         try { writeCache(p, before); await p.flush(); } catch (_) { Logger.error(TAG, 'settings rollback failed'); }
         throw new Error('保存失败，请重试');
       }
     }); } catch (_) { throw new Error('保存失败，请重试'); }
+  }
+
+  /** Read, validate and publish the application list inside the existing writer queue.
+   * Undo is conditional on no later application-list edit, including edit-away/back. */
+  export async function editApplicationAccess(context: common.Context,
+    edit: (s: AppSettings) => void, expectedRevision?: number): Promise<ApplicationAccessEdit> {
+    const receipt = new ApplicationAccessEdit();
+    await enqueue(context, async (p: preferences.Preferences) => {
+      if (expectedRevision !== undefined && expectedRevision !== accessRevision) {
+        throw new Error('应用范围已更改，无法撤销');
+      }
+      const before = copy(current(context));
+      const next = copy(before);
+      edit(next); validate(next);
+      receipt.mode = before.accessMode; receipt.list = before.accessList.slice();
+      try {
+        writeCache(p, next); await p.flush();
+        committed = next; receipt.revision = ++accessRevision; notify();
+      } catch (_) {
+        try { writeCache(p, before); await p.flush(); } catch (_) { Logger.error(TAG, 'settings rollback failed'); }
+        throw new Error('保存失败，请重试');
+      }
+    });
+    return receipt;
   }
 
   export function portable(s: AppSettings): BackupPreferences {
@@ -208,7 +241,7 @@ export namespace Settings {
   async function reconcileBackup(context: common.Context, p: preferences.Preferences): Promise<void> {
     const result = await BackupJournal.call(context, JSON.stringify({ op: 'backup-recover' }));
     const next = applyPortable(current(context), result.preferences);
-    writeCache(p, next); await p.flush(); committed = next; notify();
+    writeCache(p, next); await p.flush(); committed = next; accessRevision++; notify();
     await BackupJournal.acknowledge(context, result.token);
   }
 
@@ -237,7 +270,7 @@ export namespace Settings {
         recoveryError = true; throw new Error('备份恢复未确认，请重新打开应用后重试');
       }
       const selected = outcome === 'committed' ? next : before;
-      try { writeCache(p, selected); await p.flush(); committed = selected; await finish(); notify(); }
+      try { writeCache(p, selected); await p.flush(); committed = selected; accessRevision++; await finish(); notify(); }
       catch (_) { recoveryError = true; throw new Error('备份恢复未确认，请重新打开应用后重试'); }
       if (outcome !== 'committed') { throw new Error('恢复失败，原资料已保留'); }
     });

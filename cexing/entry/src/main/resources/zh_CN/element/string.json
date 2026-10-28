@@ -4299,6 +4299,102 @@
     {
       "name": "subscription_updated",
       "value": "订阅信息更新：%s"
+    },
+    {
+      "name": "traffic_unknown_app",
+      "value": "未识别"
+    },
+    {
+      "name": "traffic_started_at",
+      "value": "%s 开始"
+    },
+    {
+      "name": "traffic_apps_loading",
+      "value": "正在读取应用用量…"
+    },
+    {
+      "name": "traffic_apps_unavailable",
+      "value": "应用用量暂不可用，正在重试…"
+    },
+    {
+      "name": "traffic_apps_empty",
+      "value": "本次暂无应用用量记录"
+    },
+    {
+      "name": "traffic_session_ended",
+      "value": "本次已结束"
+    },
+    {
+      "name": "traffic_exclude_title",
+      "value": "将 %s 排除 VPN？"
+    },
+    {
+      "name": "traffic_exclude_warning",
+      "value": "保存后需重连生效。此应用的新连接将不再经过 VPN，也不再记录新增用量。"
+    },
+    {
+      "name": "traffic_exclude_confirm",
+      "value": "保存排除"
+    },
+    {
+      "name": "traffic_proxy",
+      "value": "代理"
+    },
+    {
+      "name": "traffic_direct",
+      "value": "内核直连"
+    },
+    {
+      "name": "traffic_unclassified",
+      "value": "未分类"
+    },
+    {
+      "name": "traffic_apps",
+      "value": "应用用量"
+    },
+    {
+      "name": "traffic_proxy_order",
+      "value": "本次 · 按代理用量 ↓"
+    },
+    {
+      "name": "traffic_app_totals",
+      "value": "总计 %s · 直连 %s"
+    },
+    {
+      "name": "traffic_identity_unsupported",
+      "value": "当前系统不支持识别应用，用量归入“未识别”。"
+    },
+    {
+      "name": "traffic_scope",
+      "value": "仅统计经过 VPN 内核的流量，不含已排除 VPN 的应用。"
+    },
+    {
+      "name": "traffic_app_total",
+      "value": "应用总用量"
+    },
+    {
+      "name": "traffic_recent_rules",
+      "value": "最近命中的规则"
+    },
+    {
+      "name": "traffic_no_rules",
+      "value": "未保留近期规则明细"
+    },
+    {
+      "name": "traffic_exclude_action",
+      "value": "将此应用排除 VPN"
+    },
+    {
+      "name": "traffic_unknown_no_exclude",
+      "value": "尚未识别应用，无法快捷排除。"
+    },
+    {
+      "name": "traffic_exclusion_undo",
+      "value": "撤销应用排除"
+    },
+    {
+      "name": "traffic_excluded",
+      "value": "已排除 VPN"
     }
   ]
 }
