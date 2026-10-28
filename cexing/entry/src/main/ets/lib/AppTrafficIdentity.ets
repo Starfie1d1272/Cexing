@@ -1,5 +1,4 @@
 import { connection } from '@kit.NetworkKit';
-import { bundleManager } from '@kit.AbilityKit';
 import { deviceInfo } from '@kit.BasicServicesKit';
 import { AppIdentityBatch, AppIdentityReply, AppIdentityRequest, CoreApi } from './CoreApi';
 
@@ -39,7 +38,7 @@ export class AppTrafficIdentity {
   }
 
   private async resolveWithDeadline(request: AppIdentityRequest): Promise<AppIdentityReply> {
-    const timeout: AppIdentityReply = { id: request.id, uid: -1, bundleName: '', status: 'timeout' };
+    const timeout: AppIdentityReply = { id: request.id, uid: -1, status: 'timeout' };
     // A timed-out platform promise still owns its slot until it actually settles.
     // This cap survives stop/start, so a stuck system service cannot grow work forever.
     if (this.lookups >= 128) { return timeout; }
@@ -55,7 +54,7 @@ export class AppTrafficIdentity {
   }
 
   private async resolve(request: AppIdentityRequest): Promise<AppIdentityReply> {
-    const reply: AppIdentityReply = { id: request.id, uid: -1, bundleName: '', status: 'unsupported' };
+    const reply: AppIdentityReply = { id: request.id, uid: -1, status: 'unsupported' };
     // API 22 still forwards and accounts unknown traffic; never call missing symbols.
     if (deviceInfo.sdkApiVersion < 23) { return reply; }
     if ((request.protocol !== 'tcp' && request.protocol !== 'udp') || request.local.port <= 0 || request.remote.port <= 0) {
@@ -67,13 +66,9 @@ export class AppTrafficIdentity {
       // Official UDP lookup may fall back to the local tuple. Do not infer a UID ourselves.
       const uid = await connection.getConnectOwnerUid(protocol, request.local, request.remote);
       if (uid < 0) { reply.status = 'notFound'; return reply; }
-      // Ordinary GET_BUNDLE_INFO does not establish third-party cross-UID access.
-      // Keep failures unknown until a supported public attribution route is verified.
-      const bundleName = await bundleManager.getBundleNameByUid(uid);
-      if (bundleName.length === 0) { reply.status = 'notFound'; return reply; }
+      // A UID is not a verified application bundle (shared UIDs are possible).
       reply.uid = uid;
-      reply.bundleName = bundleName;
-      reply.status = 'known';
+      reply.status = 'uid';
     } catch (_) { reply.status = 'error'; }
     return reply;
   }
