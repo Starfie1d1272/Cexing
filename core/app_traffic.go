@@ -343,6 +343,8 @@ func (s *appTrafficSession) snapshotLocked(persist bool) appTrafficSummary {
 			dst.Active += src.Active
 		}
 	}
+	// A normal stop with outstanding trackers still has an unconfirmed tail.
+	result.Partial = s.stopped && result.Totals.Proxy.Active+result.Totals.Direct.Active+result.Totals.Unclassified.Active > 0
 	sort.Slice(result.Apps, func(i, j int) bool { return result.Apps[i].BundleName < result.Apps[j].BundleName })
 	return result
 }
