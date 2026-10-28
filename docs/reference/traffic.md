@@ -36,7 +36,7 @@
 
 应用计量独立于上述日/月账本，范围仅为本机系统 TUN 进入内核、已建立 statistic tracker 的客户端字节。排除 VPN 的应用不可观测；DNS 劫持、建连失败等没有 tracker 的路径不造数，节点封装与机场账单也不在此口径。旧 `/connections` 和日/月采样不变，应用明细不追溯补分历史。
 
-固定内核补丁覆盖 TCP 普通/buffer/unwrap 读写、UDP 读写及创建时的初始 `peekLen`。只给 `pushToManager` 路径创建观察句柄，避免嵌套 tracker 重复；通过现有 TUN metadata addition 携带不序列化的会话上下文，旧 TUN 的迟到 tracker 也不进入新会话；句柄属于原 TUN 会话，Close 幂等且只减少活跃连接数，关闭后的并发迟到增量仍记同一行，不再累计终值。出站首个实际 adapter 类型区分代理、内核 DIRECT 与未分类，不依赖策略名。应用身份未知与路由未分类互不替代。
+固定内核补丁覆盖 TCP 普通/buffer/unwrap 读写、UDP 读写及创建时的初始 `peekLen`。只给 `pushToManager` 路径创建观察句柄，避免嵌套 tracker 重复；通过现有 TUN metadata addition 携带不序列化的会话上下文，旧 TUN 的迟到 tracker 也不进入新会话；句柄属于原 TUN 会话，Close 幂等且只减少活跃连接数，关闭后的并发迟到增量仍记同一行，不再累计终值。TUN UDP 的 NAT key 复用既有 `handlerId + source` 自定义地址，使快速重连后相同源端口不会复用旧 listener 的出站 tracker；原始地址元数据独立保留。出站首个实际 adapter 类型区分代理、内核 DIRECT 与未分类，不依赖策略名。应用身份未知与路由未分类互不替代。
 
 Tracker 创建时复制 `RawSrcAddr/RawDstAddr` 的原始地址和非零端口，不能使用 Fake-IP 还原后的目的地址。Go 请求队列至多 256 条、8 秒过期，通过同一认证 Controller 的单个 `/ohos/app-traffic/identity` WS 每批至多 32 条发送。VPN Extension 生命周期持有消费者，API 23+ 仅调用 `connection.getConnectOwnerUid`；API 22 记 unsupported。UID 不等于已验证的应用身份，共享 UID 也可能存在。三方跨 UID 包名/资源查询需要系统级权限，当前没有已验证的普通消费者 VPN 公开替代路线，故不调用包名/图标 API、不声明系统权限，也不猜测应用。官方 UDP 查询可能在远端无匹配时按本地地址匹配，不能解释为严格四元组证据；无 UID 时不自行猜测。平台至多 128 个在途查询，3 秒超时，超时后的底层 Promise 仍占槽直到实际完成，停止/重启也不会绕过上限。
 

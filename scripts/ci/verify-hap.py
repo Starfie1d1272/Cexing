@@ -70,7 +70,7 @@ require(smart_record['patchSha256'] == sha((root / 'core/patches/smart-offline.p
 require(smart_record['inboundPolicy']['patchSha256'] == sha((root / 'core/patches/inbound-policy-race.patch').read_bytes()), 'reviewed inbound snapshot patch identity')
 require(set(smart_record['inboundPolicy']['files']) == {'adapter/inbound/auth.go', 'adapter/inbound/ipfilter.go'}, 'inbound snapshot source set')
 require(smart_record['appTraffic']['patchSha256'] == sha((root / 'core/patches/app-traffic.patch').read_bytes()), 'reviewed tracker observer patch identity')
-require(set(smart_record['appTraffic']['files']) == {'tunnel/statistic/tracker.go', 'adapter/outbound/base.go', 'constant/metadata.go'}, 'tracker observer source set')
+require(set(smart_record['appTraffic']['files']) == {'tunnel/statistic/tracker.go', 'adapter/outbound/base.go', 'constant/metadata.go', 'listener/sing/sing.go'}, 'tracker observer source set')
 require(smart_record['librarySha256'] == sha((root / 'cexing/entry/libs/arm64-v8a/libmihomo.so').read_bytes()), 'Smart build record fresh library identity')
 require(smart_record['headerSha256'] == sha((root / 'cexing/entry/libs/arm64-v8a/libmihomo.h').read_bytes()), 'Smart build record ABI header identity')
 go_inputs = {file.relative_to(root).as_posix() for file in (root / 'core').rglob('*.go') if not file.name.endswith('_test.go') and 'third_party' not in file.relative_to(root / 'core').parts}

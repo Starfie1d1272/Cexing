@@ -9,7 +9,7 @@ import zipfile
 
 PIN = 'v1.19.10-0.20261012020909-daf3ad03021c'
 SUM = 'h1:23XrQ5vZacJbpvuIadl9FNjak2VXIQbzwXx+xU/OtME='
-PATHS = ['tunnel/statistic/tracker.go', 'adapter/outbound/base.go', 'constant/metadata.go']
+PATHS = ['tunnel/statistic/tracker.go', 'adapter/outbound/base.go', 'constant/metadata.go', 'listener/sing/sing.go']
 cache = Path(sys.argv[1]).resolve()
 actual = Path(subprocess.check_output(['go', 'env', 'GOMODCACHE'], text=True).strip()).resolve()
 if cache != actual or cache.is_symlink():
