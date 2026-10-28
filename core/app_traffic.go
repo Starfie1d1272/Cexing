@@ -65,6 +65,7 @@ type appTrafficReason struct {
 	Policy []string `json:"policy"`
 }
 type appTrafficRow struct {
+	BundleVerified bool               `json:"bundleVerified"` // No public cross-UID bundle verification route is available.
 	IdentityStatus string             `json:"identityStatus"`
 	UID            int64              `json:"uid"`
 	BundleName     string             `json:"bundleName"`
@@ -105,10 +106,9 @@ type appIdentityBatch struct {
 	Requests []appIdentityRequest `json:"requests"`
 }
 type appIdentityReply struct {
-	ID         string `json:"id"`
-	UID        int64  `json:"uid"`
-	BundleName string `json:"bundleName"`
-	Status     string `json:"status"`
+	ID     string `json:"id"`
+	UID    int64  `json:"uid"`
+	Status string `json:"status"`
 }
 type appTrafficSession struct {
 	mu                 sync.Mutex
@@ -293,7 +293,7 @@ func (s *appTrafficSession) snapshotLocked() appTrafficSummary {
 	}
 	// A normal stop with outstanding trackers still has an unconfirmed tail.
 	result.Partial = s.stopped && result.Totals.Proxy.Active+result.Totals.Direct.Active+result.Totals.Unclassified.Active > 0
-	sort.Slice(result.Apps, func(i, j int) bool { return result.Apps[i].BundleName < result.Apps[j].BundleName })
+	sort.Slice(result.Apps, func(i, j int) bool { return result.Apps[i].UID < result.Apps[j].UID })
 	return result
 }
 
@@ -400,7 +400,7 @@ func postAppIdentityReplies(w MHTTP.ResponseWriter, req *MHTTP.Request) {
 			continue
 		}
 		delete(s.pending, reply.ID) // duplicates and late replies cannot move bytes twice
-		if reply.Status != "known" || reply.UID < 0 || reply.BundleName == "" || len(reply.BundleName) > 256 {
+		if reply.Status != "uid" || reply.UID < 0 {
 			status := reply.Status
 			switch status {
 			case "unsupported", "notFound", "error", "timeout":
@@ -410,14 +410,14 @@ func postAppIdentityReplies(w MHTTP.ResponseWriter, req *MHTTP.Request) {
 			s.failures[status]++
 			continue
 		}
-		key := strconv.FormatInt(reply.UID, 10) + ":" + reply.BundleName
+		key := strconv.FormatInt(reply.UID, 10)
 		row := s.rows[key]
 		if row == nil {
 			if len(s.rows) >= 129 {
 				s.failures["overflow"]++
 				continue
 			}
-			row = &appTrafficRow{IdentityStatus: "known", UID: reply.UID, BundleName: reply.BundleName, Recent: []appTrafficReason{}}
+			row = &appTrafficRow{IdentityStatus: "uid", UID: reply.UID, Recent: []appTrafficReason{}}
 			s.rows[key] = row
 		}
 		h := p.handle

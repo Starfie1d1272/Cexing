@@ -6,8 +6,6 @@
 import { http, webSocket } from '@kit.NetworkKit';
 import { Logger } from './Logger';
 import { util } from '@kit.ArkTS';
-import { bundleManager } from '@kit.AbilityKit';
-import { image } from '@kit.ImageKit';
 import { application, common } from '@kit.AbilityKit';
 import { fileIo } from '@kit.CoreFileKit';
 
@@ -113,6 +111,7 @@ export interface AppTrafficReason {
   policy: string[];
 }
 export interface AppTrafficRow {
+  bundleVerified: boolean; // Always false until a public verification route exists.
   identityStatus: string;
   uid: number;
   bundleName: string;
@@ -129,10 +128,6 @@ export interface AppTrafficSummary {
   totals: AppTrafficRoutes;
   apps: AppTrafficRow[];
   identityFailures: Record<string, number>;
-}
-export interface AppTrafficPresentation {
-  label: string;
-  icon: image.PixelMap | null;
 }
 export interface AppIdentityAddress {
   address: string;
@@ -152,7 +147,6 @@ export interface AppIdentityBatch {
 export interface AppIdentityReply {
   id: string;
   uid: number;
-  bundleName: string;
   status: string;
 }
 
@@ -214,21 +208,6 @@ export namespace CoreApi {
     try {
       const summary = JSON.parse(response) as AppTrafficSummary;
       return validAppTrafficSummary(summary) ? summary : null;
-    } catch (_) { return null; }
-  }
-
-  /** Best effort for visible bundles only; third-party cross-UID access is not established.
-   * Caller owns/release()s the returned PixelMap. */
-  export async function getAppTrafficPresentation(bundleName: string): Promise<AppTrafficPresentation | null> {
-    if (bundleName.length === 0 || bundleName.length > 256) { return null; }
-    try {
-      const bundle = await bundleManager.getBundleInfo(bundleName, bundleManager.BundleFlag.GET_BUNDLE_INFO_WITH_APPLICATION);
-      const manager = application.getApplicationContext().resourceManager;
-      let label = bundleName;
-      let icon: image.PixelMap | null = null;
-      try { label = await manager.getStringValue(bundle.appInfo.labelResource); } catch (_) {}
-      try { icon = manager.getDrawableDescriptor(bundle.appInfo.iconResource).getPixelMap(); } catch (_) {}
-      return { label: label, icon: icon };
     } catch (_) { return null; }
   }
 
@@ -583,8 +562,8 @@ function validAppTrafficSummary(summary: AppTrafficSummary): boolean {
       typeof time === 'number' && Number.isFinite(time) && time >= 0) ||
     !validAppTrafficRoutes(summary.totals) || !Array.isArray(summary.apps) || summary.apps.length > 129) { return false; }
   return summary.apps.every((row: AppTrafficRow) => row !== null && typeof row === 'object' &&
-    (row.identityStatus === 'known' || row.identityStatus === 'unknown') &&
+    (row.identityStatus === 'uid' || row.identityStatus === 'unknown') &&
     typeof row.uid === 'number' && Number.isInteger(row.uid) && row.uid >= -1 &&
-    typeof row.bundleName === 'string' && row.bundleName.length <= 256 &&
+    row.bundleName === '' && row.bundleVerified === false &&
     validAppTrafficRoutes(row.routes) && Array.isArray(row.recent) && row.recent.length <= 4);
 }
