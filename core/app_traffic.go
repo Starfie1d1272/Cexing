@@ -74,7 +74,7 @@ type appTrafficRow struct {
 type appTrafficSummary struct {
 	SchemaVersion    int              `json:"schemaVersion"`
 	Session          string           `json:"session"`
-	State            string           `json:"state"` // running, closed; offline running becomes interrupted
+	State            string           `json:"state"` // running or closed; no offline checkpoint
 	StartedAt        int64            `json:"startedAt"`
 	EndedAt          int64            `json:"endedAt"`
 	Partial          bool             `json:"partial"`
