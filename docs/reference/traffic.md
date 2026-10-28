@@ -2,7 +2,7 @@
 
 ## 口径与上游依据
 
-上传、下载是当前内核跟踪的数据字节，合计为两者之和；不是系统网卡总量、运营商计费量或订阅套餐余额。不采集应用、域名、连接明细，不同步到云端。
+上传、下载是当前内核跟踪的数据字节，合计为两者之和；不是系统网卡总量、运营商计费量或订阅套餐余额。日/月账本不采集应用、域名、连接明细，不同步到云端；应用本次汇总见下文。
 
 固定内核 [Mihomo statistic manager](https://github.com/vernesong/mihomo/blob/daf3ad03021cca6031f4a7303ca6d861a14d5a16/tunnel/statistic/manager.go) 的 `Total()` / `Snapshot()` 为进程累计，`Now()` 为一秒速率；连接关闭不会扣除累计。当前固定模块图没有 `ResetStatistic()` 调用，但客户端仍防御计数回退。参考 [v2rayN StatisticsManager](https://github.com/2dust/v2rayN/blob/master/v2rayN/ServiceLib/Manager/StatisticsManager.cs) 将日累计、总累计与存储分离的思路，本实现另加会话检查点和缺失区间处理；不把 Web 面板短时曲线当作跨重启账本。首页、详情的实时速率沿用 `/traffic`；账本只用 `/connections` 的 `uploadTotal/downloadTotal`，不积分速率。
 
@@ -31,3 +31,17 @@
 ## 界面约束
 
 首页不增加卡片，通过现有速率区的箭头打开流量页，未连接时同一区域也能打开已保存统计。详情只显示上传/下载实时速率、短曲线、本次/今日/本月上传下载及合计；实际缺失标“部分记录”，写失败标“记录未保存”。口径说明仅在工程文档，不在页面放常驻解释或套餐暗示。
+
+## 应用本次汇总
+
+应用计量独立于上述日/月账本，范围仅为本机系统 TUN 进入内核、已建立 statistic tracker 的客户端字节。排除 VPN 的应用不可观测；DNS 劫持、建连失败等没有 tracker 的路径不造数，节点封装与机场账单也不在此口径。旧 `/connections` 和日/月采样不变，应用明细不追溯补分历史。
+
+固定内核补丁覆盖 TCP 普通/buffer/unwrap 读写、UDP 读写及创建时的初始 `peekLen`。只给 `pushToManager` 路径创建观察句柄，避免嵌套 tracker 重复；通过现有 TUN metadata addition 携带不序列化的会话上下文，旧 TUN 的迟到 tracker 也不进入新会话；句柄属于原 TUN 会话，Close 幂等且只减少活跃连接数，关闭后的并发迟到增量仍记同一行，不再累计终值。出站首个实际 adapter 类型区分代理、内核 DIRECT 与未分类，不依赖策略名。应用身份未知与路由未分类互不替代。
+
+Tracker 创建时复制 `RawSrcAddr/RawDstAddr` 的原始地址和非零端口，不能使用 Fake-IP 还原后的目的地址。Go 请求队列至多 256 条、8 秒过期，通过同一认证 Controller 的单个 `/ohos/app-traffic/identity` WS 每批至多 32 条发送。VPN Extension 生命周期持有消费者，API 23+ 调用 `connection.getConnectOwnerUid`，再以普通 `GET_BUNDLE_INFO` 权限调用 `bundleManager.getBundleNameByUid`；API 22 记 unsupported。官方 UDP 查询可能在远端无匹配时按本地地址匹配，不能解释为严格四元组证据；无 UID 时不自行猜测。平台至多 128 个在途查询，3 秒超时，超时后的底层 Promise 仍占槽直到实际完成，停止/重启也不会绕过上限。
+
+身份批量 POST 带会话 ID 与请求 ID。未知先计数，成功回复在同一聚合锁内移动已累计字节、连接数和活跃数，随后增量直接归已识别行；重复、超时或旧会话回复不再移动。失败原因只保留有界类别计数。最多 128 个已识别 UID/包名组合，超限继续计入未知，转发不等待平台查询。
+
+`GET /ohos/app-traffic` 与 `CoreApi.getAppTraffic()` 返回 schemaVersion 1：`session/state/startedAt/endedAt/savedAt/unsaved/partial/totals/apps/identityFailures`；时间是 Unix 毫秒。每行含 `identityStatus/uid/bundleName/routes/recent`，routes 的 `proxy/direct/unclassified` 分别含 `upload/download/connections/active`。未知行 UID 为 -1、包名为空。每行内存保留最近四条规则类型及至多八段策略链，不含规则 payload、域名或原始地址，持久快照不保存 recent。真实名称和图标通过 `CoreApi.getAppTrafficPresentation(bundleName)` 按已观测包名查询资源，失败返回 null；不新增全应用扫描。返回的 PixelMap 由 UI 持有并释放。
+
+Go 用一个 writer 每五秒合并保存最新一份 `app-traffic/summary.json`，开始和停止也触发保存；临时文件原子 rename，磁盘操作在计数锁外。没有历史数据库；新会话替换旧本次。保存期间的新增量由 revision 保持待保存，旧 tracker 不会污染新会话。未保存/写失败通过 unsaved 返回，损坏或未知版本文件保留且不覆盖。正常停止写 `closed`；Controller 不可达时客户端读取最后检查点，若检查点仍为 `running` 则展示 `interrupted/partial`，表示尾段未确认完整，不据此断言 VPN 进程一定死亡。保存前进程异常退出的尾段无法恢复，正常停止后的异步迟到计数也仍有检查点窗口，不能称为运营商级完整账单。

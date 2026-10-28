@@ -266,7 +266,7 @@ func validateProviderPath(path string) error {
 		return unsafe
 	}
 	parts := strings.Split(rel, string(filepath.Separator))
-	if parts[0] == "backups" || parts[0] == "profiles" || parts[0] == "profile-versions" || parts[0] == "controller-security" || parts[0] == "diagnostics" || parts[0] == "ui" ||
+	if parts[0] == "backups" || parts[0] == "profiles" || parts[0] == "profile-versions" || parts[0] == "controller-security" || parts[0] == "app-traffic" || parts[0] == "diagnostics" || parts[0] == "ui" ||
 		strings.HasPrefix(parts[0], "zashboard-staging-") || strings.HasPrefix(parts[0], "zashboard-quarantine-") {
 		return unsafe
 	}
@@ -436,7 +436,7 @@ func reloadPlatformConfig(w MHTTP.ResponseWriter, req *MHTTP.Request) {
 		path, err := filepath.EvalSymlinks(body.Path)
 		rel, relErr := filepath.Rel(homeDir, path)
 		ext := strings.ToLower(filepath.Ext(path))
-		if err != nil || relErr != nil || !filepath.IsAbs(body.Path) || path != filepath.Clean(body.Path) || rel == "." || strings.HasPrefix(rel, "..") || strings.HasPrefix(rel, "controller-security/") || strings.HasPrefix(rel, "diagnostics/") || strings.HasPrefix(rel, "ui/") || (ext != ".yaml" && ext != ".yml" && ext != ".json") {
+		if err != nil || relErr != nil || !filepath.IsAbs(body.Path) || path != filepath.Clean(body.Path) || rel == "." || strings.HasPrefix(rel, "..") || strings.HasPrefix(rel, "controller-security/") || strings.HasPrefix(rel, "app-traffic/") || strings.HasPrefix(rel, "diagnostics/") || strings.HasPrefix(rel, "ui/") || (ext != ".yaml" && ext != ".yml" && ext != ".json") {
 			controllerError(w, 400, "configuration path is outside allowed app files")
 			return
 		}

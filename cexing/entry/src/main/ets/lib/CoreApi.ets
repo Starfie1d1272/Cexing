@@ -6,6 +6,8 @@
 import { http, webSocket } from '@kit.NetworkKit';
 import { Logger } from './Logger';
 import { util } from '@kit.ArkTS';
+import { bundleManager } from '@kit.AbilityKit';
+import { image } from '@kit.ImageKit';
 import { application, common } from '@kit.AbilityKit';
 import { fileIo } from '@kit.CoreFileKit';
 
@@ -93,6 +95,69 @@ export interface TrafficMsg {
   down: number;
 }
 
+export interface AppTrafficBytes {
+  upload: number;
+  download: number;
+  connections: number;
+  active: number;
+}
+export interface AppTrafficRoutes {
+  proxy: AppTrafficBytes;
+  direct: AppTrafficBytes;
+  unclassified: AppTrafficBytes;
+}
+export interface AppTrafficReason {
+  at: number;
+  route: string;
+  rule: string;
+  policy: string[];
+}
+export interface AppTrafficRow {
+  identityStatus: string;
+  uid: number;
+  bundleName: string;
+  routes: AppTrafficRoutes;
+  recent: AppTrafficReason[];
+}
+export interface AppTrafficSummary {
+  schemaVersion: number;
+  session: string;
+  state: string;
+  startedAt: number;
+  endedAt: number;
+  savedAt: number;
+  unsaved: boolean;
+  partial: boolean;
+  totals: AppTrafficRoutes;
+  apps: AppTrafficRow[];
+  identityFailures: Record<string, number>;
+}
+export interface AppTrafficPresentation {
+  label: string;
+  icon: image.PixelMap | null;
+}
+export interface AppIdentityAddress {
+  address: string;
+  family: number;
+  port: number;
+}
+export interface AppIdentityRequest {
+  id: string;
+  protocol: string;
+  local: AppIdentityAddress;
+  remote: AppIdentityAddress;
+}
+export interface AppIdentityBatch {
+  session: string;
+  requests: AppIdentityRequest[];
+}
+export interface AppIdentityReply {
+  id: string;
+  uid: number;
+  bundleName: string;
+  status: string;
+}
+
 export namespace CoreApi {
   let filesDir: string = '';
 
@@ -142,6 +207,42 @@ export namespace CoreApi {
     } finally {
       req.destroy();
     }
+  }
+
+  /** Current TUN session, or the last checkpoint while the Controller is offline. */
+  export async function getAppTraffic(): Promise<AppTrafficSummary | null> {
+    const response = await request(http.RequestMethod.GET, '/ohos/app-traffic');
+    try {
+      const text = response !== null ? response : fileIo.readTextSync(`${filesDir}/app-traffic/summary.json`);
+      if (text.length > 1024 * 1024) { return null; }
+      const summary = JSON.parse(text) as AppTrafficSummary;
+      if (!validAppTrafficSummary(summary)) { return null; }
+      if (response === null && summary.state === 'running') {
+        summary.state = 'interrupted';
+        summary.partial = true;
+      }
+      return summary;
+    } catch (_) { return null; }
+  }
+
+  /** Resolve only an observed bundle. Caller owns/release()s the returned PixelMap. */
+  export async function getAppTrafficPresentation(bundleName: string): Promise<AppTrafficPresentation | null> {
+    if (bundleName.length === 0 || bundleName.length > 256) { return null; }
+    try {
+      const bundle = await bundleManager.getBundleInfo(bundleName, bundleManager.BundleFlag.GET_BUNDLE_INFO_WITH_APPLICATION);
+      const manager = application.getApplicationContext().resourceManager;
+      let label = bundleName;
+      let icon: image.PixelMap | null = null;
+      try { label = await manager.getStringValue(bundle.appInfo.labelResource); } catch (_) {}
+      try { icon = manager.getDrawableDescriptor(bundle.appInfo.iconResource).getPixelMap(); } catch (_) {}
+      return { label: label, icon: icon };
+    } catch (_) { return null; }
+  }
+
+  export async function replyAppIdentities(session: string, replies: AppIdentityReply[]): Promise<boolean> {
+    if (replies.length === 0 || replies.length > 32) { return false; }
+    return await request(http.RequestMethod.POST, '/ohos/app-traffic/identity',
+      JSON.stringify({ session: session, replies: replies })) !== null;
   }
 
   /** Startup UI degradation report; API readiness is independent of this status. */
@@ -323,7 +424,7 @@ export namespace CoreApi {
 
     start(path: string, cb: (msg: T) => void): void {
       // Do not accept caller-supplied tokens/URLs which could enter logs or history.
-      if (!/^\/(traffic|memory|connections|logs)(\?level=(debug|info|warning|error|silent))?$/.test(path)) {
+      if (path !== '/ohos/app-traffic/identity' && !/^\/(traffic|memory|connections|logs)(\?level=(debug|info|warning|error|silent))?$/.test(path)) {
         return;
       }
       if (!this.stopped && this.path === path) {
@@ -469,4 +570,28 @@ export function formatRate(bytesPerSec: number): string {
     return `${(bytesPerSec / 1024).toFixed(1)} KB/s`;
   }
   return `${(bytesPerSec / 1024 / 1024).toFixed(2)} MB/s`;
+}
+
+function validAppTrafficRoutes(routes: AppTrafficRoutes): boolean {
+  if (routes === null || typeof routes !== 'object') { return false; }
+  return [routes.proxy, routes.direct, routes.unclassified].every((value: AppTrafficBytes) => {
+    return value !== null && typeof value === 'object' &&
+      [value.upload, value.download, value.connections, value.active].every((count: number) =>
+        typeof count === 'number' && Number.isFinite(count) && count >= 0);
+  });
+}
+
+function validAppTrafficSummary(summary: AppTrafficSummary): boolean {
+  if (summary === null || typeof summary !== 'object' || summary.schemaVersion !== 1 ||
+    typeof summary.session !== 'string' || !/^[0-9a-f]{32}$/.test(summary.session) ||
+    (summary.state !== 'running' && summary.state !== 'closed') ||
+    typeof summary.unsaved !== 'boolean' || typeof summary.partial !== 'boolean' ||
+    ![summary.startedAt, summary.endedAt, summary.savedAt].every((time: number) =>
+      typeof time === 'number' && Number.isFinite(time) && time >= 0) ||
+    !validAppTrafficRoutes(summary.totals) || !Array.isArray(summary.apps) || summary.apps.length > 129) { return false; }
+  return summary.apps.every((row: AppTrafficRow) => row !== null && typeof row === 'object' &&
+    (row.identityStatus === 'known' || row.identityStatus === 'unknown') &&
+    typeof row.uid === 'number' && Number.isInteger(row.uid) && row.uid >= -1 &&
+    typeof row.bundleName === 'string' && row.bundleName.length <= 256 &&
+    validAppTrafficRoutes(row.routes) && Array.isArray(row.recent) && row.recent.length <= 4);
 }

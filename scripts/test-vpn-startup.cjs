@@ -192,6 +192,7 @@ async function testExtension(failStop = false, lateCreate = false, protection = 
     'libentry.so': { __esModule: true, default: { initCore: async () => { assert.ok(prepared > 0, 'Prepare static assets before Controller initialization'); assert.ok(modelPrepared > 0, 'Prepare verified model before core initialization'); assert.ok(geoPrepared > 0, 'Repair verified GeoData before core initialization'); return ''; }, startTun: () => pending,
       stopCore: async () => { stopCount++; if (failNative) throw Error('synthetic native stop failure'); } } },
     '../lib/CoreApi': { CoreApi: { bindContext() {} } },
+    '../lib/AppTrafficIdentity': { AppTrafficIdentity: class { start() {} stop() {} } },
     '../lib/ZashboardAssets': { ZashboardAssets: { prepare: async () => { prepared++; return { directory: '', error: 'synthetic missing panel' }; } } },
     '../lib/GeoDataAssets': { GeoDataAssets: { inspect: async () => 'invalid', restore: async (_, token, permit) => { assert.ok(!token.cancelled); geoPrepared++; } } },
     '../lib/SmartModelAssets': { SmartModelAssets: { prepare: async () => { modelPrepared++; return { state: 'missing', message: 'synthetic model absent' }; } } },
