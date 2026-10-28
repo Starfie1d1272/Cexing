@@ -4325,18 +4325,6 @@
       "value": "Session ended"
     },
     {
-      "name": "traffic_exclude_title",
-      "value": "Exclude %s from VPN?"
-    },
-    {
-      "name": "traffic_exclude_warning",
-      "value": "Saved changes take effect after reconnecting. New connections from this app will bypass the VPN and no longer be recorded."
-    },
-    {
-      "name": "traffic_exclude_confirm",
-      "value": "Save exclusion"
-    },
-    {
       "name": "traffic_proxy",
       "value": "Proxy"
     },
@@ -4381,20 +4369,16 @@
       "value": "No recent rule details retained"
     },
     {
-      "name": "traffic_exclude_action",
-      "value": "Exclude this app from VPN"
-    },
-    {
       "name": "traffic_unknown_no_exclude",
-      "value": "Identify the app before changing its VPN access."
+      "value": "App identity cannot be verified, so quick exclusion is unavailable."
     },
     {
-      "name": "traffic_exclusion_undo",
-      "value": "Undo application exclusion"
+      "name": "traffic_uid",
+      "value": "UID %d"
     },
     {
-      "name": "traffic_excluded",
-      "value": "App excluded from VPN"
+      "name": "traffic_identity_unverified",
+      "value": "App names and icons cannot be verified on this system. Known connections are shown by UID."
     }
   ]
 }

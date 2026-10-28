@@ -4325,18 +4325,6 @@
       "value": "本次已结束"
     },
     {
-      "name": "traffic_exclude_title",
-      "value": "将 %s 排除 VPN？"
-    },
-    {
-      "name": "traffic_exclude_warning",
-      "value": "保存后需重连生效。此应用的新连接将不再经过 VPN，也不再记录新增用量。"
-    },
-    {
-      "name": "traffic_exclude_confirm",
-      "value": "保存排除"
-    },
-    {
       "name": "traffic_proxy",
       "value": "代理"
     },
@@ -4381,20 +4369,16 @@
       "value": "未保留近期规则明细"
     },
     {
-      "name": "traffic_exclude_action",
-      "value": "将此应用排除 VPN"
-    },
-    {
       "name": "traffic_unknown_no_exclude",
-      "value": "尚未识别应用，无法快捷排除。"
+      "value": "无法验证应用身份，不能快捷排除。"
     },
     {
-      "name": "traffic_exclusion_undo",
-      "value": "撤销应用排除"
+      "name": "traffic_uid",
+      "value": "UID %d"
     },
     {
-      "name": "traffic_excluded",
-      "value": "已排除 VPN"
+      "name": "traffic_identity_unverified",
+      "value": "系统不提供可验证的应用名称与图标，已知连接按 UID 展示。"
     }
   ]
 }
