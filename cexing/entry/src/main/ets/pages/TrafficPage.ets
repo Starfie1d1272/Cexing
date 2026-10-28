@@ -26,7 +26,6 @@ export struct TrafficPage {
   @State private chartUnit: string = 'KB/s';
   @State private appSummary: AppTrafficSummary | null = null;
   @State private appRows: AppTrafficRow[] = [];
-  @State private presentations: Record<string> = {};
   @State private selected: AppTrafficRow | null = null;
   @State private showApp: boolean = false;
   @State private showReasons: boolean = false;
