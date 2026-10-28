@@ -7,8 +7,6 @@ import (
 	"net"
 	HTTP "net/http"
 	"net/netip"
-	"os"
-	"path/filepath"
 	"sort"
 	"strconv"
 	"sync"
@@ -23,7 +21,6 @@ import (
 	"github.com/metacubex/mihomo/tunnel/statistic"
 )
 
-const appTrafficFile = "app-traffic/summary.json"
 const identityLimit = 256
 const identityBatchLimit = 32
 const identityTTL = 8 * time.Second
@@ -77,11 +74,9 @@ type appTrafficRow struct {
 type appTrafficSummary struct {
 	SchemaVersion    int              `json:"schemaVersion"`
 	Session          string           `json:"session"`
-	State            string           `json:"state"` // running, closed; offline running becomes interrupted
+	State            string           `json:"state"` // running or closed; no offline checkpoint
 	StartedAt        int64            `json:"startedAt"`
 	EndedAt          int64            `json:"endedAt"`
-	SavedAt          int64            `json:"savedAt"`
-	Unsaved          bool             `json:"unsaved"`
 	Partial          bool             `json:"partial"`
 	Totals           appTrafficRoutes `json:"totals"`
 	Apps             []appTrafficRow  `json:"apps"`
@@ -116,19 +111,16 @@ type appIdentityReply struct {
 	Status     string `json:"status"`
 }
 type appTrafficSession struct {
-	mu                                      sync.Mutex
-	id, home                                string
-	startedAt, endedAt, savedAt             int64
-	revision, savedRevision                 uint64
-	stopped, saveFailed, writable, consumer bool
-	rows                                    map[string]*appTrafficRow
-	pending                                 map[string]*appIdentityPending
-	failures                                map[string]int64
+	mu                 sync.Mutex
+	id                 string
+	startedAt, endedAt int64
+	stopped, consumer  bool
+	rows               map[string]*appTrafficRow
+	pending            map[string]*appIdentityPending
+	failures           map[string]int64
 }
 
 var appTrafficCurrent atomic.Pointer[appTrafficSession]
-var appTrafficWriter sync.Once
-var appTrafficSave = make(chan struct{}, 1)
 
 func init() {
 	statistic.SetTrackerObserver(observeAppTraffic)
@@ -139,52 +131,14 @@ func init() {
 	})
 }
 
-// Called under runLock, before the TUN accepts packets. Only the latest session
-// is retained. The bounded checkpoint is separate from the existing day ledger.
+// Called under runLock before the TUN accepts packets. Aggregates and recent
+// explanations live only in memory; a new session replaces the previous one.
 func startAppTraffic() *appTrafficSession {
-	s := &appTrafficSession{id: controllerSession, home: homeDir, startedAt: time.Now().UnixMilli(), revision: 1,
-		writable: true, rows: make(map[string]*appTrafficRow), pending: make(map[string]*appIdentityPending), failures: make(map[string]int64)}
-	path := filepath.Join(homeDir, appTrafficFile)
-	if data, err := readAppTrafficCheckpoint(path); err == nil {
-		var previous appTrafficSummary
-		if len(data) > 1024*1024 || json.Unmarshal(data, &previous) != nil || previous.SchemaVersion != 1 {
-			s.writable = false // Preserve corrupt/unknown versions rather than overwriting history.
-		}
-	} else if !os.IsNotExist(err) {
-		s.writable = false
-	}
+	s := &appTrafficSession{id: controllerSession, startedAt: time.Now().UnixMilli(),
+		rows: make(map[string]*appTrafficRow), pending: make(map[string]*appIdentityPending), failures: make(map[string]int64)}
 	s.rows[""] = &appTrafficRow{IdentityStatus: "unknown", UID: -1, Recent: []appTrafficReason{}}
 	appTrafficCurrent.Store(s)
-	appTrafficWriter.Do(func() {
-		go func() {
-			ticker := time.NewTicker(5 * time.Second)
-			defer ticker.Stop()
-			for {
-				select {
-				case <-ticker.C:
-				case <-appTrafficSave:
-				}
-				saveAppTraffic()
-			}
-		}()
-	})
-	requestAppTrafficSave()
 	return s
-}
-func readAppTrafficCheckpoint(path string) ([]byte, error) {
-	file, err := os.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-	return io.ReadAll(io.LimitReader(file, 1024*1024+1))
-}
-
-func requestAppTrafficSave() {
-	select {
-	case appTrafficSave <- struct{}{}:
-	default:
-	}
 }
 func stopAppTraffic() {
 	if s := appTrafficCurrent.Load(); s != nil {
@@ -194,10 +148,8 @@ func stopAppTraffic() {
 			s.endedAt = time.Now().UnixMilli()
 			s.failures["sessionEnded"] += int64(len(s.pending))
 			clear(s.pending)
-			s.revision++
 		}
 		s.mu.Unlock()
-		requestAppTrafficSave()
 	}
 }
 
@@ -237,7 +189,6 @@ func observeAppTraffic(info *statistic.TrackerInfo) statistic.TrackerObserver {
 	b := h.row.Routes.bucket(kind)
 	b.Connections++
 	b.Active++
-	s.revision++
 	reason := appTrafficReason{id: info.UUID.String(), At: info.Start.UnixMilli(), Route: kind, Rule: info.Rule, Policy: []string{}}
 	for i, name := range info.Chain {
 		if i >= 8 {
@@ -257,6 +208,9 @@ func observeAppTraffic(info *statistic.TrackerInfo) statistic.TrackerObserver {
 	if !localOK || !remoteOK {
 		s.failures["missingTuple"]++
 		return h
+	}
+	if len(s.pending) >= identityLimit {
+		s.expireLocked()
 	}
 	if len(s.pending) >= identityLimit {
 		s.failures["overflow"]++
@@ -295,7 +249,6 @@ func (h *appTrafficHandle) Add(upload, download int64) {
 		h.download += download
 		b.Download += download
 	}
-	s.revision++
 }
 func (h *appTrafficHandle) Close() {
 	s := h.session
@@ -304,7 +257,6 @@ func (h *appTrafficHandle) Close() {
 	if !h.closed {
 		h.closed = true
 		h.row.Routes.bucket(h.route).Active--
-		s.revision++
 	}
 }
 func (s *appTrafficSession) expireLocked() {
@@ -313,15 +265,13 @@ func (s *appTrafficSession) expireLocked() {
 		if !now.Before(p.deadline) {
 			delete(s.pending, id)
 			s.failures["timeout"]++
-			s.revision++
 		}
 	}
 }
-func (s *appTrafficSession) snapshotLocked(persist bool) appTrafficSummary {
+func (s *appTrafficSession) snapshotLocked() appTrafficSummary {
 	s.expireLocked()
 	result := appTrafficSummary{SchemaVersion: 1, Session: s.id, State: "running", StartedAt: s.startedAt,
-		EndedAt: s.endedAt, SavedAt: s.savedAt, Unsaved: s.saveFailed || s.savedAt == 0 || (s.stopped && s.revision != s.savedRevision),
-		Apps: []appTrafficRow{}, IdentityFailures: make(map[string]int64)}
+		EndedAt: s.endedAt, Apps: []appTrafficRow{}, IdentityFailures: make(map[string]int64)}
 	if s.stopped {
 		result.State = "closed"
 	}
@@ -331,9 +281,7 @@ func (s *appTrafficSession) snapshotLocked(persist bool) appTrafficSummary {
 	for _, row := range s.rows {
 		copied := *row
 		copied.Recent = []appTrafficReason{}
-		if !persist {
-			copied.Recent = append(copied.Recent, row.Recent...)
-		}
+		copied.Recent = append(copied.Recent, row.Recent...)
 		result.Apps = append(result.Apps, copied)
 		for _, route := range []string{"proxy", "direct", "unclassified"} {
 			dst, src := result.Totals.bucket(route), row.Routes.bucket(route)
@@ -349,43 +297,6 @@ func (s *appTrafficSession) snapshotLocked(persist bool) appTrafficSummary {
 	return result
 }
 
-// One writer, snapshots copied under the aggregation lock, disk IO outside it.
-// A revision written during a concurrent increment never marks that increment saved.
-func saveAppTraffic() {
-	s := appTrafficCurrent.Load()
-	if s == nil {
-		return
-	}
-	s.mu.Lock()
-	snapshot := s.snapshotLocked(true)
-	revision := s.revision
-	if revision == s.savedRevision && !s.saveFailed {
-		s.mu.Unlock()
-		return
-	}
-	writable := s.writable
-	s.mu.Unlock()
-	snapshot.SavedAt = time.Now().UnixMilli()
-	snapshot.Unsaved = false
-	data, err := json.Marshal(snapshot)
-	if err == nil && writable {
-		path := filepath.Join(s.home, appTrafficFile)
-		err = os.MkdirAll(filepath.Dir(path), 0o700)
-		if err == nil {
-			err = os.WriteFile(path+".tmp", data, 0o600)
-		}
-		if err == nil {
-			err = os.Rename(path+".tmp", path)
-		}
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.saveFailed = err != nil || !writable
-	if !s.saveFailed {
-		s.savedAt = snapshot.SavedAt
-		s.savedRevision = revision
-	}
-}
 func getAppTraffic(w MHTTP.ResponseWriter, req *MHTTP.Request) {
 	s := appTrafficCurrent.Load()
 	if s == nil {
@@ -393,7 +304,7 @@ func getAppTraffic(w MHTTP.ResponseWriter, req *MHTTP.Request) {
 		return
 	}
 	s.mu.Lock()
-	snapshot := s.snapshotLocked(false)
+	snapshot := s.snapshotLocked()
 	s.mu.Unlock()
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(snapshot)
@@ -489,7 +400,6 @@ func postAppIdentityReplies(w MHTTP.ResponseWriter, req *MHTTP.Request) {
 			continue
 		}
 		delete(s.pending, reply.ID) // duplicates and late replies cannot move bytes twice
-		s.revision++
 		if reply.Status != "known" || reply.UID < 0 || reply.BundleName == "" || len(reply.BundleName) > 256 {
 			status := reply.Status
 			switch status {
