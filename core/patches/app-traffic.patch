@@ -1,0 +1,349 @@
+--- a/tunnel/statistic/tracker.go
++++ b/tunnel/statistic/tracker.go
+@@ -4,6 +4,7 @@
+ 	"io"
+ 	"net"
+ 	"sync"
++	stdatomic "sync/atomic"
+ 	"time"
+ 
+ 	"github.com/metacubex/mihomo/common/atomic"
+@@ -14,6 +15,41 @@
+ 
+ 	"github.com/gofrs/uuid/v5"
+ )
++
++// TrackerObserver receives deltas on the counting goroutine. Implementations must
++// not perform IO. A tracker retains its handle through Close and late counts.
++type TrackerObserver interface {
++	Add(upload, download int64)
++	Close()
++}
++
++type trackerObserverFactory struct {
++	create func(*TrackerInfo) TrackerObserver
++}
++
++var hostObserver stdatomic.Pointer[trackerObserverFactory]
++
++func SetTrackerObserver(create func(*TrackerInfo) TrackerObserver) {
++	if create == nil {
++		hostObserver.Store(nil)
++		return
++	}
++	hostObserver.Store(&trackerObserverFactory{create: create})
++}
++
++func observeTracker(info *TrackerInfo, conn C.Connection, push bool) TrackerObserver {
++	if route, ok := conn.(interface{ TrafficRoute() string }); ok {
++		info.TrafficRoute = route.TrafficRoute()
++	}
++	if factory := hostObserver.Load(); push && factory != nil {
++		observer := factory.create(info)
++		if observer != nil {
++			observer.Add(info.UploadTotal.Load(), info.DownloadTotal.Load())
++		}
++		return observer
++	}
++	return nil
++}
+ 
+ type Tracker interface {
+ 	ID() string
+@@ -37,6 +73,7 @@
+ }
+ 
+ type TrackerInfo struct {
++	TrafficRoute    string       `json:"-"`
+ 	UUID            uuid.UUID    `json:"id"`
+ 	Metadata        *C.Metadata  `json:"metadata"`
+ 	UploadTotal     atomic.Int64 `json:"upload"`
+@@ -56,10 +93,13 @@
+ 	manager *Manager
+ 
+ 	pushToManager bool `json:"-"`
++	observer      TrackerObserver
+ 
+ 	uploadBucketWindow   *bucketWindow
+ 	downloadBucketWindow *bucketWindow
+ }
++
++func (tt *tcpTracker) TrafficRoute() string { return tt.TrackerInfo.TrafficRoute }
+ 
+ func (tt *tcpTracker) ID() string {
+ 	return tt.UUID.String()
+@@ -76,6 +116,9 @@
+ 		tt.manager.PushDownloaded(download)
+ 	}
+ 	tt.DownloadTotal.Add(download)
++	if tt.observer != nil {
++		tt.observer.Add(0, download)
++	}
+ 	tt.TrackerInfo.MaxDownloadRate.Store(tt.downloadBucketWindow.updateMaxRate(download))
+ 	return n, err
+ }
+@@ -87,6 +130,9 @@
+ 		tt.manager.PushDownloaded(download)
+ 	}
+ 	tt.DownloadTotal.Add(download)
++	if tt.observer != nil {
++		tt.observer.Add(0, download)
++	}
+ 	tt.TrackerInfo.MaxDownloadRate.Store(tt.downloadBucketWindow.updateMaxRate(download))
+ 	return
+ }
+@@ -97,6 +143,9 @@
+ 			tt.manager.PushDownloaded(download)
+ 		}
+ 		tt.DownloadTotal.Add(download)
++		if tt.observer != nil {
++			tt.observer.Add(0, download)
++		}
+ 		tt.TrackerInfo.MaxDownloadRate.Store(tt.downloadBucketWindow.updateMaxRate(download))
+ 	}}
+ }
+@@ -108,6 +157,9 @@
+ 		tt.manager.PushUploaded(upload)
+ 	}
+ 	tt.UploadTotal.Add(upload)
++	if tt.observer != nil {
++		tt.observer.Add(upload, 0)
++	}
+ 	tt.TrackerInfo.MaxUploadRate.Store(tt.uploadBucketWindow.updateMaxRate(upload))
+ 	return n, err
+ }
+@@ -119,6 +171,9 @@
+ 		tt.manager.PushUploaded(upload)
+ 	}
+ 	tt.UploadTotal.Add(upload)
++	if tt.observer != nil {
++		tt.observer.Add(upload, 0)
++	}
+ 	tt.TrackerInfo.MaxUploadRate.Store(tt.uploadBucketWindow.updateMaxRate(upload))
+ 	return
+ }
+@@ -129,6 +184,9 @@
+ 			tt.manager.PushUploaded(upload)
+ 		}
+ 		tt.UploadTotal.Add(upload)
++		if tt.observer != nil {
++			tt.observer.Add(upload, 0)
++		}
+ 		tt.TrackerInfo.MaxUploadRate.Store(tt.uploadBucketWindow.updateMaxRate(upload))
+ 	}}
+ }
+@@ -136,6 +194,9 @@
+ func (tt *tcpTracker) Close() error {
+ 	connErr := tt.Conn.Close()
+ 	tt.manager.Leave(tt)
++	if tt.observer != nil {
++		tt.observer.Close()
++	}
+ 	return connErr
+ }
+ 
+@@ -182,6 +243,7 @@
+ 		t.TrackerInfo.RulePayload = rule.Payload()
+ 	}
+ 
++	t.observer = observeTracker(t.TrackerInfo, conn, pushToManager)
+ 	manager.Join(t)
+ 	return t
+ }
+@@ -192,10 +254,13 @@
+ 	manager *Manager
+ 
+ 	pushToManager bool `json:"-"`
++	observer      TrackerObserver
+ 
+ 	uploadBucketWindow   *bucketWindow
+ 	downloadBucketWindow *bucketWindow
+ }
++
++func (ut *udpTracker) TrafficRoute() string { return ut.TrackerInfo.TrafficRoute }
+ 
+ func (ut *udpTracker) ID() string {
+ 	return ut.UUID.String()
+@@ -212,6 +277,9 @@
+ 		ut.manager.PushDownloaded(download)
+ 	}
+ 	ut.DownloadTotal.Add(download)
++	if ut.observer != nil {
++		ut.observer.Add(0, download)
++	}
+ 	ut.TrackerInfo.MaxDownloadRate.Store(ut.downloadBucketWindow.updateMaxRate(download))
+ 	return n, addr, err
+ }
+@@ -223,6 +291,9 @@
+ 		ut.manager.PushDownloaded(download)
+ 	}
+ 	ut.DownloadTotal.Add(download)
++	if ut.observer != nil {
++		ut.observer.Add(0, download)
++	}
+ 	ut.TrackerInfo.MaxDownloadRate.Store(ut.downloadBucketWindow.updateMaxRate(download))
+ 	return
+ }
+@@ -234,6 +305,9 @@
+ 		ut.manager.PushUploaded(upload)
+ 	}
+ 	ut.UploadTotal.Add(upload)
++	if ut.observer != nil {
++		ut.observer.Add(upload, 0)
++	}
+ 	ut.TrackerInfo.MaxUploadRate.Store(ut.uploadBucketWindow.updateMaxRate(upload))
+ 	return n, err
+ }
+@@ -241,6 +315,9 @@
+ func (ut *udpTracker) Close() error {
+ 	connErr := ut.PacketConn.Close()
+ 	ut.manager.Leave(ut)
++	if ut.observer != nil {
++		ut.observer.Close()
++	}
+ 	return connErr
+ }
+ 
+@@ -287,6 +364,7 @@
+ 		ut.TrackerInfo.RulePayload = rule.Payload()
+ 	}
+ 
++	ut.observer = observeTracker(ut.TrackerInfo, conn, pushToManager)
+ 	manager.Join(ut)
+ 	return ut
+ }
+--- a/adapter/outbound/base.go
++++ b/adapter/outbound/base.go
+@@ -224,9 +224,10 @@
+ 
+ type conn struct {
+ 	N.ExtendedConn
+-	chain       C.Chain
+-	pdChain     C.Chain
+-	adapterAddr string
++	trafficRoute string
++	chain        C.Chain
++	pdChain      C.Chain
++	adapterAddr  string
+ }
+ 
+ func (c *conn) RemoteDestination() string {
+@@ -243,6 +244,8 @@
+ }
+ 
+ // Chains implements C.Connection
++func (c *conn) TrafficRoute() string { return c.trafficRoute }
++
+ func (c *conn) Chains() C.Chain {
+ 	return c.chain
+ }
+@@ -254,6 +257,17 @@
+ 
+ // AppendToChains implements C.Connection
+ func (c *conn) AppendToChains(a C.ProxyAdapter) {
++	if len(c.chain) == 0 {
++		c.trafficRoute = "unclassified"
++		switch a.Type() {
++		case C.Direct:
++			c.trafficRoute = "direct"
++		case C.Reject, C.RejectDrop, C.Compatible, C.Pass, C.PassRule, C.Rematch, C.Dns,
++			C.Relay, C.Selector, C.Fallback, C.URLTest, C.LoadBalance, C.Smart:
++		default:
++			c.trafficRoute = "proxy"
++		}
++	}
+ 	c.chain = append(c.chain, a.Name())
+ 	c.pdChain = append(c.pdChain, a.ProxyInfo().ProviderName)
+ }
+@@ -290,19 +304,20 @@
+ 	default:
+ 		c = N.NewDeadlineConn(c) // most conn from outbound can't handle readDeadline correctly
+ 	}
+-	cc := &conn{N.NewExtendedConn(c), nil, nil, a.Addr()}
++	cc := &conn{N.NewExtendedConn(c), "", nil, nil, a.Addr()}
+ 	cc.AppendToChains(a)
+ 	return cc
+ }
+ 
+ type packetConn struct {
+ 	N.EnhancePacketConn
+-	chain       C.Chain
+-	pdChain     C.Chain
+-	adapterName string
+-	connID      string
+-	adapterAddr string
+-	resolveUDP  func(ctx context.Context, metadata *C.Metadata) error
++	trafficRoute string
++	chain        C.Chain
++	pdChain      C.Chain
++	adapterName  string
++	connID       string
++	adapterAddr  string
++	resolveUDP   func(ctx context.Context, metadata *C.Metadata) error
+ }
+ 
+ func (c *packetConn) ResolveUDP(ctx context.Context, metadata *C.Metadata) error {
+@@ -315,6 +330,8 @@
+ }
+ 
+ // Chains implements C.Connection
++func (c *packetConn) TrafficRoute() string { return c.trafficRoute }
++
+ func (c *packetConn) Chains() C.Chain {
+ 	return c.chain
+ }
+@@ -326,6 +343,17 @@
+ 
+ // AppendToChains implements C.Connection
+ func (c *packetConn) AppendToChains(a C.ProxyAdapter) {
++	if len(c.chain) == 0 {
++		c.trafficRoute = "unclassified"
++		switch a.Type() {
++		case C.Direct:
++			c.trafficRoute = "direct"
++		case C.Reject, C.RejectDrop, C.Compatible, C.Pass, C.PassRule, C.Rematch, C.Dns,
++			C.Relay, C.Selector, C.Fallback, C.URLTest, C.LoadBalance, C.Smart:
++		default:
++			c.trafficRoute = "proxy"
++		}
++	}
+ 	c.chain = append(c.chain, a.Name())
+ 	c.pdChain = append(c.pdChain, a.ProxyInfo().ProviderName)
+ }
+@@ -361,7 +389,7 @@
+ 	default:
+ 		epc = N.NewDeadlineEnhancePacketConn(epc) // most conn from outbound can't handle readDeadline correctly
+ 	}
+-	cpc := &packetConn{epc, nil, nil, a.Name(), utils.NewUUIDV4().String(), a.Addr(), a.ResolveUDP}
++	cpc := &packetConn{epc, "", nil, nil, a.Name(), utils.NewUUIDV4().String(), a.Addr(), a.ResolveUDP}
+ 	cpc.AppendToChains(a)
+ 	return cpc
+ }
+--- a/constant/metadata.go
++++ b/constant/metadata.go
+@@ -188,6 +188,8 @@
+ 
+ // Metadata is used to store connection address
+ type Metadata struct {
++	// Optional host accounting context; retained across metadata copies, never serialized.
++	TrackerContext any `json:"-"`
+ 	NetWork        NetWork    `json:"network"`
+ 	Type           Type       `json:"type"`
+ 	SrcIP          netip.Addr `json:"sourceIP"`
+--- a/listener/sing/sing.go
++++ b/listener/sing/sing.go
+@@ -221,10 +221,10 @@
+ 		rAddr:  metadata.Source.UDPAddr(),
+ 		buff:   buffer,
+ 	}
+-	if h.Type != C.TUN { // make the handler-related SNAT key for not TUN listener
+-		connID := fmt.Sprintf("%s:%s", h.handlerId, key)
+-		cPacket.rAddr = N.NewCustomAddr(h.Type.String(), connID, cPacket.rAddr) // for tunnel's handleUDPConn
+-	}
++	// TUN reconnects must not reuse a previous listener's outbound NAT tracker.
++	// RawSrcAddr/RawDstAddr still come from metadata in handlePacket below.
++	connID := fmt.Sprintf("%s:%s", h.handlerId, key)
++	cPacket.rAddr = N.NewCustomAddr(h.Type.String(), connID, cPacket.rAddr)
+ 	if conn, ok := common.Cast[localAddr](writer); ok { // tun does not have real inAddr
+ 		cPacket.lAddr = conn.LocalAddr()
+ 	}
