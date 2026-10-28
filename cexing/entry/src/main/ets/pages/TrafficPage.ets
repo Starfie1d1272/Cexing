@@ -104,8 +104,9 @@ export struct TrafficPage {
       if (summary === null) { return; }
       if (VpnController.status === VpnStatus.Connecting ||
         (VpnController.status === VpnStatus.Connected && (coreSession === null || summary.session !== coreSession))) {
-        this.appSummary = null; this.appRows = []; return;
+        this.appSummary = null; this.appRows = []; this.selected = null; this.showApp = false; return;
       }
+      if (this.appSummary !== null && this.appSummary.session !== summary.session) { this.selected = null; this.showApp = false; }
       this.appSummary = summary;
       this.appRows = summary.apps.slice().sort((a: AppTrafficRow, b: AppTrafficRow) =>
         this.routeBytes(b.routes.proxy) - this.routeBytes(a.routes.proxy) || this.rowKey(a).localeCompare(this.rowKey(b)));
