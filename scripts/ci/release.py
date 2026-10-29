@@ -266,7 +266,12 @@ def reconcile(remote, folder, hashes):
     return set(hashes) - set(names)
 
 
+def require_geodata_distribution_review():
+    raise ValueError('GeoData source licensing and corresponding-source review is incomplete; public release blocked')
+
+
 def publish(folder):
+    require_geodata_distribution_review()
     tag, sha, tree = os.environ['RELEASE_TAG'], os.environ['SOURCE_SHA'], os.environ['SOURCE_TREE']
     os.environ['CONTROLLER_SHA'] = os.environ['GITHUB_WORKFLOW_SHA']
     expected = expected_identity(tag, sha, tree)

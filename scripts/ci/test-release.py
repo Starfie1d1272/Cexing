@@ -113,11 +113,18 @@ class ReleaseTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 r.find_release('v0.1.0')
 
+    def test_unreviewed_geodata_blocks_publication_before_remote_actions(self):
+        with patch.object(r, 'api') as api, patch.object(r, 'command') as command:
+            with self.assertRaisesRegex(ValueError, 'GeoData.*public release blocked'):
+                r.publish(self.root)
+            api.assert_not_called()
+            command.assert_not_called()
+
     def test_live_tag_mismatch_stops_before_any_remote_write(self):
         self.bundle()
         env = {'RELEASE_TAG': 'v0.1.0', 'SOURCE_SHA': 'a' * 40, 'SOURCE_TREE': 'b' * 40,
                'GITHUB_WORKFLOW_SHA': 'c' * 40, 'GITHUB_RUN_ID': '123', 'GITHUB_RUN_ATTEMPT': '1', 'VERSION_CODE': '1'}
-        with patch.dict(os.environ, env), patch.object(r, 'remote_commit', return_value='d' * 40), patch.object(r, 'api') as api:
+        with patch.object(r, 'require_geodata_distribution_review'), patch.dict(os.environ, env), patch.object(r, 'remote_commit', return_value='d' * 40), patch.object(r, 'api') as api:
             with self.assertRaises(ValueError):
                 r.publish(self.root)
             api.assert_not_called()
@@ -126,7 +133,7 @@ class ReleaseTests(unittest.TestCase):
         self.bundle()
         env = {'RELEASE_TAG': 'v0.1.0', 'SOURCE_SHA': 'a' * 40, 'SOURCE_TREE': 'b' * 40,
                'GITHUB_WORKFLOW_SHA': 'c' * 40, 'GITHUB_RUN_ID': '123', 'GITHUB_RUN_ATTEMPT': '1', 'VERSION_CODE': '1'}
-        with patch.dict(os.environ, env), patch.object(r, 'remote_commit', return_value='a' * 40), patch.object(r, 'api', return_value={'tag_name': 'v0.2.0'}) as api:
+        with patch.object(r, 'require_geodata_distribution_review'), patch.dict(os.environ, env), patch.object(r, 'remote_commit', return_value='a' * 40), patch.object(r, 'api', return_value={'tag_name': 'v0.2.0'}) as api:
             with self.assertRaises(ValueError):
                 r.publish(self.root)
             self.assertEqual(api.call_count, 1)
