@@ -32,7 +32,7 @@ bash scripts/build-hap.sh
 
 `build-core.sh` 使用 OHOS clang，以 `GOOS=android GOARCH=arm64` 和 `netgo ohos cmfa with_gvisor` 构建 c-shared。脚本每次重建 Android 日志 stub，并自动使用构建专用临时模块缓存应用固定 gVisor 的 Fstat 补丁；不修改开发者共享缓存。原理与升级检查见 [平台参考](../reference/platform.md)。
 
-GeoIP 准备脚本每次解析上游 latest 稳定发布，核对该 asset 的公开 SHA-256 与大小，并记录本次来源、release/asset ID 和实际摘要；下载或摘要不符会失败。构建检查不能替代实际 HAP 资源检查。
+GeoIP 准备脚本每次解析上游 latest 稳定发布，核对公开 SHA-256 与大小；GeoSite 使用固定上游产物及本地分类数据重建，核对输入和输出摘要。构建身份记录各自来源和实际摘要；下载或摘要不符会失败。固定产物不等于完整上游输入可复现，来源限制见 `third_party/geodata/NOTICE.md`。构建检查不能替代实际 HAP 资源检查。
 
 ## 回归与产物检查
 
