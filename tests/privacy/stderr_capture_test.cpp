@@ -53,8 +53,15 @@ int main(int argc, char **argv) {
     close(dir);
     assert(!stderr_capture::start("relative/private"));
     assert(!stderr_capture::start(home + "/missing"));
+    assert(chmod(home.c_str(), 0777) == 0);
+    assert(!stderr_capture::start(home));
+    assert(chmod(home.c_str(), 0770) == 0);
+    { std::ofstream legacy(home + "/go_stderr.log"); legacy << std::string(1024 * 1024, 'x'); }
     // Exercise the actual nonblocking pipe path, including split and long lines.
     assert(stderr_capture::start(home));
+    assert(stat(home.c_str(), &st) == 0 && (st.st_mode & 0777) == 0770);
+    assert(access((home + "/go_stderr.log").c_str(), F_OK) != 0 && errno == ENOENT);
+    assert(stat((home + "/runtime-logs").c_str(), &st) == 0 && (st.st_mode & 0777) == 0700);
     std::string flood(1024 * 1024, 'x'); flood += "\n";
     (void)write(STDERR_FILENO, flood.data(), flood.size());
     (void)write(STDERR_FILENO, "\npanic: private-secret\n", 23);
