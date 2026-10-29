@@ -29,7 +29,8 @@ source scripts/ci/go-download-cache.sh
 ci_seed_go_download_cache
 (cd core && go mod download && go mod verify &&
   go test ../scripts/ci/compare-geosite.go ../scripts/ci/compare-geosite_test.go &&
-  go test ../scripts/ci/replace-geosite.go ../scripts/ci/replace-geosite_test.go)
+  go test ../scripts/ci/replace-geosite.go ../scripts/ci/replace-geosite_test.go &&
+  go test ../scripts/ci/merge-geosite.go ../scripts/ci/merge-geosite_test.go)
 ci_save_go_download_cache
 bash scripts/test-smart.sh
 python3 scripts/ci/license-inventory.py > "$CI_GO_ROOT/licenses.json"

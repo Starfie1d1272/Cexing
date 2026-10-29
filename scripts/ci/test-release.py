@@ -38,9 +38,10 @@ class ReleaseTests(unittest.TestCase):
             archive.writestr('resources/rawfile/geodata/geosite.dat', site)
             archive.writestr('resources/rawfile/geodata-notices/NOTICE.md', notice)
             archive.writestr('resources/rawfile/geodata-notices/sources/HTTPDNS.Block.list', 'fixture HTTPDNS source')
-            for name in ['GEOIP-CC-BY-SA-4.0.txt', 'GPL-3.0.txt', 'blackmatrix-GPL-2.0.txt',
+            archive.writestr('resources/rawfile/geodata-notices/source-materials.json', '[\"third_party/example/source.txt\"]')
+            for name in ['GEOIP-CC-BY-SA-4.0.txt', 'GPL-3.0.txt',
                          'gfwlist-LGPL-2.1.txt', 'v2fly-MIT.txt', 'custom-MIT.txt',
-                     'dnsmasq-WTFPL-2.txt', 'windows-spy-MIT.txt']:
+                     'dnsmasq-WTFPL-2.txt', 'windows-spy-MIT.txt', 'DBIP-CC-BY-4.0.txt']:
                 archive.writestr('resources/rawfile/geodata-notices/licenses/' + name, 'fixture license')
         return {'expectedSha256': hashlib.sha256(ip).hexdigest(),
                 'downloadedSha256': hashlib.sha256(ip).hexdigest(),
@@ -51,6 +52,20 @@ class ReleaseTests(unittest.TestCase):
 
     def source_fixture(self, path, ip_source, site_source):
         with tarfile.open(path, 'w:gz') as archive:
+            for label in ['domain-list-community', 'metacubex-geo']:
+                data = b'fixture module zip'
+                record = [{'path': 'example.invalid/tool', 'version': 'v1.0.0',
+                           'goSum': 'h1:fixture', 'zipSha256': hashlib.sha256(data).hexdigest()}]
+                entries = [(label + '.json', json.dumps(record).encode())]
+                entries += [(label + '/example.invalid/tool@v1.0.0' + suffix, data) for suffix in ['.zip', '.mod', '.info']]
+                for name, payload in entries:
+                    info = tarfile.TarInfo('sources/tool-modules/' + name)
+                    info.size = len(payload)
+                    archive.addfile(info, io.BytesIO(payload))
+            data = b'fixture build source'
+            info = tarfile.TarInfo('sources/geodata-build/third_party/example/source.txt')
+            info.size = len(data)
+            archive.addfile(info, io.BytesIO(data))
             for name in r.GEO_REFERENCE_SOURCES:
                 data = ('fixture source ' + name).encode()
                 info = tarfile.TarInfo('sources/geodata-reference/' + name)
@@ -68,7 +83,9 @@ class ReleaseTests(unittest.TestCase):
         self.source_fixture(self.root / 'cexing-sources.tar.gz', ip_source, site_source)
         (self.root / 'SOURCE-NOTICES.md').write_bytes(notice)
         identity = {'inputs': {**{'third_party/geodata-source/' + name: hashlib.sha256(('fixture source ' + name).encode()).hexdigest() for name in r.GEO_REFERENCE_SOURCES},
-                               'third_party/geodata/sources/HTTPDNS.Block.list': hashlib.sha256(b'fixture HTTPDNS source').hexdigest()},
+                               'third_party/geodata/sources/HTTPDNS.Block.list': hashlib.sha256(b'fixture HTTPDNS source').hexdigest(),
+                               'third_party/geodata/source-materials.json': hashlib.sha256(b'[\"third_party/example/source.txt\"]').hexdigest(),
+                               'third_party/example/source.txt': hashlib.sha256(b'fixture build source').hexdigest()},
                     'geodata': geo, 'app': self.app, 'commit': self.expected['commit'], 'tree': self.expected['tree'],
                     'signed': False, 'deviceValidated': False, 'hapSha256': r.digest(self.root / r.HAP),
                     'github': {'GITHUB_RUN_ID': '123', 'GITHUB_RUN_ATTEMPT': '1', 'GITHUB_SHA': 'a' * 40}}
@@ -105,7 +122,7 @@ class ReleaseTests(unittest.TestCase):
         with tarfile.open(self.root / 'cexing-sources.tar.gz', 'w:gz'):
             pass
         r.checksums(self.root, r.FILES)
-        with self.assertRaisesRegex(ValueError, 'Missing GeoData reference source'):
+        with self.assertRaisesRegex(ValueError, 'Missing GeoData tool module inventory'):
             r.verify(self.root, self.expected)
         self.bundle()
         (self.root / 'SOURCE-NOTICES.md').write_text('notice removed')
@@ -228,6 +245,8 @@ class ReleaseTests(unittest.TestCase):
             'third_party/release/CHACHA20-LICENSE.txt': 'fixture license',
             '.github/workflows/release.yml': '# fixture controller',
             'scripts/ci/release.py': '# fixture controller',
+            'third_party/geodata/source-materials.json': '[\"third_party/example/source.txt\"]',
+            'third_party/example/source.txt': 'fixture build source',
         }
         for name in r.GEO_REFERENCE_SOURCES:
             fixture_files['third_party/geodata-source/' + name] = 'fixture source ' + name
@@ -244,13 +263,25 @@ class ReleaseTests(unittest.TestCase):
         (inputs / 'geoip.dat').write_bytes(ip_source)
         (inputs / 'geosite.dat').write_bytes(site_source)
         identity = {'inputs': {**{'third_party/geodata-source/' + name: hashlib.sha256(('fixture source ' + name).encode()).hexdigest() for name in r.GEO_REFERENCE_SOURCES},
-                               'third_party/geodata/sources/HTTPDNS.Block.list': hashlib.sha256(b'fixture HTTPDNS source').hexdigest()},
+                               'third_party/geodata/sources/HTTPDNS.Block.list': hashlib.sha256(b'fixture HTTPDNS source').hexdigest(),
+                               'third_party/geodata/source-materials.json': hashlib.sha256(b'[\"third_party/example/source.txt\"]').hexdigest(),
+                               'third_party/example/source.txt': hashlib.sha256(b'fixture build source').hexdigest()},
                     'geodata': geo, 'app': self.app, 'commit': sha, 'tree': tree, 'signed': False, 'deviceValidated': False,
                     'hapSha256': r.digest(report / r.HAP), 'core': {'Deps': []},
                     'github': {'GITHUB_RUN_ID': '123', 'GITHUB_RUN_ATTEMPT': '1', 'GITHUB_SHA': sha}}
         (report / 'build-identity.json').write_text(json.dumps(identity))
         for name in ['clt/sdk/default/openharmony/native/llvm/NOTICE', 'clt/sdk/default/openharmony/native/NOTICE.txt', 'goroot/LICENSE']:
             path = self.root / name; path.parent.mkdir(parents=True, exist_ok=True); path.write_text('fixture notice')
+        def fake_tool_sources(dest):
+            for label in ['domain-list-community', 'metacubex-geo']:
+                base = dest / 'sources/tool-modules' / label / 'example.invalid'
+                base.mkdir(parents=True)
+                data = b'fixture module zip'
+                for suffix in ['.zip', '.mod', '.info']:
+                    (base / ('tool@v1.0.0' + suffix)).write_bytes(data)
+                record = [{'path': 'example.invalid/tool', 'version': 'v1.0.0',
+                           'goSum': 'h1:fixture', 'zipSha256': hashlib.sha256(data).hexdigest()}]
+                (dest / 'sources/tool-modules' / (label + '.json')).write_text(json.dumps(record))
         run_command = r.command
         def external(args, **kwargs):
             if args[:3] == ['go', 'env', 'GOROOT']:
@@ -264,7 +295,7 @@ class ReleaseTests(unittest.TestCase):
         old = pathlib.Path.cwd()
         try:
             os.chdir(self.root)
-            with patch.dict(os.environ, env), patch.object(r, 'command', side_effect=external):
+            with patch.dict(os.environ, env), patch.object(r, 'command', side_effect=external), patch.object(r, 'tool_module_sources', side_effect=fake_tool_sources):
                 r.package()
                 expected = r.expected_identity('v0.1.0', sha, tree)
                 self.assertEqual(set(r.verify(self.root / 'cexing/dist/release', expected)), r.FILES | {'SHA256SUMS'})
@@ -272,6 +303,8 @@ class ReleaseTests(unittest.TestCase):
             self.assertIn(notice, (self.root / 'cexing/dist/release/SOURCE-NOTICES.md').read_text())
             release_notes = (self.root / 'cexing/dist/release/release-notes.md').read_text()
             self.assertIn('GeoIP 与 GeoSite', release_notes)
+            self.assertIn('IP Geolocation by DB-IP', release_notes)
+            self.assertNotIn('MaxMind', release_notes)
             self.assertNotIn('完整许可与声明', release_notes)
             self.assertEqual(json.loads((report / 'build-identity.json').read_text()), identity, 'Original report must not change')
             import tarfile

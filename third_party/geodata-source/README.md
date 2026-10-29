@@ -1,9 +1,8 @@
-# GeoSite 上游来源参考快照
+# GeoSite 源数据与覆盖变化
 
-这些文件随对应源码包提供，来源、提交和 SHA-256 由构建身份及发行材料校验记录。它们是可复核的上游参考快照，不声称为固定 GeoSite 基线构建时所下载的精确版本：该次上游任务的动态下载没有可核验的逐文件身份。
+- `community/baseline.dat`：上游 MetaCubeX 固定基线清空 21 个将重建的分类后所得固定输入，SHA-256 `ea5bc44cf6d2baba4167a906243c28907de8277d8f141db1548cd79732aadf13`；生成方式见 `scripts/ci/sanitize-geosite.go`。未替换分类保持不变。
+- `community/source.tar.gz`：v2fly/domain-list-community 固定提交 `333d8a1810d04600bcb00870155a369954ed37f5` 的完整源码与 MIT 许可。由该项目原生生成器展开 include 和属性；本项目对 OneDrive、tracker 与 `geolocation-!cn` 的局部组合记录在 `scripts/ci/build-geosite-input.py`。
+- `gfwlist/`：gfwlist/gfwlist 提交 `986098e6890e34b5e14f04209714f741bbe6313d`，含 `list.txt`、`gfwlist.txt`、LGPL-2.1 正文与转换后域名。`gfwlist2dnsmasq/` 是 cokebar/gfwlist2dnsmasq 提交 `202e52fb5ea2260abc9f162b3a78e58ec9187005` 的转换脚本及 GPL-3.0 正文。构建使用本地固定输入重做转换并验证生成域名一致。
+- `dnsmasq-china/`：felixonmars/dnsmasq-china-list 提交 `d6f9c70b70e8f4bc539f8c3f84975ce14a7b209b` 的 Google / Apple 输入及 WTFPL 许可。
 
-- `gfwlist/`：gfwlist/gfwlist `986098e6890e34b5e14f04209714f741bbe6313d`，含规则和 LGPL-2.1 正文。
-- `gfwlist2dnsmasq/`：cokebar/gfwlist2dnsmasq `202e52fb5ea2260abc9f162b3a78e58ec9187005`，含转换脚本与 GPL-3.0 正文；它是已记录的较早上游运行所用版本，不能证明固定基线使用了同一版本。
-- `trackers/`：XIU2/TrackersListCollection `61fbb62c9c326d7234da2fb240055680cb150ba6`，含 `all.txt` 和 GPL-3.0 正文。
-
-按 MetaCubeX 流程用上述 gfwlist 和转换脚本生成的候选 GFW 域名包含基线的全部 4,424 个不同值，另有 19 个候选值；这不是精确输入证明。按上游过滤规则从 `trackers/all.txt` 提取 35 个不同主机，其中 25 个在基线 TRACKER 分类中完全匹配，10 个未匹配，不能将该快照说成精确对应源码。实际分发时还需按照各文件许可核对必要条件。
+`GEOSITE-DIFF.json` 是新旧分类条目增减与共享值类型/属性变化的统计。添加和删除条目可能表示同一域名的类型或属性变化，不能直接解释成独立的匹配数量。实际变化和代表例子见 `third_party/geodata/NOTICE.md`；原订阅仍可引用各分类，但未命中时会按后续规则处理。

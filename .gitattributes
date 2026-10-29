@@ -2,4 +2,5 @@
 core/patches/*.patch whitespace=-blank-at-eol,-space-before-tab
 # Preserve upstream corresponding-source bytes exactly, including original whitespace.
 third_party/geodata-source/gfwlist2dnsmasq/gfwlist2dnsmasq.sh whitespace=-blank-at-eol
-third_party/geodata-source/trackers/all.txt whitespace=-blank-at-eof
+# GeoSite protobuf is binary even when its first bytes contain no NUL.
+third_party/geodata-source/community/baseline.dat binary

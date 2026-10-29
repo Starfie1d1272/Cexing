@@ -1,6 +1,6 @@
 # GeoIP 候选交接（未接入产品）
 
-这是独立实验材料，不是发行许可结论，不改变产品构建或 `release.py`。输入快照与 `SHA256SUMS` 保存在本目录；服务商列表的再分发条款及 GeoSite 完整来源仍由 Astra 复核。请勿仅凭这里的结果发布或把该文件夹打进 HAP。
+本目录保存默认 GeoIP 构建使用的固定输入和生成脚本；输入快照与 `SHA256SUMS` 保存在本目录，完整材料进入源码包，不将输入快照全部打入 HAP。服务商列表的适用条件按具体来源核对；构建结果和差异不等同许可或设备验收。
 
 ## 构建和验证
 
@@ -29,4 +29,4 @@ bash third_party/geodata-candidate/build.sh /path/to/output
 - `loyalsoldier-config.json`：固定的 [Loyalsoldier/geoip 配置](https://github.com/Loyalsoldier/geoip/blob/084eb113e458b82374919dabefbc49cd2c2dd079/config.json)，用于确定 ASN 和服务字段。`PRIVATE` 前缀依据同一提交的 `plugin/special/private.go`；项目仓库声明 CC BY-SA 4.0，具体适用范围仍需核对。
 - `metacubex-geo.tar.gz`：`MetaCubeX/geo` 提交 `a4db326ccfd7e21276d5d05f4f7e512d14415553`，上游 GPL-3.0；补丁只固定生成时间戳。
 
-尚未做候选 HAP 构建、合成配置和真实脱敏订阅出口检查，也未确认上面全部输入的再分发条件。切换默认 GeoIP 前须完成这些检查及对应源码包，并依据 Astra 的最小分发准则处理现有阻断。
+尚未做候选 HAP 构建、合成配置和真实脱敏订阅出口检查，也未确认上面全部输入的再分发条件。真实订阅、设备出口和产品审查仍须完成。

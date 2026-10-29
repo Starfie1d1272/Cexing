@@ -120,7 +120,7 @@ with zipfile.ZipFile(hap) as archive, tempfile.TemporaryDirectory() as directory
             name = 'resources/rawfile/' + file.relative_to(raw).as_posix()
             require(sha(archive.read(name)) == sha(file.read_bytes()), 'raw resource mismatch: ' + name)
     geodata = json.loads((root / 'cexing/dist/geodata-identity.json').read_text())
-    require(geodata['policy'] == 'latest-stable', 'GeoIP latest selection policy')
+    require(geodata['policy'] == 'fixed-source', 'GeoIP fixed selection policy')
     digest = sha(archive.read('resources/rawfile/geodata/geoip.metadb'))
     require(digest == geodata['expectedSha256'] == geodata['downloadedSha256'], 'GeoIP upstream/actual/package identity')
     geosite = archive.read('resources/rawfile/geodata/geosite.dat')
@@ -165,18 +165,18 @@ identity = {
     'smartSource': smart_record,
     'geodata': geodata,
     'smartModel': model_pin,
-    'inputs': {file: sha((root / file).read_bytes()) for file in [
+    'inputs': {file: sha((root / file).read_bytes()) for file in json.loads((root / 'third_party/geodata/source-materials.json').read_text()) + [
         'core/go.mod', 'core/go.sum', 'core/patches/smart-offline.patch', 'scripts/ci/patch-smart.py', 'scripts/build-core.sh', 'scripts/ci/patch-gvisor.py',
         'core/patches/inbound-policy-race.patch', 'scripts/ci/patch-inbound-race.py',
         'scripts/prepare-geodata.sh', 'scripts/build-hap.sh', 'scripts/env.sh',
         'cexing/entry/oh-package-lock.json5', 'scripts/ci/package-lock.json', 'scripts/ci/toolchain.json',
         'scripts/ci/sdk-download.json', 'scripts/ci/setup-clt.py', 'scripts/ci/go-download-cache.sh',
-        'scripts/ci/prepare-geodata.py', 'scripts/ci/replace-geosite.go',
-        'third_party/geodata/categories.json', 'third_party/geodata/sources/HTTPDNS.Block.list',
+        'scripts/ci/prepare-geodata.py', 'scripts/ci/replace-geosite.go', 'scripts/ci/merge-geosite.go',
+        'scripts/ci/build-geosite-input.py',
+        'third_party/geodata/source-materials.json', 'third_party/geodata/categories.json', 'third_party/geodata/sources/HTTPDNS.Block.list',
         'third_party/geodata-source/gfwlist/list.txt', 'third_party/geodata-source/gfwlist/gfwlist.txt',
         'third_party/geodata-source/gfwlist/COPYING.txt',
         'third_party/geodata-source/gfwlist2dnsmasq/gfwlist2dnsmasq.sh', 'third_party/geodata-source/gfwlist2dnsmasq/LICENSE',
-        'third_party/geodata-source/trackers/all.txt', 'third_party/geodata-source/trackers/LICENSE',
         'scripts/ci/hvigor-wrapper/package-lock.json', '.github/workflows/full.yml']},
     'entries': entries,
     'signed': False,

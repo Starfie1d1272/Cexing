@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Experimental GeoIP candidate; not connected to the product or release.
+# Build GeoIP from fixed, verified inputs.
 set -euo pipefail
 root="$(cd "$(dirname "$0")" && pwd)"
 [ "$#" -eq 1 ] || { echo 'usage: bash build.sh OUTPUT-DIRECTORY' >&2; exit 2; }

@@ -1,4 +1,4 @@
-import csv,gzip,ipaddress,json,pathlib,collections,sys
+import csv,gzip,ipaddress,json,pathlib,collections,sys,re
 root=pathlib.Path(__file__).resolve().parent; inp=root/'inputs'
 if len(sys.argv) != 2: raise SystemExit('usage: python3 build.py OUTPUT.dat')
 output=pathlib.Path(sys.argv[1])
@@ -41,6 +41,9 @@ for section,key in [('prefixes','ip_prefix'),('ipv6_prefixes','ipv6_prefix')]:
  for x in j[section]:
   if x['service'] in ('CLOUDFRONT','CLOUDFRONT_ORIGIN_FACING'): add('cloudfront',x[key])
 private=['0.0.0.0/8','10.0.0.0/8','100.64.0.0/10','127.0.0.0/8','169.254.0.0/16','172.16.0.0/12','192.0.0.0/24','192.0.2.0/24','192.31.196.0/24','192.52.193.0/24','192.88.99.0/24','192.168.0.0/16','198.18.0.0/15','198.51.100.0/24','203.0.113.0/24','224.0.0.0/4','240.0.0.0/4','255.255.255.255/32','::/127','64:ff9b::/96','64:ff9b:1::/48','100::/64','2001::/23','2001:db8::/32','2620:4f:8000::/48','3fff::/20','5f00::/16','fc00::/7','fe80::/10','ff00::/8']
+upstream_private = (inp/'loyalsoldier-private.go').read_text().split('var privateCIDRs = []string{',1)[1].split('}',1)[0]
+if re.findall(r'"([^"]+)"', upstream_private) != private:
+ raise SystemExit('private CIDR list differs from fixed upstream source')
 for x in private: add('private',x)
 def var(n):
  out=bytearray()
