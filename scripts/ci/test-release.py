@@ -37,6 +37,7 @@ class ReleaseTests(unittest.TestCase):
             archive.writestr('resources/rawfile/geodata/geoip.metadb', ip)
             archive.writestr('resources/rawfile/geodata/geosite.dat', site)
             archive.writestr('resources/rawfile/geodata-notices/NOTICE.md', notice)
+            archive.writestr('resources/rawfile/geodata-notices/sources/HTTPDNS.Block.list', 'fixture HTTPDNS source')
             for name in ['GEOIP-CC-BY-SA-4.0.txt', 'GPL-3.0.txt', 'blackmatrix-GPL-2.0.txt',
                          'gfwlist-LGPL-2.1.txt', 'v2fly-MIT.txt', 'custom-MIT.txt',
                      'dnsmasq-WTFPL-2.txt', 'windows-spy-MIT.txt']:
@@ -50,6 +51,11 @@ class ReleaseTests(unittest.TestCase):
 
     def source_fixture(self, path, ip_source, site_source):
         with tarfile.open(path, 'w:gz') as archive:
+            for name in r.GEO_REFERENCE_SOURCES:
+                data = ('fixture source ' + name).encode()
+                info = tarfile.TarInfo('sources/geodata-reference/' + name)
+                info.size = len(data)
+                archive.addfile(info, io.BytesIO(data))
             for name, data in [('geoip.dat', ip_source), ('geosite.dat', site_source)]:
                 info = tarfile.TarInfo('sources/geodata/' + name)
                 info.size = len(data)
@@ -61,7 +67,9 @@ class ReleaseTests(unittest.TestCase):
         geo, ip_source, site_source, notice = self.geodata_fixture(self.root / r.HAP)
         self.source_fixture(self.root / 'cexing-sources.tar.gz', ip_source, site_source)
         (self.root / 'SOURCE-NOTICES.md').write_bytes(notice)
-        identity = {'geodata': geo, 'app': self.app, 'commit': self.expected['commit'], 'tree': self.expected['tree'],
+        identity = {'inputs': {**{'third_party/geodata-source/' + name: hashlib.sha256(('fixture source ' + name).encode()).hexdigest() for name in r.GEO_REFERENCE_SOURCES},
+                               'third_party/geodata/sources/HTTPDNS.Block.list': hashlib.sha256(b'fixture HTTPDNS source').hexdigest()},
+                    'geodata': geo, 'app': self.app, 'commit': self.expected['commit'], 'tree': self.expected['tree'],
                     'signed': False, 'deviceValidated': False, 'hapSha256': r.digest(self.root / r.HAP),
                     'github': {'GITHUB_RUN_ID': '123', 'GITHUB_RUN_ATTEMPT': '1', 'GITHUB_SHA': 'a' * 40}}
         (self.root / 'build-identity.json').write_text(json.dumps(identity))
@@ -92,6 +100,12 @@ class ReleaseTests(unittest.TestCase):
         self.source_fixture(self.root / 'cexing-sources.tar.gz', b'wrong ip', b'fixture site source')
         r.checksums(self.root, r.FILES)
         with self.assertRaisesRegex(ValueError, 'GeoData source digest mismatch'):
+            r.verify(self.root, self.expected)
+        self.bundle()
+        with tarfile.open(self.root / 'cexing-sources.tar.gz', 'w:gz'):
+            pass
+        r.checksums(self.root, r.FILES)
+        with self.assertRaisesRegex(ValueError, 'Missing GeoData reference source'):
             r.verify(self.root, self.expected)
         self.bundle()
         (self.root / 'SOURCE-NOTICES.md').write_text('notice removed')
@@ -215,6 +229,8 @@ class ReleaseTests(unittest.TestCase):
             '.github/workflows/release.yml': '# fixture controller',
             'scripts/ci/release.py': '# fixture controller',
         }
+        for name in r.GEO_REFERENCE_SOURCES:
+            fixture_files['third_party/geodata-source/' + name] = 'fixture source ' + name
         for name, text in fixture_files.items():
             path = self.root / name; path.parent.mkdir(parents=True, exist_ok=True); path.write_text(text)
         git('add', '.'); git('commit', '-qm', 'fixture source')
@@ -227,7 +243,9 @@ class ReleaseTests(unittest.TestCase):
         inputs = self.root / 'cexing/dist/geodata-inputs'; inputs.mkdir()
         (inputs / 'geoip.dat').write_bytes(ip_source)
         (inputs / 'geosite.dat').write_bytes(site_source)
-        identity = {'geodata': geo, 'app': self.app, 'commit': sha, 'tree': tree, 'signed': False, 'deviceValidated': False,
+        identity = {'inputs': {**{'third_party/geodata-source/' + name: hashlib.sha256(('fixture source ' + name).encode()).hexdigest() for name in r.GEO_REFERENCE_SOURCES},
+                               'third_party/geodata/sources/HTTPDNS.Block.list': hashlib.sha256(b'fixture HTTPDNS source').hexdigest()},
+                    'geodata': geo, 'app': self.app, 'commit': sha, 'tree': tree, 'signed': False, 'deviceValidated': False,
                     'hapSha256': r.digest(report / r.HAP), 'core': {'Deps': []},
                     'github': {'GITHUB_RUN_ID': '123', 'GITHUB_RUN_ATTEMPT': '1', 'GITHUB_SHA': sha}}
         (report / 'build-identity.json').write_text(json.dumps(identity))

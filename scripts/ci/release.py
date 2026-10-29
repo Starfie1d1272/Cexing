@@ -19,6 +19,12 @@ API = 'repos/' + REPO
 TAG = re.compile(r'v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\Z')
 SHA = re.compile(r'[0-9a-f]{40}\Z')
 HAP = 'entry-default-unsigned.hap'
+GEO_REFERENCE_SOURCES = [
+    'gfwlist/list.txt', 'gfwlist/gfwlist.txt', 'gfwlist/COPYING.txt',
+    'gfwlist2dnsmasq/gfwlist2dnsmasq.sh', 'gfwlist2dnsmasq/LICENSE',
+    'trackers/all.txt', 'trackers/LICENSE',
+]
+
 BASE = {HAP, 'build-identity.json', 'module-notices.json', 'GO-NOTICES.txt',
         'HOKIT-QUICKSTART.md', 'THIRD_PARTY_NOTICES.md', 'LICENSE',
         'SMART-NOTICE.md', 'SMART-MODEL-SOURCE.json', 'SMART-PATCH.patch'}
@@ -109,6 +115,9 @@ def verify_geodata_materials(folder, identity):
                                ('geosite.dat', geo['geosite']['downloadedSha256'])]:
             require(hashlib.sha256(hap.read('resources/rawfile/geodata/' + name)).hexdigest() == expected,
                     'Packaged GeoData differs from build identity: ' + name)
+        httpdns = hap.read('resources/rawfile/geodata-notices/sources/HTTPDNS.Block.list')
+        require(hashlib.sha256(httpdns).hexdigest() == identity['inputs']['third_party/geodata/sources/HTTPDNS.Block.list'],
+                'HTTPDNS source differs from build identity')
         notice = hap.read('resources/rawfile/geodata-notices/NOTICE.md')
         require(bool(notice) and notice in (folder / 'SOURCE-NOTICES.md').read_bytes(),
                 'GeoData notice absent from release materials')
@@ -118,6 +127,13 @@ def verify_geodata_materials(folder, identity):
             require(bool(hap.read('resources/rawfile/geodata-notices/licenses/' + name)),
                     'Missing bundled GeoData license: ' + name)
     with tarfile.open(folder / 'cexing-sources.tar.gz', 'r:gz') as archive:
+        for name in GEO_REFERENCE_SOURCES:
+            path = 'third_party/geodata-source/' + name
+            members = [m for m in archive.getmembers() if m.name == 'sources/geodata-reference/' + name]
+            require(len(members) == 1 and members[0].isfile(), 'Missing GeoData reference source: ' + name)
+            stream = archive.extractfile(members[0])
+            require(stream is not None and hashlib.sha256(stream.read()).hexdigest() == identity['inputs'][path],
+                    'GeoData reference source digest mismatch: ' + name)
         for name, expected in [('geoip.dat', geo['geoipSource']['sha256']),
                                ('geosite.dat', geo['geosite']['sourceSha256'])]:
             members = [m for m in archive.getmembers() if m.name == 'sources/geodata/' + name]
@@ -242,6 +258,12 @@ def package():
                     'Wrong GeoData source input: ' + name)
             shutil.copyfile(input_path, geo_sources / name)
         (geo_sources / 'identity.json').write_text(json.dumps(geo, indent=2) + '\n')
+        reference = pathlib.Path('third_party/geodata-source')
+        for name in GEO_REFERENCE_SOURCES:
+            path = reference / name
+            require(path.is_file() and digest(path) == identity['inputs'][str(path)],
+                    'Wrong GeoData reference source: ' + name)
+        shutil.copytree(reference, sources / 'geodata-reference')
         module_sources(identity, temp)
         z = json.loads(pathlib.Path('third_party/zashboard/source.json').read_text())
         require(z['repository'] == 'https://github.com/Zephyruso/zashboard' and SHA.fullmatch(z['sha']), 'Unexpected panel source')

@@ -11,7 +11,8 @@ import tempfile
 REPO = 'MetaCubeX/meta-rules-dat'
 GEOSITE_COMMIT = 'be456e5c402c4a9c98519e73f09256c96914cefd'
 GEOSITE_SOURCE_SHA = '38aac2a107485a3818501106292efbbc92214588aa1d62ac5fb5d8a1d1a335f7'
-GEOSITE_RESULT_SHA = '871a8ba2177f28721230021f1641e2c6fc4b2f3953b0a0881fa4c5396f3d1e0d'
+GEOSITE_RESULT_SHA = '29fceaa943072b13c969c1a4996e909d6b40f15d018bbbae07b2b6335dc57014'
+HTTPDNS_SOURCE_SHA = '1f22f942384e2f71ead423d3fbd02703734c17f93762975d74556ebcade89b86'
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 OUT = ROOT / 'cexing/entry/src/main/resources/rawfile/geodata/geoip.metadb'
 RECORD = ROOT / 'cexing/dist/geodata-identity.json'
@@ -86,6 +87,8 @@ with tempfile.TemporaryDirectory() as work:
     geosite_source = pathlib.Path(work) / 'geosite-source.dat'
     fetch(geosite_url, geosite_source)
     require(sha(geosite_source) == GEOSITE_SOURCE_SHA, 'Fixed GeoSite baseline digest mismatch')
+    require(sha(ROOT / 'third_party/geodata/sources/HTTPDNS.Block.list') == HTTPDNS_SOURCE_SHA,
+            'HTTPDNS source digest mismatch')
     built = pathlib.Path(work) / 'geosite.dat'
     result = subprocess.run(['go', 'run', '../scripts/ci/replace-geosite.go', str(geosite_source),
                              str(ROOT / 'third_party/geodata/categories.json'), str(built)],

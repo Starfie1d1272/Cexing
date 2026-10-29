@@ -1,11 +1,13 @@
-// Replace the two documented categories while preserving all other protobuf data.
+// Replace the documented categories while preserving all other protobuf data.
 package main
 
 import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
+	"strings"
 
 	"github.com/metacubex/mihomo/component/geodata/router"
 	"google.golang.org/protobuf/proto"
@@ -39,8 +41,19 @@ func run(input, categories, output string) error {
 	if err := json.Unmarshal(data, &replacements); err != nil {
 		return err
 	}
-	if len(replacements) != 2 || len(replacements["BILIINTL"]) == 0 || len(replacements["SHAREPOINT"]) == 0 {
+	if len(replacements) != 3 || len(replacements["BILIINTL"]) == 0 || len(replacements["SHAREPOINT"]) == 0 || len(replacements["HTTPDNS"]) != 22 {
 		return fmt.Errorf("unexpected category manifest")
+	}
+	source, err := os.ReadFile(filepath.Join(filepath.Dir(categories), "sources", "HTTPDNS.Block.list"))
+	if err != nil {
+		return err
+	}
+	upstream := make(map[string]string)
+	for _, line := range strings.Split(string(source), "\n") {
+		kind, name, ok := strings.Cut(strings.TrimSpace(line), ",")
+		if ok && (kind == "DOMAIN" || kind == "DOMAIN-SUFFIX") {
+			upstream[name] = kind
+		}
 	}
 	found := make(map[string]bool)
 	for _, site := range list.Entry {
@@ -58,7 +71,33 @@ func run(input, categories, output string) error {
 			if name == "" || (i > 0 && names[i-1] == name) {
 				return fmt.Errorf("empty or duplicate domain in %s", site.CountryCode)
 			}
-			site.Domain = append(site.Domain, &router.Domain{Type: router.Domain_Domain, Value: name})
+			kind := router.Domain_Domain
+			if site.CountryCode == "HTTPDNS" {
+				prefix, value, ok := strings.Cut(name, ":")
+				if !ok {
+					return fmt.Errorf("invalid HTTPDNS entry")
+				}
+				sourceKind, present := upstream[value]
+				if !present {
+					return fmt.Errorf("HTTPDNS domain absent from upstream: %s", value)
+				}
+				switch prefix {
+				case "full":
+					if sourceKind != "DOMAIN" {
+						return fmt.Errorf("unexpected source type for %s", value)
+					}
+					kind = router.Domain_Full
+				case "domain":
+					baidu := value == "httpdns.baidu.com" || value == "httpdns.baidubce.com" || value == "httpsdns.baidu.com"
+					if sourceKind != "DOMAIN-SUFFIX" && !baidu {
+						return fmt.Errorf("unexpected suffix for %s", value)
+					}
+				default:
+					return fmt.Errorf("invalid HTTPDNS type")
+				}
+				name = value
+			}
+			site.Domain = append(site.Domain, &router.Domain{Type: kind, Value: name})
 		}
 	}
 	if len(found) != len(replacements) {

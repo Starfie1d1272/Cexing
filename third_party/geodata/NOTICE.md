@@ -1,6 +1,6 @@
 # GeoData 来源、许可与源码边界
 
-测试包包含 `geoip.metadb` 和 `geosite.dat`，GeoIP 由 [MetaCubeX/meta-rules-dat](https://github.com/MetaCubeX/meta-rules-dat) 的可变 `latest` 发布取得；GeoSite 使用该项目固定提交 `be456e5c402c4a9c98519e73f09256c96914cefd` 的产物，并重新构造 BILIINTL 和 SHAREPOINT 分类。构建身份记录来源与摘要；固定 GeoSite 产物的摘要不等于固定了其完整上游输入，也不能证明对应源码完整。
+测试包包含 `geoip.metadb` 和 `geosite.dat`，GeoIP 由 [MetaCubeX/meta-rules-dat](https://github.com/MetaCubeX/meta-rules-dat) 的可变 `latest` 发布取得；GeoSite 使用该项目固定提交 `be456e5c402c4a9c98519e73f09256c96914cefd` 的产物，并重新构造 BILIINTL、SHAREPOINT 和 HTTPDNS 分类。构建身份记录来源与摘要；固定 GeoSite 产物的摘要不等于固定了其完整上游输入，也不能证明对应源码完整。
 
 GeoIP：上游使用 [Loyalsoldier/geoip](https://github.com/Loyalsoldier/geoip) 的 `geoip.dat`，再用 [MetaCubeX/geo](https://github.com/MetaCubeX/geo) 转换成 metadb。Loyalsoldier 项目声明 CC BY-SA 4.0，许可原文为 `licenses/GEOIP-CC-BY-SA-4.0.txt`；转换项目声明 GPL-3.0，正文为 `licenses/GPL-3.0.txt`。This product includes GeoLite2 data created by MaxMind, available from https://www.maxmind.com .
 
@@ -12,12 +12,16 @@ GeoSite：上游运行 [构建流程](https://github.com/MetaCubeX/meta-rules-da
 
 发行应保留实际适用的许可、署名和对应源码材料；全链从头重建并非通用条件。当前构建保留本次 GeoIP 发布的 `geoip.dat` 和固定 GeoSite 基线作为转换输入，但它们并不证明上游所有原始数据来源。blackmatrix7 直接使用规则的具体许可适用和对应源码仍在核查；CI 成功、摘要匹配和此通知不构成许可结论。
 
-## 两个重建分类
+## 重建分类
 
-`categories.json` 中的值均以 GeoSite `Domain`（域名及其子域）类型写入，与固定基线的两类逐条相同，包含属性与重复次数；其余分类不变。构建时验证固定输入和输出 SHA-256。
+`categories.json` 对 BILIINTL 和 SHAREPOINT 使用 GeoSite `Domain`（域名及其子域）类型；HTTPDNS 按清单逐项使用 `Domain` 或 `Full`（精确匹配）。三类与固定基线逐条相同，包含属性与重复次数；其余分类不变。构建时验证固定输入和输出 SHA-256。
 
 SHAREPOINT 三项均见固定的 [v2fly Microsoft 数据](https://github.com/v2fly/domain-list-community/blob/333d8a1810d04600bcb00870155a369954ed37f5/data/microsoft)（MIT）；这里保留原分类类型和无属性行为，而不引入 Microsoft 列表中 `sharepoint.cn` 的 `@cn` 属性。
 
 BILIINTL 的 `bilibili.tv`、`biliintl.com`、`bstarstatic.com` 分别有官方网页及其脚本使用子域的证据：[页面](https://www.bilibili.tv/en)、[官方脚本](https://p.bstarstatic.com/fe-static/bstar-web-new/client/assets/index-ffb946be.js)。旧客户端接口 `api.global.bilibili.com`、`app.global.bilibili.com` 有[播放和字幕请求记录](https://github.com/ipcjs/oh-my-userscripts/issues/722)。`upos-bstar1-mirrorakam.akamaized.net`、`upos-sz-mirrorcosbstar1.bilivideo.com` 分别有 [播放记录](https://github.com/yt-dlp/yt-dlp/issues/7086)、[播放记录](https://github.com/yt-dlp/yt-dlp/issues/6908)；`upos-sz-mirroralibstar1.bilivideo.com` 有[海外 CDN 记录](https://github.com/the1812/Bilibili-Evolved/issues/3234)。`p-bstarstatic.akamaized.net` 与 `upos-bstar-mirrorakam.akamaized.net` 见 [blackmatrix7 BiliBili 列表](https://github.com/blackmatrix7/ios_rule_script/blob/0b6897dc17e0c513d25449c935a9694818e32f0c/rule/Clash/BiliBili/BiliBili.list)（GPL-2.0；该列表是精确域名，原基线对两个域名匹配其子域）。`apm-misaka.biliapi.net` 有[历史规则记录](https://clashios.app/rule/bilibiliintl)，并非官方直接证据。上述第三方历史记录只说明曾观测或收录，不能证明当前服务完整性；共享 CDN 名称仅保留明确主机，不扩到整个 `akamaized.net` 或 `bilivideo.com`。
 
 两类由上述独立线索重新构造；但固定基线仍是现成的 MetaCubeX 二进制，其中原有输入的完整来源没有重建。实际适用的许可、署名和对应源码仍须按具体来源核对；本次身份和材料校验不代替此核查。
+
+HTTPDNS 的 22 项从固定的 [GetSomeFries HTTPDNS.Block.list](https://github.com/VirgilClyne/GetSomeFries/blob/b4aa767bcbc4d39bea5b549a3277a00517891d1e/ruleset/HTTPDNS.Block.list) 选择，原文件随包，GPL-3.0 见 `licenses/GPL-3.0.txt`。其中 `httpdns.baidu.com`、`httpdns.baidubce.com`、`httpsdns.baidu.com` 在上游是精确匹配，在本地改为后缀匹配以保留固定基线行为；其余值和类型保持一致，不加入上游额外域名或 IP。
+
+源码附件还提供 gfwlist、gfwlist2dnsmasq 和 TrackersListCollection 固定参考快照及许可；来源和与基线比较见 `third_party/geodata-source/README.md`。其参考快照并未证实就是基线构建使用的精确版本。
