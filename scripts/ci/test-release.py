@@ -303,7 +303,7 @@ class ReleaseTests(unittest.TestCase):
             self.assertIn(notice, (self.root / 'cexing/dist/release/SOURCE-NOTICES.md').read_text())
             release_notes = (self.root / 'cexing/dist/release/release-notes.md').read_text()
             self.assertIn('GeoIP 与 GeoSite', release_notes)
-            self.assertIn('IP Geolocation by DB-IP', release_notes)
+            self.assertNotIn('IP Geolocation by DB-IP', release_notes)
             self.assertNotIn('MaxMind', release_notes)
             self.assertNotIn('完整许可与声明', release_notes)
             self.assertEqual(json.loads((report / 'build-identity.json').read_text()), identity, 'Original report must not change')
