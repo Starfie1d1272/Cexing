@@ -1,4 +1,4 @@
-# GeoIP 候选交接（未接入产品）
+# GeoIP 固定输入与构建
 
 本目录保存默认 GeoIP 构建使用的固定输入和生成脚本；输入快照与 `SHA256SUMS` 保存在本目录，完整材料进入源码包，不将输入快照全部打入 HAP。服务商列表的适用条件按具体来源核对；构建结果和差异不等同许可或设备验收。
 
@@ -10,7 +10,7 @@
 bash third_party/geodata-candidate/build.sh /path/to/output
 ```
 
-脚本核对所有输入摘要，从固定快照生成 V2Ray GeoIP protobuf，解包固定的 `MetaCubeX/geo` 源码，应用 `metadb-epoch.patch`，再编译转换器并生成 `geoip.metadb`。Go 模块按上游 `go.mod` / `go.sum` 获取并校验；来源源码包目前不包含转换器 Go 模块缓存，正式接入需将对应源码按既有 release 打包方式纳入。
+脚本核对所有输入摘要，从固定快照生成 V2Ray GeoIP protobuf，解包固定的 `MetaCubeX/geo` 源码，应用 `metadb-epoch.patch`，再编译转换器并生成 `geoip.metadb`。Go 模块按上游 `go.mod` / `go.sum` 获取并校验；发行源码包收集两个 GeoData 生成器实际使用的 Go 模块源码 ZIP、模块文件和版本元数据，并校验其摘要。
 
 原转换器的 `mmdbwriter` 默认使用当前时间作为数据库时间戳；相同输入的两次 `.metadb` 摘要不同。补丁将时间戳固定为 Tor 快照时间 `2026-10-29T19:11:33Z`。实测两次 `.dat` 摘要均为 `02ec4566b23662b3508b481c4a35136fa9d2b56436775dd87a0c11860f89b001`，补丁后两次 `.metadb` 均为 `378a5083bde959a7c487f2c8f2dcd439bad5a48a23142f1f1d4e194d511f67c5`。这是所测工具链和快照的结果，尚不是跨平台逐字节可复现保证。
 
@@ -29,4 +29,4 @@ bash third_party/geodata-candidate/build.sh /path/to/output
 - `loyalsoldier-config.json`：固定的 [Loyalsoldier/geoip 配置](https://github.com/Loyalsoldier/geoip/blob/084eb113e458b82374919dabefbc49cd2c2dd079/config.json)，用于确定 ASN 和服务字段。`PRIVATE` 前缀依据同一提交的 `plugin/special/private.go`；项目仓库声明 CC BY-SA 4.0，具体适用范围仍需核对。
 - `metacubex-geo.tar.gz`：`MetaCubeX/geo` 提交 `a4db326ccfd7e21276d5d05f4f7e512d14415553`，上游 GPL-3.0；补丁只固定生成时间戳。
 
-尚未做候选 HAP 构建、合成配置和真实脱敏订阅出口检查，也未确认上面全部输入的再分发条件。真实订阅、设备出口和产品审查仍须完成。
+固定输入已用于 clean HAP 构建，并以合成配置检查 GeoIP 策略匹配；实际订阅、设备出口和产品审查与这些检查分别记录。上面各输入的适用条件仍需按具体来源核对。
