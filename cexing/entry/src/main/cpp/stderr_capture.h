@@ -11,6 +11,7 @@
 #include <sys/file.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <vector>
 
 // Raw stderr precedes Go's config redaction dictionary. Persist only fixed
 // event classes, never panic values, stack arguments, paths or arbitrary text.
@@ -94,6 +95,16 @@ inline void *consume(void *arg) {
     return nullptr;
 }
 
+inline bool ownGroup(gid_t group) {
+    if (group == getegid()) return true;
+    int count = getgroups(0, nullptr);
+    if (count <= 0) return false;
+    std::vector<gid_t> groups(static_cast<size_t>(count));
+    count = getgroups(count, groups.data());
+    for (int i = 0; i < count; ++i) if (groups[i] == group) return true;
+    return false;
+}
+
 inline bool start(const std::string &home) {
     if (home.empty() || home[0] != '/') return false;
     char *canonical = realpath(home.c_str(), nullptr);
@@ -104,7 +115,10 @@ inline bool start(const std::string &home) {
     int root = open(home.c_str(), O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
     struct stat st {};
     if (root < 0) return false;
-    if (fstat(root, &st) != 0 || st.st_uid != getuid() || (st.st_mode & 0022) != 0) { close(root); return false; }
+    // The platform owns filesDir's permissions; it may be writable by the app's
+    // sandbox group. Never change them, or accept world/foreign-group writes.
+    if (fstat(root, &st) != 0 || st.st_uid != getuid() || (st.st_mode & 0002) != 0 ||
+        ((st.st_mode & 0020) != 0 && !ownGroup(st.st_gid))) { close(root); return false; }
     // Remove the old unbounded raw file; it is never a support-bundle source.
     unlinkat(root, "go_stderr.log", 0);
     if (mkdirat(root, "runtime-logs", 0700) != 0 && errno != EEXIST) { close(root); return false; }
