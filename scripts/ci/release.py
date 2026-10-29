@@ -113,7 +113,8 @@ def verify_geodata_materials(folder, identity):
         require(bool(notice) and notice in (folder / 'SOURCE-NOTICES.md').read_bytes(),
                 'GeoData notice absent from release materials')
         for name in ['GEOIP-CC-BY-SA-4.0.txt', 'GPL-3.0.txt', 'blackmatrix-GPL-2.0.txt',
-                     'gfwlist-LGPL-2.1.txt', 'v2fly-MIT.txt', 'custom-MIT.txt']:
+                     'gfwlist-LGPL-2.1.txt', 'v2fly-MIT.txt', 'custom-MIT.txt',
+                     'dnsmasq-WTFPL-2.txt', 'windows-spy-MIT.txt']:
             require(bool(hap.read('resources/rawfile/geodata-notices/licenses/' + name)),
                     'Missing bundled GeoData license: ' + name)
     with tarfile.open(folder / 'cexing-sources.tar.gz', 'r:gz') as archive:

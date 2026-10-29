@@ -38,7 +38,8 @@ class ReleaseTests(unittest.TestCase):
             archive.writestr('resources/rawfile/geodata/geosite.dat', site)
             archive.writestr('resources/rawfile/geodata-notices/NOTICE.md', notice)
             for name in ['GEOIP-CC-BY-SA-4.0.txt', 'GPL-3.0.txt', 'blackmatrix-GPL-2.0.txt',
-                         'gfwlist-LGPL-2.1.txt', 'v2fly-MIT.txt', 'custom-MIT.txt']:
+                         'gfwlist-LGPL-2.1.txt', 'v2fly-MIT.txt', 'custom-MIT.txt',
+                     'dnsmasq-WTFPL-2.txt', 'windows-spy-MIT.txt']:
                 archive.writestr('resources/rawfile/geodata-notices/licenses/' + name, 'fixture license')
         return {'expectedSha256': hashlib.sha256(ip).hexdigest(),
                 'downloadedSha256': hashlib.sha256(ip).hexdigest(),
