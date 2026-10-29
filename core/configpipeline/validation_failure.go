@@ -5,8 +5,11 @@ package configpipeline
 type ValidationFailure struct{ code string }
 
 func NewValidationFailure(code string) *ValidationFailure {
+	if safeGeoSiteCode(code) {
+		return &ValidationFailure{code: code}
+	}
 	switch code {
-	case "RESOURCE_MISSING", "PROVIDER_UNRESOLVED", "VALIDATOR_BUSY", "VALIDATOR_HOME", "CONFIG_INVALID", "CORE_VALIDATION_FAILED":
+	case "GEOSITE_MISSING", "RESOURCE_MISSING", "PROVIDER_UNRESOLVED", "VALIDATOR_BUSY", "VALIDATOR_HOME", "CONFIG_INVALID", "CORE_VALIDATION_FAILED":
 		return &ValidationFailure{code: code}
 	default:
 		return &ValidationFailure{code: "CORE_VALIDATION_FAILED"}

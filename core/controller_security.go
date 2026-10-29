@@ -11,6 +11,8 @@ import (
 	"strings"
 	"sync"
 
+	"core/configpipeline"
+
 	"github.com/metacubex/chi"
 	MHTTP "github.com/metacubex/http"
 	"github.com/metacubex/mihomo/config"
@@ -363,6 +365,11 @@ func parsePlatformConfig(text, overrides string, runtime bool) (*config.Config, 
 	}
 	cfg, err := config.ParseRawConfig(raw)
 	if err != nil {
+		if !runtime {
+			if code := configpipeline.MissingGeoSiteCode(err); code != "" {
+				return nil, configpipeline.NewValidationFailure(code)
+			}
+		}
 		return nil, errors.New("configuration validation failed")
 	}
 	// Static UI is owned by our explicit router path. With nonempty ExternalUI,

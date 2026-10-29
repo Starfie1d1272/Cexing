@@ -71,6 +71,11 @@ export namespace CoreValidator {
   export function describeMergeFailure(error: Object, fallback: Resource): string {
     if (error === null || error === undefined) { return UiText.get(fallback); }
     const message = (error as Error).message ?? '';
+    const missingGeoSite = ProfileApplyFeedback.missingGeoSite(message);
+    if (missingGeoSite !== '') {
+      return missingGeoSite === '*' ? UiText.get($r('app.string.geosite_missing_generic')) :
+        UiText.get($r('app.string.geosite_missing_named'), missingGeoSite);
+    }
     if (message === '备份恢复未确认，请重新打开应用后重试') { return UiText.get($r('app.string.failure_recovery_restart')); }
     if (ProfileApplyFeedback.classify(message) === 'committed-pending') { return UiText.get($r('app.string.merge_committed_recovery')); }
     if (message.includes('未确认') || message.includes('结果未知')) { return UiText.get($r('app.string.editor_unknown')); }
@@ -112,6 +117,7 @@ export namespace CoreValidator {
     try { code = await core.validateOffline(context.filesDir, content, overrides); }
     catch (_) { throw new Error('本机配置校验不可用，原配置未修改'); }
     if (code === '') { return ''; }
+    if (ProfileApplyFeedback.missingGeoSite(code) !== '') { throw new Error(code); }
     if (/^CACHED_PROVIDER:[0-9a-f]{64}$/.test(code)) { return code; }
     if (code === 'PROVIDER_UNRESOLVED') {
       throw new Error('配置包含尚未验证的 provider 资源，原配置未修改');

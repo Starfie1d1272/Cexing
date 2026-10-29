@@ -8,6 +8,16 @@ export type ProfileApplyFailureKind = 'unconfirmed' | 'committed-pending' | 'sel
 
 /** Closed UI categories. Never return arbitrary backend text or config values. */
 export namespace ProfileApplyFeedback {
+  // Closed public names only. Unknown names may themselves be credentials.
+  export function missingGeoSite(message: string): string {
+    const match = /^(?:配置版本操作失败: )?GEOSITE_MISSING(?::([a-z0-9_!.\-]{1,64}))?$/.exec(message);
+    if (match === null) { return ''; }
+    const name = match[1] ?? '';
+    const publicNames: string[] = ['apple-cn', 'biliintl', 'gfw', 'google-cn', 'httpdns',
+      'sharepoint', 'tracker', 'win-extra', 'win-spy', 'win-update'];
+    return publicNames.includes(name) ? name : '*';
+  }
+
   export function classify(message: string): ProfileApplyFailureKind {
     if (['应用未确认，请重连恢复', '应用结果未确认', '地区策略结果未确认', '切换结果未确认',
       '版本发布结果未知，请断开 VPN 后检查', '应用未确认，请返回连接页断开后重连恢复'].includes(message)) { return 'unconfirmed'; }

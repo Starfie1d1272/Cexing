@@ -60,11 +60,31 @@ with tempfile.TemporaryDirectory() as work:
         import shutil
         shutil.copyfile(downloaded, OUT.with_suffix('.pending'))
         OUT.with_suffix('.pending').replace(OUT)
+    geosite_matches = [a for a in release['assets'] if a['name'] == 'geosite.dat']
+    require(len(geosite_matches) == 1, 'Expected one latest GeoSite asset')
+    geosite = geosite_matches[0]
+    geosite_digest = geosite.get('digest', '') or ''
+    require(geosite_digest.startswith('sha256:') and len(geosite_digest) == 71
+            and all(c in '0123456789abcdef' for c in geosite_digest[7:]), 'Upstream GeoSite asset has no valid published SHA-256')
+    geosite_url = geosite['browser_download_url']
+    require(geosite_url == f'https://github.com/{REPO}/releases/download/latest/geosite.dat', 'Unexpected GeoSite upstream URL')
+    geosite_out = OUT.parent / 'geosite.dat'
+    if not geosite_out.is_file() or sha(geosite_out) != geosite_digest[7:]:
+        downloaded = pathlib.Path(work) / 'geosite.dat'
+        fetch(geosite_url, downloaded)
+        require(downloaded.stat().st_size == geosite['size'] and sha(downloaded) == geosite_digest[7:],
+                'GeoSite latest size/SHA-256 mismatch; do not bypass integrity checks')
+        import shutil
+        shutil.copyfile(downloaded, geosite_out.with_suffix('.pending'))
+        geosite_out.with_suffix('.pending').replace(geosite_out)
     RECORD.parent.mkdir(parents=True, exist_ok=True)
     RECORD.write_text(json.dumps({
         'policy': 'latest-stable', 'repository': REPO, 'releaseId': release['id'],
         'publishedAt': release['published_at'], 'assetId': asset['id'],
         'url': url, 'expectedSha256': expected, 'downloadedSha256': sha(OUT),
         'bytes': OUT.stat().st_size,
+        'geosite': {'assetId': geosite['id'], 'url': geosite_url,
+                    'expectedSha256': geosite_digest[7:], 'downloadedSha256': sha(geosite_out),
+                    'bytes': geosite_out.stat().st_size},
     }, indent=2) + '\n')
 print('PASS: latest stable GeoIP resolved, upstream size/digest verified and actual identity recorded')

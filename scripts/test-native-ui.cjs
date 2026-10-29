@@ -395,10 +395,11 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   assert.equal(rejected.showSheet, true); assert.match(rejected.importError, /来源尚未就绪/);
   assert.ok(!rejected.importError.includes('private-token'));
   for (const [code, expected] of [['RESOURCE_MISSING', /资源未准备好/],
-    ['PROVIDER_UNRESOLVED', /来源尚未就绪/], ['CORE_VALIDATION_FAILED', /配置/]]) {
+    ['PROVIDER_UNRESOLVED', /来源尚未就绪/], ['CORE_VALIDATION_FAILED', /配置/],
+    ['GEOSITE_MISSING:gfw', /gfw.*更新/], ['GEOSITE_MISSING:secret-token-123', /GeoSite.*更新/]]) {
     activateResult = async () => { throw Error('配置版本操作失败: ' + code); };
     const failed = readyPage(); await failed.activateAndConnect();
-    assert.match(failed.importError, expected); assert.equal(failed.showSheet, true);
+    assert.match(failed.importError, expected); assert.ok(!failed.importError.includes('secret-token-123')); assert.equal(failed.showSheet, true);
     assert.equal(start, startsBeforeImport + 1, 'failed activation must not start VPN');
   }
   activateResult = async () => { active = 'candidate.yaml'; return 'saved'; };
@@ -567,7 +568,9 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   await rejectedRegion.saveRegion(true);
   assert.equal(rejectedRegion.tabJump, -1, 'rejected create and enable stays on profiles');
   for (const [failure, expected] of [['配置已保存，地区选择待重连恢复', '配置已保存，地区选择待重连恢复'],
-    ['应用未确认，请重连恢复', '应用未确认，请重连恢复'], ['private: synthetic-update-token', '更新未完成，请重试']]) {
+    ['应用未确认，请重连恢复', '应用未确认，请重连恢复'], ['private: synthetic-update-token', '更新未完成，请重试'],
+    ['配置版本操作失败: GEOSITE_MISSING:gfw', 'GeoSite 分类 gfw 未包含在当前数据中，请更新应用后重试。'],
+    ['配置版本操作失败: GEOSITE_MISSING:secret-token-123', '当前离线数据缺少所需的 GeoSite 分类，请更新应用后重试。']]) {
     updateFailure = failure; const updating = activationPage().page; updating.rootVisible = true;
     await updating.updateProfile(profiles[0]); assert.equal(toasts.at(-1), expected);
   }

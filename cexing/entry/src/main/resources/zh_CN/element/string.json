@@ -4299,6 +4299,14 @@
     {
       "name": "subscription_updated",
       "value": "订阅信息更新：%s"
+    },
+    {
+      "name": "geosite_missing_named",
+      "value": "GeoSite 分类 %s 未包含在当前数据中，请更新应用后重试。"
+    },
+    {
+      "name": "geosite_missing_generic",
+      "value": "当前离线数据缺少所需的 GeoSite 分类，请更新应用后重试。"
     }
   ]
 }

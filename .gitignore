@@ -1,6 +1,7 @@
 # 工具链与外部参考（体积大/第三方）
 command-line-tools/
 cexing/entry/src/main/resources/rawfile/geodata/
+cexing/entry/src/main/resources/rawfile/geodata-notices/
 /reference/
 cexing/entry/src/main/resources/rawfile/zashboard/
 cexing/entry/src/main/resources/rawfile/zashboard-staging/

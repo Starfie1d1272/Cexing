@@ -60,6 +60,10 @@ func coreValidateOfflineWithReceipt(home, text, overrides string) (string, error
 		}
 	}
 	if _, err := parsePlatformConfig(text, overrides, false); err != nil {
+		var failure *configpipeline.ValidationFailure
+		if errors.As(err, &failure) {
+			return "", failure
+		}
 		return "", errors.New("CORE_VALIDATION_FAILED")
 	}
 	return receipt, nil

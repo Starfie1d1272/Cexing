@@ -17,7 +17,9 @@ with tempfile.TemporaryDirectory(prefix='hap-clean-') as temporary:
     project = host / 'cexing'
     (project / 'entry/src/main/resources/rawfile/geodata').mkdir(parents=True)
     (project / 'entry/src/main/resources/rawfile/geodata/geoip.metadb').touch()
+    (project / 'entry/src/main/resources/rawfile/geodata/geosite.dat').touch()
     (host / 'core').mkdir()
+    shutil.copytree(ROOT / 'third_party/geodata', host / 'third_party/geodata')
     (host / 'third_party/zashboard').mkdir(parents=True)
     (host / 'third_party/zashboard/source.json').write_text('{}')
     (host / 'tests/smart').mkdir(parents=True)
@@ -67,6 +69,7 @@ fi
         assert events.count('clean') == 1 and events.count('assembleHap') == 1, (entry, events)
         assert events.index('prepare') < events.index('clean') < events.index('assembleHap'), events
         assert '"phase": "hvigor-clean"' in result.stdout, result.stdout
+        assert (project / 'entry/src/main/resources/rawfile/geodata-notices/NOTICE.md').read_bytes() == (host / 'third_party/geodata/NOTICE.md').read_bytes()
         (host / 'events').unlink()
     (host / 'reject-prepare').touch()
     result = subprocess.run(['bash', str(scripts / 'build-hap.sh')], cwd=host, env=env, capture_output=True)

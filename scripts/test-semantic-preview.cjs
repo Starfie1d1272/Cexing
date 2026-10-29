@@ -25,3 +25,7 @@ assert.ok(!api.describeMergeFailure(Error('https://private.invalid/?token=synthe
 assert.match(api.describeMergeFailure(Error('备份恢复未确认，请重新打开应用后重试'), { id: 'app.string.editor_preview_failed' }), /重新打开应用/);
 
 assert.match(api.describeMergeFailure(Error('配置已保存，地区选择待重连恢复'), { id: 'app.string.editor_apply_failed' }), /配置已保存.*连接页.*重新连接/);
+
+assert.match(api.describeMergeFailure(Error('配置版本操作失败: GEOSITE_MISSING:gfw'), { id: 'app.string.editor_preview_failed' }), /gfw.*更新/);
+assert.match(api.describeMergeFailure(Error('配置版本操作失败: GEOSITE_MISSING:secret-token-123'), { id: 'app.string.editor_preview_failed' }), /GeoSite.*更新/);
+assert.ok(!api.describeMergeFailure(Error('配置版本操作失败: GEOSITE_MISSING:secret-token-123'), { id: 'app.string.editor_preview_failed' }).includes('secret'));

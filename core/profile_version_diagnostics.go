@@ -1,8 +1,13 @@
 package main
 
+import "strings"
+
 // Only a fixed operation and closed error code reach the existing local journal.
 // No source, file name, metadata, URL or arbitrary exception is recorded.
 func recordProfileVersionFailure(home, operation, code string) {
+	if strings.HasPrefix(code, "GEOSITE_MISSING:") {
+		code = "GEOSITE_MISSING"
+	}
 	stage := "configuration_prepare"
 	if operation == "commit" {
 		stage = "config_apply"

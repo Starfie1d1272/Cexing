@@ -39,20 +39,23 @@ export class GeoDataAssets {
     return bytes;
   }
 
-  private static async bundled(context: common.Context): Promise<Uint8Array> {
-    const bytes = await context.resourceManager.getRawFileContent('geodata/geoip.metadb');
+  private static async bundled(context: common.Context, name: string): Promise<Uint8Array> {
+    const bytes = await context.resourceManager.getRawFileContent(`geodata/${name}`);
     if (bytes.length === 0 || bytes.length > GeoDataAssets.limit) { throw new Error('Invalid packaged GeoData'); }
     return bytes;
   }
 
   static async inspect(context: common.Context): Promise<GeoDataState> {
-    const path = `${context.filesDir}/geoip.metadb`;
     try {
-      if (!fileIo.accessSync(path)) { return 'missing'; }
-      const installed = GeoDataAssets.read(path);
-      const bundled = await GeoDataAssets.bundled(context);
-      return installed.length === bundled.length &&
-        await GeoDataAssets.hash(installed) === await GeoDataAssets.hash(bundled) ? 'ready' : 'invalid';
+      for (const name of ['geoip.metadb', 'geosite.dat']) {
+        const path = `${context.filesDir}/${name}`;
+        if (!fileIo.accessSync(path)) { return 'missing'; }
+        const installed = GeoDataAssets.read(path);
+        const bundled = await GeoDataAssets.bundled(context, name);
+        if (installed.length !== bundled.length ||
+          await GeoDataAssets.hash(installed) !== await GeoDataAssets.hash(bundled)) { return 'invalid'; }
+      }
+      return 'ready';
     } catch (_) { return 'invalid'; }
   }
 
@@ -65,8 +68,6 @@ export class GeoDataAssets {
 
   private static async install(context: common.Context, cancellation: ResourceCancellation,
     canRestore: () => boolean): Promise<void> {
-    const path = `${context.filesDir}/geoip.metadb`;
-    const staging = `${path}.restore-${Date.now()}-${GeoDataAssets.sequence++}`;
     let lock: fileIo.File | undefined = undefined;
     try {
       lock = fileIo.openSync(`${context.filesDir}/geodata-recovery.lock`,
@@ -74,7 +75,20 @@ export class GeoDataAssets {
       lock.tryLock(true);
       if (cancellation.cancelled) { throw new Error('已取消'); }
       if (!canRestore()) { throw new Error('请先断开连接'); }
-      const bytes = await GeoDataAssets.bundled(context);
+      for (const name of ['geoip.metadb', 'geosite.dat']) {
+        await GeoDataAssets.installOne(context, name, cancellation, canRestore);
+      }
+    } finally {
+      if (lock !== undefined) { try { fileIo.closeSync(lock); } catch (_) {} }
+    }
+  }
+
+  private static async installOne(context: common.Context, name: string, cancellation: ResourceCancellation,
+    canRestore: () => boolean): Promise<void> {
+    const path = `${context.filesDir}/${name}`;
+    const staging = `${path}.restore-${Date.now()}-${GeoDataAssets.sequence++}`;
+    try {
+      const bytes = await GeoDataAssets.bundled(context, name);
       const digest = await GeoDataAssets.hash(bytes);
       if (fileIo.accessSync(staging)) { throw new Error('GeoData staging exists'); }
       const file = fileIo.openSync(staging,
@@ -98,7 +112,6 @@ export class GeoDataAssets {
       fileIo.renameSync(staging, path);
     } finally {
       try { if (fileIo.accessSync(staging)) { fileIo.unlinkSync(staging); } } catch (_) {}
-      if (lock !== undefined) { try { fileIo.closeSync(lock); } catch (_) {} }
     }
   }
 }

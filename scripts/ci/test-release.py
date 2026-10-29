@@ -113,11 +113,18 @@ class ReleaseTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 r.find_release('v0.1.0')
 
+    def test_unreviewed_geodata_blocks_publication_before_remote_actions(self):
+        with patch.object(r, 'api') as api, patch.object(r, 'command') as command:
+            with self.assertRaisesRegex(ValueError, 'GeoData.*public release blocked'):
+                r.publish(self.root)
+            api.assert_not_called()
+            command.assert_not_called()
+
     def test_live_tag_mismatch_stops_before_any_remote_write(self):
         self.bundle()
         env = {'RELEASE_TAG': 'v0.1.0', 'SOURCE_SHA': 'a' * 40, 'SOURCE_TREE': 'b' * 40,
                'GITHUB_WORKFLOW_SHA': 'c' * 40, 'GITHUB_RUN_ID': '123', 'GITHUB_RUN_ATTEMPT': '1', 'VERSION_CODE': '1'}
-        with patch.dict(os.environ, env), patch.object(r, 'remote_commit', return_value='d' * 40), patch.object(r, 'api') as api:
+        with patch.object(r, 'require_geodata_distribution_review'), patch.dict(os.environ, env), patch.object(r, 'remote_commit', return_value='d' * 40), patch.object(r, 'api') as api:
             with self.assertRaises(ValueError):
                 r.publish(self.root)
             api.assert_not_called()
@@ -126,7 +133,7 @@ class ReleaseTests(unittest.TestCase):
         self.bundle()
         env = {'RELEASE_TAG': 'v0.1.0', 'SOURCE_SHA': 'a' * 40, 'SOURCE_TREE': 'b' * 40,
                'GITHUB_WORKFLOW_SHA': 'c' * 40, 'GITHUB_RUN_ID': '123', 'GITHUB_RUN_ATTEMPT': '1', 'VERSION_CODE': '1'}
-        with patch.dict(os.environ, env), patch.object(r, 'remote_commit', return_value='a' * 40), patch.object(r, 'api', return_value={'tag_name': 'v0.2.0'}) as api:
+        with patch.object(r, 'require_geodata_distribution_review'), patch.dict(os.environ, env), patch.object(r, 'remote_commit', return_value='a' * 40), patch.object(r, 'api', return_value={'tag_name': 'v0.2.0'}) as api:
             with self.assertRaises(ValueError):
                 r.publish(self.root)
             self.assertEqual(api.call_count, 1)
@@ -152,6 +159,7 @@ class ReleaseTests(unittest.TestCase):
         fixture_files = {
             'cexing/AppScope/app.json5': json.dumps({'app': self.app}),
             'third_party/zashboard/source.json': json.dumps({'repository': 'https://github.com/Zephyruso/zashboard', 'sha': 'e' * 40}),
+            'third_party/geodata/NOTICE.md': '# GeoData fixture\nGeoIP and GeoSite; source review incomplete.\n',
             'third_party/release/GEOIP-CC-BY-SA-4.0.txt': 'fixture license',
             'third_party/release/CHACHA20-LICENSE.txt': 'fixture license',
             '.github/workflows/release.yml': '# fixture controller',
@@ -188,6 +196,11 @@ class ReleaseTests(unittest.TestCase):
                 r.package()
                 expected = r.expected_identity('v0.1.0', sha, tree)
                 self.assertEqual(set(r.verify(self.root / 'cexing/dist/release', expected)), r.FILES | {'SHA256SUMS'})
+            notice = (self.root / 'third_party/geodata/NOTICE.md').read_text()
+            self.assertIn(notice, (self.root / 'cexing/dist/release/SOURCE-NOTICES.md').read_text())
+            release_notes = (self.root / 'cexing/dist/release/release-notes.md').read_text()
+            self.assertIn('GeoIP 与 GeoSite', release_notes)
+            self.assertNotIn('完整许可与声明', release_notes)
             self.assertEqual(json.loads((report / 'build-identity.json').read_text()), identity, 'Original report must not change')
             import tarfile
             with tarfile.open(self.root / 'cexing/dist/release/cexing-sources.tar.gz') as archive:
