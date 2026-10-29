@@ -1,0 +1,86 @@
+{
+  "BILIINTL": {
+    "addedEntries": 0,
+    "removedEntries": 1,
+    "valuesWithTypeChanges": 0,
+    "valuesWithAttributeChanges": 0
+  },
+  "CATEGORY-ADS-AND-TELEMETRY": {
+    "addedEntries": 0,
+    "removedEntries": 257,
+    "valuesWithTypeChanges": 0,
+    "valuesWithAttributeChanges": 0
+  },
+  "CATEGORY-COMPANIES": {
+    "addedEntries": 6,
+    "removedEntries": 341,
+    "valuesWithTypeChanges": 0,
+    "valuesWithAttributeChanges": 0
+  },
+  "CATEGORY-ENTERTAINMENT": {
+    "addedEntries": 2,
+    "removedEntries": 13,
+    "valuesWithTypeChanges": 0,
+    "valuesWithAttributeChanges": 2
+  },
+  "CATEGORY-GAMES": {
+    "addedEntries": 21,
+    "removedEntries": 4,
+    "valuesWithTypeChanges": 0,
+    "valuesWithAttributeChanges": 2
+  },
+  "CATEGORY-GAMES-!CN": {
+    "addedEntries": 2,
+    "removedEntries": 4,
+    "valuesWithTypeChanges": 0,
+    "valuesWithAttributeChanges": 2
+  },
+  "CATEGORY-NETDISK-!CN": {
+    "addedEntries": 7,
+    "removedEntries": 8,
+    "valuesWithTypeChanges": 0,
+    "valuesWithAttributeChanges": 1
+  },
+  "CATEGORY-TELEMETRY": {
+    "addedEntries": 0,
+    "removedEntries": 61,
+    "valuesWithTypeChanges": 0,
+    "valuesWithAttributeChanges": 0
+  },
+  "CN": {
+    "addedEntries": 865,
+    "removedEntries": 104403,
+    "valuesWithTypeChanges": 0,
+    "valuesWithAttributeChanges": 32
+  },
+  "GEOLOCATION-!CN": {
+    "addedEntries": 1571,
+    "removedEntries": 769,
+    "valuesWithTypeChanges": 41,
+    "valuesWithAttributeChanges": 113
+  },
+  "MICROSOFT": {
+    "addedEntries": 6,
+    "removedEntries": 49,
+    "valuesWithTypeChanges": 0,
+    "valuesWithAttributeChanges": 0
+  },
+  "ONEDRIVE": {
+    "addedEntries": 7,
+    "removedEntries": 8,
+    "valuesWithTypeChanges": 0,
+    "valuesWithAttributeChanges": 1
+  },
+  "STEAM": {
+    "addedEntries": 2,
+    "removedEntries": 2,
+    "valuesWithTypeChanges": 0,
+    "valuesWithAttributeChanges": 2
+  },
+  "TRACKER": {
+    "addedEntries": 430,
+    "removedEntries": 116,
+    "valuesWithTypeChanges": 0,
+    "valuesWithAttributeChanges": 5
+  }
+}

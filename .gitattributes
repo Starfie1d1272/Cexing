@@ -1,2 +1,6 @@
 # Unified diffs require a leading context marker before tabs and blank lines.
 core/patches/*.patch whitespace=-blank-at-eol,-space-before-tab
+# Preserve upstream corresponding-source bytes exactly, including original whitespace.
+third_party/geodata-source/gfwlist2dnsmasq/gfwlist2dnsmasq.sh whitespace=-blank-at-eol
+# GeoSite protobuf is binary even when its first bytes contain no NUL.
+third_party/geodata-source/community/baseline.dat binary
