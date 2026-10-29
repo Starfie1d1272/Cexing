@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
 """Protect tag/version identity, artifact integrity and no-overwrite release retries."""
 import importlib.util
+import io
 import json
+import hashlib
+import tarfile
+import zipfile
 import os
 import pathlib
 import subprocess
@@ -25,10 +29,38 @@ class ReleaseTests(unittest.TestCase):
                          'controllerCommit': 'c' * 40, 'repository': r.REPO,
                          'runId': '123', 'runAttempt': '1'}
 
+    def geodata_fixture(self, hap):
+        site_source, ip_source = b'fixture site source', b'fixture ip source'
+        site, ip = b'fixture packaged site', b'fixture packaged ip'
+        notice = b'# GeoData fixture\nGeoIP and GeoSite; source review incomplete.\n'
+        with zipfile.ZipFile(hap, 'w') as archive:
+            archive.writestr('resources/rawfile/geodata/geoip.metadb', ip)
+            archive.writestr('resources/rawfile/geodata/geosite.dat', site)
+            archive.writestr('resources/rawfile/geodata-notices/NOTICE.md', notice)
+            for name in ['GEOIP-CC-BY-SA-4.0.txt', 'GPL-3.0.txt', 'blackmatrix-GPL-2.0.txt',
+                         'gfwlist-LGPL-2.1.txt', 'v2fly-MIT.txt', 'custom-MIT.txt']:
+                archive.writestr('resources/rawfile/geodata-notices/licenses/' + name, 'fixture license')
+        return {'expectedSha256': hashlib.sha256(ip).hexdigest(),
+                'downloadedSha256': hashlib.sha256(ip).hexdigest(),
+                'geoipSource': {'sha256': hashlib.sha256(ip_source).hexdigest()},
+                'geosite': {'expectedSha256': hashlib.sha256(site).hexdigest(),
+                            'downloadedSha256': hashlib.sha256(site).hexdigest(),
+                            'sourceSha256': hashlib.sha256(site_source).hexdigest()}}, ip_source, site_source, notice
+
+    def source_fixture(self, path, ip_source, site_source):
+        with tarfile.open(path, 'w:gz') as archive:
+            for name, data in [('geoip.dat', ip_source), ('geosite.dat', site_source)]:
+                info = tarfile.TarInfo('sources/geodata/' + name)
+                info.size = len(data)
+                archive.addfile(info, io.BytesIO(data))
+
     def bundle(self):
         for name in r.FILES:
             (self.root / name).write_text('fixture ' + name)
-        identity = {'app': self.app, 'commit': self.expected['commit'], 'tree': self.expected['tree'],
+        geo, ip_source, site_source, notice = self.geodata_fixture(self.root / r.HAP)
+        self.source_fixture(self.root / 'cexing-sources.tar.gz', ip_source, site_source)
+        (self.root / 'SOURCE-NOTICES.md').write_bytes(notice)
+        identity = {'geodata': geo, 'app': self.app, 'commit': self.expected['commit'], 'tree': self.expected['tree'],
                     'signed': False, 'deviceValidated': False, 'hapSha256': r.digest(self.root / r.HAP),
                     'github': {'GITHUB_RUN_ID': '123', 'GITHUB_RUN_ATTEMPT': '1', 'GITHUB_SHA': 'a' * 40}}
         (self.root / 'build-identity.json').write_text(json.dumps(identity))
@@ -52,6 +84,18 @@ class ReleaseTests(unittest.TestCase):
                 r.verify(self.root, {**self.expected, key: 'wrong'})
         (self.root / r.HAP).write_text('corrupt')
         with self.assertRaises(ValueError):
+            r.verify(self.root, self.expected)
+
+    def test_geodata_source_and_notice_must_match_build_even_with_new_checksums(self):
+        self.bundle()
+        self.source_fixture(self.root / 'cexing-sources.tar.gz', b'wrong ip', b'fixture site source')
+        r.checksums(self.root, r.FILES)
+        with self.assertRaisesRegex(ValueError, 'GeoData source digest mismatch'):
+            r.verify(self.root, self.expected)
+        self.bundle()
+        (self.root / 'SOURCE-NOTICES.md').write_text('notice removed')
+        r.checksums(self.root, r.FILES)
+        with self.assertRaisesRegex(ValueError, 'GeoData notice absent'):
             r.verify(self.root, self.expected)
 
     def test_artifact_rejects_extra_paths_symlinks_duplicate_manifest(self):
@@ -113,9 +157,14 @@ class ReleaseTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 r.find_release('v0.1.0')
 
-    def test_unreviewed_geodata_blocks_publication_before_remote_actions(self):
-        with patch.object(r, 'api') as api, patch.object(r, 'command') as command:
-            with self.assertRaisesRegex(ValueError, 'GeoData.*public release blocked'):
+    def test_missing_geodata_source_blocks_publication_before_remote_actions(self):
+        self.bundle()
+        self.source_fixture(self.root / 'cexing-sources.tar.gz', b'wrong ip', b'fixture site source')
+        r.checksums(self.root, r.FILES)
+        env = {'RELEASE_TAG': 'v0.1.0', 'SOURCE_SHA': 'a' * 40, 'SOURCE_TREE': 'b' * 40,
+               'GITHUB_WORKFLOW_SHA': 'c' * 40, 'GITHUB_RUN_ID': '123', 'GITHUB_RUN_ATTEMPT': '1', 'VERSION_CODE': '1'}
+        with patch.dict(os.environ, env), patch.object(r, 'api') as api, patch.object(r, 'command') as command:
+            with self.assertRaisesRegex(ValueError, 'GeoData source digest mismatch'):
                 r.publish(self.root)
             api.assert_not_called()
             command.assert_not_called()
@@ -124,7 +173,7 @@ class ReleaseTests(unittest.TestCase):
         self.bundle()
         env = {'RELEASE_TAG': 'v0.1.0', 'SOURCE_SHA': 'a' * 40, 'SOURCE_TREE': 'b' * 40,
                'GITHUB_WORKFLOW_SHA': 'c' * 40, 'GITHUB_RUN_ID': '123', 'GITHUB_RUN_ATTEMPT': '1', 'VERSION_CODE': '1'}
-        with patch.object(r, 'require_geodata_distribution_review'), patch.dict(os.environ, env), patch.object(r, 'remote_commit', return_value='d' * 40), patch.object(r, 'api') as api:
+        with patch.dict(os.environ, env), patch.object(r, 'remote_commit', return_value='d' * 40), patch.object(r, 'api') as api:
             with self.assertRaises(ValueError):
                 r.publish(self.root)
             api.assert_not_called()
@@ -133,7 +182,7 @@ class ReleaseTests(unittest.TestCase):
         self.bundle()
         env = {'RELEASE_TAG': 'v0.1.0', 'SOURCE_SHA': 'a' * 40, 'SOURCE_TREE': 'b' * 40,
                'GITHUB_WORKFLOW_SHA': 'c' * 40, 'GITHUB_RUN_ID': '123', 'GITHUB_RUN_ATTEMPT': '1', 'VERSION_CODE': '1'}
-        with patch.object(r, 'require_geodata_distribution_review'), patch.dict(os.environ, env), patch.object(r, 'remote_commit', return_value='a' * 40), patch.object(r, 'api', return_value={'tag_name': 'v0.2.0'}) as api:
+        with patch.dict(os.environ, env), patch.object(r, 'remote_commit', return_value='a' * 40), patch.object(r, 'api', return_value={'tag_name': 'v0.2.0'}) as api:
             with self.assertRaises(ValueError):
                 r.publish(self.root)
             self.assertEqual(api.call_count, 1)
@@ -173,7 +222,11 @@ class ReleaseTests(unittest.TestCase):
         report = self.root / 'cexing/dist/ci'; report.mkdir(parents=True)
         for name in r.BASE:
             (report / name).write_text('fixture ' + name)
-        identity = {'app': self.app, 'commit': sha, 'tree': tree, 'signed': False, 'deviceValidated': False,
+        geo, ip_source, site_source, _ = self.geodata_fixture(report / r.HAP)
+        inputs = self.root / 'cexing/dist/geodata-inputs'; inputs.mkdir()
+        (inputs / 'geoip.dat').write_bytes(ip_source)
+        (inputs / 'geosite.dat').write_bytes(site_source)
+        identity = {'geodata': geo, 'app': self.app, 'commit': sha, 'tree': tree, 'signed': False, 'deviceValidated': False,
                     'hapSha256': r.digest(report / r.HAP), 'core': {'Deps': []},
                     'github': {'GITHUB_RUN_ID': '123', 'GITHUB_RUN_ATTEMPT': '1', 'GITHUB_SHA': sha}}
         (report / 'build-identity.json').write_text(json.dumps(identity))

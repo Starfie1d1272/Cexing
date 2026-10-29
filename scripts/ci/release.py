@@ -12,6 +12,7 @@ import sys
 import tarfile
 import tempfile
 import urllib.request
+import zipfile
 
 REPO = 'Starfie1d1272/Cexing'
 API = 'repos/' + REPO
@@ -98,6 +99,36 @@ def checksums(folder, names):
     (folder / 'SHA256SUMS').write_text(''.join(digest(folder / n) + '  ' + n + '\n' for n in sorted(names)))
 
 
+def verify_geodata_materials(folder, identity):
+    geo = identity['geodata']
+    require(geo['expectedSha256'] == geo['downloadedSha256'] and
+            geo['geosite']['expectedSha256'] == geo['geosite']['downloadedSha256'],
+            'GeoData expected and built identities differ')
+    with zipfile.ZipFile(folder / HAP) as hap:
+        for name, expected in [('geoip.metadb', geo['downloadedSha256']),
+                               ('geosite.dat', geo['geosite']['downloadedSha256'])]:
+            require(hashlib.sha256(hap.read('resources/rawfile/geodata/' + name)).hexdigest() == expected,
+                    'Packaged GeoData differs from build identity: ' + name)
+        notice = hap.read('resources/rawfile/geodata-notices/NOTICE.md')
+        require(bool(notice) and notice in (folder / 'SOURCE-NOTICES.md').read_bytes(),
+                'GeoData notice absent from release materials')
+        for name in ['GEOIP-CC-BY-SA-4.0.txt', 'GPL-3.0.txt', 'blackmatrix-GPL-2.0.txt',
+                     'gfwlist-LGPL-2.1.txt', 'v2fly-MIT.txt', 'custom-MIT.txt']:
+            require(bool(hap.read('resources/rawfile/geodata-notices/licenses/' + name)),
+                    'Missing bundled GeoData license: ' + name)
+    with tarfile.open(folder / 'cexing-sources.tar.gz', 'r:gz') as archive:
+        for name, expected in [('geoip.dat', geo['geoipSource']['sha256']),
+                               ('geosite.dat', geo['geosite']['sourceSha256'])]:
+            members = [m for m in archive.getmembers() if m.name == 'sources/geodata/' + name]
+            require(len(members) == 1 and members[0].isfile(), 'Missing or duplicate GeoData source: ' + name)
+            source = archive.extractfile(members[0])
+            require(source is not None, 'Unreadable GeoData source: ' + name)
+            h = hashlib.sha256()
+            for chunk in iter(lambda: source.read(1024 * 1024), b''):
+                h.update(chunk)
+            require(h.hexdigest() == expected, 'GeoData source digest mismatch: ' + name)
+
+
 def verify(folder, expected):
     require(folder.is_dir() and not folder.is_symlink(), 'Missing release directory')
     paths = list(folder.iterdir())
@@ -120,6 +151,7 @@ def verify(folder, expected):
     require(identity['signed'] is False and identity['deviceValidated'] is False, 'Expected unsigned unvalidated build')
     require(identity['hapSha256'] == hashes[HAP], 'HAP differs from build report')
     require(provenance == {**expected, 'signed': False, 'deviceValidated': False}, 'Wrong controller/run/source identity')
+    verify_geodata_materials(folder, identity)
     require(identity['github']['GITHUB_RUN_ID'] == expected['runId'] and
             identity['github']['GITHUB_RUN_ATTEMPT'] == expected['runAttempt'] and
             identity['github']['GITHUB_SHA'] == expected['commit'], 'Wrong build run')
@@ -187,7 +219,7 @@ def package():
                       (pathlib.Path(command(['go', 'env', 'GOROOT']).decode().strip()) / 'LICENSE', 'GO-RUNTIME-LICENSE.txt')]:
         shutil.copyfile(src, target / name)
     (target / 'release-provenance.json').write_text(json.dumps({**expected, 'signed': False, 'deviceValidated': False}, indent=2) + '\n')
-    notices = f'''# 对应源码与补充声明\n\n项目 GPL-3.0，无担保。cexing-sources.tar.gz 在同一 Release 免费提供：\n项目全部受跟踪源码、构建脚本和补丁（{sha}），实际链接 Go 模块的原始\n源码 ZIP/go.mod/版本元数据（Go Sum 与构建身份逐项匹配），以及锁定 Zashboard 源码。\n源码 ZIP 保留各组件许可；Go 标准运行库按本次工具链版本和附带 BSD 正文提供，\n官方下载 https://go.dev/dl/ 。按项目 docs/how-to/build.md、docs/how-to/zashboard.md 重建，\nSmart、inbound-policy 与 gVisor 补丁由原构建脚本应用；不宣称 HAP 逐字节可复现。\n发行控制脚本来自单独的 {controller}，也在源码包内；未改写 tag 或原构建报告。\n\nSmart 模型按上游项目 GPL 声明，见 SMART-NOTICE.md / SMART-MODEL-SOURCE.json；\n项目原有补丁与完整 GPL 正文随包。Zashboard MIT、Fira Sans SIL OFL、纹理 CC BY\n归属和离线规则 MIT 正文保留在 HAP、锁定源码及第三方声明中。\nmetacubex/chacha 的 chacha/ 保留 Andreas Auernhammer 版权，补充 aead/chacha20\n的 MIT 正文（CHACHA20-LICENSE.txt）；fork 修改保留在精确模块源码。\nlibc++_shared.so 的 LLVM Apache-2.0 with LLVM Exceptions 与 native notices 随包。\n仅分发声明文本及所需运行库，不分发 SDK/NDK/工具、签名材料或用户配置。\nmodule-notices 中 graph-only 模块不在二进制实际链接列表。CI 的 distributionApproved\n等原值保留；来源清单和构建成功不是许可授权或法律认证。\n'''
+    notices = f'''# 对应源码与补充声明\n\n项目 GPL-3.0，无担保。cexing-sources.tar.gz 在同一 Release 免费提供：\n项目全部受跟踪源码、构建脚本和补丁（{sha}），实际链接 Go 模块的原始\n源码 ZIP/go.mod/版本元数据（Go Sum 与构建身份逐项匹配），以及锁定 Zashboard 源码。\n源码包另含本次上游发布的 geoip.dat 和固定 GeoSite 基线，摘要与构建身份匹配；\n它们是本次转换输入，不代表已收齐上游全部原始数据和工具源码。\n源码 ZIP 保留各组件许可；Go 标准运行库按本次工具链版本和附带 BSD 正文提供，\n官方下载 https://go.dev/dl/ 。按项目 docs/how-to/build.md、docs/how-to/zashboard.md 重建，\nSmart、inbound-policy 与 gVisor 补丁由原构建脚本应用；不宣称 HAP 逐字节可复现。\n发行控制脚本来自单独的 {controller}，也在源码包内；未改写 tag 或原构建报告。\n\nSmart 模型按上游项目 GPL 声明，见 SMART-NOTICE.md / SMART-MODEL-SOURCE.json；\n项目原有补丁与完整 GPL 正文随包。Zashboard MIT、Fira Sans SIL OFL、纹理 CC BY\n归属和离线规则 MIT 正文保留在 HAP、锁定源码及第三方声明中。\nmetacubex/chacha 的 chacha/ 保留 Andreas Auernhammer 版权，补充 aead/chacha20\n的 MIT 正文（CHACHA20-LICENSE.txt）；fork 修改保留在精确模块源码。\nlibc++_shared.so 的 LLVM Apache-2.0 with LLVM Exceptions 与 native notices 随包。\n仅分发声明文本及所需运行库，不分发 SDK/NDK/工具、签名材料或用户配置。\nmodule-notices 中 graph-only 模块不在二进制实际链接列表。CI 的 distributionApproved\n等原值保留；来源清单和构建成功不是许可授权或法律认证。\n'''
     # Reuse the exact notice included in the HAP; preserve unresolved source limits.
     notices += '\n' + pathlib.Path('third_party/geodata/NOTICE.md').read_text()
     (target / 'SOURCE-NOTICES.md').write_text(notices)
@@ -198,6 +230,17 @@ def package():
         (sources / 'Cexing.tar.gz').write_bytes(command(['git', 'archive', '--format=tar.gz', sha]))
         (sources / 'release-controller.tar.gz').write_bytes(command(['git', 'archive', '--format=tar.gz', controller,
             '.github/workflows', 'scripts/ci/release.py', 'third_party/release']))
+        geo = identity['geodata']
+        source_inputs = pathlib.Path('cexing/dist/geodata-inputs')
+        geo_sources = sources / 'geodata'
+        geo_sources.mkdir()
+        for name, expected_sha in [('geoip.dat', geo['geoipSource']['sha256']),
+                                   ('geosite.dat', geo['geosite']['sourceSha256'])]:
+            input_path = source_inputs / name
+            require(input_path.is_file() and digest(input_path) == expected_sha,
+                    'Wrong GeoData source input: ' + name)
+            shutil.copyfile(input_path, geo_sources / name)
+        (geo_sources / 'identity.json').write_text(json.dumps(geo, indent=2) + '\n')
         module_sources(identity, temp)
         z = json.loads(pathlib.Path('third_party/zashboard/source.json').read_text())
         require(z['repository'] == 'https://github.com/Zephyruso/zashboard' and SHA.fullmatch(z['sha']), 'Unexpected panel source')
@@ -266,12 +309,7 @@ def reconcile(remote, folder, hashes):
     return set(hashes) - set(names)
 
 
-def require_geodata_distribution_review():
-    raise ValueError('GeoData source licensing and corresponding-source review is incomplete; public release blocked')
-
-
 def publish(folder):
-    require_geodata_distribution_review()
     tag, sha, tree = os.environ['RELEASE_TAG'], os.environ['SOURCE_SHA'], os.environ['SOURCE_TREE']
     os.environ['CONTROLLER_SHA'] = os.environ['GITHUB_WORKFLOW_SHA']
     expected = expected_identity(tag, sha, tree)

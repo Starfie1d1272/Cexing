@@ -127,6 +127,12 @@ with zipfile.ZipFile(hap) as archive, tempfile.TemporaryDirectory() as directory
     require(len(geosite) == geodata['geosite']['bytes'] and
             sha(geosite) == geodata['geosite']['expectedSha256'] == geodata['geosite']['downloadedSha256'],
             'GeoSite upstream/actual/package identity')
+    inputs = root / 'cexing/dist/geodata-inputs'
+    ip_source = (inputs / 'geoip.dat').read_bytes()
+    require(len(ip_source) == geodata['geoipSource']['bytes'] and
+            sha(ip_source) == geodata['geoipSource']['sha256'], 'GeoIP source input identity')
+    site_source = (inputs / 'geosite.dat').read_bytes()
+    require(sha(site_source) == geodata['geosite']['sourceSha256'], 'GeoSite source input identity')
     require(bool(archive.read('resources/rawfile/override.yaml')), 'nonempty default configuration')
     for file in sorted((root / 'third_party/geodata').rglob('*')):
         if file.is_file():
@@ -165,7 +171,8 @@ identity = {
         'scripts/prepare-geodata.sh', 'scripts/build-hap.sh', 'scripts/env.sh',
         'cexing/entry/oh-package-lock.json5', 'scripts/ci/package-lock.json', 'scripts/ci/toolchain.json',
         'scripts/ci/sdk-download.json', 'scripts/ci/setup-clt.py', 'scripts/ci/go-download-cache.sh',
-        'scripts/ci/prepare-geodata.py',
+        'scripts/ci/prepare-geodata.py', 'scripts/ci/replace-geosite.go',
+        'third_party/geodata/categories.json',
         'scripts/ci/hvigor-wrapper/package-lock.json', '.github/workflows/full.yml']},
     'entries': entries,
     'signed': False,
