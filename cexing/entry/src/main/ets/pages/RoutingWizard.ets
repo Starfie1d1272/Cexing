@@ -6,6 +6,7 @@ import { RoutingOutlet, RoutingPlan, RoutingRoute, RoutingService, EditorDraftHo
 import { createTemplateWizardHost } from '../lib/TemplateHost';
 import { ProfileApplyFeedback } from '../lib/ProfileApplyFeedback';
 import { ProfileApplyRecovery } from '../lib/ProfileApplyRecovery';
+import { ProfileStore } from '../lib/ProfileStore';
 import { RuleDnsEditorBus } from './RuleDnsEditorPage';
 import { ProxyMappingForm } from '../lib/ProxyMappingForm';
 import { TemplateWizard } from './TemplateWizard';
@@ -71,7 +72,7 @@ export struct RoutingWizard {
     return routes.length > 0 ? routes.map(route => this.routeLabel(route)).join(' / ') : this.scopeLabel(this.outletByID(id));
   }
   private outletByID(id: string): RoutingOutlet | undefined { return this.view.plan.routing?.outlets.find(value => value.id === id); }
-  private algorithmLabel(id: string): string { return id === 'smart' ? 'Smart' : this.t(id === 'url-test' ? 'routing_urltest' : id === 'fallback' ? 'routing_fallback' : 'routing_select'); }
+  private algorithmLabel(id: string): string { return id === 'smart' ? this.t('routing_smart') : this.t(id === 'url-test' ? 'routing_urltest' : id === 'fallback' ? 'routing_fallback' : 'routing_select'); }
   private scopeLabel(outlet?: RoutingOutlet): string {
     if (outlet === undefined) { return ''; }
     const scope = outlet.scope;
@@ -182,6 +183,15 @@ export struct RoutingWizard {
     } catch (_) { this.formError = this.t('routing_invalid_options'); }
   }
   private advancedRules(): void { RuleDnsEditorBus.file = this.profileId; RuleDnsEditorBus.section = 'rules'; this.navStack.pushPath({ name: 'ruleDnsEditor' }); }
+  private currentProfile(): boolean {
+    return this.profileId !== '' && ProfileStore.getActiveFile(getContext(this) as common.UIAbilityContext) === this.profileId;
+  }
+  private openTraffic(): void {
+    if (!this.visible || !this.view.ready || this.working() || this.view.changed || this.editing || !this.currentProfile()) { return; }
+    const paths = this.navStack.getAllPathName();
+    if (paths[paths.length - 1] !== 'profileTemplate') { return; }
+    this.navStack.pushPath({ name: 'traffic' });
+  }
   private async repair(): Promise<void> {
     if (this.confirming) { return; }
     if (this.view.failure === 'selection-required') { this.navStack.pushPath({ name: 'zashboard' }); return; }
@@ -297,52 +307,65 @@ export struct RoutingWizard {
     } else {
       Column({ space: 12 }) {
         Scroll() { Column({ space: 12 }) {
-          Row({ space: 8 }) {
-            Button(this.t('template_original')).layoutWeight(1).constraintSize({ minHeight: 48 }).backgroundColor(!this.managed() ? UI.action : UI.soft).fontColor(!this.managed() ? UI.onAccent : UI.ink)
-              .accessibilitySelected(!this.managed()).enabled(this.view.ready && !this.working()).onClick(() => { if (this.managed()) { this.model?.subscription(); } })
-            Button(this.t('routing_managed')).layoutWeight(1).constraintSize({ minHeight: 48 }).backgroundColor(this.managed() ? UI.action : UI.soft).fontColor(this.managed() ? UI.onAccent : UI.ink)
-              .accessibilitySelected(this.managed()).enabled(this.view.ready && !this.working() && this.view.catalogue !== undefined).onClick(() => { if (!this.managed()) { this.model?.manage(); } })
-          }.width('100%')
-          if (this.view.plan.routing !== undefined) {
-            Text(this.t('routing_default_exit')).fontSize(15).fontColor(UI.muted).width('100%')
-            Button(this.scopeLabel(this.outletByID(this.view.plan.routing.defaultOutlet ?? ''))).constraintSize({ minHeight: 56 }).width('100%').backgroundColor(UI.paper).fontColor(UI.ink)
-              .enabled(!this.working()).onClick(() => this.editOutlet(this.view.plan.routing?.defaultOutlet ?? ''))
-            Text(this.t('routing_services')).fontSize(15).fontColor(UI.muted).width('100%')
-            ForEach(this.view.plan.routing.routes, (route: RoutingRoute) => {
-              Column({ space: 8 }) {
-                Button({ type: ButtonType.Normal }) {
-                  Column({ space: 4 }) {
-                    Text(this.routeLabel(route)).fontSize(16).fontColor(UI.ink).maxLines(2).width('100%')
-                    Text(this.scopeLabel(this.outletByID(route.outlet))).fontSize(13).fontColor(UI.muted).maxLines(2).width('100%')
-                  }.width('100%').padding(16)
-                }.constraintSize({ minHeight: 64 }).width('100%').backgroundColor(UI.paper).fontColor(UI.ink).enabled(!this.working()).onClick(() => this.editRoute(route))
-
-              }.width('100%')
-            }, (route: RoutingRoute) => route.id)
-            Select((this.view.catalogue?.services ?? []).filter(service => !this.view.plan.routing?.routes.some(route => route.services.includes(service.id))).map((service: RoutingService): SelectOption => ({ value: service.name })))
-              .value(this.t('routing_add_service')).constraintSize({ minHeight: 48 }).accessibilityText(this.t('routing_add_service')).width('100%').enabled(!this.working())
-              .onSelect((_, name: string) => { const service = this.view.catalogue?.services.find(item => item.name === name); if (service !== undefined) { this.addService(service.id); } })
-            Button(this.t('routing_custom_rules')).constraintSize({ minHeight: 44 }).backgroundColor(UI.soft).fontColor(UI.ink).enabled(!this.working() && !this.view.changed).onClick(() => this.advancedRules())
-          } else {
-            Button(this.t('routing_one_click_smart')).width('100%').constraintSize({ minHeight: 48 }).backgroundColor(UI.soft).fontColor(UI.ink).enabled(this.view.ready && !this.working() && !this.view.changed).onClick(() => this.apply(true))
-            if (this.view.smartUnavailable) { Button(this.t('routing_create_smart')).width('100%').constraintSize({ minHeight: 48 }).backgroundColor(UI.soft).fontColor(UI.ink).enabled(!this.working()).onClick(() => { this.regionCreation = true; }) }
-            Button(this.t('routing_recommended')).width('100%').constraintSize({ minHeight: 48 }).backgroundColor(UI.soft).fontColor(UI.ink).enabled(this.view.ready && !this.working() && this.view.catalogue !== undefined).onClick(() => this.model?.recommend())
-            if (this.view.plan.templateId !== 'original') {
-              Text(this.t('routing_legacy_preserved')).fontSize(13).fontColor(UI.muted)
-
-            }
+          if (!this.view.ready && this.view.busy) {
+            LoadingProgress().width(32).height(32).color(UI.accent)
+            Text(this.t('routing_loading')).fontSize(14).fontColor(UI.muted)
           }
-          if (this.view.hasLegacy && this.view.plan.routing === undefined) { Button(this.t('routing_legacy_edit')).constraintSize({ minHeight: 44 }).backgroundColor(Color.Transparent).fontColor(UI.accentText).enabled(!this.working()).onClick(() => { this.legacy = true; }) }
-          if (this.view.dependencies > 0) { Text(this.t('routing_dependencies')).fontSize(14).fontColor(UI.muted)
-            Button(this.t('template_pause_dependents')).constraintSize({ minHeight: 48 }).backgroundColor(UI.soft).fontColor(UI.ink).enabled(!this.working()).onClick(() => this.apply(false, true)) }
+          if (this.view.ready) {
+            Row({ space: 8 }) {
+              Button(this.t('template_original')).layoutWeight(1).constraintSize({ minHeight: 48 }).backgroundColor(!this.managed() ? UI.action : UI.soft).fontColor(!this.managed() ? UI.onAccent : UI.ink)
+                .accessibilitySelected(!this.managed()).enabled(this.view.ready && !this.working()).onClick(() => { if (this.managed()) { this.model?.subscription(); } })
+              Button(this.t('routing_managed')).layoutWeight(1).constraintSize({ minHeight: 48 }).backgroundColor(this.managed() ? UI.action : UI.soft).fontColor(this.managed() ? UI.onAccent : UI.ink)
+                .accessibilitySelected(this.managed()).enabled(this.view.ready && !this.working() && this.view.catalogue !== undefined).onClick(() => { if (!this.managed()) { this.model?.manage(); } })
+            }.width('100%')
+            if (this.view.plan.routing !== undefined) {
+              Text(this.t('routing_default_exit')).fontSize(15).fontColor(UI.muted).width('100%')
+              Button(this.scopeLabel(this.outletByID(this.view.plan.routing.defaultOutlet ?? ''))).constraintSize({ minHeight: 56 }).width('100%').backgroundColor(UI.paper).fontColor(UI.ink)
+                .enabled(!this.working()).onClick(() => this.editOutlet(this.view.plan.routing?.defaultOutlet ?? ''))
+              Text(this.t('routing_services')).fontSize(15).fontColor(UI.muted).width('100%')
+              ForEach(this.view.plan.routing.routes, (route: RoutingRoute) => {
+                Column({ space: 8 }) {
+                  Button({ type: ButtonType.Normal }) {
+                    Column({ space: 4 }) {
+                      Text(this.routeLabel(route)).fontSize(16).fontColor(UI.ink).maxLines(2).width('100%')
+                      Text(this.scopeLabel(this.outletByID(route.outlet))).fontSize(13).fontColor(UI.muted).maxLines(2).width('100%')
+                    }.width('100%').padding(16)
+                  }.constraintSize({ minHeight: 64 }).width('100%').backgroundColor(UI.paper).fontColor(UI.ink).enabled(!this.working()).onClick(() => this.editRoute(route))
+
+                }.width('100%')
+              }, (route: RoutingRoute) => route.id)
+              Select((this.view.catalogue?.services ?? []).filter(service => !this.view.plan.routing?.routes.some(route => route.services.includes(service.id))).map((service: RoutingService): SelectOption => ({ value: service.name })))
+                .value(this.t('routing_add_service')).constraintSize({ minHeight: 48 }).accessibilityText(this.t('routing_add_service')).width('100%').enabled(!this.working())
+                .onSelect((_, name: string) => { const service = this.view.catalogue?.services.find(item => item.name === name); if (service !== undefined) { this.addService(service.id); } })
+              Button(this.t('routing_custom_rules')).constraintSize({ minHeight: 44 }).backgroundColor(UI.soft).fontColor(UI.ink).enabled(!this.working() && !this.view.changed).onClick(() => this.advancedRules())
+            } else {
+              Button(this.t('routing_one_click_smart')).width('100%').constraintSize({ minHeight: 48 }).backgroundColor(UI.soft).fontColor(UI.ink).enabled(this.view.ready && !this.working() && !this.view.changed).onClick(() => this.apply(true))
+              if (this.view.smartUnavailable) { Button(this.t('routing_create_smart')).width('100%').constraintSize({ minHeight: 48 }).backgroundColor(UI.soft).fontColor(UI.ink).enabled(!this.working()).onClick(() => { this.regionCreation = true; }) }
+              Button(this.t('routing_recommended')).width('100%').constraintSize({ minHeight: 48 }).backgroundColor(UI.soft).fontColor(UI.ink).enabled(this.view.ready && !this.working() && this.view.catalogue !== undefined).onClick(() => this.model?.recommend())
+              if (this.view.plan.templateId !== 'original') {
+                Text(this.t('routing_legacy_preserved')).fontSize(13).fontColor(UI.muted)
+
+              }
+            }
+            if (this.currentProfile()) {
+              Button(this.t('routing_session_sources')).constraintSize({ minHeight: 48 }).width('100%').backgroundColor(UI.soft).fontColor(UI.accentText)
+                .enabled(!this.working() && !this.view.changed && !this.editing).onClick(() => this.openTraffic())
+              if (this.view.changed) { Text(this.t('rule_apply_first')).fontSize(13).fontColor(UI.muted).width('100%') }
+            }
+            if (this.view.hasLegacy && this.view.plan.routing === undefined) { Button(this.t('routing_legacy_edit')).constraintSize({ minHeight: 44 }).backgroundColor(Color.Transparent).fontColor(UI.accentText).enabled(!this.working()).onClick(() => { this.legacy = true; }) }
+            if (this.view.dependencies > 0) { Text(this.t('routing_dependencies')).fontSize(14).fontColor(UI.muted)
+              Button(this.t('template_pause_dependents')).constraintSize({ minHeight: 48 }).backgroundColor(UI.soft).fontColor(UI.ink).enabled(!this.working()).onClick(() => this.apply(false, true)) }
+          }
           if (this.view.message !== '') { Text(this.displayMessage(this.view.message)).fontSize(14).fontColor(UI.muted) }
           if (this.showPreview && this.view.preview !== '') { Text(this.view.preview).fontSize(13).fontColor(UI.muted) }
           if (this.view.failure !== '' && this.view.failure !== 'failed') { Text(this.t(ProfileApplyFeedback.key(this.view.failure))).fontSize(14).fontColor(UI.error)
             Button(this.t('apply_feedback_reconnect')).constraintSize({ minHeight: 48 }).backgroundColor(UI.soft).fontColor(UI.ink).enabled(!this.confirming).onClick(() => this.repair()) }
         }.width('100%') }.width('100%').layoutWeight(1)
-        if (!this.view.ready || this.view.catalogue === undefined) { Button(this.t('template_retry')).constraintSize({ minHeight: 48 }).backgroundColor(UI.soft).fontColor(UI.ink).enabled(!this.working()).onClick(() => this.load()) }
-        Button(this.t('template_view_changes')).width('100%').constraintSize({ minHeight: 44 }).backgroundColor(Color.Transparent).fontColor(UI.accentText).enabled(this.view.changed && !this.working()).onClick(() => { this.showPreview = true; this.model?.inspect(); })
-        Button(this.t('template_apply')).width('100%').constraintSize({ minHeight: 48 }).backgroundColor(UI.action).fontColor(UI.onAccent).enabled(this.view.changed && !this.working()).onClick(() => this.apply())
+        if (!this.view.busy && (!this.view.ready || this.view.catalogue === undefined)) { Button(this.t('template_retry')).constraintSize({ minHeight: 48 }).backgroundColor(UI.soft).fontColor(UI.ink).enabled(!this.working()).onClick(() => this.load()) }
+        if (this.view.ready) {
+          Button(this.t('template_view_changes')).width('100%').constraintSize({ minHeight: 44 }).backgroundColor(Color.Transparent).fontColor(UI.accentText).enabled(this.view.changed && !this.working()).onClick(() => { this.showPreview = true; this.model?.inspect(); })
+          Button(this.t('template_apply')).width('100%').constraintSize({ minHeight: 48 }).backgroundColor(UI.action).fontColor(UI.onAccent).enabled(this.view.changed && !this.working()).onClick(() => this.apply())
+        }
       }.width('100%').height('100%').padding(20).backgroundColor(UI.surface)
         .bindSheet($$this.editing, this.OutletEditor(), { height: SheetSize.LARGE, shouldDismiss: (dismiss: SheetDismiss) => { if (!this.view.busy && !this.confirming) { dismiss.dismiss(); } } })
     }

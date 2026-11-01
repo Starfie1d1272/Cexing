@@ -8,7 +8,6 @@ import (
 	HTTP "net/http"
 	"net/netip"
 	"sort"
-	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -18,6 +17,7 @@ import (
 	MHTTP "github.com/metacubex/http"
 	C "github.com/metacubex/mihomo/constant"
 	"github.com/metacubex/mihomo/hub/route"
+	"github.com/metacubex/mihomo/tunnel"
 	"github.com/metacubex/mihomo/tunnel/statistic"
 )
 
@@ -60,11 +60,14 @@ func (r *appTrafficRoutes) bucket(route string) *appTrafficBytes {
 type appTrafficReason struct {
 	id     string
 	At     int64    `json:"at"`
+	Target string   `json:"target"`
 	Route  string   `json:"route"`
 	Rule   string   `json:"rule"`
 	Policy []string `json:"policy"`
 }
 type appTrafficRow struct {
+	LastSeen       int64              `json:"lastSeen"`
+	RouteTarget    string             `json:"routeTarget"`
 	BundleVerified bool               `json:"bundleVerified"` // No public cross-UID bundle verification route is available.
 	IdentityStatus string             `json:"identityStatus"`
 	UID            int64              `json:"uid"`
@@ -73,6 +76,7 @@ type appTrafficRow struct {
 	Recent         []appTrafficReason `json:"recent"`
 }
 type appTrafficSummary struct {
+	RouteTargets     []string         `json:"routeTargets"`
 	SchemaVersion    int              `json:"schemaVersion"`
 	Session          string           `json:"session"`
 	State            string           `json:"state"` // running or closed; no offline checkpoint
@@ -100,6 +104,7 @@ type appIdentityPending struct {
 	reason   appTrafficReason
 	deadline time.Time
 	sent     bool
+	result   chan int64
 }
 type appIdentityBatch struct {
 	Session  string               `json:"session"`
@@ -118,14 +123,18 @@ type appTrafficSession struct {
 	rows               map[string]*appTrafficRow
 	pending            map[string]*appIdentityPending
 	failures           map[string]int64
+	policies           map[int64]string
+	sequence           uint64
 }
 
 var appTrafficCurrent atomic.Pointer[appTrafficSession]
 
 func init() {
 	statistic.SetTrackerObserver(observeAppTraffic)
+	tunnel.SetHostRouting(resolveAppRoute, appUDPKey)
 	route.Register(func(r chi.Router) {
 		r.Get("/ohos/app-traffic", getAppTraffic)
+		r.Put("/ohos/app-traffic/route", putAppRoute)
 		r.Get("/ohos/app-traffic/identity", getAppIdentityRequests)
 		r.Post("/ohos/app-traffic/identity", postAppIdentityReplies)
 	})
@@ -135,7 +144,7 @@ func init() {
 // explanations live only in memory; a new session replaces the previous one.
 func startAppTraffic() *appTrafficSession {
 	s := &appTrafficSession{id: controllerSession, startedAt: time.Now().UnixMilli(),
-		rows: make(map[string]*appTrafficRow), pending: make(map[string]*appIdentityPending), failures: make(map[string]int64)}
+		rows: make(map[string]*appTrafficRow), pending: make(map[string]*appIdentityPending), failures: make(map[string]int64), policies: make(map[int64]string)}
 	s.rows[""] = &appTrafficRow{IdentityStatus: "unknown", UID: -1, Recent: []appTrafficReason{}}
 	appTrafficCurrent.Store(s)
 	return s
@@ -147,7 +156,13 @@ func stopAppTraffic() {
 			s.stopped = true
 			s.endedAt = time.Now().UnixMilli()
 			s.failures["sessionEnded"] += int64(len(s.pending))
+			for _, p := range s.pending {
+				if p.result != nil {
+					p.result <- -1
+				}
+			}
 			clear(s.pending)
+			clear(s.policies)
 		}
 		s.mu.Unlock()
 	}
@@ -176,7 +191,11 @@ func observeAppTraffic(info *statistic.TrackerInfo) statistic.TrackerObserver {
 		return nil
 	}
 	s, ok := info.Metadata.TrackerContext.(*appTrafficSession)
-	if !ok || s == nil {
+	resolved, hasResolved := info.Metadata.TrackerContext.(*appRouteContext)
+	if hasResolved {
+		s = resolved.session
+	}
+	if (!ok && !hasResolved) || s == nil {
 		return nil
 	}
 	s.mu.Lock()
@@ -185,11 +204,15 @@ func observeAppTraffic(info *statistic.TrackerInfo) statistic.TrackerObserver {
 	if kind != "proxy" && kind != "direct" {
 		kind = "unclassified"
 	}
-	h := &appTrafficHandle{session: s, row: s.rows[""], route: kind}
+	row := s.rows[""]
+	if hasResolved && resolved.uid >= 0 {
+		row = s.rowLocked(resolved.uid)
+	}
+	h := &appTrafficHandle{session: s, row: row, route: kind}
 	b := h.row.Routes.bucket(kind)
 	b.Connections++
 	b.Active++
-	reason := appTrafficReason{id: info.UUID.String(), At: info.Start.UnixMilli(), Route: kind, Rule: info.Rule, Policy: []string{}}
+	reason := appTrafficReason{id: info.UUID.String(), At: info.Start.UnixMilli(), Route: kind, Rule: info.Rule, Target: appTrafficTarget(info.Metadata), Policy: []string{}}
 	for i, name := range info.Chain {
 		if i >= 8 {
 			break
@@ -199,6 +222,9 @@ func observeAppTraffic(info *statistic.TrackerInfo) statistic.TrackerObserver {
 		}
 	}
 	addAppTrafficReason(h.row, reason)
+	if hasResolved {
+		return h
+	}
 	if s.stopped {
 		s.failures["sessionEnded"]++
 		return h
@@ -227,6 +253,9 @@ func observeAppTraffic(info *statistic.TrackerInfo) statistic.TrackerObserver {
 	return h
 }
 func addAppTrafficReason(row *appTrafficRow, reason appTrafficReason) {
+	if reason.At > row.LastSeen {
+		row.LastSeen = reason.At
+	}
 	if len(row.Recent) == 4 {
 		copy(row.Recent, row.Recent[1:])
 		row.Recent = row.Recent[:3]
@@ -241,6 +270,7 @@ func (h *appTrafficHandle) Add(upload, download int64) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	b := h.row.Routes.bucket(h.route)
+	h.row.LastSeen = time.Now().UnixMilli()
 	if upload > 0 {
 		h.upload += upload
 		b.Upload += upload
@@ -264,6 +294,9 @@ func (s *appTrafficSession) expireLocked() {
 	for id, p := range s.pending {
 		if !now.Before(p.deadline) {
 			delete(s.pending, id)
+			if p.result != nil {
+				p.result <- -1
+			}
 			s.failures["timeout"]++
 		}
 	}
@@ -280,6 +313,7 @@ func (s *appTrafficSession) snapshotLocked() appTrafficSummary {
 	}
 	for _, row := range s.rows {
 		copied := *row
+		copied.RouteTarget = s.policies[row.UID]
 		copied.Recent = []appTrafficReason{}
 		copied.Recent = append(copied.Recent, row.Recent...)
 		result.Apps = append(result.Apps, copied)
@@ -306,6 +340,8 @@ func getAppTraffic(w MHTTP.ResponseWriter, req *MHTTP.Request) {
 	s.mu.Lock()
 	snapshot := s.snapshotLocked()
 	s.mu.Unlock()
+	snapshot.RouteTargets = tunnel.HostRouteTargets()
+	sort.Strings(snapshot.RouteTargets)
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(snapshot)
 }
@@ -336,7 +372,7 @@ func getAppIdentityRequests(w MHTTP.ResponseWriter, req *MHTTP.Request) {
 	defer conn.CloseNow()
 	conn.SetReadLimit(1024)
 	ctx = conn.CloseRead(ctx)
-	ticker := time.NewTicker(100 * time.Millisecond)
+	ticker := time.NewTicker(20 * time.Millisecond)
 	defer ticker.Stop()
 	for {
 		select {
@@ -400,7 +436,7 @@ func postAppIdentityReplies(w MHTTP.ResponseWriter, req *MHTTP.Request) {
 			continue
 		}
 		delete(s.pending, reply.ID) // duplicates and late replies cannot move bytes twice
-		if reply.Status != "uid" || reply.UID < 0 {
+		if reply.Status != "uid" || reply.UID < 0 || reply.UID > 2147483647 {
 			status := reply.Status
 			switch status {
 			case "unsupported", "notFound", "error", "timeout":
@@ -408,18 +444,20 @@ func postAppIdentityReplies(w MHTTP.ResponseWriter, req *MHTTP.Request) {
 				status = "error"
 			}
 			s.failures[status]++
+			if p.result != nil {
+				p.result <- -1
+			}
 			continue
 		}
-		key := strconv.FormatInt(reply.UID, 10)
-		row := s.rows[key]
-		if row == nil {
-			if len(s.rows) >= 129 {
-				s.failures["overflow"]++
-				continue
-			}
-			row = &appTrafficRow{IdentityStatus: "uid", UID: reply.UID, Recent: []appTrafficReason{}}
-			s.rows[key] = row
+		if p.result != nil {
+			p.result <- reply.UID
+			continue
 		}
+		row := s.rowLocked(reply.UID)
+		if row.UID < 0 {
+			continue
+		}
+
 		h := p.handle
 		from, to := h.row.Routes.bucket(h.route), row.Routes.bucket(h.route)
 		from.Upload -= h.upload

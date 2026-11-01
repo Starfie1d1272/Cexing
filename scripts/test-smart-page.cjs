@@ -12,7 +12,9 @@ let listener;
 const controller = { status: 2, onChanged(fn) { listener = fn; }, offChanged() { listener = undefined; } };
 
 const modules = { '@kit.AbilityKit': {}, '@kit.CoreFileKit': {}, './NativeTheme': {}, '../lib/SmartModelRestart': {},
-  '../lib/Settings': { Settings: { load: () => ({ smartAutoConvert: true }) } }, '../lib/ProfileTransactions': {},
+  '../lib/Settings': { Settings: { load: () => ({ smartAutoConvert: true }) } },
+    '../lib/ProfileStore': { ProfileStore: { getActiveFile: () => 'fixture.yaml' } },
+    './ProfileTemplatePage': { ProfileTemplateBus: { file: '' } }, '../lib/ProfileTransactions': {},
   '../lib/VpnController': { VpnController: controller, VpnStatus: { Connected: 2 } },
   '../lib/CoreApi': { CoreApi: { getSmartStatus: async () => response } } };
 const sandbox = { exports: {}, require: key => key.endsWith('/UiText') ? uiFixture.module : modules[key], getContext: () => ({}), setTimeout: () => 1, clearTimeout() {} };

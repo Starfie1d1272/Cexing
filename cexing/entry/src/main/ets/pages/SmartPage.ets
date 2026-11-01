@@ -7,6 +7,8 @@ import { SmartModelRestart } from '../lib/SmartModelRestart';
 import { BoundedFileReader } from '../lib/BoundedFileReader';
 import { Settings } from '../lib/Settings';
 import { ProfileTransactions } from '../lib/ProfileTransactions';
+import { ProfileStore } from '../lib/ProfileStore';
+import { ProfileTemplateBus } from './ProfileTemplatePage';
 import { NativeTheme as UI } from './NativeTheme';
 
 const MODEL_URL = 'https://github.com/vernesong/mihomo/releases/tag/LightGBM-Model';
@@ -121,6 +123,16 @@ export struct SmartPage {
     this.timer = setTimeout(() => { this.refresh(generation); }, 3000);
   }
 
+  private openRouting(): void {
+    if (!this.active || !this.visible || this.busy) { return; }
+    const paths = this.navStack.getAllPathName();
+    if (paths[paths.length - 1] !== 'smart') { return; }
+    const file = ProfileStore.getActiveFile(getContext(this) as common.UIAbilityContext);
+    if (file === '') { this.message = UiText.get($r('app.string.smart_routing_no_profile')); return; }
+    ProfileTemplateBus.file = file;
+    this.navStack.pushPath({ name: 'profileTemplate' });
+  }
+
   private async openModelSource(): Promise<void> {
     try {
       const context = getContext(this) as common.UIAbilityContext;
@@ -193,17 +205,13 @@ export struct SmartPage {
     Scroll() {
       Column({ space: 20 }) {
         Column({ space: 12 }) {
-          Text(this.usage).fontSize(20).fontWeight(600).fontColor(UI.ink)
+          Button(UiText.get($r('app.string.smart_routing_current'))).width('100%').constraintSize({ minHeight: 48 }).backgroundColor(UI.action).fontColor(UI.onAccent)
+            .enabled(!this.busy).onClick(() => this.openRouting())
+          Text(this.usage).fontSize(17).fontWeight(600).fontColor(UI.ink)
           Button(UiText.get($r('app.string.action_open_panel'))).width('100%').constraintSize({ minHeight: 48 }).backgroundColor(UI.soft).fontColor(UI.accentText)
             .enabled(this.ready).onClick(() => { this.navStack.pushPath({ name: 'zashboard' }); })
         }.padding(20).width('100%').borderRadius(24).backgroundColor(UI.surface)
           .alignItems(HorizontalAlign.Start)
-        Row({ space: 12 }) {
-          Text(UiText.get($r('app.string.smart_auto_enable'))).fontSize(17).fontWeight(600).fontColor(UI.ink).layoutWeight(1)
-          Toggle({ type: ToggleType.Switch, isOn: this.autoConvert })
-            .selectedColor(UI.accent).accessibilityChecked(this.autoConvert).enabled(!this.busy).accessibilityText(UiText.get($r('app.string.smart_auto_enable')))
-            .onChange((on: boolean) => { this.changeAutoConvert(on); })
-        }.padding(20).width('100%').borderRadius(24).backgroundColor(UI.surface)
         if (this.message !== '') {
           Text(this.message).fontSize(14).fontColor(UI.muted)
         }
@@ -216,6 +224,13 @@ export struct SmartPage {
           .accessibilityDescription(this.detailsOpen ? UiText.get($r('app.string.a11y_expanded')) : UiText.get($r('app.string.a11y_collapsed')))
           .onClick(() => { this.detailsOpen = !this.detailsOpen; })
         if (this.detailsOpen) {
+        Row({ space: 12 }) {
+          Text(UiText.get($r('app.string.smart_auto_enable'))).fontSize(17).fontWeight(600).fontColor(UI.ink).layoutWeight(1)
+          Toggle({ type: ToggleType.Switch, isOn: this.autoConvert })
+            .selectedColor(UI.accent).accessibilityChecked(this.autoConvert).enabled(!this.busy).accessibilityText(UiText.get($r('app.string.smart_auto_enable')))
+            .onChange((on: boolean) => { this.changeAutoConvert(on); })
+        }.padding(20).width('100%').borderRadius(24).backgroundColor(UI.surface)
+        Text(UiText.get($r('app.string.smart_auto_scope'))).fontSize(14).fontColor(UI.muted)
         Column({ space: 12 }) {
           Text(UiText.get($r('app.string.smart_current_config'))).fontSize(13).fontColor(UI.muted)
           Text(this.groupSummary).fontSize(15).fontColor(UI.ink)

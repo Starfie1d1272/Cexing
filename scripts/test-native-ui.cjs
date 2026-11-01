@@ -638,24 +638,32 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   const editor = new Edit(); editor.persistDraft('synthetic');
   assert.equal(editor.dirty, true); assert.equal(editor.draftPersisted, false, 'failed draft write cannot claim recovery');
   failDraft = false; editor.persistDraft('synthetic'); assert.equal(editor.draftPersisted, true);
-  // List editing is synchronous: hidden/cancelled sheets cannot commit queued taps.
+  // Restoring VPN scope requires a current confirmation and retains the saved list.
   let networkSaved = 0;
-  let networkSettings = {ipv6:false,accessMode:'white',accessList:[]};
+  let networkSettings = {ipv6:false,accessMode:'white',accessList:['sample.app']};
+  let networkRoutes = ['network'];
   const source = fs.readFileSync(path.join(pages,'../lib/VpnController.ets'),'utf8');
   const policySandbox = {exports:{},require:()=>({})};
   vm.runInNewContext(ts.transpileModule(source).outputText,policySandbox);
   const Network = load('NetworkSettingsPage', {...common,
     '../lib/VpnController':policySandbox.exports,
     '../lib/Settings':{Settings:{idle:async()=>{},load:()=>({...networkSettings}),save:(_c,v)=>{networkSaved++;networkSettings=v;}}}
-  }, {getContext:()=>({applicationInfo:{name:'test.bundle'}})});
-  const network = new Network();network.aboutToAppear();await new Promise(resolve=>setImmediate(resolve));network.showAddDialog=true;
-  network.inputPkg='bad';network.addPackage();assert.equal(networkSaved,0);assert.equal(network.showAddDialog,true);
-  network.inputPkg='test.bundle';network.addPackage();assert.equal(networkSaved,0);
-  network.inputPkg='sample.app';network.addPackage();network.addPackage();assert.equal(networkSaved,1,'repeated tap cannot commit twice');
-  network.showAddDialog=true;network.inputPkg='sample.other';network.cancelAddPackage();network.addPackage();
-  assert.equal(networkSaved,1,'cancel/hidden sheet retains existing scope');assert.equal(network.inputPkg,'');
-  network.showAddDialog=true;network.inputPkg='sample.late';network.showRouteDetails=true;network.aboutToDisappear();network.addPackage();
-  assert.equal(networkSaved,1,'page exit blocks queued add');assert.equal(network.showRouteDetails,false);
+  }, {getContext:()=>({applicationInfo:{name:'test.bundle'}}), AlertDialog:{show:value=>{dialog=value;}}});
+  const network = new Network();
+  network.navStack={getAllPathName:()=>networkRoutes,pushPath:route=>networkRoutes.push(route.name)};
+  network.aboutToAppear();await new Promise(resolve=>setImmediate(resolve));
+  network.restoreAll();assert.equal(networkSaved,0,'opening confirmation retains scope');
+  dialog.primaryButton.action();assert.equal(networkSaved,0,'cancel retains scope');
+  network.restoreAll();network.openTraffic();dialog.secondaryButton.action();
+  assert.equal(networkSaved,0,'confirmation cannot change scope after navigation');
+  assert.equal(networkRoutes.at(-1),'traffic');networkRoutes=['network'];
+  network.restoreAll();dialog.secondaryButton.action();dialog.secondaryButton.action();
+  await new Promise(setImmediate);
+  assert.equal(networkSaved,1,'repeated confirmation cannot commit twice');
+  assert.equal(networkSettings.accessMode,'all');assert.deepEqual(Array.from(networkSettings.accessList),['sample.app']);
+  networkSettings.accessMode='white';network.readSettings();network.restoreAll();
+  network.showRouteDetails=true;network.aboutToDisappear();dialog.secondaryButton.action();
+  assert.equal(networkSaved,1,'page exit blocks late confirmation');assert.equal(network.showRouteDetails,false);
   const returned = new Network();returned.aboutToAppear();await new Promise(setImmediate);assert.deepEqual(Array.from(returned.accessList),['sample.app']);
   console.log('PASS: native page traffic, one-tap stop, bounded diagnosis, transaction activation/navigation identity, import retry, draft persistence and active-delete guard');
 })().catch(error => { console.error(error); process.exit(1); });

@@ -105,12 +105,15 @@ export interface AppTrafficRoutes {
   unclassified: AppTrafficBytes;
 }
 export interface AppTrafficReason {
+  target: string;
   at: number;
   route: string;
   rule: string;
   policy: string[];
 }
 export interface AppTrafficRow {
+  routeTarget: string;
+  lastSeen: number;
   bundleVerified: boolean; // Always false until a public verification route exists.
   identityStatus: string;
   uid: number;
@@ -119,6 +122,7 @@ export interface AppTrafficRow {
   recent: AppTrafficReason[];
 }
 export interface AppTrafficSummary {
+  routeTargets: string[];
   schemaVersion: number;
   session: string;
   state: string;
@@ -209,6 +213,12 @@ export namespace CoreApi {
       const summary = JSON.parse(response) as AppTrafficSummary;
       return validAppTrafficSummary(summary) ? summary : null;
     } catch (_) { return null; }
+  }
+
+  export async function setAppRoute(session: string, uid: number, target: string): Promise<boolean> {
+    if (!/^[0-9a-f]{32}$/.test(session) || !Number.isInteger(uid) || uid < 0 || target.length > 1024) { return false; }
+    return await request(http.RequestMethod.PUT, '/ohos/app-traffic/route',
+      JSON.stringify({ session: session, uid: uid, target: target })) !== null;
   }
 
   export async function replyAppIdentities(session: string, replies: AppIdentityReply[]): Promise<boolean> {
@@ -560,10 +570,20 @@ function validAppTrafficSummary(summary: AppTrafficSummary): boolean {
     typeof summary.partial !== 'boolean' ||
     ![summary.startedAt, summary.endedAt].every((time: number) =>
       typeof time === 'number' && Number.isFinite(time) && time >= 0) ||
+    !Array.isArray(summary.routeTargets) || summary.routeTargets.length > 4096 ||
+    !summary.routeTargets.every((target: string) => typeof target === 'string' && target.length <= 1024) ||
     !validAppTrafficRoutes(summary.totals) || !Array.isArray(summary.apps) || summary.apps.length > 129) { return false; }
   return summary.apps.every((row: AppTrafficRow) => row !== null && typeof row === 'object' &&
     (row.identityStatus === 'uid' || row.identityStatus === 'unknown') &&
     typeof row.uid === 'number' && Number.isInteger(row.uid) && row.uid >= -1 &&
     row.bundleName === '' && row.bundleVerified === false &&
-    validAppTrafficRoutes(row.routes) && Array.isArray(row.recent) && row.recent.length <= 4);
+    typeof row.routeTarget === 'string' && row.routeTarget.length <= 1024 &&
+    typeof row.lastSeen === 'number' && Number.isFinite(row.lastSeen) && row.lastSeen >= 0 &&
+    validAppTrafficRoutes(row.routes) && Array.isArray(row.recent) && row.recent.length <= 4 &&
+    row.recent.every((reason: AppTrafficReason) => reason !== null && typeof reason === 'object' &&
+      typeof reason.at === 'number' && Number.isFinite(reason.at) && reason.at >= 0 &&
+      typeof reason.target === 'string' && reason.target.length <= 1024 &&
+      typeof reason.rule === 'string' && typeof reason.route === 'string' &&
+      Array.isArray(reason.policy) && reason.policy.length <= 8 &&
+      reason.policy.every((name: string) => typeof name === 'string')));
 }

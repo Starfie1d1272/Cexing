@@ -63,7 +63,7 @@ export struct SettingsPage {
       title: UiText.get($r('app.string.settings_system_connection')),
       rows: [
         { title: UiText.get($r('app.string.nav_network')), sub: UiText.get($r('app.string.settings_network_hint')), hasToggle: false, dest: 'network', action: '', toggleKey: '' },
-        { title: 'Smart', sub: UiText.get($r('app.string.settings_smart_hint')), hasToggle: false, dest: 'smart', action: '', toggleKey: '' },
+        { title: UiText.get($r('app.string.routing_smart')), sub: UiText.get($r('app.string.settings_smart_hint')), hasToggle: false, dest: 'smart', action: '', toggleKey: '' },
 
       ]
     },

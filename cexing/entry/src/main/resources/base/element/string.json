@@ -274,11 +274,11 @@
     },
     {
       "name": "settings_network_hint",
-      "value": "App routing · IPv6"
+      "value": "Traffic sources · IPv6"
     },
     {
       "name": "settings_smart_hint",
-      "value": "Statistical strategy · Offline model"
+      "value": "Current subscription routing · Runtime details"
     },
     {
       "name": "settings_advanced",
@@ -546,7 +546,7 @@
     },
     {
       "name": "smart_auto_enable",
-      "value": "Enable smart selection automatically"
+      "value": "Convert subscription automatic groups to Smart"
     },
     {
       "name": "smart_restart_apply",
@@ -4387,6 +4387,106 @@
     {
       "name": "traffic_identity_unverified",
       "value": "App names and icons cannot be verified on this system. Known connections are shown by UID."
+    },
+    {
+      "name": "routing_smart",
+      "value": "Smart selection"
+    },
+    {
+      "name": "routing_loading",
+      "value": "Loading routing plan…"
+    },
+    {
+      "name": "smart_routing_current",
+      "value": "Configure current subscription routing"
+    },
+    {
+      "name": "smart_routing_no_profile",
+      "value": "Select a subscription first."
+    },
+    {
+      "name": "smart_auto_scope",
+      "value": "Applies to compatible automatic groups in all subscriptions. Each managed outlet keeps its own selection method."
+    },
+    {
+      "name": "network_sources",
+      "value": "Traffic source routing"
+    },
+    {
+      "name": "network_open_sources",
+      "value": "Choose from recent traffic"
+    },
+    {
+      "name": "network_scope_only",
+      "value": "VPN scope: only %d saved apps. Other apps do not appear in traffic sources."
+    },
+    {
+      "name": "network_scope_except",
+      "value": "VPN scope: %d saved apps excluded. Excluded apps do not appear in traffic sources."
+    },
+    {
+      "name": "network_restore_all",
+      "value": "Include all apps in VPN"
+    },
+    {
+      "name": "network_restore_all_confirm",
+      "value": "After the next VPN connection, all apps will enter VPN routing. The existing app list will be kept."
+    },
+    {
+      "name": "traffic_source_number",
+      "value": "Source %d"
+    },
+    {
+      "name": "traffic_note_label",
+      "value": "Note:"
+    },
+    {
+      "name": "traffic_note_placeholder",
+      "value": "Your note (this session)"
+    },
+    {
+      "name": "traffic_route_follow",
+      "value": "Follow routing"
+    },
+    {
+      "name": "traffic_route_title",
+      "value": "New connection route"
+    },
+    {
+      "name": "traffic_route_session",
+      "value": "For this VPN session; TCP requires a new connection. With a source override, unidentified traffic is blocked. DNS uses the shared resolver."
+    },
+    {
+      "name": "traffic_route_saved",
+      "value": "Saved. Reopen the target connection and check its actual route below."
+    },
+    {
+      "name": "traffic_route_failed",
+      "value": "Save result unconfirmed. Refresh to check the current route."
+    },
+    {
+      "name": "traffic_observe",
+      "value": "Observe upcoming traffic"
+    },
+    {
+      "name": "traffic_observe_reset",
+      "value": "Restart observation"
+    },
+    {
+      "name": "traffic_observe_hint",
+      "value": "Use the target app, then return to compare the added traffic."
+    },
+    {
+      "name": "traffic_observed",
+      "value": "Added %s"
+    },
+    {
+      "name": "traffic_last_seen",
+      "value": "Active at %s"
+    },
+    {
+      "name": "routing_session_sources",
+      "value": "Source routing for this connection"
     }
   ]
 }

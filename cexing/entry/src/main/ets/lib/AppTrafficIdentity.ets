@@ -2,13 +2,16 @@ import { connection } from '@kit.NetworkKit';
 import { deviceInfo } from '@kit.BasicServicesKit';
 import { AppIdentityBatch, AppIdentityReply, AppIdentityRequest, CoreApi } from './CoreApi';
 
-/** VPN extension owned; bounded asynchronous lookups never hold up TUN forwarding. */
+/** VPN extension owned; bounded asynchronous platform lookups serve accounting and pre-route identity. */
 export class AppTrafficIdentity {
   private watcher = new CoreApi.StreamWatcher<AppIdentityBatch>();
   private generation: number = 0;
   private pending: number = 0;
   private lookups: number = 0;
   private session: string = '';
+  private replies: AppIdentityReply[] = [];
+  private flushTimer: number = -1;
+  private sending: boolean = false;
 
   start(): void {
     this.stop();
@@ -16,10 +19,17 @@ export class AppTrafficIdentity {
     this.watcher.start('/ohos/app-traffic/identity', (batch: AppIdentityBatch) => {
       if (generation !== this.generation || !Array.isArray(batch.requests) || batch.requests.length > 32) { return; }
       if (this.session.length === 0) { this.session = batch.session; }
-      if (batch.session !== this.session || batch.requests.length === 0 || this.pending >= 4) { return; }
-      this.pending++;
-      this.resolveBatch(batch, generation).catch(() => {}).finally(() => {
-        if (generation === this.generation) { this.pending--; }
+      if (batch.session !== this.session) { return; }
+      batch.requests.forEach((request: AppIdentityRequest) => {
+        if (this.pending + this.replies.length >= 128) { return; }
+        this.pending++;
+        this.resolveWithDeadline(request).then((reply: AppIdentityReply) => {
+          if (generation !== this.generation || batch.session !== this.session) { return; }
+          this.replies.push(reply);
+          this.scheduleFlush();
+        }).catch(() => {}).finally(() => {
+          if (generation === this.generation) { this.pending--; }
+        });
       });
     });
   }
@@ -29,12 +39,29 @@ export class AppTrafficIdentity {
     this.watcher.stop();
     this.pending = 0;
     this.session = '';
+    this.replies = [];
+    if (this.flushTimer >= 0) { clearTimeout(this.flushTimer); this.flushTimer = -1; }
   }
 
-  private async resolveBatch(batch: AppIdentityBatch, generation: number): Promise<void> {
-    const replies = await Promise.all(batch.requests.map((request: AppIdentityRequest) => this.resolveWithDeadline(request)));
-    if (generation !== this.generation || batch.session !== this.session) { return; }
-    await CoreApi.replyAppIdentities(batch.session, replies);
+  private scheduleFlush(): void {
+    if (this.sending || this.flushTimer >= 0 || this.replies.length === 0) { return; }
+    this.flushTimer = setTimeout(() => {
+      this.flushTimer = -1;
+      this.flushReplies().catch(() => {});
+    }, 20);
+  }
+
+  private async flushReplies(): Promise<void> {
+    if (this.sending || this.replies.length === 0 || this.session.length === 0) { return; }
+    const session = this.session;
+    const replies = this.replies.splice(0, 32);
+    this.sending = true;
+    try { await CoreApi.replyAppIdentities(session, replies); }
+    finally {
+      // A prior session's HTTP request retains the single sender slot until it settles.
+      this.sending = false;
+      this.scheduleFlush();
+    }
   }
 
   private async resolveWithDeadline(request: AppIdentityRequest): Promise<AppIdentityReply> {
@@ -45,7 +72,7 @@ export class AppTrafficIdentity {
     this.lookups++;
     let timer = -1;
     const deadline = new Promise<AppIdentityReply>((resolve) => {
-      timer = setTimeout(() => resolve(timeout), 3000);
+      timer = setTimeout(() => resolve(timeout), 1000);
     });
     const lookup = this.resolve(request).finally(() => { this.lookups--; });
     const reply = await Promise.race([lookup, deadline]);

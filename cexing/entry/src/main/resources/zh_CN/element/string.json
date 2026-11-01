@@ -250,11 +250,11 @@
     },
     {
       "name": "settings_network_hint",
-      "value": "按应用分流 · IPv6"
+      "value": "流量来源 · IPv6"
     },
     {
       "name": "settings_smart_hint",
-      "value": "统计策略 · 离线模型"
+      "value": "当前订阅分流 · 运行详情"
     },
     {
       "name": "settings_advanced",
@@ -522,7 +522,7 @@
     },
     {
       "name": "smart_auto_enable",
-      "value": "自动启用智能选择"
+      "value": "订阅自动组统一使用 Smart"
     },
     {
       "name": "smart_restart_apply",
@@ -4387,6 +4387,106 @@
     {
       "name": "traffic_identity_unverified",
       "value": "系统不提供可验证的应用名称与图标，已知连接按 UID 展示。"
+    },
+    {
+      "name": "routing_smart",
+      "value": "智能选择（Smart）"
+    },
+    {
+      "name": "routing_loading",
+      "value": "正在读取分流方案…"
+    },
+    {
+      "name": "smart_routing_current",
+      "value": "设置当前订阅分流"
+    },
+    {
+      "name": "smart_routing_no_profile",
+      "value": "请先选择一个订阅"
+    },
+    {
+      "name": "smart_auto_scope",
+      "value": "适用于所有订阅中的兼容自动组；策星管理的出口保留各自的选点方式。"
+    },
+    {
+      "name": "network_sources",
+      "value": "流量来源分流"
+    },
+    {
+      "name": "network_open_sources",
+      "value": "从最近流量选择来源"
+    },
+    {
+      "name": "network_scope_only",
+      "value": "VPN 范围：仅已保存的 %d 个应用，其他应用不会出现在流量来源中。"
+    },
+    {
+      "name": "network_scope_except",
+      "value": "VPN 范围：排除已保存的 %d 个应用，被排除应用不会出现在流量来源中。"
+    },
+    {
+      "name": "network_restore_all",
+      "value": "恢复全部应用接入 VPN"
+    },
+    {
+      "name": "network_restore_all_confirm",
+      "value": "下次连接 VPN 后，全部应用都将进入分流。原有应用名单会保留。"
+    },
+    {
+      "name": "traffic_source_number",
+      "value": "来源 %d"
+    },
+    {
+      "name": "traffic_note_label",
+      "value": "备注："
+    },
+    {
+      "name": "traffic_note_placeholder",
+      "value": "添加备注（仅本次）"
+    },
+    {
+      "name": "traffic_route_follow",
+      "value": "跟随分流"
+    },
+    {
+      "name": "traffic_route_title",
+      "value": "新连接出口"
+    },
+    {
+      "name": "traffic_route_session",
+      "value": "仅本次 VPN 会话有效，TCP 需新建连接。启用来源规则后，未识别流量会被阻止；DNS 沿用统一解析。"
+    },
+    {
+      "name": "traffic_route_saved",
+      "value": "已保存，请重新发起目标连接，并在下方查看实际出口。"
+    },
+    {
+      "name": "traffic_route_failed",
+      "value": "保存结果未确认，请刷新后检查。"
+    },
+    {
+      "name": "traffic_observe",
+      "value": "观察接下来的流量"
+    },
+    {
+      "name": "traffic_observe_reset",
+      "value": "重新开始观察"
+    },
+    {
+      "name": "traffic_observe_hint",
+      "value": "切去使用目标应用，再回来对比新增流量。"
+    },
+    {
+      "name": "traffic_observed",
+      "value": "新增 %s"
+    },
+    {
+      "name": "traffic_last_seen",
+      "value": "最近活跃 %s"
+    },
+    {
+      "name": "routing_session_sources",
+      "value": "本次连接的来源分流"
     }
   ]
 }

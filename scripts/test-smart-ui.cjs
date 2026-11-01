@@ -58,6 +58,8 @@ function compile(file, modules, extras = {}, page = false) {
   const { SmartPage } = compile('pages/SmartPage.ets', {
     '@kit.AbilityKit': {}, './NativeTheme': {}, '../lib/SmartModelRestart': { SmartModelRestart: { restart: async () => { controller.status = 0; statusListener(0); throw Error('应用重启失败'); } } },
     '../lib/Settings': { Settings: { load: () => ({ smartAutoConvert: true }) } },
+    '../lib/ProfileStore': { ProfileStore: { getActiveFile: () => 'fixture.yaml' } },
+    './ProfileTemplatePage': { ProfileTemplateBus: { file: '' } },
     '../lib/ProfileTransactions': { ProfileTransactions: transactions },
     '../lib/BoundedFileReader': reader,
     '../lib/VpnController': { VpnStatus: { Connected: 2 }, VpnController: controller },

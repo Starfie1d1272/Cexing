@@ -347,3 +347,117 @@
  	if conn, ok := common.Cast[localAddr](writer); ok { // tun does not have real inAddr
  		cPacket.lAddr = conn.LocalAddr()
  	}
+--- a/tunnel/tunnel.go
++++ b/tunnel/tunnel.go
+@@ -11,6 +11,7 @@
+ 	"runtime"
+ 	"strings"
+ 	"sync"
++	stdatomic "sync/atomic"
+ 	"time"
+ 
+ 	"github.com/metacubex/mihomo/common/atomic"
+@@ -317,7 +318,56 @@
+ 	return nil
+ }
+ 
++type hostRoutingHook struct {
++	resolve func(*C.Metadata) (string, error)
++	udpKey  func(*C.Metadata) (string, error)
++}
++
++var hostRouting stdatomic.Pointer[hostRoutingHook]
++var hostUDPSlots = make(chan struct{}, 128)
++
++// SetHostRouting installs the host lookup before any outbound is chosen.
++func SetHostRouting(resolve, udpKey func(*C.Metadata) (string, error)) {
++	hostRouting.Store(&hostRoutingHook{resolve: resolve, udpKey: udpKey})
++}
++
++func HostRouteTargets() []string {
++	configMux.RLock()
++	defer configMux.RUnlock()
++	names := []string{"DIRECT"}
++	for name, proxy := range proxies {
++		if name == "DIRECT" || name == "GLOBAL" || len(name) > 256 || strings.ContainsAny(name, "\r\n\x00") {
++			continue
++		}
++		if _, ok := proxy.Adapter().(interface{ GetProxies(bool) []C.Proxy }); ok {
++			names = append(names, name)
++		}
++	}
++	slices.Sort(names)
++	if len(names) > 4096 {
++		names = names[:4096]
++	}
++	return names
++}
++
+ func resolveMetadata(metadata *C.Metadata) (proxy C.Proxy, rule C.Rule, err error) {
++	if hook := hostRouting.Load(); hook != nil {
++		target, routeErr := hook.resolve(metadata)
++		if routeErr != nil {
++			return nil, nil, routeErr
++		}
++		if target != "" {
++			configMux.RLock()
++			proxy = proxies[target]
++			configMux.RUnlock()
++			if proxy == nil {
++				return nil, nil, errors.New("host route unavailable")
++			}
++			metadata.SpecialProxy = target
++			return proxy, nil, nil
++		}
++	}
++
+ 	if metadata.SpecialProxy != "" {
+ 		var exist bool
+ 		proxy, exist = proxies[metadata.SpecialProxy]
+@@ -415,12 +465,30 @@
+ 
+ // processUDP starts a loop to handle udp packet
+ func processUDP(queue chan C.PacketAdapter) {
+-	for conn := range queue {
+-		handleUDPConn(conn)
+-	}
+-}
+-
+-func handleUDPConn(packet C.PacketAdapter) {
++	for packet := range queue {
++		hook := hostRouting.Load()
++		if hook == nil || hook.udpKey == nil || packet.Metadata().Type != C.TUN {
++			handleUDPConn(packet, "")
++			continue
++		}
++		select {
++		case hostUDPSlots <- struct{}{}:
++			go func() {
++				defer func() { <-hostUDPSlots }()
++				key, err := hook.udpKey(packet.Metadata())
++				if err != nil {
++					packet.Drop()
++					return
++				}
++				handleUDPConn(packet, key)
++			}()
++		default:
++			packet.Drop()
++		}
++	}
++}
++
++func handleUDPConn(packet C.PacketAdapter, hostKey string) {
+ 	if !isHandle(packet.Metadata().Type) {
+ 		packet.Drop()
+ 		return
+@@ -441,6 +509,9 @@
+ 	}
+ 
+ 	key := packet.Key()
++	if hostKey != "" {
++		key += "|host:" + hostKey
++	}
+ 	sender, loaded := natTable.GetOrCreate(key, func() C.PacketSender {
+ 		sender := newPacketSender()
+ 		if sniffingEnable && snifferDispatcher.Enable() {

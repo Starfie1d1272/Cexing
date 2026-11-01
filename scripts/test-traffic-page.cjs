@@ -46,3 +46,30 @@ assert.ok(stream);
 page.aboutToDisappear(); assert.equal(stream, null); assert.equal(tick, null); assert.equal(listeners.size, 0);
 assert.ok(stops > 0);
 console.log('PASS: traffic detail lifecycle, stale speeds and curve gap (host logic; no UI rendering/device claim)');
+
+// Source routing must reject unknown rows and ignore completions after detail dismissal.
+(async () => {
+  page.active = true; controller.status = 2;
+  const route = { upload: 0, download: 0, connections: 0, active: 0 };
+  const row = { identityStatus: 'uid', uid: 1001, bundleName: '', bundleVerified: false,
+    routeTarget: '', lastSeen: now, recent: [], routes: { proxy: route, direct: route, unclassified: route } };
+  page.appSummary = { session: 'a'.repeat(32), state: 'running' };
+  page.appReadFailed = false; page.openApp(row);
+  let resolveRoute, writes = 0;
+  modules['../lib/CoreApi'].CoreApi.setAppRoute = () => { writes++; return new Promise(resolve => { resolveRoute = resolve; }); };
+  assert.equal(page.canRoute({ ...row, identityStatus: 'unknown', uid: -1 }), false);
+  const pending = page.changeRoute(row, 'DIRECT');
+  await page.changeRoute(row, 'DIRECT');
+  assert.equal(writes, 1, 'Repeated taps must not submit parallel route changes');
+  page.showApp = false; page.openApp(row);
+  await page.changeRoute(row, 'OTHER');
+  assert.equal(writes, 1, 'Reopening details must not bypass an in-flight source write');
+  page.showApp = false; resolveRoute(true); await pending;
+  assert.equal(page.routeMessage, '', 'A dismissed sheet must not receive a late success');
+  page.openApp(row);
+  const staleSession = page.changeRoute(row, 'DIRECT');
+  page.appSummary = { session: 'b'.repeat(32), state: 'running' };
+  resolveRoute(true); await staleSession;
+  assert.equal(page.routeMessage, '', 'A prior VPN session must not report success in the new session');
+  console.log('PASS: source routing unknown identity, duplicate submission, dismissed detail and stale session gates');
+})().catch(error => { console.error(error); process.exitCode = 1; });

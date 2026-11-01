@@ -14,6 +14,16 @@ function bytes(value: number): string {
   return `${value.toFixed(index === 0 ? 0 : 1)} ${units[index]}`;
 }
 
+// Session-only user labels survive page navigation; the next core session clears them.
+class SourceNotes {
+  static session: string = '';
+  static keys: string[] = [];
+  static labels: Record<string, string> = {};
+  static baseline: Record<string, number> = {};
+  static observing: boolean = false;
+  static writing: boolean = false;
+}
+
 @Component
 export struct TrafficPage {
   @State private snapshot: TrafficView = new TrafficView();
@@ -31,6 +41,12 @@ export struct TrafficPage {
   @State private showReasons: boolean = false;
   @State private appReadFailed: boolean = false;
   @State private appLoading: boolean = true;
+  @State private routeBusy: boolean = false;
+  @State private routeChoices: string[] = [];
+  @State private routeMessage: string = '';
+  @State private note: string = '';
+  @State private observing: boolean = false;
+  private detailRequest: number = 0;
   private appRequest: number = 0;
   private appBusy: boolean = false;
   private appSampleAt: number = 0;
@@ -51,12 +67,12 @@ export struct TrafficPage {
     }, 1000);
   }
   aboutToDisappear(): void {
-    this.active = false; this.appRequest++; this.showApp = false;
+    this.active = false; this.appRequest++; this.detailRequest++; this.showApp = false;
     clearInterval(this.timer); this.timer = -1;
     this.watcher.stop(); VpnController.offChanged(this.listener);
   }
   private openRates(): void {
-    this.appRequest++;
+    this.appRequest++; this.detailRequest++; this.routeBusy = false;
     this.appSummary = null; this.appRows = []; this.selected = null; this.showApp = false;
     this.appLoading = true;
     this.refreshApps();
@@ -68,6 +84,7 @@ export struct TrafficPage {
     }
   }
   private refresh(): void {
+    this.routeBusy = SourceNotes.writing;
     this.snapshot = TrafficStats.view();
     const points = this.snapshot.points;
     // Break rather than connect across missing samples; curve is a short,
@@ -107,6 +124,15 @@ export struct TrafficPage {
         this.appSummary = null; this.appRows = []; this.selected = null; this.showApp = false; return;
       }
       if (this.appSummary !== null && this.appSummary.session !== summary.session) { this.selected = null; this.showApp = false; }
+      if (SourceNotes.session !== summary.session) {
+        SourceNotes.session = summary.session; SourceNotes.keys = []; SourceNotes.labels = {};
+        SourceNotes.baseline = {}; SourceNotes.observing = false; this.detailRequest++; this.routeBusy = false;
+      }
+      summary.apps.forEach((row: AppTrafficRow) => {
+        const key = this.rowKey(row);
+        if (row.uid >= 0 && !SourceNotes.keys.includes(key)) { SourceNotes.keys.push(key); }
+      });
+      this.observing = SourceNotes.observing;
       this.appSummary = summary;
       this.appRows = summary.apps.slice().sort((a: AppTrafficRow, b: AppTrafficRow) =>
         this.routeBytes(b.routes.proxy) - this.routeBytes(a.routes.proxy) || this.rowKey(a).localeCompare(this.rowKey(b)));
@@ -126,7 +152,10 @@ export struct TrafficPage {
   private upload(routes: AppTrafficRoutes): number { return routes.proxy.upload + routes.direct.upload + routes.unclassified.upload; }
   private download(routes: AppTrafficRoutes): number { return routes.proxy.download + routes.direct.download + routes.unclassified.download; }
   private appName(row: AppTrafficRow): string {
-    return row.uid >= 0 ? UiText.get($r('app.string.traffic_uid'), row.uid) : UiText.get($r('app.string.traffic_unknown_app'));
+    const key = this.rowKey(row);
+    const label = SourceNotes.labels[key];
+    return label ? `${UiText.get($r('app.string.traffic_note_label'))} ${label}` : row.uid >= 0 ?
+      UiText.get($r('app.string.traffic_source_number'), SourceNotes.keys.indexOf(key) + 1) : UiText.get($r('app.string.traffic_unknown_app'));
   }
   private sessionLabel(): string {
     if (this.appSummary === null) { return ''; }
@@ -140,7 +169,52 @@ export struct TrafficPage {
     if (this.appSummary.state === 'closed') { return UiText.get($r('app.string.traffic_session_ended')); }
     return this.sessionLabel();
   }
-  private openApp(row: AppTrafficRow): void { this.selected = row; this.showReasons = false; this.showApp = true; }
+  private openApp(row: AppTrafficRow): void {
+    this.detailRequest++; this.routeBusy = SourceNotes.writing; this.routeMessage = '';
+    this.routeChoices = this.routeOptions();
+    this.note = SourceNotes.labels[this.rowKey(row)] ?? '';
+    this.selected = row; this.showReasons = false; this.showApp = true;
+  }
+  private targets(row: AppTrafficRow): string {
+    return row.recent.map((reason: AppTrafficReason) => reason.target).filter((target: string, index: number, all: string[]) =>
+      target.length > 0 && all.indexOf(target) === index).slice(0, 3).join(' · ');
+  }
+  private routeLabel(target: string): string {
+    return target === '' ? UiText.get($r('app.string.traffic_route_follow')) :
+      target === 'DIRECT' ? UiText.get($r('app.string.traffic_direct')) : target;
+  }
+  private routeOptions(): string[] { return ['', 'DIRECT'].concat((this.appSummary?.routeTargets ?? []).filter((name: string) => name !== '' && name !== 'DIRECT')); }
+  private canRoute(row: AppTrafficRow): boolean {
+    return row.identityStatus === 'uid' && row.uid >= 0 && this.appSummary?.state === 'running' &&
+      VpnController.status === VpnStatus.Connected && !this.appReadFailed;
+  }
+  private async changeRoute(row: AppTrafficRow, target: string): Promise<void> {
+    if (SourceNotes.writing || !this.canRoute(row) || this.appSummary === null) { return; }
+    const session = this.appSummary.session; const key = this.rowKey(row); const request = this.detailRequest;
+    SourceNotes.writing = true; this.routeBusy = true; this.routeMessage = '';
+    let saved = false;
+    try { saved = await CoreApi.setAppRoute(session, row.uid, target); }
+    catch (_) { saved = false; }
+    finally { SourceNotes.writing = false; }
+
+    if (!this.active || !this.showApp || request !== this.detailRequest || session !== this.appSummary?.session ||
+      this.selected === null || this.rowKey(this.selected) !== key) { return; }
+    this.routeBusy = false;
+    this.routeMessage = UiText.get(saved ? $r('app.string.traffic_route_saved') : $r('app.string.traffic_route_failed'));
+    this.appSampleAt = 0; await this.refreshApps();
+  }
+  private observe(): void {
+    SourceNotes.baseline = {};
+    this.appRows.forEach((row: AppTrafficRow) => { SourceNotes.baseline[this.rowKey(row)] = this.total(row.routes); });
+    SourceNotes.observing = true; this.observing = true;
+  }
+  private observed(row: AppTrafficRow): string {
+    return UiText.get($r('app.string.traffic_observed'), bytes(Math.max(0, this.total(row.routes) - (SourceNotes.baseline[this.rowKey(row)] ?? 0))));
+  }
+  private lastSeen(row: AppTrafficRow): string {
+    return row.lastSeen > 0 ? UiText.get($r('app.string.traffic_last_seen'),
+      new Date(row.lastSeen).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })) : '';
+  }
   private summaryStatus(): string {
     return this.appSummary?.partial ? UiText.get($r('app.string.traffic_partial')) : '';
   }
@@ -231,6 +305,9 @@ export struct TrafficPage {
         Text($r('app.string.traffic_proxy_order')).fontSize(11).fontColor(UI.muted)
       }.width('100%')
       if (this.appRows.length > 0) {
+        Button(this.observing ? $r('app.string.traffic_observe_reset') : $r('app.string.traffic_observe'))
+          .onClick(() => this.observe()).enabled(this.appSummary?.state === 'running')
+        if (this.observing) { Text($r('app.string.traffic_observe_hint')).fontSize(12).fontColor(UI.muted).width('100%') }
         Column() {
           ForEach(this.appRows, (row: AppTrafficRow, index: number) => {
             if (index > 0) { Divider().color(UI.line) }
@@ -246,6 +323,9 @@ export struct TrafficPage {
                     .fontSize(11).fontColor(UI.muted).layoutWeight(1)
                   SymbolGlyph($r('sys.symbol.chevron_right')).fontSize(12).fontColor([UI.muted]).accessibilityLevel('no')
                 }.width('100%')
+                if (this.targets(row).length > 0) { Text(this.targets(row)).fontSize(12).fontColor(UI.muted).maxLines(2).width('100%') }
+                Text(this.lastSeen(row)).fontSize(11).fontColor(UI.muted).width('100%')
+                if (this.observing) { Text(this.observed(row)).fontSize(12).fontColor(UI.accentText).width('100%') }
                 this.RouteBar(row.routes)
               }.layoutWeight(1)
             }.width('100%').padding({ top: 16, bottom: 16 }).constraintSize({ minHeight: 80 })
@@ -259,8 +339,6 @@ export struct TrafficPage {
       }
       if (deviceInfo.sdkApiVersion < 23) {
         Text($r('app.string.traffic_identity_unsupported')).fontSize(12).fontColor(UI.muted).width('100%')
-      } else {
-        Text($r('app.string.traffic_identity_unverified')).fontSize(12).fontColor(UI.muted).width('100%')
       }
       if (this.appReadFailed && this.appRows.length > 0) {
         Text($r('app.string.traffic_apps_unavailable')).fontSize(12).fontColor(UI.muted).width('100%')
@@ -289,6 +367,20 @@ export struct TrafficPage {
           Text(this.appState()).fontSize(12).fontColor(UI.muted)
         }.alignItems(HorizontalAlign.Start).layoutWeight(1)
       }.width('100%')
+      TextInput({ text: this.note, placeholder: UiText.get($r('app.string.traffic_note_placeholder')) }).maxLength(40)
+        .accessibilityText(UiText.get($r('app.string.traffic_note_placeholder')))
+        .onChange((value: string) => { this.note = value; SourceNotes.labels[this.rowKey(row)] = value.trim(); })
+      if (this.targets(row).length > 0) { Text(this.targets(row)).fontSize(13).fontColor(UI.muted).width('100%') }
+      if (this.canRoute(row)) {
+        Column({ space: 10 }) {
+          Text($r('app.string.traffic_route_title')).fontSize(16).fontColor(UI.ink).width('100%')
+          Select(this.routeChoices.map((target: string): SelectOption => ({ value: this.routeLabel(target) })))
+            .value(this.routeLabel(row.routeTarget)).enabled(!this.routeBusy)
+            .onSelect((index: number) => { const target = this.routeChoices[index]; if (target !== undefined) { this.changeRoute(row, target); } })
+          Text($r('app.string.traffic_route_session')).fontSize(12).fontColor(UI.muted).width('100%')
+          if (this.routeMessage.length > 0) { Text(this.routeMessage).fontSize(12).fontColor(UI.accentText).width('100%') }
+        }.width('100%').padding(18).backgroundColor(UI.surface).borderRadius(24)
+      }
       Column({ space: 10 }) {
         Text($r('app.string.traffic_app_total')).fontSize(13).fontColor(UI.muted).width('100%')
         Text(bytes(this.total(row.routes))).fontSize(40).fontColor(UI.ink).fontFeature('tnum').width('100%')
@@ -310,10 +402,14 @@ export struct TrafficPage {
         }.width('100%').constraintSize({ minHeight: 44 }).accessibilityRole(AccessibilityRoleType.BUTTON)
           .accessibilityText(UiText.get($r('app.string.traffic_recent_rules'))).onClick(() => { this.showReasons = !this.showReasons; })
         if (this.showReasons) {
+          Text(UiText.get($r('app.string.traffic_uid'), row.uid)).fontSize(12).fontColor(UI.muted)
+          Text($r('app.string.traffic_identity_unverified')).fontSize(12).fontColor(UI.muted)
           if (row.recent.length === 0) { Text($r('app.string.traffic_no_rules')).fontSize(13).fontColor(UI.muted).width('100%') }
           ForEach(row.recent, (reason: AppTrafficReason) => {
             Divider().color(UI.line)
             Column({ space: 6 }) {
+              Text(new Date(reason.at).toLocaleTimeString()).fontSize(11).fontColor(UI.muted)
+              Text(reason.target).fontSize(13).fontColor(UI.ink)
               Text(reason.rule || UiText.get($r('app.string.traffic_unclassified'))).fontSize(14).fontColor(UI.ink)
               Text(reason.policy.join(' → ')).fontSize(12).fontColor(UI.muted)
               Text(reason.route === 'proxy' ? UiText.get($r('app.string.traffic_proxy')) : reason.route === 'direct' ?
@@ -322,7 +418,6 @@ export struct TrafficPage {
           })
         }
       }.width('100%').padding(18).borderRadius(24).backgroundColor(UI.surface)
-      Text($r('app.string.traffic_unknown_no_exclude')).fontSize(12).fontColor(UI.muted).width('100%')
     }.width('100%').padding(24)
   }
   @Builder
@@ -384,6 +479,6 @@ export struct TrafficPage {
         }
       }.width('100%').constraintSize({ maxWidth: 640 }).padding(24)
     }.width('100%').height('100%').align(Alignment.Top).backgroundColor(UI.paper).scrollBar(BarState.Off)
-      .bindSheet($$this.showApp, this.AppSheet(), { height: SheetSize.LARGE, showClose: true })
+      .bindSheet($$this.showApp, this.AppSheet(), { height: SheetSize.LARGE, showClose: true, onDisappear: () => { this.detailRequest++; this.routeBusy = false; } })
   }
 }

@@ -3,23 +3,22 @@ import { SettingsReconnectButton } from './SettingsReconnectButton';
 import { NativeTheme as UI } from './NativeTheme';
 /*
  * NetworkSettingsPage.ets - 网络设置（设置 → 网络设置）
- * IPv6 / 按应用分流（模式 + 手动名单）。改动在下次 VPN 启动时生效。
+ * IPv6 / 系统 VPN 范围。改动在下次 VPN 启动时生效。
  */
 import { common } from '@kit.AbilityKit';
 import { promptAction } from '@kit.ArkUI';
 import { Settings } from '../lib/Settings';
-import { buildVpnApplicationPolicy, validVpnBundleName, vpnRouteExceptions } from '../lib/VpnController';
+import { vpnRouteExceptions } from '../lib/VpnController';
 
-const ACCESS_MODES: string[] = [UiText.get($r('app.string.network_all')), UiText.get($r('app.string.network_only')), UiText.get($r('app.string.network_except'))];
 const ACCESS_VALUES: string[] = ['all', 'white', 'black'];
 
 @Component
 export struct NetworkSettingsPage {
+  @Consume('nav') navStack: NavPathStack;
+  @State saving: boolean = false;
   @State ipv6: boolean = false;
   @State accessIndex: number = 0;
   @State accessList: string[] = [];
-  @State inputPkg: string = '';
-  @State showAddDialog: boolean = false;
   private pageActive: boolean = false;
   @State ready: boolean = false;
   private saveGeneration: number = 0;
@@ -27,6 +26,7 @@ export struct NetworkSettingsPage {
 
   aboutToAppear(): void {
     this.pageActive = true;
+    this.saving = false;
     this.saveGeneration++;
     const generation = this.saveGeneration;
     this.ready = false;
@@ -41,7 +41,7 @@ export struct NetworkSettingsPage {
     });
   }
 
-  aboutToDisappear(): void { this.pageActive = false; this.saveGeneration++; this.cancelAddPackage(); this.showRouteDetails = false; }
+  aboutToDisappear(): void { this.pageActive = false; this.saveGeneration++; this.showRouteDetails = false; }
 
   private readSettings(): void {
     const context = getContext(this) as common.UIAbilityContext;
@@ -53,7 +53,8 @@ export struct NetworkSettingsPage {
   }
 
   private async persist(fields: string[]): Promise<void> {
-    if (!this.pageActive || !this.ready) { return; }
+    if (!this.pageActive || !this.ready || this.saving) { return; }
+    this.saving = true;
     const generation = ++this.saveGeneration;
     const context = getContext(this) as common.UIAbilityContext;
     const s = Settings.load(context);
@@ -67,37 +68,36 @@ export struct NetworkSettingsPage {
       if (!this.pageActive || generation !== this.saveGeneration) { return; }
       this.aboutToAppear();
       promptAction.showToast({ message: UiText.get($r('app.string.network_save_failed')), duration: 2000 });
-    }
+    } finally { if (this.pageActive && generation === this.saveGeneration) { this.saving = false; } }
   }
 
   private changedHint(): void {
     promptAction.showToast({ message: UiText.get($r('app.string.network_saved')), duration: 1500 });
   }
 
-  private addPackage(): void {
-    if (!this.showAddDialog) { return; }
-    const pkg = this.inputPkg.trim();
-    const context = getContext(this) as common.UIAbilityContext;
-    if (!validVpnBundleName(pkg) || pkg === context.applicationInfo.name) {
-      promptAction.showToast({ message: UiText.get($r('app.string.network_invalid_package')), duration: 1500 });
-      return;
-    }
-    if (this.accessList.indexOf(pkg) >= 0) {
-      promptAction.showToast({ message: UiText.get($r('app.string.network_added')), duration: 1500 });
-      return;
-    }
-    const next = [...this.accessList, pkg];
-    try { buildVpnApplicationPolicy(ACCESS_VALUES[this.accessIndex], next, context.applicationInfo.name); }
-    catch (e) { promptAction.showToast({ message: (e as Error).message, duration: 1500 }); return; }
-    this.accessList = next;
-    this.persist(['accessList']);
-    this.inputPkg = '';
-    this.showAddDialog = false;
+  private onNetworkPage(): boolean {
+    const paths = this.navStack.getAllPathName();
+    return this.pageActive && this.ready && paths[paths.length - 1] === 'network';
   }
 
-  private cancelAddPackage(): void {
-    this.inputPkg = '';
-    this.showAddDialog = false;
+  private restoreAll(): void {
+    if (!this.onNetworkPage() || this.saving || this.accessIndex === 0) { return; }
+    const generation = this.saveGeneration;
+    AlertDialog.show({
+      title: UiText.get($r('app.string.network_restore_all')),
+      message: UiText.get($r('app.string.network_restore_all_confirm')),
+      primaryButton: { value: UiText.get($r('app.string.action_cancel')), action: () => {} },
+      secondaryButton: { value: UiText.get($r('app.string.network_restore_all')), action: () => {
+        if (!this.onNetworkPage() || this.saving || generation !== this.saveGeneration) { return; }
+        this.accessIndex = 0;
+        this.persist(['accessMode']);
+      } }
+    });
+  }
+
+  private openTraffic(): void {
+    if (!this.onNetworkPage() || this.saving) { return; }
+    this.navStack.pushPath({ name: 'traffic' });
   }
 
   @Builder
@@ -125,41 +125,6 @@ export struct NetworkSettingsPage {
   }
 
   @Builder
-  AddPkgDialog() {
-    Column({ space: 14 }) {
-      Text(UiText.get($r('app.string.network_add_package')))
-        .fontSize(17)
-        .fontWeight(FontWeight.Medium)
-        .fontColor(UI.ink)
-      TextInput({ placeholder: UiText.get($r('app.string.network_package_placeholder')), text: this.inputPkg }).constraintSize({ minHeight: 48 })
-        .width('100%')
-        .onChange((v: string) => {
-          this.inputPkg = v;
-        })
-      Row({ space: 12 }) {
-        Button(UiText.get($r('app.string.network_cancel')))
-          .constraintSize({ minHeight: 48 })
-          .layoutWeight(1)
-          .backgroundColor(UI.soft)
-          .fontColor(UI.ink)
-          .onClick(() => {
-            this.cancelAddPackage();
-          })
-        Button(UiText.get($r('app.string.network_add')))
-          .constraintSize({ minHeight: 48 }).backgroundColor(UI.action).fontColor(UI.onAccent)
-          .layoutWeight(1)
-          .onClick(() => {
-            this.addPackage();
-          })
-      }
-      .width('100%')
-    }
-    .padding(20)
-    .backgroundColor(UI.surface)
-    .borderRadius(24)
-  }
-
-  @Builder
   RouteDetails() {
     Column({ space: 12 }) {
       Text(UiText.get($r('app.string.network_routes'))).fontSize(17).fontWeight(FontWeight.Medium).fontColor(UI.ink)
@@ -180,6 +145,7 @@ export struct NetworkSettingsPage {
         SettingsReconnectButton()
         Column() {
           this.ToggleRow('IPv6', UiText.get($r('app.string.network_next_start')), this.ipv6, (v: boolean) => {
+            if (!this.onNetworkPage() || this.saving) { return; }
             this.ipv6 = v;
             this.persist(['ipv6']);
           })
@@ -188,121 +154,25 @@ export struct NetworkSettingsPage {
         .backgroundColor(UI.surface)
         .borderRadius(24)
 
-        Column({ space: 0 }) {
-          Row() {
-            Text(UiText.get($r('app.string.network_per_app')))
-              .fontSize(13)
-              .fontColor(UI.muted)
-            Blank()
-          }
-          .width('100%')
-          .padding({ top: 13, bottom: 6, left: 14, right: 14 })
-
-          Row({ space: 0 }) {
-            ForEach(ACCESS_MODES, (label: string, index: number) => {
-              Text(label).accessibilityRole(AccessibilityRoleType.BUTTON).accessibilitySelected(this.accessIndex === index)
-                .fontSize(14)
-                .constraintSize({ minHeight: 48 })
-                .layoutWeight(1)
-                .textAlign(TextAlign.Center)
-                .fontWeight(this.accessIndex === index ? FontWeight.Medium : FontWeight.Regular)
-                .fontColor(this.accessIndex === index ? UI.onAccent : UI.muted)
-                .backgroundColor(this.accessIndex === index ? UI.action : Color.Transparent)
-                .borderRadius(14)
-                .padding({ left: 4, right: 4 })
-                .stateStyles({
-                  pressed: { .opacity(0.6) },
-                  normal: { .opacity(1.0) }
-                })
-                .onClick(() => {
-                  this.accessIndex = index;
-                  this.persist(['accessMode']);
-                    })
-            }, (label: string) => label)
-          }
-          .backgroundColor(UI.soft)
-          .borderRadius(24)
-          .padding(2)
-          .margin({ left: 14, right: 14, bottom: 8 })
-
+        Column({ space: 12 }) {
+          Text(UiText.get($r('app.string.network_sources'))).fontSize(17).fontWeight(FontWeight.Medium).fontColor(UI.ink).width('100%')
+          Button(UiText.get($r('app.string.network_open_sources'))).constraintSize({ minHeight: 48 }).width('100%').backgroundColor(UI.action).fontColor(UI.onAccent)
+            .onClick(() => this.openTraffic())
           if (this.accessIndex > 0) {
-            if (this.accessIndex === 1 && this.accessList.filter((pkg: string) =>
-              validVpnBundleName(pkg) && pkg !== (getContext(this) as common.UIAbilityContext).applicationInfo.name).length === 0) {
-              Text(UiText.get($r('app.string.network_add_required'))).fontSize(13).fontColor(UI.error)
-                .width('100%').padding({ left: 14, right: 14, bottom: 6 })
-            }
-            ForEach(this.accessList, (pkg: string) => {
-              Row() {
-                Text(pkg)
-                  .fontSize(15)
-                  .fontWeight(FontWeight.Medium)
-                  .fontColor(UI.ink)
-                  .layoutWeight(1)
-                  .maxLines(1)
-                  .textOverflow({ overflow: TextOverflow.Ellipsis })
-                Row() {
-                  SymbolGlyph($r('sys.symbol.xmark')).accessibilityLevel('no')
-                    .fontSize(16)
-                    .fontColor([UI.muted])
-                }
-                .width(48)
-                .constraintSize({ minHeight: 48 })
-                .justifyContent(FlexAlign.Center)
-                .margin({ left: 8 })
-                .stateStyles({
-                  pressed: { .opacity(0.6) },
-                  normal: { .opacity(1.0) }
-                })
-                .accessibilityRole(AccessibilityRoleType.BUTTON).accessibilityText(UiText.get($r('app.string.network_remove_app'), pkg))
-                .onClick(() => {
-                  this.accessList = this.accessList.filter((x) => x !== pkg);
-                  this.persist(['accessList']);
-                })
-              }
-              .width('100%')
-              .padding({ top: 2, bottom: 2, left: 14, right: 6 })
-            }, (pkg: string) => pkg)
-
-            Row({ space: 6 }) {
-              SymbolGlyph($r('sys.symbol.plus'))
-                .fontSize(14)
-                .fontColor([UI.accentText])
-              Text(UiText.get($r('app.string.network_add_short')))
-                .fontSize(14)
-                .fontColor(UI.accentText)
-            }
-            .width('100%')
-            .constraintSize({ minHeight: 48 })
-            .padding({ top: 10, bottom: 14, left: 14, right: 14 })
-            .stateStyles({
-              pressed: { .opacity(0.6) },
-              normal: { .opacity(1.0) }
-            })
-            .accessibilityRole(AccessibilityRoleType.BUTTON).accessibilityText(UiText.get($r('app.string.network_add_package')))
-            .onClick(() => {
-              this.inputPkg = '';
-              this.showAddDialog = true;
-            })
+            Text(UiText.get(this.accessIndex === 1 ? $r('app.string.network_scope_only') : $r('app.string.network_scope_except'), this.accessList.length))
+              .fontSize(14).fontColor(UI.ink).width('100%')
+            Button(UiText.get($r('app.string.network_restore_all'))).constraintSize({ minHeight: 48 }).width('100%').backgroundColor(UI.soft).fontColor(UI.accentText)
+              .onClick(() => this.restoreAll())
           }
-        }
-        .width('100%')
-        .backgroundColor(UI.surface)
-        .borderRadius(24)
+        }.padding(20).width('100%').backgroundColor(UI.surface).borderRadius(24)
 
         Button(UiText.get($r('app.string.network_routes'))).constraintSize({ minHeight: 48 }).width('100%').backgroundColor(UI.soft).fontColor(UI.ink)
           .onClick(() => { this.showRouteDetails = true; })
-
-        Text(UiText.get($r('app.string.network_package_help')))
-          .fontSize(13)
-          .fontColor(UI.muted)
-          .width('100%')
-          .padding({ left: 4 })
       }
       .width('100%')
       .padding({ left: 24, right: 24, top: 8 })
     }
-    .width('100%').height('100%').enabled(this.ready).backgroundColor(UI.paper).constraintSize({ maxWidth: 760 }).alignSelf(ItemAlign.Center)
+    .width('100%').height('100%').enabled(this.ready && !this.saving).backgroundColor(UI.paper).constraintSize({ maxWidth: 760 }).alignSelf(ItemAlign.Center)
     .bindSheet($$this.showRouteDetails, this.RouteDetails(), { height: SheetSize.MEDIUM })
-    .bindSheet($$this.showAddDialog, this.AddPkgDialog(), { height: SheetSize.MEDIUM })
   }
 }
