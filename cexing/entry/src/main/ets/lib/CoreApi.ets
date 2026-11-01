@@ -575,6 +575,13 @@ function validAppTrafficRoutes(routes: AppTrafficRoutes): boolean {
   });
 }
 
+function validAppIdentityFailures(failures: Record<string, number>): boolean {
+  if (failures === null || typeof failures !== 'object' || Array.isArray(failures)) { return false; }
+  const keys = Object.keys(failures);
+  return keys.length <= 16 && keys.every((key: string) => key.length <= 64 &&
+    typeof failures[key] === 'number' && Number.isSafeInteger(failures[key]) && failures[key] >= 0);
+}
+
 function validAppTrafficSummary(summary: AppTrafficSummary): boolean {
   if (summary === null || typeof summary !== 'object' || summary.schemaVersion !== 1 ||
     typeof summary.session !== 'string' || !/^[0-9a-f]{32}$/.test(summary.session) ||
@@ -582,6 +589,7 @@ function validAppTrafficSummary(summary: AppTrafficSummary): boolean {
     typeof summary.partial !== 'boolean' ||
     ![summary.startedAt, summary.endedAt].every((time: number) =>
       typeof time === 'number' && Number.isFinite(time) && time >= 0) ||
+    !validAppIdentityFailures(summary.identityFailures) ||
     !Array.isArray(summary.routeTargets) || summary.routeTargets.length > 4096 ||
     !summary.routeTargets.every((target: string) => typeof target === 'string' && target.length <= 1024) ||
     !validAppTrafficRoutes(summary.totals) || !Array.isArray(summary.apps) || summary.apps.length > 129) { return false; }

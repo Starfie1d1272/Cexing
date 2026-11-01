@@ -165,6 +165,17 @@ export struct TrafficPage {
     if (this.appSummary.state === 'closed') { return UiText.get($r('app.string.traffic_session_ended')); }
     return this.sessionLabel();
   }
+  private identityFailureKeys(): string[] {
+    const failures = this.appSummary?.identityFailures;
+    if (failures === undefined) { return []; }
+    return ['consumerUnavailable', 'timeout', 'notFound', 'unsupported', 'error', 'overflow',
+      'missingTuple', 'routeIdentityRequired', 'sessionEnded'].filter((key: string) => failures[key] > 0);
+  }
+  private sourcesUnidentified(): boolean {
+    return this.appSummary !== null && this.total(this.appSummary.totals) > 0 &&
+      !this.appRows.some((row: AppTrafficRow) => row.identityStatus === 'uid' && row.uid >= 0) &&
+      this.identityFailureKeys().length > 0;
+  }
   private openApp(row: AppTrafficRow): void {
     this.detailRequest++; this.routeBusy = SourceNotes.writing; this.routeMessage = '';
     this.routeChoices = this.routeOptions();
@@ -292,6 +303,9 @@ export struct TrafficPage {
         Text($r('app.string.traffic_apps')).fontSize(18).fontWeight(FontWeight.Medium).fontColor(UI.ink).layoutWeight(1)
         Text($r('app.string.traffic_proxy_order')).fontSize(11).fontColor(UI.muted)
       }.width('100%')
+      if (this.sourcesUnidentified()) {
+        Text($r('app.string.traffic_sources_unidentified')).fontSize(12).fontColor(UI.muted).width('100%')
+      }
       if (this.appRows.length > 0) {
         Column() {
           ForEach(this.appRows, (row: AppTrafficRow, index: number) => {
@@ -381,12 +395,18 @@ export struct TrafficPage {
       }
       Column({ space: 12 }) {
         Row({ space: 8 }) {
-          Text($r('app.string.traffic_recent_rules')).fontSize(16).fontWeight(FontWeight.Medium).fontColor(UI.ink).layoutWeight(1)
+          Text(row.identityStatus === 'unknown' ? $r('app.string.traffic_source_details') : $r('app.string.traffic_recent_rules')).fontSize(16).fontWeight(FontWeight.Medium).fontColor(UI.ink).layoutWeight(1)
           SymbolGlyph(this.showReasons ? $r('sys.symbol.chevron_up') : $r('sys.symbol.chevron_down')).fontSize(14).fontColor([UI.muted])
         }.width('100%').constraintSize({ minHeight: 44 }).accessibilityRole(AccessibilityRoleType.BUTTON)
-          .accessibilityText(UiText.get($r('app.string.traffic_recent_rules'))).onClick(() => { this.showReasons = !this.showReasons; })
+          .accessibilityText(UiText.get(row.identityStatus === 'unknown' ? $r('app.string.traffic_source_details') : $r('app.string.traffic_recent_rules'))).onClick(() => { this.showReasons = !this.showReasons; })
         if (this.showReasons) {
-          Text(UiText.get($r('app.string.traffic_uid'), row.uid)).fontSize(12).fontColor(UI.muted)
+          if (row.uid >= 0) { Text(UiText.get($r('app.string.traffic_uid'), row.uid)).fontSize(12).fontColor(UI.muted) }
+          if (row.identityStatus === 'unknown' && this.identityFailureKeys().length > 0) {
+            Text($r('app.string.traffic_identity_failure_counts')).fontSize(12).fontColor(UI.muted).width('100%')
+            ForEach(this.identityFailureKeys(), (key: string) => {
+              Text(`${key}: ${this.appSummary?.identityFailures[key] ?? 0}`).fontSize(12).fontColor(UI.muted).width('100%')
+            }, (key: string) => `${key}:${this.appSummary?.identityFailures[key] ?? 0}`)
+          }
           Text($r('app.string.traffic_identity_unverified')).fontSize(12).fontColor(UI.muted)
           if (row.recent.length === 0) { Text($r('app.string.traffic_no_rules')).fontSize(13).fontColor(UI.muted).width('100%') }
           ForEach(row.recent, (reason: AppTrafficReason) => {

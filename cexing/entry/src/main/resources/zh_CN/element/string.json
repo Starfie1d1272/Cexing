@@ -4471,6 +4471,18 @@
     {
       "name": "routing_session_sources",
       "value": "本次连接的来源分流"
+    },
+    {
+      "name": "traffic_sources_unidentified",
+      "value": "本次尚未识别到来源"
+    },
+    {
+      "name": "traffic_source_details",
+      "value": "技术详情"
+    },
+    {
+      "name": "traffic_identity_failure_counts",
+      "value": "本次会话累计识别失败"
     }
   ]
 }

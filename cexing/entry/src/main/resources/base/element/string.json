@@ -4471,6 +4471,18 @@
     {
       "name": "routing_session_sources",
       "value": "Source routing for this connection"
+    },
+    {
+      "name": "traffic_sources_unidentified",
+      "value": "No sources identified in this session yet"
+    },
+    {
+      "name": "traffic_source_details",
+      "value": "Technical details"
+    },
+    {
+      "name": "traffic_identity_failure_counts",
+      "value": "Identity failures accumulated in this session"
     }
   ]
 }
