@@ -44,13 +44,27 @@ export struct RoutingWizard {
     this.visible = true;
     this.registerBackGuard(() => {
       if (this.legacy || this.regionCreation) { if (this.legacyGuard?.()) { return true; } this.legacy = false; this.regionCreation = false; this.load(); return true; }
-      return this.view.busy || this.confirming || this.editing || this.model?.blocked() === true;
+      if (this.working() || this.editing) { return true; }
+      if (this.view.changed) { this.saveBeforeBack(); return true; }
+      return false;
     });
     this.model = new RoutingModel(createTemplateWizardHost(getContext(this) as common.UIAbilityContext, this.profileId, this.editor), (view: RoutingView) => { this.view = view; });
     this.load();
   }
   aboutToDisappear(): void { this.visible = false; this.generation++; this.model?.close(); this.registerBackGuard(null); }
   private load(): void { this.model?.load(ProfileApplyFeedback.recovery(getContext(this) as common.UIAbilityContext)); }
+  private async saveBeforeBack(): Promise<void> {
+    const model = this.model;
+    if (!this.visible || model === null || this.working() || this.editing) { return; }
+    const epoch = ++this.generation; this.confirming = true;
+    try {
+      const saved = await model.inspect();
+      if (saved && this.visible && epoch === this.generation) { this.onClose(); }
+    } catch (_) {
+      if (this.visible && epoch === this.generation) { promptAction.showToast({ message: this.t('editor_draft_failed') }); }
+    } finally { if (this.visible && epoch === this.generation) { this.confirming = false; } }
+  }
+
   private displayMessage(message: string): string {
     const keys: Record<string, string> = {};
     keys['节点范围暂不可用，请检查订阅来源后重试'] = 'routing_scope_unavailable';
