@@ -1,7 +1,7 @@
 import { LengthMetrics } from '@kit.ArkUI';
 import { deviceInfo } from '@kit.BasicServicesKit';
 import { UiText } from '../lib/UiText';
-import { CoreApi, TrafficMsg, formatRate, AppTrafficSummary, AppTrafficRow, AppTrafficRoutes, AppTrafficBytes, AppTrafficReason } from '../lib/CoreApi';
+import { CoreApi, TrafficMsg, formatRate, AppTrafficSummary, AppTrafficRow, AppTrafficRoutes, AppTrafficBytes, AppTrafficReason, AppRouteRule } from '../lib/CoreApi';
 import { TrafficStats, TrafficView, TrafficPoint } from '../lib/TrafficStats';
 import { TrafficBucket } from '../lib/TrafficLedger';
 import { SourceTrafficStats, SourceTrafficView, SourceTrafficPeriod } from '../lib/SourceTrafficStats';
@@ -43,6 +43,7 @@ export struct TrafficPage {
   @State private routeBusy: boolean = false;
   @State private routeChoices: string[] = [];
   @State private routeMessage: string = '';
+  @State private recoveryMessage: string = '';
   @State private note: string = '';
   private detailRequest: number = 0;
   private appRequest: number = 0;
@@ -70,7 +71,7 @@ export struct TrafficPage {
     this.watcher.stop(); VpnController.offChanged(this.listener);
   }
   private openRates(): void {
-    this.appRequest++; this.detailRequest++; this.routeBusy = false;
+    this.appRequest++; this.detailRequest++; this.routeBusy = false; this.recoveryMessage = '';
     this.appSummary = null; this.appRows = []; this.selected = null; this.showApp = false;
     this.appLoading = true;
     this.refreshApps();
@@ -109,13 +110,15 @@ export struct TrafficPage {
   private readSources(): void {
     this.sourceView = SourceTrafficStats.view(this.sourcePeriod);
     this.appSummary = this.sourceView.live;
+    this.routeChoices = this.routeOptions();
     this.appReadFailed = this.sourceView.readFailed;
     this.appLoading = !this.sourceView.ready && !this.sourceView.readFailed && VpnController.status === VpnStatus.Connected;
     this.appRows = this.sourceView.rows.slice().sort((a: AppTrafficRow, b: AppTrafficRow) =>
       this.routeBytes(b.routes.proxy) - this.routeBytes(a.routes.proxy) || a.uid - b.uid);
     if (this.selected !== null) {
       const key = this.rowKey(this.selected);
-      this.selected = this.appRows.find((row: AppTrafficRow) => this.rowKey(row) === key) ?? null;
+      this.selected = this.appRows.find((row: AppTrafficRow) => this.rowKey(row) === key) ??
+        (this.savedRules().some((rule: AppRouteRule) => String(rule.uid) === key) ? this.ruleRow(this.selected.uid) : null);
       if (this.selected === null) { this.showApp = false; }
     }
   }
@@ -200,29 +203,100 @@ export struct TrafficPage {
     return target === '' ? UiText.get($r('app.string.traffic_route_follow')) :
       target === 'DIRECT' ? UiText.get($r('app.string.traffic_direct')) : target;
   }
-  private routeOptions(): string[] { return ['', 'DIRECT'].concat((this.appSummary?.routeTargets ?? []).filter((name: string) => name !== '' && name !== 'DIRECT')); }
-  private canRoute(row: AppTrafficRow): boolean {
-    return row.identityStatus === 'uid' && row.uid >= 0 && this.appSummary?.state === 'running' &&
-      VpnController.status === VpnStatus.Connected && !this.appReadFailed &&
-      this.appSummary.apps.some((live: AppTrafficRow) => live.uid === row.uid && live.identityStatus === 'uid');
+  private savedRules(): AppRouteRule[] {
+    const status = this.sourceView.routeStatus;
+    return status !== null && !status.blocked && ['ready', 'writeError'].includes(status.storage) ? status.rules : this.sourceView.savedRoutes;
   }
-  private currentRoute(row: AppTrafficRow): string {
-    return this.appSummary?.apps.find((live: AppTrafficRow) => live.uid === row.uid)?.routeTarget ?? '';
+  private ruleRow(uid: number): AppTrafficRow {
+    const existing = this.appRows.find((row: AppTrafficRow) => row.uid === uid);
+    if (existing !== undefined) { return existing; }
+    return { uid: uid, identityStatus: 'uid', bundleName: '', bundleVerified: false, routeTarget: '', lastSeen: 0, recent: [],
+      routes: { proxy: { upload: 0, download: 0, connections: 0, active: 0 },
+        direct: { upload: 0, download: 0, connections: 0, active: 0 },
+        unclassified: { upload: 0, download: 0, connections: 0, active: 0 } } };
+  }
+  private routeOptions(): string[] { return ['', 'DIRECT'].concat((this.sourceView.routeStatus?.routeTargets ?? []).filter((name: string) => name !== '' && name !== 'DIRECT')); }
+  private routeOnline(): boolean {
+    return this.active && VpnController.status === VpnStatus.Connected && !this.sourceView.routeReadFailed &&
+      this.sourceView.routeStatus?.state === 'running';
+  }
+  private canRoute(row: AppTrafficRow): boolean {
+    const status = this.sourceView.routeStatus;
+    return this.routeOnline() && status !== null && !status.blocked && ['ready', 'writeError'].includes(status.storage) &&
+      row.identityStatus === 'uid' && row.uid >= 0 &&
+      (status.rules.some((rule: AppRouteRule) => rule.uid === row.uid) ||
+        (this.appSummary?.session === status.session && this.appSummary?.apps.some((live: AppTrafficRow) => live.uid === row.uid && live.identityStatus === 'uid') === true));
+  }
+  private currentRoute(row: AppTrafficRow): string { return this.savedRules().find((rule: AppRouteRule) => rule.uid === row.uid)?.target ?? ''; }
+  private missingRoute(row: AppTrafficRow): boolean {
+    return this.routeOnline() && this.sourceView.routeStatus?.rules.some((rule: AppRouteRule) => rule.uid === row.uid && !rule.available) === true;
+  }
+  private currentRouteRequest(request: number, session: string, host: string): boolean {
+    return this.active && request === this.appRequest && VpnController.status === VpnStatus.Connected &&
+      host === VpnController.trafficSession() && SourceTrafficStats.view().routeStatus?.session === session;
   }
   private async changeRoute(row: AppTrafficRow, target: string): Promise<void> {
-    if (SourceRouteWrite.writing || !this.canRoute(row) || this.appSummary === null) { return; }
-    const session = this.appSummary.session; const key = this.rowKey(row); const request = this.detailRequest;
+    this.readSources();
+    if (SourceRouteWrite.writing || !this.canRoute(row) || this.sourceView.routeStatus === null || !this.routeOptions().includes(target)) { return; }
+    const session = this.sourceView.routeStatus.session; const key = this.rowKey(row); const request = this.detailRequest;
+    const pageRequest = this.appRequest; const host = VpnController.trafficSession();
     SourceRouteWrite.writing = true; this.routeBusy = true; this.routeMessage = '';
     let saved = false;
-    try { saved = await CoreApi.setAppRoute(session, row.uid, target); }
-    catch (_) { saved = false; }
-    finally { SourceRouteWrite.writing = false; }
-
-    if (!this.active || !this.showApp || request !== this.detailRequest || session !== this.appSummary?.session ||
+    try {
+      saved = await CoreApi.setAppRoute(session, row.uid, target);
+      await SourceTrafficStats.refreshLive();
+    } catch (_) { saved = false; }
+    finally { SourceRouteWrite.writing = false; if (this.active) { this.routeBusy = false; } }
+    if (!this.currentRouteRequest(pageRequest, session, host) || !this.showApp || request !== this.detailRequest ||
       this.selected === null || this.rowKey(this.selected) !== key) { return; }
-    this.routeBusy = false;
     this.routeMessage = UiText.get(saved ? $r('app.string.traffic_route_saved') : $r('app.string.traffic_route_failed'));
-    this.appSampleAt = 0; await this.refreshApps();
+    this.readSources();
+  }
+  private routeWarning(): string {
+    const status = this.sourceView.routeStatus;
+    if (this.sourceView.routeReadFailed) { return UiText.get($r('app.string.traffic_routes_read_failed')); }
+    if (status !== null && (status.blocked || ['corrupt', 'readError'].includes(status.storage))) {
+      return UiText.get($r('app.string.traffic_routes_storage_failed'));
+    }
+    if (status?.storage === 'writeError') { return UiText.get($r('app.string.traffic_routes_write_failed')); }
+    return '';
+  }
+  private canResetRoutes(): boolean { return this.routeOnline() && this.sourceView.routeStatus?.storage !== 'ready'; }
+  private confirmResetRoutes(): void {
+    this.readSources();
+    if (SourceRouteWrite.writing || !this.canResetRoutes() || this.sourceView.routeStatus === null) { return; }
+    const request = this.appRequest; const session = this.sourceView.routeStatus.session; const host = VpnController.trafficSession();
+    let used = false;
+    const cancel = (): void => { used = true; };
+    AlertDialog.show({ title: UiText.get($r('app.string.traffic_routes_reset')),
+      message: UiText.get($r('app.string.traffic_routes_reset_confirm')), cancel: cancel,
+      primaryButton: { value: UiText.get($r('app.string.action_cancel')), action: cancel },
+      secondaryButton: { value: UiText.get($r('app.string.traffic_routes_reset')), action: () => {
+        if (used || !this.currentRouteRequest(request, session, host)) { return; }
+        used = true; this.recoverRoutes('reset');
+      } }
+    });
+  }
+  private async recoverRoutes(action: string): Promise<void> {
+    this.readSources();
+    if (!this.active || SourceRouteWrite.writing || VpnController.status !== VpnStatus.Connected ||
+      (action === 'reset' && !this.canResetRoutes())) { return; }
+    const request = this.appRequest; const host = VpnController.trafficSession(); const status = this.sourceView.routeStatus;
+    const session = status?.session ?? '';
+    SourceRouteWrite.writing = true; this.routeBusy = true; this.recoveryMessage = '';
+    let success = true;
+    try {
+      if (status !== null && this.routeOnline() && status.storage !== 'ready') {
+        success = await CoreApi.recoverAppRoutes(session, action);
+      }
+      await SourceTrafficStats.refreshLive();
+    } catch (_) { success = false; }
+    finally { SourceRouteWrite.writing = false; if (this.active) { this.routeBusy = false; } }
+    if (!this.active || request !== this.appRequest || host !== VpnController.trafficSession() ||
+      VpnController.status !== VpnStatus.Connected || (session !== '' && !this.currentRouteRequest(request, session, host))) { return; }
+    this.readSources();
+    if (!success) { this.recoveryMessage = UiText.get($r('app.string.traffic_route_failed')); }
+    else if (action === 'reset') { this.recoveryMessage = UiText.get($r('app.string.traffic_routes_reset_done')); }
   }
   private lastSeen(row: AppTrafficRow): string {
     return row.lastSeen > 0 ? UiText.get($r('app.string.traffic_last_seen'),
@@ -311,6 +385,35 @@ export struct TrafficPage {
     }.width('100%').padding(20).borderRadius(24).backgroundColor(UI.surface)
   }
   @Builder
+  SavedRoutes() {
+    if (this.savedRules().length > 0 || this.routeWarning().length > 0 || this.recoveryMessage.length > 0) {
+      Column({ space: 12 }) {
+        Text($r('app.string.traffic_saved_routes')).fontSize(18).fontWeight(FontWeight.Medium).fontColor(UI.ink).width('100%')
+        if (!this.routeOnline() && this.savedRules().length > 0) { Text($r('app.string.traffic_routes_offline')).fontSize(12).fontColor(UI.muted).width('100%') }
+        if (this.routeWarning().length > 0) {
+          Text(this.routeWarning()).fontSize(13).fontColor(UI.error).width('100%')
+          Button($r('app.string.traffic_routes_retry')).constraintSize({ minHeight: 44 }).enabled(!this.routeBusy && VpnController.status === VpnStatus.Connected)
+            .onClick(() => { this.recoverRoutes('retry'); })
+          if (this.canResetRoutes()) {
+            Button($r('app.string.traffic_routes_reset')).constraintSize({ minHeight: 44 }).enabled(!this.routeBusy).onClick(() => this.confirmResetRoutes())
+          }
+        }
+        if (this.recoveryMessage.length > 0) { Text(this.recoveryMessage).fontSize(13).fontColor(UI.muted).width('100%') }
+        ForEach(this.savedRules(), (rule: AppRouteRule) => {
+          Row({ space: 12 }) {
+            Column({ space: 6 }) {
+              Text(this.appName(this.ruleRow(rule.uid))).fontSize(15).fontColor(UI.ink)
+              Text(this.routeLabel(rule.target)).fontSize(13).fontColor(UI.muted)
+              if (this.missingRoute(this.ruleRow(rule.uid))) { Text($r('app.string.traffic_route_unavailable')).fontSize(12).fontColor(UI.error) }
+            }.layoutWeight(1).alignItems(HorizontalAlign.Start)
+            SymbolGlyph($r('sys.symbol.chevron_right')).fontSize(12).fontColor([UI.muted])
+          }.width('100%').constraintSize({ minHeight: 64 }).accessibilityRole(AccessibilityRoleType.BUTTON)
+            .onClick(() => this.openApp(this.ruleRow(rule.uid)))
+        }, (rule: AppRouteRule) => `${rule.uid}:${rule.target}:${rule.available}`)
+      }.padding(20).width('100%').backgroundColor(UI.surface).borderRadius(24)
+    }
+  }
+  @Builder
   AppUsage() {
     Column({ space: 14 }) {
       Row({ space: 8 }) {
@@ -396,19 +499,22 @@ export struct TrafficPage {
           Text(this.appState()).fontSize(12).fontColor(UI.muted)
         }.alignItems(HorizontalAlign.Start).layoutWeight(1)
       }.width('100%')
-      if (row.uid >= 0) {
+      if (row.uid >= 0 && this.sourceView.numbers[this.rowKey(row)] !== undefined) {
         TextInput({ text: this.note, placeholder: UiText.get($r('app.string.traffic_note_placeholder')) }).maxLength(40)
           .accessibilityText(UiText.get($r('app.string.traffic_note_placeholder')))
           .onChange((value: string) => { this.saveNote(row, value).catch(() => {}); })
       }
       if (!this.sourceView.saved) { Text($r('app.string.traffic_unsaved')).fontSize(12).fontColor(UI.muted).width('100%') }
       if (this.targets(row).length > 0) { Text(this.targets(row)).fontSize(13).fontColor(UI.muted).width('100%') }
-      if (this.canRoute(row)) {
+      if (this.canRoute(row) || this.currentRoute(row) !== '') {
         Column({ space: 10 }) {
           Text($r('app.string.traffic_route_title')).fontSize(16).fontColor(UI.ink).width('100%')
+          if (this.routeWarning().length > 0) { Text(this.routeWarning()).fontSize(12).fontColor(UI.error).width('100%') }
+          if (this.missingRoute(row)) { Text($r('app.string.traffic_route_unavailable')).fontSize(12).fontColor(UI.error).width('100%') }
           Select(this.routeChoices.map((target: string): SelectOption => ({ value: this.routeLabel(target) })))
-            .value(this.routeLabel(this.currentRoute(row))).enabled(!this.routeBusy)
+            .value(this.routeLabel(this.currentRoute(row))).enabled(!this.routeBusy && this.canRoute(row))
             .onSelect((index: number) => { const target = this.routeChoices[index]; if (target !== undefined) { this.changeRoute(row, target); } })
+          if (!this.routeOnline()) { Text($r('app.string.traffic_routes_offline')).fontSize(12).fontColor(UI.muted).width('100%') }
           Text($r('app.string.traffic_route_session')).fontSize(12).fontColor(UI.muted).width('100%')
           if (this.routeMessage.length > 0) { Text(this.routeMessage).fontSize(12).fontColor(UI.accentText).width('100%') }
         }.width('100%').padding(18).backgroundColor(UI.surface).borderRadius(24)
@@ -509,6 +615,7 @@ export struct TrafficPage {
         }.width('100%').padding(20).borderRadius(24).backgroundColor(UI.surface)
         if (this.appSummary !== null) { this.SessionSummary(this.appSummary) }
         else { this.Period(0, UiText.get($r('app.string.traffic_session'))) }
+        this.SavedRoutes()
         this.AppUsage()
         this.Period(1, UiText.get($r('app.string.traffic_today')))
         this.Period(2, UiText.get($r('app.string.traffic_month')))

@@ -15,13 +15,13 @@ import (
 	"github.com/metacubex/mihomo/tunnel"
 )
 
-// shortcut: UID policies expire with this TUN session; persistence needs verified app identity.
 const appRouteIdentityTimeout = 1200 * time.Millisecond
 
 type appRouteContext struct {
 	session *appTrafficSession
 	uid     int64
 	target  string
+	err     error
 }
 
 func (s *appTrafficSession) rowLocked(uid int64) *appTrafficRow {
@@ -52,7 +52,7 @@ func appTrafficTarget(metadata *C.Metadata) string {
 }
 
 // This runs on Mihomo's connection goroutine, before selecting or dialing an outbound.
-func resolveAppRoute(metadata *C.Metadata) (string, error) {
+func resolveAppRoute(metadata *C.Metadata) (target string, err error) {
 	if metadata.Type != C.TUN {
 		return "", nil
 	}
@@ -62,7 +62,10 @@ func resolveAppRoute(metadata *C.Metadata) (string, error) {
 		if resolved.session.stopped || resolved.session != appTrafficCurrent.Load() {
 			return "", errors.New("source session ended")
 		}
-		return resolved.target, nil
+		if resolved.session.routesBlocked || !appRouteAvailable(resolved.target) {
+			return "", errors.New("source route unavailable")
+		}
+		return resolved.target, resolved.err
 	}
 	s, ok := metadata.TrackerContext.(*appTrafficSession)
 	if !ok || s == nil {
@@ -70,6 +73,7 @@ func resolveAppRoute(metadata *C.Metadata) (string, error) {
 	}
 	resolved := &appRouteContext{session: s, uid: -1}
 	metadata.TrackerContext = resolved
+	defer func() { resolved.target = target; resolved.err = err }()
 	local, localOK := rawIdentityAddress(metadata.RawSrcAddr)
 	remote, remoteOK := rawIdentityAddress(metadata.RawDstAddr)
 	protocol := metadata.NetWork.String()
@@ -77,6 +81,10 @@ func resolveAppRoute(metadata *C.Metadata) (string, error) {
 	if s.stopped || s != appTrafficCurrent.Load() {
 		s.mu.Unlock()
 		return "", errors.New("source session ended")
+	}
+	if s.routesBlocked {
+		s.mu.Unlock()
+		return "", errors.New("source route storage unavailable")
 	}
 	s.expireLocked()
 	status := ""
@@ -120,17 +128,25 @@ func resolveAppRoute(metadata *C.Metadata) (string, error) {
 	if s.stopped || s != appTrafficCurrent.Load() {
 		return "", errors.New("source session ended")
 	}
-	target, err := s.routeLocked(resolved.uid)
+	target, err = s.routeLocked(resolved.uid)
 	resolved.target = target
 	return target, err
 }
 
 func (s *appTrafficSession) routeLocked(uid int64) (string, error) {
+	if s.routesBlocked {
+		return "", errors.New("source route storage unavailable")
+	}
 	if uid < 0 && len(s.policies) > 0 {
 		s.failures["routeIdentityRequired"]++
 		return "", errors.New("source identity unavailable for routing")
 	}
-	return s.policies[uid], nil
+	target := s.policies[uid]
+	if !appRouteAvailable(target) {
+		s.failures["routeUnavailable"]++
+		return "", errors.New("source route unavailable")
+	}
+	return target, nil
 }
 
 func putAppRoute(w MHTTP.ResponseWriter, req *MHTTP.Request) {
@@ -141,7 +157,7 @@ func putAppRoute(w MHTTP.ResponseWriter, req *MHTTP.Request) {
 	}
 	decoder := json.NewDecoder(io.LimitReader(req.Body, 4097))
 	decoder.DisallowUnknownFields()
-	if decoder.Decode(&body) != nil || decoder.Decode(new(any)) != io.EOF || body.UID == nil || *body.UID < 0 || *body.UID > 2147483647 || len(body.Target) > 256 {
+	if decoder.Decode(&body) != nil || decoder.Decode(new(any)) != io.EOF || body.UID == nil || *body.UID < 0 || *body.UID > 2147483647 || (body.Target != "" && !validAppRouteTarget(body.Target)) {
 		controllerError(w, 400, "invalid source route")
 		return
 	}
@@ -167,15 +183,25 @@ func putAppRoute(w MHTTP.ResponseWriter, req *MHTTP.Request) {
 		controllerError(w, 409, "traffic session ended")
 		return
 	}
-	if s.rows[strconv.FormatInt(*body.UID, 10)] == nil {
+	if s.rows[strconv.FormatInt(*body.UID, 10)] == nil && s.policies[*body.UID] == "" {
 		controllerError(w, 400, "source not observed")
 		return
 	}
+	next := cloneAppPolicies(s.policies)
 	if body.Target == "" {
-		delete(s.policies, *body.UID)
+		delete(next, *body.UID)
 	} else {
-		s.policies[*body.UID] = body.Target
+		next[*body.UID] = body.Target
 	}
+	durableAppRoutes.mu.Lock()
+	err := durableAppRoutes.saveLocked(next)
+	s.routesBlocked = durableAppRoutes.blocked
+	durableAppRoutes.mu.Unlock()
+	if err != nil {
+		controllerError(w, 503, "source route save failed")
+		return
+	}
+	s.policies = next
 	w.WriteHeader(MHTTP.StatusNoContent)
 }
 

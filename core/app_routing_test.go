@@ -35,6 +35,7 @@ func routeRequest(value any) *MHTTP.Request {
 }
 func routeTestSession(t *testing.T) *appTrafficSession {
 	prior := appTrafficCurrent.Load()
+	initAppRouteStore(t.TempDir())
 	s := startAppTraffic()
 	s.id = "route-test"
 	t.Cleanup(func() { stopAppTraffic(); appTrafficCurrent.Store(prior) })

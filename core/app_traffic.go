@@ -121,6 +121,7 @@ type appTrafficSession struct {
 	pending            map[string]*appIdentityPending
 	failures           map[string]int64
 	policies           map[int64]string
+	routesBlocked      bool
 	sequence           uint64
 	identityWake       chan struct{}
 	identityDone       chan struct{}
@@ -134,6 +135,8 @@ func init() {
 	tunnel.SetHostRouting(resolveAppRoute, appUDPKey)
 	route.Register(func(r chi.Router) {
 		r.Get("/ohos/app-traffic", getAppTraffic)
+		r.Get("/ohos/app-routes", getAppRoutes)
+		r.Post("/ohos/app-routes/recover", recoverAppRoutes)
 		r.Put("/ohos/app-traffic/route", putAppRoute)
 		r.Get("/ohos/app-traffic/identity", getAppIdentityRequests)
 		r.Post("/ohos/app-traffic/identity", postAppIdentityReplies)
@@ -145,6 +148,7 @@ func init() {
 func startAppTraffic() *appTrafficSession {
 	s := &appTrafficSession{id: controllerSession, startedAt: time.Now().UnixMilli(),
 		rows: make(map[string]*appTrafficRow), pending: make(map[string]*appIdentityPending), failures: make(map[string]int64), policies: make(map[int64]string), identityWake: make(chan struct{}, 1), identityDone: make(chan struct{})}
+	s.policies, s.routesBlocked = appRouteStoreSnapshot()
 	s.rows[""] = &appTrafficRow{IdentityStatus: "unknown", UID: -1, Recent: []appTrafficReason{}}
 	appTrafficCurrent.Store(s)
 	return s

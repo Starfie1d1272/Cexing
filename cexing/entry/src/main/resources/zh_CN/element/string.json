@@ -4454,11 +4454,11 @@
     },
     {
       "name": "traffic_route_session",
-      "value": "仅本次 VPN 会话有效，TCP 需新建连接。启用来源规则后，未识别流量会被阻止；DNS 沿用统一解析。"
+      "value": "规则自动保存，重连后恢复。TCP 需新建连接；启用来源规则后，未识别流量会被阻止。DNS 沿用统一解析。"
     },
     {
       "name": "traffic_route_saved",
-      "value": "已保存，请重新发起目标连接，并在下方查看实际出口。"
+      "value": "已保存"
     },
     {
       "name": "traffic_route_failed",
@@ -4470,7 +4470,7 @@
     },
     {
       "name": "routing_session_sources",
-      "value": "本次连接的来源分流"
+      "value": "来源分流"
     },
     {
       "name": "traffic_sources_unidentified",
@@ -4531,6 +4531,46 @@
     {
       "name": "traffic_history_unavailable",
       "value": "来源历史暂不可用，原记录已保留"
+    },
+    {
+      "name": "traffic_saved_routes",
+      "value": "已保存的来源规则"
+    },
+    {
+      "name": "traffic_routes_offline",
+      "value": "连接 VPN 后可修改来源规则"
+    },
+    {
+      "name": "traffic_routes_read_failed",
+      "value": "无法读取来源规则，请重试"
+    },
+    {
+      "name": "traffic_routes_storage_failed",
+      "value": "来源规则存储异常，新的网络连接已暂停"
+    },
+    {
+      "name": "traffic_routes_write_failed",
+      "value": "规则未能保存，请重试"
+    },
+    {
+      "name": "traffic_routes_retry",
+      "value": "重试读取"
+    },
+    {
+      "name": "traffic_routes_reset",
+      "value": "重置来源规则"
+    },
+    {
+      "name": "traffic_routes_reset_confirm",
+      "value": "将清除所有来源出口规则，之后跟随配置分流。原文件会在本机保留备份。"
+    },
+    {
+      "name": "traffic_route_unavailable",
+      "value": "出口已失效，此来源的新连接已阻止。请选择其他出口或跟随分流。"
+    },
+    {
+      "name": "traffic_routes_reset_done",
+      "value": "来源规则已重置"
     }
   ]
 }

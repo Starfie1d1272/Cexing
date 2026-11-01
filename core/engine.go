@@ -140,6 +140,7 @@ func coreInit(home string) (result error) {
 	_, _ = getDiagnosticStore(home, "kernel")
 	logFileMu.Unlock()
 	constant.SetHomeDir(home)
+	initAppRouteStore(home)
 	log.SetLevel(log.INFO)
 
 	// 宿主只暴露受认证的安全重载和有限 PATCH，保留上游 embed 限制。

@@ -134,6 +134,20 @@ export interface AppTrafficSummary {
   apps: AppTrafficRow[];
   identityFailures: Record<string, number>;
 }
+export interface AppRouteRule {
+  uid: number;
+  target: string;
+  available: boolean;
+}
+export interface AppRouteStatus {
+  schemaVersion: number;
+  session: string;
+  state: string;
+  storage: string;
+  blocked: boolean;
+  rules: AppRouteRule[];
+  routeTargets: string[];
+}
 export interface AppIdentityAddress {
   address: string;
   family: number;
@@ -218,9 +232,24 @@ export namespace CoreApi {
   }
 
   export async function setAppRoute(session: string, uid: number, target: string): Promise<boolean> {
-    if (!/^[0-9a-f]{32}$/.test(session) || !Number.isInteger(uid) || uid < 0 || target.length > 1024) { return false; }
+    if (!/^[0-9a-f]{32}$/.test(session) || !Number.isInteger(uid) || uid < 0 || uid > 2147483647 || target.length > 256 || /[\u0000\r\n]/.test(target)) { return false; }
     return await request(http.RequestMethod.PUT, '/ohos/app-traffic/route',
       JSON.stringify({ session: session, uid: uid, target: target })) !== null;
+  }
+
+  export async function getAppRoutes(): Promise<AppRouteStatus | null> {
+    const response = await request(http.RequestMethod.GET, '/ohos/app-routes');
+    if (response === null || response.length > 4 * 1024 * 1024) { return null; }
+    try {
+      const status = JSON.parse(response) as AppRouteStatus;
+      return validAppRouteStatus(status) ? status : null;
+    } catch (_) { return null; }
+  }
+
+  export async function recoverAppRoutes(session: string, action: string): Promise<boolean> {
+    if (!/^[0-9a-f]{32}$/.test(session) || !['retry', 'reset'].includes(action)) { return false; }
+    return await request(http.RequestMethod.POST, '/ohos/app-routes/recover',
+      JSON.stringify({ session: session, action: action })) !== null;
   }
 
   export async function replyAppIdentities(session: string, replies: AppIdentityReply[]): Promise<boolean> {
@@ -658,4 +687,18 @@ export function validAppIdentityBatch(batch: AppIdentityBatch): boolean {
     [request.local, request.remote].every((address: AppIdentityAddress) => address !== null && typeof address === 'object' &&
       typeof address.address === 'string' && address.address.length > 0 && address.address.length <= 64 &&
       (address.family === 1 || address.family === 2) && Number.isInteger(address.port) && address.port > 0 && address.port <= 65535));
+}
+
+export function validAppRouteStatus(status: AppRouteStatus): boolean {
+  if (status === null || typeof status !== 'object' || status.schemaVersion !== 1 ||
+    typeof status.session !== 'string' || (status.session !== '' && !/^[0-9a-f]{32}$/.test(status.session)) ||
+    !['running', 'closed', 'unavailable'].includes(status.state) ||
+    !['ready', 'readError', 'corrupt', 'writeError'].includes(status.storage) || typeof status.blocked !== 'boolean' ||
+    !Array.isArray(status.routeTargets) || status.routeTargets.length > 4096 ||
+    !status.routeTargets.every((target: string) => typeof target === 'string' && target.length > 0 && target.length <= 256) ||
+    !Array.isArray(status.rules) || status.rules.length > 2048) { return false; }
+  return status.rules.every((rule: AppRouteRule, index: number) => rule !== null && typeof rule === 'object' &&
+    Number.isInteger(rule.uid) && rule.uid >= 0 && rule.uid <= 2147483647 && typeof rule.target === 'string' &&
+    rule.target.length > 0 && rule.target.length <= 256 && typeof rule.available === 'boolean' &&
+    status.rules.findIndex((other: AppRouteRule) => other !== null && other.uid === rule.uid) === index);
 }

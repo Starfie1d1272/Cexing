@@ -4454,11 +4454,11 @@
     },
     {
       "name": "traffic_route_session",
-      "value": "For this VPN session; TCP requires a new connection. With a source override, unidentified traffic is blocked. DNS uses the shared resolver."
+      "value": "Rules are saved and restored on reconnect. TCP requires new connections. Unidentified traffic is blocked while source rules are enabled. DNS uses shared resolution."
     },
     {
       "name": "traffic_route_saved",
-      "value": "Saved. Reopen the target connection and check its actual route below."
+      "value": "Saved"
     },
     {
       "name": "traffic_route_failed",
@@ -4470,7 +4470,7 @@
     },
     {
       "name": "routing_session_sources",
-      "value": "Source routing for this connection"
+      "value": "Source routing"
     },
     {
       "name": "traffic_sources_unidentified",
@@ -4531,6 +4531,46 @@
     {
       "name": "traffic_history_unavailable",
       "value": "Source history is unavailable; existing records are preserved"
+    },
+    {
+      "name": "traffic_saved_routes",
+      "value": "Saved source rules"
+    },
+    {
+      "name": "traffic_routes_offline",
+      "value": "Connect VPN to edit source rules"
+    },
+    {
+      "name": "traffic_routes_read_failed",
+      "value": "Cannot read source rules. Try again."
+    },
+    {
+      "name": "traffic_routes_storage_failed",
+      "value": "Source rule storage is unavailable. New connections are blocked."
+    },
+    {
+      "name": "traffic_routes_write_failed",
+      "value": "Rules could not be saved. Try again."
+    },
+    {
+      "name": "traffic_routes_retry",
+      "value": "Retry reading"
+    },
+    {
+      "name": "traffic_routes_reset",
+      "value": "Reset source rules"
+    },
+    {
+      "name": "traffic_routes_reset_confirm",
+      "value": "Clear all source outlet rules and follow configuration routing. A backup of the original file will be kept on this device."
+    },
+    {
+      "name": "traffic_route_unavailable",
+      "value": "This outlet is unavailable and new connections from this source are blocked. Choose another outlet or follow routing."
+    },
+    {
+      "name": "traffic_routes_reset_done",
+      "value": "Source rules reset"
     }
   ]
 }

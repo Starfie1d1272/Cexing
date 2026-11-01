@@ -16,6 +16,7 @@ const timers = new Map();
 let nextTimer = 1;
 let destroys = 0;
 let totals = null;
+let routes = null;
 let versionCode = 200;
 const polls = [];
 
@@ -30,12 +31,14 @@ const modules = {
   '@kit.ArkTS': { util: {} },
   './Logger': { Logger: { info: (...args) => logs.push(args), warn: (...args) => logs.push(args) } },
   '@kit.NetworkKit': {
-    http: { RequestMethod: { GET: 'GET', PUT: 'PUT' }, createHttp: () => ({
+    http: { RequestMethod: { GET: 'GET', PUT: 'PUT', POST: 'POST' }, createHttp: () => ({
       request: async (url, options) => {
         requests.push({ url, options });
         if (url.endsWith('/identity?transport=poll')) return new Promise((resolve, reject) => polls.push({ resolve, reject, options, url }));
         if (url.endsWith('/version')) return { responseCode: versionCode, result: '{"version":"test"}' };
         if (url.endsWith('/connections')) return { responseCode: 200, result: JSON.stringify(totals) };
+        if (url.endsWith('/ohos/app-routes')) return { responseCode: 200, result: JSON.stringify(routes) };
+        if (url.endsWith('/ohos/app-routes/recover') || url.endsWith('/ohos/app-traffic/route')) return { responseCode: 204, result: '' };
         // An exception can contain the sensitive header. Client must not log it.
         throw new Error(`transport failed Authorization: ${options.header.Authorization}`);
       }, destroy: () => { destroys++; }
@@ -161,5 +164,27 @@ function fireTimer() { const [id, fn] = timers.entries().next().value; timers.de
   assert.ok(!JSON.stringify(logs).includes(stored));
   assert.equal(await CoreApi.applyConfigText('synthetic', 'b'.repeat(32)), 'unknown');
   assert.equal(JSON.parse(requests.at(-1).options.extraData).expectedSession, 'b'.repeat(32), 'transaction reload binds the intended core generation');
+  routes = { schemaVersion: 1, session: 'd'.repeat(32), state: 'running', storage: 'ready', blocked: false,
+    rules: [{ uid: 1001, target: 'DIRECT', available: true }], routeTargets: ['DIRECT'] };
+  assert.equal((await CoreApi.getAppRoutes()).rules[0].uid, 1001);
+  const { validAppRouteStatus } = context.exports;
+  assert.equal(validAppRouteStatus({ ...routes, rules: [routes.rules[0], routes.rules[0]] }), false);
+  assert.equal(validAppRouteStatus({ ...routes, rules: [{ ...routes.rules[0], uid: 2147483648 }] }), false);
+  assert.equal(validAppRouteStatus({ ...routes, rules: [{ ...routes.rules[0], target: 'x'.repeat(257) }] }), false);
+  assert.equal(validAppRouteStatus({ ...routes, storage: 'unknown' }), false);
+  routes.storage = 'corrupt'; routes.blocked = true;
+  assert.equal((await CoreApi.getAppRoutes()).blocked, true, 'Storage errors remain visible');
+  routes.schemaVersion = 2; assert.equal(await CoreApi.getAppRoutes(), null);
+  const beforeInvalid = requests.length;
+  assert.equal(await CoreApi.recoverAppRoutes('bad', 'reset'), false);
+  assert.equal(await CoreApi.recoverAppRoutes('d'.repeat(32), 'erase'), false);
+  assert.equal(await CoreApi.setAppRoute('d'.repeat(32), 2147483648, ''), false);
+  assert.equal(await CoreApi.setAppRoute('d'.repeat(32), 1001, 'x'.repeat(257)), false);
+  assert.equal(requests.length, beforeInvalid, 'Invalid rule writes never reach transport');
+  assert.equal(await CoreApi.recoverAppRoutes('d'.repeat(32), 'retry'), true);
+  assert.equal(requests.at(-1).options.method, 'POST');
+  assert.equal(requests.at(-1).options.header.Authorization, `Bearer ${stored}`);
+  assert.deepEqual(JSON.parse(requests.at(-1).options.extraData), { session: 'd'.repeat(32), action: 'retry' });
+  assert.equal(await CoreApi.setAppRoute('d'.repeat(32), 1001, ''), true);
   console.log('PASS: shared REST/WS authentication, fail-closed reads, redacted logs, reconnect and stale-session cleanup');
 })().catch(error => { console.error(error); process.exitCode = 1; });
