@@ -27,6 +27,11 @@ with tempfile.TemporaryDirectory() as directory:
         raise SystemExit('unexpected gfwlist converter')
     local_url = (sources / 'gfwlist/gfwlist.txt').resolve().as_uri()
     converter = converter.replace(old_url, 'BASE_URL=' + shlex.quote(local_url))
+    # BSD base64 accepts input on stdin; this form also works with GNU base64.
+    decode = '$BASE64_DECODE $BASE64_FILE > $GFWLIST_FILE'
+    if converter.count(decode) != 1:
+        raise SystemExit('unexpected gfwlist decode command')
+    converter = converter.replace(decode, '$BASE64_DECODE < "$BASE64_FILE" > "$GFWLIST_FILE"')
     local_converter = work / 'gfw-convert.sh'
     local_converter.write_text(converter)
     generated_gfw = work / 'gfw-domains.txt'
