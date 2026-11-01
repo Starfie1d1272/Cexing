@@ -4483,6 +4483,38 @@
     {
       "name": "traffic_identity_failure_counts",
       "value": "本次会话累计识别失败"
+    },
+    {
+      "name": "network_restore_previous",
+      "value": "恢复原应用范围"
+    },
+    {
+      "name": "network_restore_only_confirm",
+      "value": "下次连接 VPN 后，仅原名单中的 %d 个应用接入 VPN。"
+    },
+    {
+      "name": "network_restore_except_confirm",
+      "value": "下次连接 VPN 后，原名单中的 %d 个应用将被排除在 VPN 外。"
+    },
+    {
+      "name": "network_previous_only",
+      "value": "已设为全部应用，原范围：仅 %d 个应用。"
+    },
+    {
+      "name": "network_previous_except",
+      "value": "已设为全部应用，原范围：排除 %d 个应用。"
+    },
+    {
+      "name": "network_use_saved",
+      "value": "使用已保存名单"
+    },
+    {
+      "name": "network_saved_only",
+      "value": "仅原名单接入"
+    },
+    {
+      "name": "network_saved_except",
+      "value": "排除原名单"
     }
   ]
 }

@@ -640,14 +640,18 @@ const status = { Disconnected: 0, Connecting: 1, Connected: 2, Disconnecting: 3 
   failDraft = false; editor.persistDraft('synthetic'); assert.equal(editor.draftPersisted, true);
   // Restoring VPN scope requires a current confirmation and retains the saved list.
   let networkSaved = 0;
-  let networkSettings = {ipv6:false,accessMode:'white',accessList:['sample.app']};
+  let networkSettings = {ipv6:false,accessMode:'white',accessList:['sample.app'],accessRestoreMode:'',accessRestoreList:[]};
+  let networkRevision = 0;
+  const networkStore = {idle:async()=>{},load:()=>({...networkSettings}),applicationAccessRevision:()=>networkRevision,
+    editApplicationAccess:async(_c,edit,expected)=>{if(expected!==networkRevision)throw Error('stale');const next={...networkSettings};edit(next);networkSettings=next;networkSaved++;networkRevision++;},
+    save:(_c,v)=>{networkSaved++;networkSettings=v;}};
   let networkRoutes = ['network'];
   const source = fs.readFileSync(path.join(pages,'../lib/VpnController.ets'),'utf8');
-  const policySandbox = {exports:{},require:()=>({})};
+  const policySandbox = {exports:{},require:key=>key==='./Settings'?{Settings:networkStore}:{}};
   vm.runInNewContext(ts.transpileModule(source).outputText,policySandbox);
   const Network = load('NetworkSettingsPage', {...common,
     '../lib/VpnController':policySandbox.exports,
-    '../lib/Settings':{Settings:{idle:async()=>{},load:()=>({...networkSettings}),save:(_c,v)=>{networkSaved++;networkSettings=v;}}}
+    '../lib/Settings':{Settings:networkStore}
   }, {getContext:()=>({applicationInfo:{name:'test.bundle'}}), AlertDialog:{show:value=>{dialog=value;}}});
   const network = new Network();
   network.navStack={getAllPathName:()=>networkRoutes,pushPath:route=>networkRoutes.push(route.name)};

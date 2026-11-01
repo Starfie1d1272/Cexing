@@ -4483,6 +4483,38 @@
     {
       "name": "traffic_identity_failure_counts",
       "value": "Identity failures accumulated in this session"
+    },
+    {
+      "name": "network_restore_previous",
+      "value": "Restore previous VPN scope"
+    },
+    {
+      "name": "network_restore_only_confirm",
+      "value": "After the next VPN connection, only the %d apps in the saved list will enter VPN routing."
+    },
+    {
+      "name": "network_restore_except_confirm",
+      "value": "After the next VPN connection, the %d apps in the saved list will be excluded from VPN routing."
+    },
+    {
+      "name": "network_previous_only",
+      "value": "All apps selected. Saved scope: only %d apps."
+    },
+    {
+      "name": "network_previous_except",
+      "value": "All apps selected. Saved scope: exclude %d apps."
+    },
+    {
+      "name": "network_use_saved",
+      "value": "Use saved app list"
+    },
+    {
+      "name": "network_saved_only",
+      "value": "Include only saved apps"
+    },
+    {
+      "name": "network_saved_except",
+      "value": "Exclude saved apps"
     }
   ]
 }

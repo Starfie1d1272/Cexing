@@ -89,6 +89,28 @@ export function undoVpnApplicationExclusion(context: common.Context, receipt: Ap
   }, receipt.revision);
 }
 
+/** Both directions require explicit UI confirmation; queued callbacks retain the page guard. */
+export function setVpnApplicationAccessSuspended(context: common.Context, suspended: boolean,
+  expectedRevision: number, current: () => boolean, legacyMode: string = ''): Promise<ApplicationAccessEdit> {
+  return Settings.editApplicationAccess(context, (s: AppSettings) => {
+    if (!current()) { throw new Error('应用范围操作已取消'); }
+    if (suspended) {
+      if (s.accessMode !== 'white' && s.accessMode !== 'black') { throw new Error('应用范围已更改'); }
+      s.accessRestoreMode = s.accessMode; s.accessRestoreList = s.accessList.slice();
+      s.accessMode = 'all';
+    } else {
+      if (s.accessMode === 'all' && s.accessRestoreMode === '' && s.accessList.length > 0 && ['white', 'black'].includes(legacyMode)) {
+        s.accessRestoreMode = legacyMode; s.accessRestoreList = s.accessList.slice();
+      }
+      if (s.accessMode !== 'all' || !['white', 'black'].includes(s.accessRestoreMode) || !Array.isArray(s.accessRestoreList)) {
+        throw new Error('没有可恢复的应用范围');
+      }
+      buildVpnApplicationPolicy(s.accessRestoreMode, s.accessRestoreList, context.applicationInfo.name);
+      s.accessMode = s.accessRestoreMode; s.accessList = s.accessRestoreList.slice();
+    }
+  }, expectedRevision);
+}
+
 // Preserved compatibility table from 964774595feab1c96382fb00f885cce5ca4a11bf.
 // All matching traffic bypasses TUN, not only HTTPDNS. Per-CIDR device A/B is pending.
 const HTTPDNS_ROUTE_EXCEPTIONS: string[] = [

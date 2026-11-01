@@ -19,6 +19,9 @@ export class AppSettings {
   /** 按应用分流: all=全部走VPN, white=仅名单走(trusted), black=名单外走(blocked) */
   accessMode: string = 'all';
   accessList: string[] = [];
+  /** Local recovery snapshot for an explicitly paused application scope. */
+  accessRestoreMode: string = '';
+  accessRestoreList: string[] = [];
   /** 后台实况窗记忆的 Selector 名 */
   mainGroup: string = '';
   /** 内核运行模式 rule|global|direct；空串=未显式选择，沿用激活配置自带 mode */
@@ -90,6 +93,9 @@ export namespace Settings {
       s.mixedPort = p.getSync('mixedPort', 7890) as number;
       s.accessMode = p.getSync('accessMode', 'all') as string;
       s.accessList = p.getSync('accessList', [] as string[]) as string[];
+      s.accessRestoreMode = p.getSync('accessRestoreMode', '') as string;
+      s.accessRestoreList = p.getSync('accessRestoreList', [] as string[]) as string[];
+      if (!validAccessRestore(s)) { s.accessRestoreMode = ''; s.accessRestoreList = []; }
       s.mainGroup = p.getSync('mainGroup', '') as string;
       s.mode = p.getSync('mode', '') as string;
       s.autoUpdate = p.getSync('autoUpdate', false) as boolean;
@@ -135,20 +141,28 @@ export namespace Settings {
 
   function values(s: AppSettings): Record<string, Object> {
     const result: Record<string, Object> = { 'keepAlive': s.keepAlive, 'ipv6': s.ipv6, 'logLevel': s.logLevel, 'mixedPort': s.mixedPort,
-      'accessMode': s.accessMode, 'accessList': s.accessList.slice(), 'mainGroup': s.mainGroup, 'mode': s.mode,
+      'accessMode': s.accessMode, 'accessList': s.accessList.slice(),
+      'accessRestoreMode': s.accessRestoreMode ?? '', 'accessRestoreList': (s.accessRestoreList ?? []).slice(), 'mainGroup': s.mainGroup, 'mode': s.mode,
       'autoUpdate': s.autoUpdate, 'autoUpdateIntervalHours': s.autoUpdateIntervalHours,
       'autoRestore': s.autoRestore, 'vpnWasConnected': s.vpnWasConnected, 'logToFile': s.logToFile };
     return result;
   }
+  function validAccessRestore(s: AppSettings): boolean {
+    return ['', 'white', 'black'].includes(s.accessRestoreMode) && Array.isArray(s.accessRestoreList) &&
+      s.accessRestoreList.length <= 64 && s.accessRestoreList.every((name: string) =>
+        typeof name === 'string' && name.length >= 3 && name.length <= 128);
+  }
   function validate(s: AppSettings): void {
     if (!Number.isInteger(s.mixedPort) || s.mixedPort < 1 || s.mixedPort > 65535 ||
       !Number.isFinite(s.autoUpdateIntervalHours) || s.autoUpdateIntervalHours < 1 ||
-      !['all', 'white', 'black'].includes(s.accessMode) ||
+      !['all', 'white', 'black'].includes(s.accessMode) || !validAccessRestore(s) ||
       !['silent', 'error', 'warning', 'info', 'debug'].includes(s.logLevel)) { throw new Error('设置值无效'); }
   }
   function writeCache(p: preferences.Preferences, s: AppSettings): void {
     const data = values(s);
     for (const key of SAVE_KEYS) { p.putSync(key, data[key] as preferences.ValueType); }
+    p.putSync('accessRestoreMode', s.accessRestoreMode ?? '');
+    p.putSync('accessRestoreList', s.accessRestoreList ?? []);
     p.putSync('smartAutoConvert', s.smartAutoConvert);
   }
   function enqueue(context: common.Context, action: (p: preferences.Preferences) => Promise<void>): Promise<void> {
@@ -198,6 +212,8 @@ export namespace Settings {
     }); } catch (_) { throw new Error('保存失败，请重试'); }
   }
 
+  export function applicationAccessRevision(context: common.Context): number { current(context); return accessRevision; }
+
   /** Read, validate and publish the application list inside the existing writer queue.
    * Undo is conditional on no later application-list edit, including edit-away/back. */
   export async function editApplicationAccess(context: common.Context,
@@ -232,6 +248,8 @@ export namespace Settings {
     const next = copy(before);
     next.keepAlive = value.keepAlive; next.ipv6 = value.ipv6; next.logLevel = value.logLevel;
     next.mixedPort = value.mixedPort; next.accessMode = value.accessMode; next.accessList = value.accessList.slice();
+    // Recovery snapshots belong to the local scope being replaced, never to the backup.
+    next.accessRestoreMode = ''; next.accessRestoreList = [];
     next.mainGroup = value.mainGroup; next.mode = value.mode; next.autoUpdate = value.autoUpdate;
     next.autoUpdateIntervalHours = value.autoUpdateIntervalHours; next.autoRestore = value.autoRestore;
     next.logToFile = value.logToFile; next.smartAutoConvert = value.smartAutoConvert;
