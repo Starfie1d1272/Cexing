@@ -42,7 +42,7 @@ Ability 重建时为后台服务重新绑定上下文，订阅定时器读取最
 
 ## 集成边界
 
-Zashboard 承担节点、策略组、连接、日志、规则和 Smart 管理；原生宿主只承担系统、订阅、状态与故障恢复。配置生成统一经过平台约束，控制面共享一个端口与认证来源。详细要求见 [配置](reference/configuration.md)、[组件集成](reference/integrations.md)。
+Zashboard 承担节点、策略组、连接、日志、规则和 Smart 管理；原生宿主承担系统、订阅、状态、故障恢复与长期分流意图编辑，包括出口算法和候选范围；即时运行选点继续由 Zashboard 承担。配置生成统一经过平台约束，控制面共享一个端口与认证来源。详细要求见 [配置](reference/configuration.md)、[组件集成](reference/integrations.md)。
 
 
 `VpnController.cancelRecovery()` 使在途恢复结果与回调失效；`AppRuntime.cancelRestore()` 同时取消定时恢复。显式启停、当前 Ability 销毁及新恢复意图都须拒绝旧结果，旧 Ability 销毁不能撤销新上下文。页面销毁不能停止已建立的 VPN。
