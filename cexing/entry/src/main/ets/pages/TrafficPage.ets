@@ -4,6 +4,7 @@ import { UiText } from '../lib/UiText';
 import { CoreApi, TrafficMsg, formatRate, AppTrafficSummary, AppTrafficRow, AppTrafficRoutes, AppTrafficBytes, AppTrafficReason } from '../lib/CoreApi';
 import { TrafficStats, TrafficView, TrafficPoint } from '../lib/TrafficStats';
 import { TrafficBucket } from '../lib/TrafficLedger';
+import { SourceTrafficStats, SourceTrafficView, SourceTrafficPeriod } from '../lib/SourceTrafficStats';
 import { VpnController, VpnStatus } from '../lib/VpnController';
 import { NativeTheme as UI } from './NativeTheme';
 
@@ -14,11 +15,8 @@ function bytes(value: number): string {
   return `${value.toFixed(index === 0 ? 0 : 1)} ${units[index]}`;
 }
 
-// Session-only user labels survive page navigation; the next core session clears them.
-class SourceNotes {
-  static session: string = '';
-  static keys: string[] = [];
-  static labels: Record<string, string> = {};
+// A pending route write owns its slot across page changes.
+class SourceRouteWrite {
   static writing: boolean = false;
 }
 
@@ -32,6 +30,9 @@ export struct TrafficPage {
   @State private downloads: number[][] = [];
   @State private chartLevels: string[] = [];
   @State private chartUnit: string = 'KB/s';
+  @State private sourceView: SourceTrafficView = new SourceTrafficView();
+  @State private sourcePeriod: SourceTrafficPeriod = 'all';
+  private periods: SourceTrafficPeriod[] = ['current', 'today', 'month', 'all'];
   @State private appSummary: AppTrafficSummary | null = null;
   @State private appRows: AppTrafficRow[] = [];
   @State private selected: AppTrafficRow | null = null;
@@ -81,8 +82,9 @@ export struct TrafficPage {
     }
   }
   private refresh(): void {
-    this.routeBusy = SourceNotes.writing;
+    this.routeBusy = SourceRouteWrite.writing;
     this.snapshot = TrafficStats.view();
+    this.readSources();
     const points = this.snapshot.points;
     // Break rather than connect across missing samples; curve is a short,
     // bounded observation history, not a reconstructed daily timeline.
@@ -104,43 +106,45 @@ export struct TrafficPage {
     this.uploads = recent.map((p: TrafficPoint) => [8 + Math.max(0, width * (1 - (now - p.at) / 300000)), 112 - 104 * p.up / max]);
     this.downloads = recent.map((p: TrafficPoint) => [8 + Math.max(0, width * (1 - (now - p.at) / 300000)), 112 - 104 * p.down / max]);
   }
+  private readSources(): void {
+    this.sourceView = SourceTrafficStats.view(this.sourcePeriod);
+    this.appSummary = this.sourceView.live;
+    this.appReadFailed = this.sourceView.readFailed;
+    this.appLoading = !this.sourceView.ready && !this.sourceView.readFailed && VpnController.status === VpnStatus.Connected;
+    this.appRows = this.sourceView.rows.slice().sort((a: AppTrafficRow, b: AppTrafficRow) =>
+      this.routeBytes(b.routes.proxy) - this.routeBytes(a.routes.proxy) || a.uid - b.uid);
+    if (this.selected !== null) {
+      const key = this.rowKey(this.selected);
+      this.selected = this.appRows.find((row: AppTrafficRow) => this.rowKey(row) === key) ?? null;
+      if (this.selected === null) { this.showApp = false; }
+    }
+  }
   private async refreshApps(): Promise<void> {
     if (!this.active || this.appBusy) { return; }
     this.appBusy = true; this.appSampleAt = Date.now();
     const request = this.appRequest;
-    const session = VpnController.trafficSession();
-    try {
-      const summary = await CoreApi.getAppTraffic();
-      const coreSession = VpnController.status === VpnStatus.Connected ? await CoreApi.getControllerSession() : null;
-      if (!this.active || request !== this.appRequest || session !== VpnController.trafficSession()) { return; }
-      this.appLoading = false;
-      this.appReadFailed = summary === null;
-      if (summary === null) { return; }
-      if (VpnController.status === VpnStatus.Connecting ||
-        (VpnController.status === VpnStatus.Connected && (coreSession === null || summary.session !== coreSession))) {
-        this.appSummary = null; this.appRows = []; this.selected = null; this.showApp = false; return;
-      }
-      if (this.appSummary !== null && this.appSummary.session !== summary.session) { this.selected = null; this.showApp = false; }
-      if (SourceNotes.session !== summary.session) {
-        SourceNotes.session = summary.session; SourceNotes.keys = []; SourceNotes.labels = {};
-        this.detailRequest++; this.routeBusy = false;
-      }
-      summary.apps.forEach((row: AppTrafficRow) => {
-        const key = this.rowKey(row);
-        if (row.uid >= 0 && !SourceNotes.keys.includes(key)) { SourceNotes.keys.push(key); }
-      });
-      this.appSummary = summary;
-      this.appRows = summary.apps.slice().sort((a: AppTrafficRow, b: AppTrafficRow) =>
-        this.routeBytes(b.routes.proxy) - this.routeBytes(a.routes.proxy) || this.rowKey(a).localeCompare(this.rowKey(b)));
-      if (this.selected !== null) {
-        const key = this.rowKey(this.selected);
-        this.selected = this.appRows.find((row: AppTrafficRow) => this.rowKey(row) === key) ?? null;
-        if (this.selected === null) { this.showApp = false; }
-      }
-    } catch (_) { if (this.active && request === this.appRequest) { this.appLoading = false; this.appReadFailed = true; } }
-    finally { this.appBusy = false; }
+    try { await SourceTrafficStats.refreshLive(); }
+    finally {
+      this.appBusy = false;
+      if (this.active && request === this.appRequest) { this.readSources(); }
+    }
   }
-  private rowKey(row: AppTrafficRow): string { return `${row.identityStatus}:${row.uid}:${row.bundleName}`; }
+  private periodLabel(period: SourceTrafficPeriod): string {
+    return UiText.get(period === 'current' ? $r('app.string.traffic_session') :
+      period === 'today' ? $r('app.string.traffic_today') :
+      period === 'month' ? $r('app.string.traffic_month') : $r('app.string.traffic_all_time'));
+  }
+  private choosePeriod(period: SourceTrafficPeriod): void {
+    this.sourcePeriod = period; this.detailRequest++; this.showApp = false; this.selected = null;
+    this.readSources();
+  }
+  private async saveNote(row: AppTrafficRow, value: string): Promise<void> {
+    if (row.uid < 0) { return; }
+    this.note = value;
+    await SourceTrafficStats.setLabel(row.uid, value.trim());
+    if (this.active) { this.readSources(); }
+  }
+  private rowKey(row: AppTrafficRow): string { return String(row.uid); }
   private routeBytes(route: AppTrafficBytes): number { return route.upload + route.download; }
   private total(routes: AppTrafficRoutes): number {
     return this.routeBytes(routes.proxy) + this.routeBytes(routes.direct) + this.routeBytes(routes.unclassified);
@@ -149,9 +153,12 @@ export struct TrafficPage {
   private download(routes: AppTrafficRoutes): number { return routes.proxy.download + routes.direct.download + routes.unclassified.download; }
   private appName(row: AppTrafficRow): string {
     const key = this.rowKey(row);
-    const label = SourceNotes.labels[key];
-    return label ? `${UiText.get($r('app.string.traffic_note_label'))} ${label}` : row.uid >= 0 ?
-      UiText.get($r('app.string.traffic_source_number'), SourceNotes.keys.indexOf(key) + 1) : UiText.get($r('app.string.traffic_unknown_app'));
+    const label = this.sourceView.labels[key];
+    if (label) { return `${UiText.get($r('app.string.traffic_note_label'))} ${label}`; }
+    if (row.uid < 0) { return UiText.get($r('app.string.traffic_unknown_app')); }
+    const number = this.sourceView.numbers[key];
+    return number === undefined ? UiText.get($r('app.string.traffic_source_unnamed')) :
+      UiText.get($r('app.string.traffic_source_number'), number);
   }
   private sessionLabel(): string {
     if (this.appSummary === null) { return ''; }
@@ -160,8 +167,11 @@ export struct TrafficPage {
   }
   private appState(): string {
     if (this.appLoading) { return UiText.get($r('app.string.traffic_apps_loading')); }
+    if (this.appReadFailed && this.appRows.length === 0) { return UiText.get($r('app.string.traffic_apps_unavailable')); }
+    if (this.appRows.length === 0) { return UiText.get($r('app.string.traffic_apps_empty')); }
+    if (this.sourcePeriod !== 'current') { return this.periodLabel(this.sourcePeriod); }
     if (this.appReadFailed) { return UiText.get($r('app.string.traffic_apps_unavailable')); }
-    if (this.appSummary === null) { return UiText.get($r('app.string.traffic_apps_empty')); }
+    if (this.appSummary === null) { return UiText.get($r('app.string.traffic_saved_history')); }
     if (this.appSummary.state === 'closed') { return UiText.get($r('app.string.traffic_session_ended')); }
     return this.sessionLabel();
   }
@@ -173,13 +183,13 @@ export struct TrafficPage {
   }
   private sourcesUnidentified(): boolean {
     return this.appSummary !== null && this.total(this.appSummary.totals) > 0 &&
-      !this.appRows.some((row: AppTrafficRow) => row.identityStatus === 'uid' && row.uid >= 0) &&
+      !this.appSummary.apps.some((row: AppTrafficRow) => row.identityStatus === 'uid' && row.uid >= 0) &&
       this.identityFailureKeys().length > 0;
   }
   private openApp(row: AppTrafficRow): void {
-    this.detailRequest++; this.routeBusy = SourceNotes.writing; this.routeMessage = '';
+    this.detailRequest++; this.routeBusy = SourceRouteWrite.writing; this.routeMessage = '';
     this.routeChoices = this.routeOptions();
-    this.note = SourceNotes.labels[this.rowKey(row)] ?? '';
+    this.note = this.sourceView.labels[this.rowKey(row)] ?? '';
     this.selected = row; this.showReasons = false; this.showApp = true;
   }
   private targets(row: AppTrafficRow): string {
@@ -193,16 +203,20 @@ export struct TrafficPage {
   private routeOptions(): string[] { return ['', 'DIRECT'].concat((this.appSummary?.routeTargets ?? []).filter((name: string) => name !== '' && name !== 'DIRECT')); }
   private canRoute(row: AppTrafficRow): boolean {
     return row.identityStatus === 'uid' && row.uid >= 0 && this.appSummary?.state === 'running' &&
-      VpnController.status === VpnStatus.Connected && !this.appReadFailed;
+      VpnController.status === VpnStatus.Connected && !this.appReadFailed &&
+      this.appSummary.apps.some((live: AppTrafficRow) => live.uid === row.uid && live.identityStatus === 'uid');
+  }
+  private currentRoute(row: AppTrafficRow): string {
+    return this.appSummary?.apps.find((live: AppTrafficRow) => live.uid === row.uid)?.routeTarget ?? '';
   }
   private async changeRoute(row: AppTrafficRow, target: string): Promise<void> {
-    if (SourceNotes.writing || !this.canRoute(row) || this.appSummary === null) { return; }
+    if (SourceRouteWrite.writing || !this.canRoute(row) || this.appSummary === null) { return; }
     const session = this.appSummary.session; const key = this.rowKey(row); const request = this.detailRequest;
-    SourceNotes.writing = true; this.routeBusy = true; this.routeMessage = '';
+    SourceRouteWrite.writing = true; this.routeBusy = true; this.routeMessage = '';
     let saved = false;
     try { saved = await CoreApi.setAppRoute(session, row.uid, target); }
     catch (_) { saved = false; }
-    finally { SourceNotes.writing = false; }
+    finally { SourceRouteWrite.writing = false; }
 
     if (!this.active || !this.showApp || request !== this.detailRequest || session !== this.appSummary?.session ||
       this.selected === null || this.rowKey(this.selected) !== key) { return; }
@@ -212,10 +226,10 @@ export struct TrafficPage {
   }
   private lastSeen(row: AppTrafficRow): string {
     return row.lastSeen > 0 ? UiText.get($r('app.string.traffic_last_seen'),
-      new Date(row.lastSeen).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })) : '';
+      new Date(row.lastSeen).toLocaleString()) : '';
   }
   private summaryStatus(): string {
-    return this.appSummary?.partial ? UiText.get($r('app.string.traffic_partial')) : '';
+    return this.sourceView.partial ? UiText.get($r('app.string.traffic_partial')) : '';
   }
   @Builder
   Rate(upload: boolean) {
@@ -278,7 +292,7 @@ export struct TrafficPage {
     Column({ space: 16 }) {
       Row({ space: 8 }) {
         Text($r('app.string.traffic_session')).fontSize(17).fontWeight(FontWeight.Medium).fontColor(UI.ink).layoutWeight(1)
-        Text(this.appState()).fontSize(12).fontColor(UI.accentText).padding({ left: 10, right: 10, top: 6, bottom: 6 }).backgroundColor(UI.soft).borderRadius(16)
+        Text(this.sessionLabel()).fontSize(12).fontColor(UI.accentText).padding({ left: 10, right: 10, top: 6, bottom: 6 }).backgroundColor(UI.soft).borderRadius(16)
       }.width('100%')
       Text(bytes(this.total(summary.totals))).fontSize(38).fontWeight(FontWeight.Medium).fontColor(UI.ink).fontFeature('tnum').width('100%')
       Text(`${UiText.get($r('app.string.traffic_up'))} ${bytes(this.upload(summary.totals))}   ${UiText.get($r('app.string.traffic_down'))} ${bytes(this.download(summary.totals))}`)
@@ -292,7 +306,7 @@ export struct TrafficPage {
         }
       }.width('100%')
       if (summary.partial) {
-        Text(this.summaryStatus()).fontSize(12).fontColor(UI.muted).width('100%')
+        Text($r('app.string.traffic_partial')).fontSize(12).fontColor(UI.muted).width('100%')
       }
     }.width('100%').padding(20).borderRadius(24).backgroundColor(UI.surface)
   }
@@ -303,6 +317,23 @@ export struct TrafficPage {
         Text($r('app.string.traffic_apps')).fontSize(18).fontWeight(FontWeight.Medium).fontColor(UI.ink).layoutWeight(1)
         Text($r('app.string.traffic_proxy_order')).fontSize(11).fontColor(UI.muted)
       }.width('100%')
+      Row({ space: 6 }) {
+        ForEach(this.periods, (period: SourceTrafficPeriod) => {
+          Button(this.periodLabel(period)).layoutWeight(1).constraintSize({ minHeight: 40 })
+            .fontSize(13).backgroundColor(this.sourcePeriod === period ? UI.action : UI.soft)
+            .fontColor(this.sourcePeriod === period ? UI.onAccent : UI.muted)
+            .onClick(() => this.choosePeriod(period))
+        }, (period: SourceTrafficPeriod) => period)
+      }.width('100%')
+      if (this.sourceView.historyUnavailable) {
+        Text($r('app.string.traffic_history_unavailable')).fontSize(12).fontColor(UI.muted).width('100%')
+      }
+      if (!this.sourceView.saved) {
+        Text($r('app.string.traffic_unsaved')).fontSize(12).fontColor(UI.muted).width('100%')
+      }
+      if (this.sourceView.partial) {
+        Text($r('app.string.traffic_partial')).fontSize(12).fontColor(UI.muted).width('100%')
+      }
       if (this.sourcesUnidentified()) {
         Text($r('app.string.traffic_sources_unidentified')).fontSize(12).fontColor(UI.muted).width('100%')
       }
@@ -365,15 +396,18 @@ export struct TrafficPage {
           Text(this.appState()).fontSize(12).fontColor(UI.muted)
         }.alignItems(HorizontalAlign.Start).layoutWeight(1)
       }.width('100%')
-      TextInput({ text: this.note, placeholder: UiText.get($r('app.string.traffic_note_placeholder')) }).maxLength(40)
-        .accessibilityText(UiText.get($r('app.string.traffic_note_placeholder')))
-        .onChange((value: string) => { this.note = value; SourceNotes.labels[this.rowKey(row)] = value.trim(); })
+      if (row.uid >= 0) {
+        TextInput({ text: this.note, placeholder: UiText.get($r('app.string.traffic_note_placeholder')) }).maxLength(40)
+          .accessibilityText(UiText.get($r('app.string.traffic_note_placeholder')))
+          .onChange((value: string) => { this.saveNote(row, value).catch(() => {}); })
+      }
+      if (!this.sourceView.saved) { Text($r('app.string.traffic_unsaved')).fontSize(12).fontColor(UI.muted).width('100%') }
       if (this.targets(row).length > 0) { Text(this.targets(row)).fontSize(13).fontColor(UI.muted).width('100%') }
       if (this.canRoute(row)) {
         Column({ space: 10 }) {
           Text($r('app.string.traffic_route_title')).fontSize(16).fontColor(UI.ink).width('100%')
           Select(this.routeChoices.map((target: string): SelectOption => ({ value: this.routeLabel(target) })))
-            .value(this.routeLabel(row.routeTarget)).enabled(!this.routeBusy)
+            .value(this.routeLabel(this.currentRoute(row))).enabled(!this.routeBusy)
             .onSelect((index: number) => { const target = this.routeChoices[index]; if (target !== undefined) { this.changeRoute(row, target); } })
           Text($r('app.string.traffic_route_session')).fontSize(12).fontColor(UI.muted).width('100%')
           if (this.routeMessage.length > 0) { Text(this.routeMessage).fontSize(12).fontColor(UI.accentText).width('100%') }
@@ -412,7 +446,7 @@ export struct TrafficPage {
           ForEach(row.recent, (reason: AppTrafficReason) => {
             Divider().color(UI.line)
             Column({ space: 6 }) {
-              Text(new Date(reason.at).toLocaleTimeString()).fontSize(11).fontColor(UI.muted)
+              Text(new Date(reason.at).toLocaleString()).fontSize(11).fontColor(UI.muted)
               Text(reason.target).fontSize(13).fontColor(UI.ink)
               Text(reason.rule || UiText.get($r('app.string.traffic_unclassified'))).fontSize(14).fontColor(UI.ink)
               Text(reason.policy.join(' → ')).fontSize(12).fontColor(UI.muted)

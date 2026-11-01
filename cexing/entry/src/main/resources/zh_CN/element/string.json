@@ -4318,15 +4318,15 @@
     },
     {
       "name": "traffic_apps_loading",
-      "value": "正在读取应用用量…"
+      "value": "正在读取来源用量…"
     },
     {
       "name": "traffic_apps_unavailable",
-      "value": "应用用量暂不可用，正在重试…"
+      "value": "当前来源用量暂不可用，正在重试…"
     },
     {
       "name": "traffic_apps_empty",
-      "value": "本次暂无应用用量记录"
+      "value": "暂无来源用量记录"
     },
     {
       "name": "traffic_session_ended",
@@ -4350,7 +4350,7 @@
     },
     {
       "name": "traffic_proxy_order",
-      "value": "本次 · 按代理用量 ↓"
+      "value": "按代理用量 ↓"
     },
     {
       "name": "traffic_app_totals",
@@ -4358,7 +4358,7 @@
     },
     {
       "name": "traffic_identity_unsupported",
-      "value": "当前系统不支持识别应用，用量归入“未识别”。"
+      "value": "当前系统不支持识别来源，用量归入“未识别”。"
     },
     {
       "name": "traffic_scope",
@@ -4386,7 +4386,7 @@
     },
     {
       "name": "traffic_identity_unverified",
-      "value": "系统不提供可验证的应用名称与图标，已知连接按 UID 展示。"
+      "value": "按系统 UID 归集；共享或重新分配的 UID 可能包含不同应用。备注由你填写。"
     },
     {
       "name": "routing_smart",
@@ -4442,7 +4442,7 @@
     },
     {
       "name": "traffic_note_placeholder",
-      "value": "添加备注（仅本次）"
+      "value": "添加备注"
     },
     {
       "name": "traffic_route_follow",
@@ -4515,6 +4515,22 @@
     {
       "name": "network_saved_except",
       "value": "排除原名单"
+    },
+    {
+      "name": "traffic_all_time",
+      "value": "累计"
+    },
+    {
+      "name": "traffic_saved_history",
+      "value": "已保存的记录"
+    },
+    {
+      "name": "traffic_source_unnamed",
+      "value": "未命名来源"
+    },
+    {
+      "name": "traffic_history_unavailable",
+      "value": "来源历史暂不可用，原记录已保留"
     }
   ]
 }

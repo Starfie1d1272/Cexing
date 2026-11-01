@@ -12,7 +12,16 @@ let now = 300000, tick, stream, stops = 0;
 const listeners = new Set();
 const controller = { status: 2, trafficSession: () => 'vpn-session', onChanged: fn => listeners.add(fn), offChanged: fn => listeners.delete(fn) };
 let points = [{ at: 1000, up: 1, down: 2 }, { at: now - 5000, up: 3, down: 4 }, { at: now, up: 5, down: 6 }];
+class SourceTrafficView {
+  ready = false; saved = true; partial = false; readFailed = false; historyUnavailable = false;
+  live = null; rows = []; labels = {}; numbers = {}; sampledAt = 0;
+}
+const sourceData = new SourceTrafficView();
 const modules = {
+  '../lib/SourceTrafficStats': { SourceTrafficView, SourceTrafficStats: {
+    view: () => sourceData, refreshLive: async () => {},
+    setLabel: async (uid, label) => { sourceData.labels[String(uid)] = label; return true; }
+  } },
   '../lib/CoreApi': { CoreApi: { getAppTraffic: async () => null, getControllerSession: async () => 'core-session', StreamWatcher: class {
     start(path, cb) { assert.equal(path, '/traffic'); stream = cb; }
     stop() { stream = null; stops++; }
@@ -53,7 +62,7 @@ console.log('PASS: traffic detail lifecycle, stale speeds and curve gap (host lo
   const route = { upload: 0, download: 0, connections: 0, active: 0 };
   const row = { identityStatus: 'uid', uid: 1001, bundleName: '', bundleVerified: false,
     routeTarget: '', lastSeen: now, recent: [], routes: { proxy: route, direct: route, unclassified: route } };
-  page.appSummary = { session: 'a'.repeat(32), state: 'running' };
+  page.appSummary = { session: 'a'.repeat(32), state: 'running', apps: [row] };
   page.appReadFailed = false; page.openApp(row);
   let resolveRoute, writes = 0;
   modules['../lib/CoreApi'].CoreApi.setAppRoute = () => { writes++; return new Promise(resolve => { resolveRoute = resolve; }); };
@@ -68,8 +77,17 @@ console.log('PASS: traffic detail lifecycle, stale speeds and curve gap (host lo
   assert.equal(page.routeMessage, '', 'A dismissed sheet must not receive a late success');
   page.openApp(row);
   const staleSession = page.changeRoute(row, 'DIRECT');
-  page.appSummary = { session: 'b'.repeat(32), state: 'running' };
+  page.appSummary = { session: 'b'.repeat(32), state: 'running', apps: [row] };
   resolveRoute(true); await staleSession;
   assert.equal(page.routeMessage, '', 'A prior VPN session must not report success in the new session');
-  console.log('PASS: source routing unknown identity, duplicate submission, dismissed detail and stale session gates');
+  sourceData.ready = true; sourceData.rows = [row]; sourceData.numbers['1001'] = 1; sourceData.live = null;
+  controller.status = 0; page.readSources();
+  assert.equal(page.appRows.length, 1, 'Saved history stays visible while VPN is disconnected');
+  assert.equal(page.canRoute(row), false, 'Historical UID cannot issue a live route mutation');
+  await page.saveNote(row, 'Browser');
+  const reopened = new sandbox.exports.TrafficPage(); reopened.readSources();
+  assert.equal(reopened.sourceView.labels['1001'], 'Browser', 'Notes use the durable service across page instances');
+  controller.status = 2; sourceData.live = { session: 'c'.repeat(32), state: 'running', apps: [] };
+  page.readSources(); assert.equal(page.canRoute(row), false, 'A historical UID must be observed in the current session before routing');
+  console.log('PASS: source history display, durable note service, route identity and stale completion gates');
 })().catch(error => { console.error(error); process.exitCode = 1; });

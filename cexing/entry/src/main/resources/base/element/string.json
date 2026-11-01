@@ -4318,15 +4318,15 @@
     },
     {
       "name": "traffic_apps_loading",
-      "value": "Loading app usage…"
+      "value": "Loading source usage…"
     },
     {
       "name": "traffic_apps_unavailable",
-      "value": "App usage is temporarily unavailable. Retrying…"
+      "value": "Current source usage unavailable; retrying…"
     },
     {
       "name": "traffic_apps_empty",
-      "value": "No app usage recorded for this session"
+      "value": "No source usage recorded"
     },
     {
       "name": "traffic_session_ended",
@@ -4350,7 +4350,7 @@
     },
     {
       "name": "traffic_proxy_order",
-      "value": "Session · proxy usage ↓"
+      "value": "By proxy usage ↓"
     },
     {
       "name": "traffic_app_totals",
@@ -4358,7 +4358,7 @@
     },
     {
       "name": "traffic_identity_unsupported",
-      "value": "This system cannot identify apps. Usage is grouped as unidentified."
+      "value": "Source identification is unavailable on this system. Usage is grouped as unidentified."
     },
     {
       "name": "traffic_scope",
@@ -4386,7 +4386,7 @@
     },
     {
       "name": "traffic_identity_unverified",
-      "value": "App names and icons cannot be verified on this system. Known connections are shown by UID."
+      "value": "Usage is grouped by system UID. Shared or reassigned UIDs can include different apps; notes are your own labels."
     },
     {
       "name": "routing_smart",
@@ -4442,7 +4442,7 @@
     },
     {
       "name": "traffic_note_placeholder",
-      "value": "Your note (this session)"
+      "value": "Add a note"
     },
     {
       "name": "traffic_route_follow",
@@ -4515,6 +4515,22 @@
     {
       "name": "network_saved_except",
       "value": "Exclude saved apps"
+    },
+    {
+      "name": "traffic_all_time",
+      "value": "All time"
+    },
+    {
+      "name": "traffic_saved_history",
+      "value": "Saved history"
+    },
+    {
+      "name": "traffic_source_unnamed",
+      "value": "Unnamed source"
+    },
+    {
+      "name": "traffic_history_unavailable",
+      "value": "Source history is unavailable; existing records are preserved"
     }
   ]
 }
