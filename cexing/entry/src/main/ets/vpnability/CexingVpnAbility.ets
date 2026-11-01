@@ -21,6 +21,7 @@ import { Logger } from '../lib/Logger';
 import { ProfileStore } from '../lib/ProfileStore';
 import { EffectiveVersions } from '../lib/EffectiveVersions';
 import { CoreApi } from '../lib/CoreApi';
+import { AppTrafficIdentity } from '../lib/AppTrafficIdentity';
 import { ConnectionFailures } from '../lib/ConnectionFailure';
 import { NativeVpnPhase, NativeVpnPhases, VpnPhaseOutcome, VpnPhases } from '../lib/VpnPhases';
 
@@ -124,6 +125,7 @@ export default class CexingVpnAbility extends VpnExtensionAbility {
   private connection = new Object() as vpnExtension.VpnConnection;
   private coreStarted = false;
   private coreInitialized = false;
+  private appTrafficIdentity = new AppTrafficIdentity();
   private startupError = '';
   private starting: Promise<void> | null = null;
   private stopping = false;
@@ -308,6 +310,7 @@ export default class CexingVpnAbility extends VpnExtensionAbility {
         throw new Error(startErr);
       }
       this.coreStarted = true;
+      if (!this.stopping) { this.appTrafficIdentity.start(); }
       this.diagnostic('core_start', 'success');
       Logger.info(TAG, 'mihomo core started, TUN handed over');
     } catch (e) {
@@ -347,6 +350,7 @@ export default class CexingVpnAbility extends VpnExtensionAbility {
     if (session !== this.startupSession) { return Promise.resolve(false); }
     if (this.cleanupPending !== null) { return this.cleanupPending; }
     this.stopping = true;
+    this.appTrafficIdentity.stop();
     this.cleanupPending = this.cleanup();
     const pending = this.cleanupPending;
     pending.then((completed: boolean) => {

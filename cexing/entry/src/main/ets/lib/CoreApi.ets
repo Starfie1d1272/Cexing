@@ -93,6 +93,63 @@ export interface TrafficMsg {
   down: number;
 }
 
+export interface AppTrafficBytes {
+  upload: number;
+  download: number;
+  connections: number;
+  active: number;
+}
+export interface AppTrafficRoutes {
+  proxy: AppTrafficBytes;
+  direct: AppTrafficBytes;
+  unclassified: AppTrafficBytes;
+}
+export interface AppTrafficReason {
+  at: number;
+  route: string;
+  rule: string;
+  policy: string[];
+}
+export interface AppTrafficRow {
+  bundleVerified: boolean; // Always false until a public verification route exists.
+  identityStatus: string;
+  uid: number;
+  bundleName: string;
+  routes: AppTrafficRoutes;
+  recent: AppTrafficReason[];
+}
+export interface AppTrafficSummary {
+  schemaVersion: number;
+  session: string;
+  state: string;
+  startedAt: number;
+  endedAt: number;
+  partial: boolean;
+  totals: AppTrafficRoutes;
+  apps: AppTrafficRow[];
+  identityFailures: Record<string, number>;
+}
+export interface AppIdentityAddress {
+  address: string;
+  family: number;
+  port: number;
+}
+export interface AppIdentityRequest {
+  id: string;
+  protocol: string;
+  local: AppIdentityAddress;
+  remote: AppIdentityAddress;
+}
+export interface AppIdentityBatch {
+  session: string;
+  requests: AppIdentityRequest[];
+}
+export interface AppIdentityReply {
+  id: string;
+  uid: number;
+  status: string;
+}
+
 export namespace CoreApi {
   let filesDir: string = '';
 
@@ -142,6 +199,22 @@ export namespace CoreApi {
     } finally {
       req.destroy();
     }
+  }
+
+  /** Live TUN session only. An unavailable Controller returns null; no disk fallback. */
+  export async function getAppTraffic(): Promise<AppTrafficSummary | null> {
+    const response = await request(http.RequestMethod.GET, '/ohos/app-traffic');
+    if (response === null || response.length > 1024 * 1024) { return null; }
+    try {
+      const summary = JSON.parse(response) as AppTrafficSummary;
+      return validAppTrafficSummary(summary) ? summary : null;
+    } catch (_) { return null; }
+  }
+
+  export async function replyAppIdentities(session: string, replies: AppIdentityReply[]): Promise<boolean> {
+    if (replies.length === 0 || replies.length > 32) { return false; }
+    return await request(http.RequestMethod.POST, '/ohos/app-traffic/identity',
+      JSON.stringify({ session: session, replies: replies })) !== null;
   }
 
   /** Startup UI degradation report; API readiness is independent of this status. */
@@ -323,7 +396,7 @@ export namespace CoreApi {
 
     start(path: string, cb: (msg: T) => void): void {
       // Do not accept caller-supplied tokens/URLs which could enter logs or history.
-      if (!/^\/(traffic|memory|connections|logs)(\?level=(debug|info|warning|error|silent))?$/.test(path)) {
+      if (path !== '/ohos/app-traffic/identity' && !/^\/(traffic|memory|connections|logs)(\?level=(debug|info|warning|error|silent))?$/.test(path)) {
         return;
       }
       if (!this.stopped && this.path === path) {
@@ -469,4 +542,28 @@ export function formatRate(bytesPerSec: number): string {
     return `${(bytesPerSec / 1024).toFixed(1)} KB/s`;
   }
   return `${(bytesPerSec / 1024 / 1024).toFixed(2)} MB/s`;
+}
+
+function validAppTrafficRoutes(routes: AppTrafficRoutes): boolean {
+  if (routes === null || typeof routes !== 'object') { return false; }
+  return [routes.proxy, routes.direct, routes.unclassified].every((value: AppTrafficBytes) => {
+    return value !== null && typeof value === 'object' &&
+      [value.upload, value.download, value.connections, value.active].every((count: number) =>
+        typeof count === 'number' && Number.isFinite(count) && count >= 0);
+  });
+}
+
+function validAppTrafficSummary(summary: AppTrafficSummary): boolean {
+  if (summary === null || typeof summary !== 'object' || summary.schemaVersion !== 1 ||
+    typeof summary.session !== 'string' || !/^[0-9a-f]{32}$/.test(summary.session) ||
+    (summary.state !== 'running' && summary.state !== 'closed') ||
+    typeof summary.partial !== 'boolean' ||
+    ![summary.startedAt, summary.endedAt].every((time: number) =>
+      typeof time === 'number' && Number.isFinite(time) && time >= 0) ||
+    !validAppTrafficRoutes(summary.totals) || !Array.isArray(summary.apps) || summary.apps.length > 129) { return false; }
+  return summary.apps.every((row: AppTrafficRow) => row !== null && typeof row === 'object' &&
+    (row.identityStatus === 'uid' || row.identityStatus === 'unknown') &&
+    typeof row.uid === 'number' && Number.isInteger(row.uid) && row.uid >= -1 &&
+    row.bundleName === '' && row.bundleVerified === false &&
+    validAppTrafficRoutes(row.routes) && Array.isArray(row.recent) && row.recent.length <= 4);
 }

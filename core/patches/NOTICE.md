@@ -7,3 +7,4 @@
 - 认证保护的 `/smart/model` 手动导入保留为替换/恢复入口；宿主只接受同一固定身份，不生成假模型或上传训练数据。内置模型首次离线铺盘到实际 Go HomeDir，损坏文件备份后恢复；加载失败保留统计 Smart 回退。
 - Linux 回环节点仅用于真实核心/模型/连接路径测试，不包含订阅、用户节点、凭据或设备数据。
 - `inbound-policy-race.patch` 仅对上述固定 fork 的构建专用模块缓存应用：LAN 允许/拒绝与免认证前缀以拷贝后的 atomic 快照发布，避免热重载写入与 mixed 入站读取并发访问同一 slice。源码与补丁摘要写入构建身份；编译后恢复原模块字节并复验完整性。此补丁不更改热重载行为，也不证明真机转发故障的因果。
+- `app-traffic.patch` 基于同一固定 fork：在 TCP/UDP statistic 的计数路径加入可选宿主观察器，仅对 `pushToManager` 的 tracker 发创建/增量/关闭通知；初始计数包含在内，关闭不补加终值。outbound 包装器保留首个实际 adapter 的流量类别，避免按用户命名猜测 DIRECT。只向 Go 内存聚合发送增量，不逐包调用平台或写盘；TUN UDP 复用已有 handler 身份隔离 NAT key，防止跨 listener 重用旧 tracker，原始地址元数据不变。同样经私有模块缓存、原始字节校验、产物绑定及恢复复验。
