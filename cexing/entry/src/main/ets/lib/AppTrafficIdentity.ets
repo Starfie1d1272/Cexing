@@ -17,7 +17,7 @@ export class AppTrafficIdentity {
     this.stop();
     const generation = this.generation;
     this.watcher.start('/ohos/app-traffic/identity', (batch: AppIdentityBatch) => {
-      if (generation !== this.generation || !Array.isArray(batch.requests) || batch.requests.length > 32) { return; }
+      if (generation !== this.generation || batch === null || !Array.isArray(batch.requests) || batch.requests.length > 32) { return; }
       if (this.session.length === 0) { this.session = batch.session; }
       if (batch.session !== this.session) { return; }
       batch.requests.forEach((request: AppIdentityRequest) => {
@@ -48,7 +48,7 @@ export class AppTrafficIdentity {
     this.flushTimer = setTimeout(() => {
       this.flushTimer = -1;
       this.flushReplies().catch(() => {});
-    }, 20);
+    }, 0);
   }
 
   private async flushReplies(): Promise<void> {

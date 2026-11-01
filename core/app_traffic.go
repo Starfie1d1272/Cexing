@@ -1,18 +1,15 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"io"
 	"net"
-	HTTP "net/http"
 	"net/netip"
 	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	"github.com/coder/websocket"
 	"github.com/metacubex/chi"
 	MHTTP "github.com/metacubex/http"
 	C "github.com/metacubex/mihomo/constant"
@@ -125,6 +122,9 @@ type appTrafficSession struct {
 	failures           map[string]int64
 	policies           map[int64]string
 	sequence           uint64
+	identityWake       chan struct{}
+	identityDone       chan struct{}
+	pollUntil          time.Time
 }
 
 var appTrafficCurrent atomic.Pointer[appTrafficSession]
@@ -144,7 +144,7 @@ func init() {
 // explanations live only in memory; a new session replaces the previous one.
 func startAppTraffic() *appTrafficSession {
 	s := &appTrafficSession{id: controllerSession, startedAt: time.Now().UnixMilli(),
-		rows: make(map[string]*appTrafficRow), pending: make(map[string]*appIdentityPending), failures: make(map[string]int64), policies: make(map[int64]string)}
+		rows: make(map[string]*appTrafficRow), pending: make(map[string]*appIdentityPending), failures: make(map[string]int64), policies: make(map[int64]string), identityWake: make(chan struct{}, 1), identityDone: make(chan struct{})}
 	s.rows[""] = &appTrafficRow{IdentityStatus: "unknown", UID: -1, Recent: []appTrafficReason{}}
 	appTrafficCurrent.Store(s)
 	return s
@@ -154,6 +154,8 @@ func stopAppTraffic() {
 		s.mu.Lock()
 		if !s.stopped {
 			s.stopped = true
+			close(s.identityDone)
+			s.pollUntil = time.Time{}
 			s.endedAt = time.Now().UnixMilli()
 			s.failures["sessionEnded"] += int64(len(s.pending))
 			for _, p := range s.pending {
@@ -250,6 +252,7 @@ func observeAppTraffic(info *statistic.TrackerInfo) statistic.TrackerObserver {
 	id := info.UUID.String()
 	s.pending[id] = &appIdentityPending{request: appIdentityRequest{ID: id, Protocol: protocol, Local: local, Remote: remote},
 		handle: h, reason: reason, deadline: time.Now().Add(identityTTL)}
+	s.wakeIdentity()
 	return h
 }
 func addAppTrafficReason(row *appTrafficRow, reason appTrafficReason) {
@@ -298,6 +301,7 @@ func (s *appTrafficSession) expireLocked() {
 				p.result <- -1
 			}
 			s.failures["timeout"]++
+			s.wakeIdentity()
 		}
 	}
 }
@@ -346,67 +350,6 @@ func getAppTraffic(w MHTTP.ResponseWriter, req *MHTTP.Request) {
 	_ = json.NewEncoder(w).Encode(snapshot)
 }
 
-func getAppIdentityRequests(w MHTTP.ResponseWriter, req *MHTTP.Request) {
-	s := appTrafficCurrent.Load()
-	if s == nil {
-		controllerError(w, 409, "traffic session unavailable")
-		return
-	}
-	s.mu.Lock()
-	if s.stopped || s.consumer {
-		s.mu.Unlock()
-		controllerError(w, 409, "identity consumer unavailable")
-		return
-	}
-	s.consumer = true
-	s.mu.Unlock()
-	defer func() { s.mu.Lock(); s.consumer = false; s.mu.Unlock() }()
-	ctx, cancel := context.WithCancel(req.Context())
-	defer cancel()
-	standard := (&HTTP.Request{Method: req.Method, URL: req.URL, Host: req.Host, Header: HTTP.Header(req.Header),
-		Proto: req.Proto, ProtoMajor: req.ProtoMajor, ProtoMinor: req.ProtoMinor, RemoteAddr: req.RemoteAddr, Body: req.Body}).WithContext(ctx)
-	conn, err := websocket.Accept(controllerWSWriter{w}, standard, nil)
-	if err != nil {
-		return
-	}
-	defer conn.CloseNow()
-	conn.SetReadLimit(1024)
-	ctx = conn.CloseRead(ctx)
-	ticker := time.NewTicker(20 * time.Millisecond)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-		}
-		s.mu.Lock()
-		if s.stopped || s != appTrafficCurrent.Load() {
-			s.mu.Unlock()
-			return
-		}
-		s.expireLocked()
-		batch := appIdentityBatch{Session: s.id, Requests: []appIdentityRequest{}}
-		for _, p := range s.pending {
-			if !p.sent {
-				p.sent = true
-				batch.Requests = append(batch.Requests, p.request)
-				if len(batch.Requests) == identityBatchLimit {
-					break
-				}
-			}
-		}
-		s.mu.Unlock()
-		// Empty batches are heartbeat frames; the host bounds outstanding work itself.
-		data, _ := json.Marshal(batch)
-		writeCtx, done := context.WithTimeout(ctx, 2*time.Second)
-		err := conn.Write(writeCtx, websocket.MessageText, data)
-		done()
-		if err != nil {
-			return
-		}
-	}
-}
 func postAppIdentityReplies(w MHTTP.ResponseWriter, req *MHTTP.Request) {
 	var body struct {
 		Session string             `json:"session"`
@@ -430,12 +373,14 @@ func postAppIdentityReplies(w MHTTP.ResponseWriter, req *MHTTP.Request) {
 		return
 	}
 	s.expireLocked()
+	freed := false
 	for _, reply := range body.Replies {
 		p, ok := s.pending[reply.ID]
 		if !ok || !p.sent {
 			continue
 		}
 		delete(s.pending, reply.ID) // duplicates and late replies cannot move bytes twice
+		freed = true
 		if reply.Status != "uid" || reply.UID < 0 || reply.UID > 2147483647 {
 			status := reply.Status
 			switch status {
@@ -480,5 +425,8 @@ func postAppIdentityReplies(w MHTTP.ResponseWriter, req *MHTTP.Request) {
 		addAppTrafficReason(row, p.reason)
 	}
 	s.mu.Unlock()
+	if freed {
+		s.wakeIdentity()
+	}
 	w.WriteHeader(MHTTP.StatusNoContent)
 }

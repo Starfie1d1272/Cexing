@@ -190,6 +190,7 @@ export namespace CoreApi {
         method: method,
         header: { 'Content-Type': contentType, 'Authorization': `Bearer ${access.secret}` },
         extraData: body,
+        usingProxy: false,
         connectTimeout: TIMEOUT,
         readTimeout: TIMEOUT
       });
@@ -397,6 +398,7 @@ export namespace CoreApi {
   /** 通用流订阅（/traffic /logs）：mihomo 流端点支持 WebSocket upgrade */
   export class StreamWatcher<T> {
     private ws: webSocket.WebSocket | null = null;
+    private pollRequest: http.HttpRequest | null = null;
     private cb: (msg: T) => void = () => {};
     private path: string = '';
     private stopped: boolean = true;
@@ -455,6 +457,10 @@ export namespace CoreApi {
         return;
       }
       this.releaseSocket();
+      if (this.path === '/ohos/app-traffic/identity' && deviceInfo.sdkApiVersion < 26) {
+        this.pollIdentity(generation).catch(() => { this.retry(generation); });
+        return;
+      }
       const access = getControllerAccess();
       if (access === null) {
         this.retry(generation);
@@ -480,6 +486,7 @@ export namespace CoreApi {
           }
           if (text.length > 0) {
             const sample = JSON.parse(text) as T;
+            if (this.path === '/ohos/app-traffic/identity' && !validAppIdentityBatch(sample as AppIdentityBatch)) { return; }
             if (this.path === '/traffic') {
               if (!validTraffic(sample as TrafficMsg)) { return; }
               this.armTrafficDeadline(ws, generation);
@@ -525,6 +532,37 @@ export namespace CoreApi {
       });
     }
 
+    // API 23–25 native WS omits the Origin port. Authenticated long polling
+    // uses the same bounded identity queue and keeps WS origin validation intact.
+    private async pollIdentity(generation: number): Promise<void> {
+      while (!this.stopped && generation === this.generation) {
+        const access = getControllerAccess();
+        if (access === null) { this.retry(generation); return; }
+        const req = http.createHttp();
+        this.pollRequest = req;
+        try {
+          const response = await req.request(access.httpBase + '/ohos/app-traffic/identity?transport=poll', {
+            method: http.RequestMethod.GET,
+            header: { 'Authorization': `Bearer ${access.secret}` },
+            usingProxy: false, connectTimeout: 2000, readTimeout: 2500,
+            usingCache: false
+          });
+          if (this.stopped || generation !== this.generation) { return; }
+          if (response.responseCode !== 200 || typeof response.result !== 'string' || response.result.length > 32768) {
+            this.retry(generation); return;
+          }
+          const batch = JSON.parse(response.result) as AppIdentityBatch;
+          if (!validAppIdentityBatch(batch)) { this.retry(generation); return; }
+          this.cb(batch as T);
+        } catch (_) {
+          if (!this.stopped && generation === this.generation) { this.retry(generation); }
+          return;
+        } finally {
+          if (this.pollRequest === req) { this.pollRequest = null; req.destroy(); }
+        }
+      }
+    }
+
     private armTrafficDeadline(ws: webSocket.WebSocket, generation: number): void {
       if (this.path !== '/traffic') { return; }
       if (this.trafficDeadline >= 0) { clearTimeout(this.trafficDeadline); }
@@ -545,6 +583,9 @@ export namespace CoreApi {
         this.reconnectTimer = -1;
       }
       this.releaseSocket();
+      const req = this.pollRequest;
+      this.pollRequest = null;
+      if (req !== null) { req.destroy(); }
     }
   }
 }
@@ -606,4 +647,15 @@ function validAppTrafficSummary(summary: AppTrafficSummary): boolean {
       typeof reason.rule === 'string' && typeof reason.route === 'string' &&
       Array.isArray(reason.policy) && reason.policy.length <= 8 &&
       reason.policy.every((name: string) => typeof name === 'string')));
+}
+
+export function validAppIdentityBatch(batch: AppIdentityBatch): boolean {
+  if (batch === null || typeof batch !== 'object' || typeof batch.session !== 'string' ||
+    !/^[0-9a-f]{32}$/.test(batch.session) || !Array.isArray(batch.requests) || batch.requests.length > 32) { return false; }
+  return batch.requests.every((request: AppIdentityRequest) => request !== null && typeof request === 'object' &&
+    typeof request.id === 'string' && request.id.length > 0 && request.id.length <= 64 &&
+    (request.protocol === 'tcp' || request.protocol === 'udp') &&
+    [request.local, request.remote].every((address: AppIdentityAddress) => address !== null && typeof address === 'object' &&
+      typeof address.address === 'string' && address.address.length > 0 && address.address.length <= 64 &&
+      (address.family === 1 || address.family === 2) && Number.isInteger(address.port) && address.port > 0 && address.port <= 65535));
 }

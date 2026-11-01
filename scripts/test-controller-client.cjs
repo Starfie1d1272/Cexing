@@ -17,6 +17,7 @@ let nextTimer = 1;
 let destroys = 0;
 let totals = null;
 let versionCode = 200;
+const polls = [];
 
 const modules = {
   '@kit.BasicServicesKit': { deviceInfo: { sdkApiVersion: 26 } },
@@ -32,6 +33,7 @@ const modules = {
     http: { RequestMethod: { GET: 'GET', PUT: 'PUT' }, createHttp: () => ({
       request: async (url, options) => {
         requests.push({ url, options });
+        if (url.endsWith('/identity?transport=poll')) return new Promise((resolve, reject) => polls.push({ resolve, reject, options, url }));
         if (url.endsWith('/version')) return { responseCode: versionCode, result: '{"version":"test"}' };
         if (url.endsWith('/connections')) return { responseCode: 200, result: JSON.stringify(totals) };
         // An exception can contain the sensitive header. Client must not log it.
@@ -118,6 +120,43 @@ function fireTimer() { const [id, fn] = timers.entries().next().value; timers.de
   const silentSocket = sockets.at(-1); fireTimer();
   assert.equal(silentSocket.closed, true, 'handshake/no-data timeout releases silent socket');
   assert.equal(timers.size, 1, 'bounded silent stream schedules retry'); stalled.stop();
+  const drain = async () => { for (let i = 0; i < 12; i++) await Promise.resolve(); };
+  for (const api of [23, 24, 25]) {
+    modules['@kit.BasicServicesKit'].deviceInfo.sdkApiVersion = api;
+    const legacy = new CoreApi.StreamWatcher(); let batches = 0;
+    const socketCount = sockets.length;
+    legacy.start('/ohos/app-traffic/identity', () => batches++);
+    assert.equal(sockets.length, socketCount, `API ${api} uses HTTP identity transport`);
+    assert.equal(polls.at(-1).options.header.Authorization, `Bearer ${stored}`);
+    assert.equal(polls.at(-1).options.usingProxy, false);
+    const active = polls.at(-1);
+    active.resolve({ responseCode: 200, result: JSON.stringify({ session: 'b'.repeat(32), requests: [] }) });
+    await drain(); assert.equal(batches, 1); assert.notEqual(polls.at(-1), active, 'Long poll renews immediately');
+    const late = polls.at(-1); const beforeDestroy = destroys;
+    legacy.stop(); assert.equal(destroys, beforeDestroy + 1, 'Stop destroys the pending HTTP request');
+    late.resolve({ responseCode: 200, result: JSON.stringify({ session: 'b'.repeat(32), requests: [] }) });
+    await drain(); assert.equal(batches, 1, 'Stopped poll cannot deliver or restart');
+    assert.equal(destroys, beforeDestroy + 1, 'Cancelled request destroyed once');
+    legacy.start('/ohos/app-traffic/identity', () => batches++);
+    polls.at(-1).resolve({ responseCode: 200, result: '{"session":"bad","requests":[]}' });
+    await drain(); assert.equal(batches, 1); assert.equal(timers.size, 1, 'Malformed batch backs off');
+    stored = 'c'.repeat(64); fireTimer();
+    assert.equal(polls.at(-1).options.header.Authorization, `Bearer ${stored}`, 'Poll retry refreshes credentials');
+    polls.at(-1).resolve({ responseCode: 409, result: '{}' });
+    await drain(); assert.equal(timers.size, 1, 'Consumer conflict uses bounded backoff');
+    fireTimer(); polls.at(-1).reject(new Error(`Authorization: ${stored}`));
+    await drain(); assert.equal(timers.size, 1, 'Transport failure retries without logging secrets');
+    legacy.stop(); assert.equal(timers.size, 0);
+  }
+  modules['@kit.BasicServicesKit'].deviceInfo.sdkApiVersion = 26;
+  const modern = new CoreApi.StreamWatcher(); let modernBatches = 0;
+  modern.start('/ohos/app-traffic/identity', () => modernBatches++);
+  const modernSocket = sockets.at(-1);
+  assert.equal(modernSocket.options.supportOriginPort, true);
+  modernSocket.events.message({}, '{"session":"bad","requests":[]}');
+  assert.equal(modernBatches, 0);
+  modernSocket.events.message({}, JSON.stringify({ session: 'b'.repeat(32), requests: [] }));
+  assert.equal(modernBatches, 1); modern.stop();
   assert.ok(!JSON.stringify(logs).includes(secret));
   assert.ok(!JSON.stringify(logs).includes(stored));
   assert.equal(await CoreApi.applyConfigText('synthetic', 'b'.repeat(32)), 'unknown');

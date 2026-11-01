@@ -85,7 +85,7 @@ func resolveAppRoute(metadata *C.Metadata) (string, error) {
 		status = "missingTuple"
 	case protocol != "tcp" && protocol != "udp":
 		status = "unsupported"
-	case !s.consumer:
+	case !s.identityAvailableLocked():
 		status = "consumerUnavailable"
 	case len(s.pending) >= identityLimit:
 		status = "overflow"
@@ -102,6 +102,7 @@ func resolveAppRoute(metadata *C.Metadata) (string, error) {
 	s.pending[id] = &appIdentityPending{request: appIdentityRequest{ID: id, Protocol: protocol, Local: local, Remote: remote},
 		deadline: time.Now().Add(appRouteIdentityTimeout), result: result}
 	s.mu.Unlock()
+	s.wakeIdentity()
 	timer := time.NewTimer(appRouteIdentityTimeout)
 	defer timer.Stop()
 	select {
@@ -114,6 +115,7 @@ func resolveAppRoute(metadata *C.Metadata) (string, error) {
 	if _, exists := s.pending[id]; exists {
 		delete(s.pending, id)
 		s.failures["timeout"]++
+		s.wakeIdentity()
 	}
 	if s.stopped || s != appTrafficCurrent.Load() {
 		return "", errors.New("source session ended")

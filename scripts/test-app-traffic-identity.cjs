@@ -46,6 +46,13 @@ function fixture() {
   assert.equal(fast.sent[1].replies[0].status, 'timeout');
   assert.equal(fast.consumer.lookups, 1, 'Timed-out native lookup retains its concurrency slot');
 
+  const burst = fixture();
+  for (let batch = 0; batch < 4; batch++) burst.batch('one', Array.from({ length: 32 }, (_, i) => batch * 32 + i + 1));
+  for (const resolve of burst.lookups.values()) resolve(1001);
+  await burst.advance(0);
+  assert.equal(burst.sent.length, 4, 'Ready replies drain without a 20ms pause for every batch');
+  assert.equal(burst.peak(), 1, 'Burst draining retains one HTTP sender');
+
   const bounded = fixture();
   for (let batch = 0; batch < 8; batch++) bounded.batch('one', Array.from({ length: 32 }, (_, i) => batch * 32 + i + 1));
   assert.equal(bounded.lookups.size, 128);

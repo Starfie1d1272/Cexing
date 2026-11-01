@@ -86,4 +86,32 @@ func TestAppIdentityWebSocketHandshake(t *testing.T) {
 		conn.CloseNow()
 	})
 
+	t.Run("authenticated-legacy-poll", func(t *testing.T) {
+		s.mu.Lock()
+		s.pending["legacy-poll"] = &appIdentityPending{request: appIdentityRequest{ID: "legacy-poll"}, deadline: time.Now().Add(identityTTL), result: make(chan int64, 1)}
+		s.mu.Unlock()
+		for _, authenticated := range []bool{false, true} {
+			req, _ := http.NewRequest("GET", "http://"+defaultController+"/ohos/app-traffic/identity?transport=poll", nil)
+			req.Header.Set("Origin", "http://127.0.0.1")
+			if authenticated {
+				req.Header.Set("Authorization", "Bearer "+controllerSecret)
+			}
+			response, err := client.Do(req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer response.Body.Close()
+			if !authenticated {
+				if response.StatusCode != 401 {
+					t.Fatal("poll accepted missing credential")
+				}
+				continue
+			}
+			var batch appIdentityBatch
+			if response.StatusCode != 200 || json.NewDecoder(response.Body).Decode(&batch) != nil || len(batch.Requests) != 1 || batch.Requests[0].ID != "legacy-poll" {
+				t.Fatal("authenticated HTTP poll did not deliver identity")
+			}
+		}
+	})
+
 }
