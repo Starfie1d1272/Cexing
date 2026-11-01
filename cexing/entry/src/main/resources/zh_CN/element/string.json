@@ -4307,6 +4307,86 @@
     {
       "name": "geosite_missing_generic",
       "value": "当前离线数据缺少所需的 GeoSite 分类，请更新应用后重试。"
+    },
+    {
+      "name": "traffic_unknown_app",
+      "value": "未识别"
+    },
+    {
+      "name": "traffic_started_at",
+      "value": "%s 开始"
+    },
+    {
+      "name": "traffic_apps_loading",
+      "value": "正在读取应用用量…"
+    },
+    {
+      "name": "traffic_apps_unavailable",
+      "value": "应用用量暂不可用，正在重试…"
+    },
+    {
+      "name": "traffic_apps_empty",
+      "value": "本次暂无应用用量记录"
+    },
+    {
+      "name": "traffic_session_ended",
+      "value": "本次已结束"
+    },
+    {
+      "name": "traffic_proxy",
+      "value": "代理"
+    },
+    {
+      "name": "traffic_direct",
+      "value": "内核直连"
+    },
+    {
+      "name": "traffic_unclassified",
+      "value": "未分类"
+    },
+    {
+      "name": "traffic_apps",
+      "value": "来源用量"
+    },
+    {
+      "name": "traffic_proxy_order",
+      "value": "本次 · 按代理用量 ↓"
+    },
+    {
+      "name": "traffic_app_totals",
+      "value": "总计 %s · 直连 %s"
+    },
+    {
+      "name": "traffic_identity_unsupported",
+      "value": "当前系统不支持识别应用，用量归入“未识别”。"
+    },
+    {
+      "name": "traffic_scope",
+      "value": "仅统计经过 VPN 内核的流量，不含已排除 VPN 的应用。"
+    },
+    {
+      "name": "traffic_app_total",
+      "value": "来源总用量"
+    },
+    {
+      "name": "traffic_recent_rules",
+      "value": "最近命中的规则"
+    },
+    {
+      "name": "traffic_no_rules",
+      "value": "未保留近期规则明细"
+    },
+    {
+      "name": "traffic_unknown_no_exclude",
+      "value": "无法验证应用身份，不能快捷排除。"
+    },
+    {
+      "name": "traffic_uid",
+      "value": "UID %d"
+    },
+    {
+      "name": "traffic_identity_unverified",
+      "value": "系统不提供可验证的应用名称与图标，已知连接按 UID 展示。"
     }
   ]
 }

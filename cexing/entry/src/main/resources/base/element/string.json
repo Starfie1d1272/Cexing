@@ -4307,6 +4307,86 @@
     {
       "name": "geosite_missing_generic",
       "value": "A required GeoSite category is missing. Update the app and try again."
+    },
+    {
+      "name": "traffic_unknown_app",
+      "value": "Unidentified"
+    },
+    {
+      "name": "traffic_started_at",
+      "value": "Started at %s"
+    },
+    {
+      "name": "traffic_apps_loading",
+      "value": "Loading app usage…"
+    },
+    {
+      "name": "traffic_apps_unavailable",
+      "value": "App usage is temporarily unavailable. Retrying…"
+    },
+    {
+      "name": "traffic_apps_empty",
+      "value": "No app usage recorded for this session"
+    },
+    {
+      "name": "traffic_session_ended",
+      "value": "Session ended"
+    },
+    {
+      "name": "traffic_proxy",
+      "value": "Proxy"
+    },
+    {
+      "name": "traffic_direct",
+      "value": "Core direct"
+    },
+    {
+      "name": "traffic_unclassified",
+      "value": "Unclassified"
+    },
+    {
+      "name": "traffic_apps",
+      "value": "Traffic by source"
+    },
+    {
+      "name": "traffic_proxy_order",
+      "value": "Session · proxy usage ↓"
+    },
+    {
+      "name": "traffic_app_totals",
+      "value": "Total %s · Direct %s"
+    },
+    {
+      "name": "traffic_identity_unsupported",
+      "value": "This system cannot identify apps. Usage is grouped as unidentified."
+    },
+    {
+      "name": "traffic_scope",
+      "value": "Traffic through the VPN core only; excludes apps that bypass VPN."
+    },
+    {
+      "name": "traffic_app_total",
+      "value": "Source total"
+    },
+    {
+      "name": "traffic_recent_rules",
+      "value": "Recent matched rules"
+    },
+    {
+      "name": "traffic_no_rules",
+      "value": "No recent rule details retained"
+    },
+    {
+      "name": "traffic_unknown_no_exclude",
+      "value": "App identity cannot be verified, so quick exclusion is unavailable."
+    },
+    {
+      "name": "traffic_uid",
+      "value": "UID %d"
+    },
+    {
+      "name": "traffic_identity_unverified",
+      "value": "App names and icons cannot be verified on this system. Known connections are shown by UID."
     }
   ]
 }

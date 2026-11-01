@@ -20,6 +20,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/metacubex/mihomo/adapter/inbound"
 	"github.com/metacubex/mihomo/constant"
 	MDNS "github.com/metacubex/mihomo/dns"
 	"github.com/metacubex/mihomo/hub/executor"
@@ -220,8 +221,11 @@ func coreStartTun(fd int, configJson string, overridesJson string) (result error
 	opts := defaultTunOptions(fd, cfg.General.IPv6)
 	stage = "tun_start"
 	kernelDiagnostic("tun_start", "started", nil, nil)
-	l, err := sing_tun.New(opts, tunnel.Tunnel)
+	trafficSession := startAppTraffic()
+	l, err := sing_tun.New(opts, tunnel.Tunnel, inbound.WithInName("DEFAULT-TUN"),
+		func(metadata *constant.Metadata) { metadata.TrackerContext = trafficSession })
 	if err != nil {
+		stopAppTraffic()
 		return fmt.Errorf("mihomoStartTun: start tun: %w", err)
 	}
 	tunListener = l
@@ -322,6 +326,7 @@ func coreStop() {
 	listener.ReCreateShadowSocks("", tunnel.Tunnel)
 	listener.ReCreateVmess("", tunnel.Tunnel)
 	MDNS.ReCreateServer("", nil, nil)
+	stopAppTraffic()
 	stopController()
 	activeOverrides = ""
 	tunIPv6Snapshot.Store(nil)

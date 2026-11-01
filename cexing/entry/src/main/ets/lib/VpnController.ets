@@ -10,7 +10,7 @@ import { fileIo } from '@kit.CoreFileKit';
 import { Logger } from './Logger';
 import { CoreApi } from './CoreApi';
 import { rpc } from '@kit.IPCKit';
-import { Settings } from './Settings';
+import { Settings, AppSettings, ApplicationAccessEdit } from './Settings';
 import { ConnectionFailure, ConnectionFailures } from './ConnectionFailure';
 import { ProfileStore } from './ProfileStore';
 import { VpnPhase, VpnPhaseOutcome, NativeVpnPhases, VpnPhases } from './VpnPhases';
@@ -64,6 +64,29 @@ export function buildVpnApplicationPolicy(mode: string, list: string[], self: st
     return { trustedApplications: names };
   }
   return { blockedApplications: [self, ...names] };
+}
+
+export function excludeVpnApplication(context: common.Context, bundleName: string): Promise<ApplicationAccessEdit> {
+  return Settings.editApplicationAccess(context, (s: AppSettings) => {
+    const self = context.applicationInfo.name;
+    if (!validVpnBundleName(bundleName) || bundleName === self) { throw new Error('请检查应用包名'); }
+    if (s.accessMode === 'all') {
+      s.accessMode = 'black'; s.accessList = [bundleName];
+    } else if (s.accessMode === 'white') {
+      s.accessList = s.accessList.filter((name: string) => name !== bundleName);
+    } else if (s.accessMode === 'black') {
+      s.accessList = Array.from(new Set([...s.accessList, bundleName]));
+    }
+    // An empty white list is rejected, never converted to all-app routing.
+    buildVpnApplicationPolicy(s.accessMode, s.accessList, self);
+  });
+}
+
+export function undoVpnApplicationExclusion(context: common.Context, receipt: ApplicationAccessEdit): Promise<ApplicationAccessEdit> {
+  return Settings.editApplicationAccess(context, (s: AppSettings) => {
+    buildVpnApplicationPolicy(receipt.mode, receipt.list, context.applicationInfo.name);
+    s.accessMode = receipt.mode; s.accessList = receipt.list.slice();
+  }, receipt.revision);
 }
 
 // Preserved compatibility table from 964774595feab1c96382fb00f885cce5ca4a11bf.
