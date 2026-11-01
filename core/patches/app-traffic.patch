@@ -330,3 +330,20 @@
  	NetWork        NetWork    `json:"network"`
  	Type           Type       `json:"type"`
  	SrcIP          netip.Addr `json:"sourceIP"`
+--- a/listener/sing/sing.go
++++ b/listener/sing/sing.go
+@@ -221,10 +221,10 @@
+ 		rAddr:  metadata.Source.UDPAddr(),
+ 		buff:   buffer,
+ 	}
+-	if h.Type != C.TUN { // make the handler-related SNAT key for not TUN listener
+-		connID := fmt.Sprintf("%s:%s", h.handlerId, key)
+-		cPacket.rAddr = N.NewCustomAddr(h.Type.String(), connID, cPacket.rAddr) // for tunnel's handleUDPConn
+-	}
++	// TUN reconnects must not reuse a previous listener's outbound NAT tracker.
++	// RawSrcAddr/RawDstAddr still come from metadata in handlePacket below.
++	connID := fmt.Sprintf("%s:%s", h.handlerId, key)
++	cPacket.rAddr = N.NewCustomAddr(h.Type.String(), connID, cPacket.rAddr)
+ 	if conn, ok := common.Cast[localAddr](writer); ok { // tun does not have real inAddr
+ 		cPacket.lAddr = conn.LocalAddr()
+ 	}
