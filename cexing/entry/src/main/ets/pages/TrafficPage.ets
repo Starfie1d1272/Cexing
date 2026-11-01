@@ -19,8 +19,6 @@ class SourceNotes {
   static session: string = '';
   static keys: string[] = [];
   static labels: Record<string, string> = {};
-  static baseline: Record<string, number> = {};
-  static observing: boolean = false;
   static writing: boolean = false;
 }
 
@@ -45,7 +43,6 @@ export struct TrafficPage {
   @State private routeChoices: string[] = [];
   @State private routeMessage: string = '';
   @State private note: string = '';
-  @State private observing: boolean = false;
   private detailRequest: number = 0;
   private appRequest: number = 0;
   private appBusy: boolean = false;
@@ -126,13 +123,12 @@ export struct TrafficPage {
       if (this.appSummary !== null && this.appSummary.session !== summary.session) { this.selected = null; this.showApp = false; }
       if (SourceNotes.session !== summary.session) {
         SourceNotes.session = summary.session; SourceNotes.keys = []; SourceNotes.labels = {};
-        SourceNotes.baseline = {}; SourceNotes.observing = false; this.detailRequest++; this.routeBusy = false;
+        this.detailRequest++; this.routeBusy = false;
       }
       summary.apps.forEach((row: AppTrafficRow) => {
         const key = this.rowKey(row);
         if (row.uid >= 0 && !SourceNotes.keys.includes(key)) { SourceNotes.keys.push(key); }
       });
-      this.observing = SourceNotes.observing;
       this.appSummary = summary;
       this.appRows = summary.apps.slice().sort((a: AppTrafficRow, b: AppTrafficRow) =>
         this.routeBytes(b.routes.proxy) - this.routeBytes(a.routes.proxy) || this.rowKey(a).localeCompare(this.rowKey(b)));
@@ -202,14 +198,6 @@ export struct TrafficPage {
     this.routeBusy = false;
     this.routeMessage = UiText.get(saved ? $r('app.string.traffic_route_saved') : $r('app.string.traffic_route_failed'));
     this.appSampleAt = 0; await this.refreshApps();
-  }
-  private observe(): void {
-    SourceNotes.baseline = {};
-    this.appRows.forEach((row: AppTrafficRow) => { SourceNotes.baseline[this.rowKey(row)] = this.total(row.routes); });
-    SourceNotes.observing = true; this.observing = true;
-  }
-  private observed(row: AppTrafficRow): string {
-    return UiText.get($r('app.string.traffic_observed'), bytes(Math.max(0, this.total(row.routes) - (SourceNotes.baseline[this.rowKey(row)] ?? 0))));
   }
   private lastSeen(row: AppTrafficRow): string {
     return row.lastSeen > 0 ? UiText.get($r('app.string.traffic_last_seen'),
@@ -305,9 +293,6 @@ export struct TrafficPage {
         Text($r('app.string.traffic_proxy_order')).fontSize(11).fontColor(UI.muted)
       }.width('100%')
       if (this.appRows.length > 0) {
-        Button(this.observing ? $r('app.string.traffic_observe_reset') : $r('app.string.traffic_observe'))
-          .onClick(() => this.observe()).enabled(this.appSummary?.state === 'running')
-        if (this.observing) { Text($r('app.string.traffic_observe_hint')).fontSize(12).fontColor(UI.muted).width('100%') }
         Column() {
           ForEach(this.appRows, (row: AppTrafficRow, index: number) => {
             if (index > 0) { Divider().color(UI.line) }
@@ -325,7 +310,6 @@ export struct TrafficPage {
                 }.width('100%')
                 if (this.targets(row).length > 0) { Text(this.targets(row)).fontSize(12).fontColor(UI.muted).maxLines(2).width('100%') }
                 Text(this.lastSeen(row)).fontSize(11).fontColor(UI.muted).width('100%')
-                if (this.observing) { Text(this.observed(row)).fontSize(12).fontColor(UI.accentText).width('100%') }
                 this.RouteBar(row.routes)
               }.layoutWeight(1)
             }.width('100%').padding({ top: 16, bottom: 16 }).constraintSize({ minHeight: 80 })

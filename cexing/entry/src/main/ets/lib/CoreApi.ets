@@ -8,6 +8,7 @@ import { Logger } from './Logger';
 import { util } from '@kit.ArkTS';
 import { application, common } from '@kit.AbilityKit';
 import { fileIo } from '@kit.CoreFileKit';
+import { BusinessError, deviceInfo } from '@kit.BasicServicesKit';
 
 const TAG = 'coreApi';
 const BASE = 'http://127.0.0.1:9090';
@@ -501,14 +502,25 @@ export namespace CoreApi {
         this.retry(generation);
       };
       ws.on('close', reconnect);
-      ws.on('error', () => {
-        Logger.warn(TAG, 'ws connection failed');
+      ws.on('error', (error: BusinessError) => {
+        if (this.ws !== ws || generation !== this.generation || this.stopped) { return; }
+        const code = typeof error.code === 'number' && Number.isInteger(error.code) ? error.code : 0;
+        Logger.warn(TAG, `ws connection failed (${code})`);
         reconnect();
       });
       this.armTrafficDeadline(ws, generation);
-      ws.connect(access.wsBase + this.path, {
-        header: { 'Authorization': `Bearer ${access.secret}` }
-      }).catch(() => {
+      const options: webSocket.WebSocketRequestOptions = {
+        header: { 'Authorization': `Bearer ${access.secret}` }, proxy: 'no-proxy'
+      };
+      // Native WebSocket drops nonstandard Origin ports unless API 26 opts in.
+      // The controller requires the exact loopback origin, including port 9090.
+      if (deviceInfo.sdkApiVersion >= 26) { options.supportOriginPort = true; }
+      ws.connect(access.wsBase + this.path, options).then((created: boolean) => {
+        if (created === false) { reconnect(); }
+      }).catch((error: BusinessError) => {
+        if (this.ws !== ws || generation !== this.generation || this.stopped) { return; }
+        const code = typeof error.code === 'number' && Number.isInteger(error.code) ? error.code : 0;
+        Logger.warn(TAG, `ws request failed (${code})`);
         reconnect();
       });
     }

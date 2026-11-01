@@ -19,6 +19,7 @@ let totals = null;
 let versionCode = 200;
 
 const modules = {
+  '@kit.BasicServicesKit': { deviceInfo: { sdkApiVersion: 26 } },
   '@kit.AbilityKit': { application: { getApplicationContext: () => ({ createModuleContext: () => ({ filesDir: '/private/entry/files' }) }) } },
   '@kit.CoreFileKit': { fileIo: { readTextSync: file => {
     assert.equal(file, '/private/entry/files/controller-security/secret');
@@ -73,6 +74,8 @@ function fireTimer() { const [id, fn] = timers.entries().next().value; timers.de
   assert.equal(sockets.length, 1);
   assert.equal(sockets[0].url, 'ws://127.0.0.1:9090/traffic');
   assert.equal(sockets[0].options.header.Authorization, `Bearer ${secret}`);
+  assert.equal(sockets[0].options.supportOriginPort, true, 'Native handshake must retain the controller origin port');
+  assert.equal(sockets[0].options.proxy, 'no-proxy', 'Loopback authentication must stay off system proxies');
   sockets[0].events.message({}, JSON.stringify({ up: 1, down: 0, arbitrary: secret }));
   assert.equal(received, 1);
   const staleError = sockets[0].events.error;

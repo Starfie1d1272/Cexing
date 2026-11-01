@@ -4465,22 +4465,6 @@
       "value": "Save result unconfirmed. Refresh to check the current route."
     },
     {
-      "name": "traffic_observe",
-      "value": "Observe upcoming traffic"
-    },
-    {
-      "name": "traffic_observe_reset",
-      "value": "Restart observation"
-    },
-    {
-      "name": "traffic_observe_hint",
-      "value": "Use the target app, then return to compare the added traffic."
-    },
-    {
-      "name": "traffic_observed",
-      "value": "Added %s"
-    },
-    {
       "name": "traffic_last_seen",
       "value": "Active at %s"
     },

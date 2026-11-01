@@ -4465,22 +4465,6 @@
       "value": "保存结果未确认，请刷新后检查。"
     },
     {
-      "name": "traffic_observe",
-      "value": "观察接下来的流量"
-    },
-    {
-      "name": "traffic_observe_reset",
-      "value": "重新开始观察"
-    },
-    {
-      "name": "traffic_observe_hint",
-      "value": "切去使用目标应用，再回来对比新增流量。"
-    },
-    {
-      "name": "traffic_observed",
-      "value": "新增 %s"
-    },
-    {
       "name": "traffic_last_seen",
       "value": "最近活跃 %s"
     },
