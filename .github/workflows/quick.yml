@@ -28,9 +28,12 @@ jobs:
       - name: Check Python script formatting and lint
         run: |
           python3 -m venv "$RUNNER_TEMP/ruff-venv"
-          "$RUNNER_TEMP/ruff-venv/bin/pip" install ruff==0.17.4
+          "$RUNNER_TEMP/ruff-venv/bin/pip" install ruff==0.17.4 clang-format==20.1.8
           git ls-files 'scripts/*.py' 'scripts/**/*.py' | grep -v '/test-' | xargs -r "$RUNNER_TEMP/ruff-venv/bin/ruff" format --check
           git ls-files 'scripts/*.py' 'scripts/**/*.py' | grep -v '/test-' | xargs -r "$RUNNER_TEMP/ruff-venv/bin/ruff" check --select E9,F63,F7,F82
+      - name: Check native bridge formatting
+        run: |
+          git ls-files 'cexing/entry/src/main/cpp/*.cpp' 'cexing/entry/src/main/cpp/*.h' | xargs -r "$RUNNER_TEMP/ruff-venv/bin/clang-format" --dry-run --Werror
       - name: Check Go source formatting
         shell: bash
         run: |

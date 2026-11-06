@@ -50,24 +50,25 @@ bool GetStringArg(napi_env env, napi_value arg, std::string &out) {
 void CoreExecute(napi_env env, void *data) {
     auto *ctx = static_cast<CoreContext *>(data);
     switch (ctx->op) {
-        case 0:
-            ctx->err = bridge::Init(ctx->homeDir);
-            break;
-        case 1:
-            ctx->err = bridge::StartTun(ctx->fd, ctx->configJson, ctx->overridesJson);
-            break;
-        case 2:
-            ctx->err = bridge::Stop();
-            break;
-        case 3:
-            ctx->err = bridge::ValidateOffline(ctx->homeDir, ctx->configJson, ctx->overridesJson);
-            break;
-        case 4:
-            ctx->err = bridge::PreviewMerge(ctx->homeDir, ctx->configJson, ctx->mergeYaml, ctx->overridesJson);
-            break;
-        case 5:
-            ctx->err = bridge::VersionAction(ctx->homeDir, ctx->configJson);
-            break;
+    case 0:
+        ctx->err = bridge::Init(ctx->homeDir);
+        break;
+    case 1:
+        ctx->err = bridge::StartTun(ctx->fd, ctx->configJson, ctx->overridesJson);
+        break;
+    case 2:
+        ctx->err = bridge::Stop();
+        break;
+    case 3:
+        ctx->err = bridge::ValidateOffline(ctx->homeDir, ctx->configJson, ctx->overridesJson);
+        break;
+    case 4:
+        ctx->err =
+            bridge::PreviewMerge(ctx->homeDir, ctx->configJson, ctx->mergeYaml, ctx->overridesJson);
+        break;
+    case 5:
+        ctx->err = bridge::VersionAction(ctx->homeDir, ctx->configJson);
+        break;
     }
 }
 
@@ -121,7 +122,8 @@ napi_value StartTun(napi_env env, napi_callback_info info) {
     napi_value args[3] = {nullptr};
     napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
     if (argc < 2) {
-        napi_throw_error(env, "BAD_PARAMS", "startTun(fd, configJson[, overridesJson]) requires 2 or 3 arguments");
+        napi_throw_error(env, "BAD_PARAMS",
+                         "startTun(fd, configJson[, overridesJson]) requires 2 or 3 arguments");
         return nullptr;
     }
     auto *ctx = new CoreContext();
@@ -180,7 +182,8 @@ napi_value ValidateOffline(napi_env env, napi_callback_info info) {
         !GetStringArg(env, args[1], ctx->configJson) ||
         !GetStringArg(env, args[2], ctx->overridesJson)) {
         delete ctx;
-        napi_throw_error(env, "BAD_PARAMS", "validateOffline requires homeDir, config and overrides strings");
+        napi_throw_error(env, "BAD_PARAMS",
+                         "validateOffline requires homeDir, config and overrides strings");
         return nullptr;
     }
     napi_value resourceName;
@@ -224,7 +227,8 @@ napi_value VersionAction(napi_env env, napi_callback_info info) {
     if (argc != 2 || !GetStringArg(env, args[0], ctx->homeDir) ||
         !GetStringArg(env, args[1], ctx->configJson)) {
         delete ctx;
-        napi_throw_error(env, "BAD_PARAMS", "versionAction requires homeDir and action JSON strings");
+        napi_throw_error(env, "BAD_PARAMS",
+                         "versionAction requires homeDir and action JSON strings");
         return nullptr;
     }
     napi_value resourceName;
@@ -260,8 +264,10 @@ napi_value Init(napi_env env, napi_value exports) {
         {"initCore", nullptr, InitCore, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"startTun", nullptr, StartTun, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"stopCore", nullptr, StopCore, nullptr, nullptr, nullptr, napi_default, nullptr},
-        {"getBridgeStatus", nullptr, GetBridgeStatus, nullptr, nullptr, nullptr, napi_default, nullptr},
-        {"validateOffline", nullptr, ValidateOffline, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"getBridgeStatus", nullptr, GetBridgeStatus, nullptr, nullptr, nullptr, napi_default,
+         nullptr},
+        {"validateOffline", nullptr, ValidateOffline, nullptr, nullptr, nullptr, napi_default,
+         nullptr},
         {"previewMerge", nullptr, PreviewMerge, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"versionAction", nullptr, VersionAction, nullptr, nullptr, nullptr, napi_default, nullptr},
     };

@@ -71,15 +71,18 @@ static pthread_t gWorker;
 static bool gWorkerStarted = false;
 
 static void redirectStderrOnce(const std::string &home) {
-    if (gStderrRedirected || home.empty()) return;
+    if (gStderrRedirected || home.empty())
+        return;
     gStderrRedirected = true; // bounded one attempt; logging failure never blocks core load
-    if (!stderr_capture::start(home)) VPN_LOGW("private stderr capture unavailable");
+    if (!stderr_capture::start(home))
+        VPN_LOGW("private stderr capture unavailable");
 }
 
 static bool ensureLoaded() {
     if (gHandle != nullptr) {
         // Go runtime cannot be unloaded. Cache an incomplete ABI as unavailable.
-        return gInit != nullptr && gStartTun != nullptr && gStop != nullptr && gFree != nullptr && gValidate != nullptr && gPreview != nullptr && gVersion != nullptr;
+        return gInit != nullptr && gStartTun != nullptr && gStop != nullptr && gFree != nullptr &&
+               gValidate != nullptr && gPreview != nullptr && gVersion != nullptr;
     }
     dlerror();
     void *h = dlopen("libmihomo.so", RTLD_NOW | RTLD_GLOBAL);
@@ -98,9 +101,11 @@ static bool ensureLoaded() {
     gValidate = reinterpret_cast<MihomoValidateFn>(dlsym(h, "mihomoValidateOffline"));
     gPreview = reinterpret_cast<MihomoPreviewFn>(dlsym(h, "mihomoPreviewMerge"));
     gVersion = reinterpret_cast<MihomoVersionFn>(dlsym(h, "mihomoVersionAction"));
-    if (gInit == nullptr || gStartTun == nullptr || gStop == nullptr || gFree == nullptr || gValidate == nullptr || gPreview == nullptr || gVersion == nullptr) {
+    if (gInit == nullptr || gStartTun == nullptr || gStop == nullptr || gFree == nullptr ||
+        gValidate == nullptr || gPreview == nullptr || gVersion == nullptr) {
         const char *err = dlerror();
-        gStatus.lastError = std::string("dlsym failed: ") + (err != nullptr ? err : "symbol not found");
+        gStatus.lastError =
+            std::string("dlsym failed: ") + (err != nullptr ? err : "symbol not found");
         gStatus.loaded = false;
         // Keep the handle and failed status; later requests must not reload it.
         VPN_LOGE("%{public}s", gStatus.lastError.c_str());
@@ -123,44 +128,51 @@ static void *workerMain(void *) {
             gQueue.pop_front();
         }
         switch (job->op) {
-            case Op::Init: {
-                char *raw = gInit(job->arg.c_str());
-                if (raw != nullptr) {
-                    job->result = raw;
-                    gFree(raw);
-                }
-                break;
+        case Op::Init: {
+            char *raw = gInit(job->arg.c_str());
+            if (raw != nullptr) {
+                job->result = raw;
+                gFree(raw);
             }
-            case Op::StartTun: {
-                char *raw = gStartTun(job->fd, job->arg.c_str(), job->overrides.c_str());
-                if (raw != nullptr) {
-                    job->result = raw;
-                    gFree(raw);
-                }
-                break;
+            break;
+        }
+        case Op::StartTun: {
+            char *raw = gStartTun(job->fd, job->arg.c_str(), job->overrides.c_str());
+            if (raw != nullptr) {
+                job->result = raw;
+                gFree(raw);
             }
-            case Op::Stop: {
-                gStop();
-                break;
+            break;
+        }
+        case Op::Stop: {
+            gStop();
+            break;
+        }
+        case Op::Validate: {
+            char *raw = gValidate(job->homeDir.c_str(), job->arg.c_str(), job->overrides.c_str());
+            if (raw != nullptr) {
+                job->result = raw;
+                gFree(raw);
             }
-            case Op::Validate: {
-                char *raw = gValidate(job->homeDir.c_str(), job->arg.c_str(), job->overrides.c_str());
-                if (raw != nullptr) {
-                    job->result = raw;
-                    gFree(raw);
-                }
-                break;
+            break;
+        }
+        case Op::Preview: {
+            char *raw = gPreview(job->homeDir.c_str(), job->arg.c_str(), job->overlay.c_str(),
+                                 job->overrides.c_str());
+            if (raw != nullptr) {
+                job->result = raw;
+                gFree(raw);
             }
-            case Op::Preview: {
-                char *raw = gPreview(job->homeDir.c_str(), job->arg.c_str(), job->overlay.c_str(), job->overrides.c_str());
-                if (raw != nullptr) { job->result = raw; gFree(raw); }
-                break;
+            break;
+        }
+        case Op::Version: {
+            char *raw = gVersion(job->homeDir.c_str(), job->arg.c_str());
+            if (raw != nullptr) {
+                job->result = raw;
+                gFree(raw);
             }
-            case Op::Version: {
-                char *raw = gVersion(job->homeDir.c_str(), job->arg.c_str());
-                if (raw != nullptr) { job->result = raw; gFree(raw); }
-                break;
-            }
+            break;
+        }
         }
         {
             std::lock_guard<std::mutex> lock(gQueueMutex);
@@ -261,7 +273,8 @@ std::string StartTun(int fd, const std::string &configJson, const std::string &o
     return err;
 }
 
-std::string ValidateOffline(const std::string &homeDir, const std::string &configJson, const std::string &overridesJson) {
+std::string ValidateOffline(const std::string &homeDir, const std::string &configJson,
+                            const std::string &overridesJson) {
     auto job = std::make_shared<Job>();
     job->op = Op::Validate;
     job->homeDir = homeDir;
@@ -270,7 +283,8 @@ std::string ValidateOffline(const std::string &homeDir, const std::string &confi
     return submit(job);
 }
 
-std::string PreviewMerge(const std::string &homeDir, const std::string &original, const std::string &overlay, const std::string &overridesJson) {
+std::string PreviewMerge(const std::string &homeDir, const std::string &original,
+                         const std::string &overlay, const std::string &overridesJson) {
     auto job = std::make_shared<Job>();
     job->op = Op::Preview;
     job->homeDir = homeDir;

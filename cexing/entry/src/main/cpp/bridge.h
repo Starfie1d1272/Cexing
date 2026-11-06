@@ -11,8 +11,8 @@
 namespace bridge {
 
 struct Status {
-    bool loaded;          // libmihomo.so 是否已加载
-    std::string libPath;  // 库路径（dlopen 名称）
+    bool loaded;         // libmihomo.so 是否已加载
+    std::string libPath; // 库路径（dlopen 名称）
     std::string lastError;
     long long callCount;
     long long failCount;
@@ -22,8 +22,10 @@ struct Status {
 // 主线程直进 Go c-shared 会 SIGSEGV）。返回错误串，空串 = 成功。
 std::string Init(const std::string &homeDir);
 std::string StartTun(int fd, const std::string &configJson, const std::string &overridesJson);
-std::string ValidateOffline(const std::string &homeDir, const std::string &configJson, const std::string &overridesJson);
-std::string PreviewMerge(const std::string &homeDir, const std::string &original, const std::string &overlay, const std::string &overridesJson);
+std::string ValidateOffline(const std::string &homeDir, const std::string &configJson,
+                            const std::string &overridesJson);
+std::string PreviewMerge(const std::string &homeDir, const std::string &original,
+                         const std::string &overlay, const std::string &overridesJson);
 std::string VersionAction(const std::string &homeDir, const std::string &actionJson);
 std::string Stop();
 Status GetStatus();
