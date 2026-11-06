@@ -12,9 +12,13 @@
 #define CEXING_LOG_DOMAIN 0x3200
 #define CEXING_LOG_TAG "CEXING-NAPI"
 
-#define VPN_LOGD(fmt, ...) OH_LOG_Print(LOG_APP, LOG_DEBUG, CEXING_LOG_DOMAIN, CEXING_LOG_TAG, fmt, ##__VA_ARGS__)
-#define VPN_LOGI(fmt, ...) OH_LOG_Print(LOG_APP, LOG_INFO,  CEXING_LOG_DOMAIN, CEXING_LOG_TAG, fmt, ##__VA_ARGS__)
-#define VPN_LOGW(fmt, ...) OH_LOG_Print(LOG_APP, LOG_WARN,  CEXING_LOG_DOMAIN, CEXING_LOG_TAG, fmt, ##__VA_ARGS__)
-#define VPN_LOGE(fmt, ...) OH_LOG_Print(LOG_APP, LOG_ERROR, CEXING_LOG_DOMAIN, CEXING_LOG_TAG, fmt, ##__VA_ARGS__)
+#define VPN_LOGD(fmt, ...)                                                                         \
+    OH_LOG_Print(LOG_APP, LOG_DEBUG, CEXING_LOG_DOMAIN, CEXING_LOG_TAG, fmt, ##__VA_ARGS__)
+#define VPN_LOGI(fmt, ...)                                                                         \
+    OH_LOG_Print(LOG_APP, LOG_INFO, CEXING_LOG_DOMAIN, CEXING_LOG_TAG, fmt, ##__VA_ARGS__)
+#define VPN_LOGW(fmt, ...)                                                                         \
+    OH_LOG_Print(LOG_APP, LOG_WARN, CEXING_LOG_DOMAIN, CEXING_LOG_TAG, fmt, ##__VA_ARGS__)
+#define VPN_LOGE(fmt, ...)                                                                         \
+    OH_LOG_Print(LOG_APP, LOG_ERROR, CEXING_LOG_DOMAIN, CEXING_LOG_TAG, fmt, ##__VA_ARGS__)
 
 #endif
