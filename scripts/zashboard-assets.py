@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Prepare reviewed rawfile assets and verify their exact HAP representation."""
+
 import hashlib
 import json
 import shutil
@@ -10,8 +11,8 @@ from pathlib import Path
 import zashboard_notices
 
 ROOT = Path(__file__).resolve().parent.parent
-PIN = ROOT / 'third_party/zashboard'
-RAW = ROOT / 'cexing/entry/src/main/resources/rawfile/zashboard'
+PIN = ROOT / "third_party/zashboard"
+RAW = ROOT / "cexing/entry/src/main/resources/rawfile/zashboard"
 
 
 def sha(data):
@@ -19,22 +20,25 @@ def sha(data):
 
 
 def safe(path):
-    return (isinstance(path, str) and len(path) < 240 and
-            all(c.isascii() and (c.isalnum() or c in '-_./') for c in path) and
-            all(part not in ('', '.', '..') for part in path.split('/')))
+    return (
+        isinstance(path, str)
+        and len(path) < 240
+        and all(c.isascii() and (c.isalnum() or c in "-_./") for c in path)
+        and all(part not in ("", ".", "..") for part in path.split("/"))
+    )
 
 
 def entries(directory):
     result = []
-    for p in sorted(directory.rglob('*')):
+    for p in sorted(directory.rglob("*")):
         if p.is_symlink():
-            raise ValueError('symlink in assets')
-        if p.is_file() and p.relative_to(directory).as_posix() != 'manifest.json':
+            raise ValueError("symlink in assets")
+        if p.is_file() and p.relative_to(directory).as_posix() != "manifest.json":
             name = p.relative_to(directory).as_posix()
             if not safe(name):
-                raise ValueError('unsafe asset path')
+                raise ValueError("unsafe asset path")
             data = p.read_bytes()
-            result.append({'path': name, 'size': len(data), 'sha256': sha(data)})
+            result.append({"path": name, "size": len(data), "sha256": sha(data)})
     return result
 
 
@@ -46,9 +50,11 @@ def commit_prepared(changes):
     complete = False
     try:
         for prepared, target in changes:
-            directory = Path(tempfile.mkdtemp(prefix='.zashboard-backup-', dir=target.parent))
+            directory = Path(
+                tempfile.mkdtemp(prefix=".zashboard-backup-", dir=target.parent)
+            )
             temporary.append(directory)
-            backup = directory / 'previous'
+            backup = directory / "previous"
             if target.exists():
                 target.rename(backup)
             backups.append((target, backup))
@@ -72,74 +78,116 @@ def commit_prepared(changes):
 
 
 def prepare(source, reviewed=False):
-    pin = json.loads((PIN / 'source.json').read_text())
-    for name, key in [('pnpm-lock.yaml', 'lockSha256'), ('package.json', 'packageSha256')]:
+    pin = json.loads((PIN / "source.json").read_text())
+    for name, key in [
+        ("pnpm-lock.yaml", "lockSha256"),
+        ("package.json", "packageSha256"),
+    ]:
         if sha((source / name).read_bytes()) != pin[key]:
-            raise ValueError('source dependency identity changed')
+            raise ValueError("source dependency identity changed")
     RAW.parent.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(prefix='.zashboard-prepare-', dir=RAW.parent) as temporary:
-        stage = Path(temporary) / 'raw'
-        shutil.copytree(source / 'dist', stage, symlinks=True)
-        shutil.copyfile(PIN / 'LICENSE', stage / 'LICENSE')
-        shutil.copyfile(source / 'node_modules/@fontsource/fira-sans/LICENSE', stage / 'FiraSans-LICENSE')
+    with tempfile.TemporaryDirectory(
+        prefix=".zashboard-prepare-", dir=RAW.parent
+    ) as temporary:
+        stage = Path(temporary) / "raw"
+        shutil.copytree(source / "dist", stage, symlinks=True)
+        shutil.copyfile(PIN / "LICENSE", stage / "LICENSE")
+        shutil.copyfile(
+            source / "node_modules/@fontsource/fira-sans/LICENSE",
+            stage / "FiraSans-LICENSE",
+        )
         # The reviewed lock corpus includes optional packages on every platform.
-        (stage / 'dependency-notices.json').write_bytes(zashboard_notices.reviewed_notices(PIN))
-        if list(stage.glob('registerSW*')) or not list(stage.rglob('*.woff2')):
-            raise ValueError('expected local fonts and no SW auto-registration')
-        for p in list(stage.rglob('*.css')) + [stage / 'index.html']:
-            if 'https://unpkg.com' in p.read_text() or 'fonts.googleapis.com' in p.read_text():
-                raise ValueError('font CDN detected')
+        (stage / "dependency-notices.json").write_bytes(
+            zashboard_notices.reviewed_notices(PIN)
+        )
+        if list(stage.glob("registerSW*")) or not list(stage.rglob("*.woff2")):
+            raise ValueError("expected local fonts and no SW auto-registration")
+        for p in list(stage.rglob("*.css")) + [stage / "index.html"]:
+            if (
+                "https://unpkg.com" in p.read_text()
+                or "fonts.googleapis.com" in p.read_text()
+            ):
+                raise ValueError("font CDN detected")
         files = entries(stage)
-        version = sha(json.dumps(files, separators=(',', ':')).encode())
-        manifest = {'schema': 1, 'version': version, 'sourceSha': pin['sha'], 'files': files}
-        data = (json.dumps(manifest, indent=2) + '\n').encode()
-        (stage / 'manifest.json').write_bytes(data)
-        ets = ROOT / 'cexing/entry/src/main/ets/lib/ZashboardPin.ets'
-        pin_data = ('// Generated by scripts/zashboard-assets.py from the reviewed asset manifest.\n'
-                    f"export const ZASHBOARD_MANIFEST_SHA256: string = '{sha(data)}';\n"
-                    f"export const ZASHBOARD_VERSION: string = '{version}';\n").encode()
+        version = sha(json.dumps(files, separators=(",", ":")).encode())
+        manifest = {
+            "schema": 1,
+            "version": version,
+            "sourceSha": pin["sha"],
+            "files": files,
+        }
+        data = (json.dumps(manifest, indent=2) + "\n").encode()
+        (stage / "manifest.json").write_bytes(data)
+        ets = ROOT / "cexing/entry/src/main/ets/lib/ZashboardPin.ets"
+        pin_data = (
+            "// Generated by scripts/zashboard-assets.py from the reviewed asset manifest.\n"
+            f"export const ZASHBOARD_MANIFEST_SHA256: string = '{sha(data)}';\n"
+            f"export const ZASHBOARD_VERSION: string = '{version}';\n"
+        ).encode()
         if reviewed:
-            if (PIN / 'manifest.json').read_bytes() != data or ets.read_bytes() != pin_data:
-                raise ValueError('generated Zashboard identity differs from reviewed manifest/pin')
+            if (
+                PIN / "manifest.json"
+            ).read_bytes() != data or ets.read_bytes() != pin_data:
+                raise ValueError(
+                    "generated Zashboard identity differs from reviewed manifest/pin"
+                )
             changes = [(stage, RAW)]
         else:
-            staged_manifest = Path(temporary) / 'manifest.json'
+            staged_manifest = Path(temporary) / "manifest.json"
             staged_manifest.write_bytes(data)
-            staged_pin = Path(temporary) / 'ZashboardPin.ets'
+            staged_pin = Path(temporary) / "ZashboardPin.ets"
             staged_pin.write_bytes(pin_data)
-            changes = [(stage, RAW), (staged_manifest, PIN / 'manifest.json'), (staged_pin, ets)]
+            changes = [
+                (stage, RAW),
+                (staged_manifest, PIN / "manifest.json"),
+                (staged_pin, ets),
+            ]
         # Verify the complete staged representation before touching any last usable path.
-        if entries(stage) != manifest['files'] or (stage / 'manifest.json').read_bytes() != data:
-            raise ValueError('staged resource set/digest mismatch')
+        if (
+            entries(stage) != manifest["files"]
+            or (stage / "manifest.json").read_bytes() != data
+        ):
+            raise ValueError("staged resource set/digest mismatch")
         commit_prepared(changes)
-    print(f'Prepared {len(files)} files, version {version}, {sum(f["size"] for f in files)} bytes')
+    print(
+        f"Prepared {len(files)} files, version {version}, {sum(f['size'] for f in files)} bytes"
+    )
 
 
 def verify(hap=None):
-    data = (PIN / 'manifest.json').read_bytes()
+    data = (PIN / "manifest.json").read_bytes()
     manifest = json.loads(data)
     if hap:
         with zipfile.ZipFile(hap) as archive:
             if archive.testzip() is not None:
-                raise ValueError('HAP CRC failure')
-            prefix = 'resources/rawfile/zashboard/'
-            actual = {p[len(prefix):] for p in archive.namelist() if p.startswith(prefix) and not p.endswith('/')}
-            expected = {f['path'] for f in manifest['files']} | {'manifest.json'}
-            if actual != expected or archive.read(prefix + 'manifest.json') != data:
-                raise ValueError('HAP resource set/manifest mismatch')
-            for f in manifest['files']:
-                raw = archive.read(prefix + f['path'])
-                if len(raw) != f['size'] or sha(raw) != f['sha256']:
-                    raise ValueError('HAP asset digest mismatch')
-    elif (RAW / 'manifest.json').read_bytes() != data or entries(RAW) != manifest['files']:
-        raise ValueError('rawfile resource set/digest mismatch; rebuild Zashboard')
-    print(f'Verified {len(manifest["files"])} Zashboard files' + (' in HAP' if hap else ' in rawfile'))
+                raise ValueError("HAP CRC failure")
+            prefix = "resources/rawfile/zashboard/"
+            actual = {
+                p[len(prefix) :]
+                for p in archive.namelist()
+                if p.startswith(prefix) and not p.endswith("/")
+            }
+            expected = {f["path"] for f in manifest["files"]} | {"manifest.json"}
+            if actual != expected or archive.read(prefix + "manifest.json") != data:
+                raise ValueError("HAP resource set/manifest mismatch")
+            for f in manifest["files"]:
+                raw = archive.read(prefix + f["path"])
+                if len(raw) != f["size"] or sha(raw) != f["sha256"]:
+                    raise ValueError("HAP asset digest mismatch")
+    elif (RAW / "manifest.json").read_bytes() != data or entries(RAW) != manifest[
+        "files"
+    ]:
+        raise ValueError("rawfile resource set/digest mismatch; rebuild Zashboard")
+    print(
+        f"Verified {len(manifest['files'])} Zashboard files"
+        + (" in HAP" if hap else " in rawfile")
+    )
 
 
-if __name__ == '__main__':
-    if sys.argv[1] == 'prepare':
-        if sys.argv[3:] not in ([], ['--reviewed']):
-            raise ValueError('unknown prepare option')
-        prepare(Path(sys.argv[2]), reviewed=sys.argv[3:] == ['--reviewed'])
+if __name__ == "__main__":
+    if sys.argv[1] == "prepare":
+        if sys.argv[3:] not in ([], ["--reviewed"]):
+            raise ValueError("unknown prepare option")
+        prepare(Path(sys.argv[2]), reviewed=sys.argv[3:] == ["--reviewed"])
     else:
         verify(sys.argv[2] if len(sys.argv) > 2 else None)
