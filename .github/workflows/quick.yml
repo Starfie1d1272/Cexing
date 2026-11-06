@@ -25,6 +25,12 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '26.11.1'
+      - name: Check Python script formatting and lint
+        run: |
+          python3 -m venv "$RUNNER_TEMP/ruff-venv"
+          "$RUNNER_TEMP/ruff-venv/bin/pip" install ruff==0.17.4
+          git ls-files 'scripts/*.py' 'scripts/**/*.py' | grep -v '/test-' | xargs -r "$RUNNER_TEMP/ruff-venv/bin/ruff" format --check
+          git ls-files 'scripts/*.py' 'scripts/**/*.py' | grep -v '/test-' | xargs -r "$RUNNER_TEMP/ruff-venv/bin/ruff" check --select E9,F63,F7,F82
       - name: Check Go source formatting
         shell: bash
         run: |
