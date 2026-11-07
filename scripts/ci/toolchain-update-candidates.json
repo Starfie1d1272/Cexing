@@ -1,7 +1,7 @@
 {
   "policy": "prefer-latest-stable; validate-upgrade-before-merge",
   "runtimeProposals": {
-    "go": "1.27.2",
+    "go": "1.27.3",
     "node": "26.11.1",
     "javaMajor": "27"
   },
