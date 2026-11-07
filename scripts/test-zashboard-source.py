@@ -39,8 +39,23 @@ with tempfile.TemporaryDirectory(prefix='zashboard-source-gate-') as temporary:
     original = run(['git', '-C', str(ROOT), 'show', '2c0c1ed95c06f65770445a82f5afd59adb43376c:scripts/build-zashboard.sh'])
     assert original.returncode == 0, original.stderr
     script.write_text(original.stdout)
+    # The historical gate compared manifests before applying the host patch.
+    # Reproduce its staged-source flaw with its original upstream dependencies.
+    for name in ('package.json', 'pnpm-lock.yaml'):
+        upstream = run(['git', '-C', str(checkout), 'show', f'HEAD:{name}'])
+        assert upstream.returncode == 0, upstream.stderr
+        (checkout / name).write_text(upstream.stdout)
+        (host / 'third_party/zashboard' / name).write_text(upstream.stdout)
+    (host / 'third_party/zashboard/host.patch').write_text(
+        run(['git', '-C', str(checkout), 'diff', '--binary', '--unified=0']).stdout)
+    historical = run(['git', '-C', str(checkout), 'diff', 'HEAD', '--binary']).stdout
     old = run(['bash', str(script), str(checkout), '--offline'], env=env)
     assert old.returncode == 88 and 'PNPM_BUILD_GATE_REACHED' in old.stdout, old.stderr
+    assert run(['git', '-C', str(checkout), 'diff', 'HEAD', '--binary']).stdout == historical
+    for name in ('package.json', 'pnpm-lock.yaml'):
+        shutil.copyfile(ROOT / 'third_party/zashboard' / name, checkout / name)
+        shutil.copyfile(ROOT / 'third_party/zashboard' / name, host / 'third_party/zashboard' / name)
+    shutil.copyfile(ROOT / 'third_party/zashboard/host.patch', host / 'third_party/zashboard/host.patch')
     script.write_bytes((ROOT / 'scripts/build-zashboard.sh').read_bytes())
     fixed = run(['bash', str(script), str(checkout), '--offline'], env=env)
     assert fixed.returncode != 0 and 'Staged Zashboard source changes' in fixed.stderr, fixed.stderr
