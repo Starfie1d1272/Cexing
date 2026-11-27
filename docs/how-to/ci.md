@@ -23,7 +23,7 @@ Go 在独立临时模块/构建缓存执行 `go mod download`、`go mod verify` 
 
 SDK 不进入公开 Actions Cache。公共仓库缓存可被 PR 工作流读取，不能把它当私有 SDK 存储；确认独立分发/缓存授权前，不启用该优化。公开 Go 下载归档和 Zashboard 资源可缓存，每次仍校验模块或完整资源摘要。新内核始终重新编译，NAPI/ArkTS 始终 clean 构建，不缓存 HAP、签名目录、解压/打补丁的模块或 Go 编译缓存。
 
-经审查的组合保存在 `scripts/ci/toolchain.json`：CLT 26.0.0.851、SDK/NDK 26.0.0.105/API 26、Hvigor/plugin 6.26.8、ohpm 26.0.0.630、wrapper pnpm 10.28.2、Go 1.27.2、Node 26.11.1、JDK 27。不同组合需独立验证并更新该文件及 Actions 声明。构建前校验声明，构建后校验实际 wrapper pnpm。全新环境用独立 integrity lock 安装固定 wrapper pnpm 至隔离 Hvigor home，不修改官方 SDK；版本不符仍明确失败。
+经审查的组合保存在 `scripts/ci/toolchain.json`：CLT 26.0.0.851、SDK/NDK 26.0.0.105/API 26、Hvigor/plugin 6.26.8、ohpm 26.0.0.630、wrapper pnpm 10.28.2、Go 1.27.2、Node 26.11.1、JDK 27。Quick、Full 与 Zashboard portability 工作流均直接从该文件读取 Go/Node/JDK 版本，不同组合只需独立验证并更新该文件。构建前校验声明，构建后校验实际 wrapper pnpm。全新环境用独立 integrity lock 安装固定 wrapper pnpm 至隔离 Hvigor home，不修改官方 SDK；版本不符仍明确失败。
 
 Runner 提供以下环境：
 
@@ -82,7 +82,7 @@ Full 成功完成所有检查后，将该次 CI 构建的未签名 HAP、build-i
 
 优先选用最新稳定版。主 CI 使用已验证的版本组合，bot 定期开升级 PR，在合并前验证新版本；不因一次上游发布直接更换 main 的编译器，也不把版本锁永久保留当目标。GeoData 输入按固定快照和摘要构建；更新快照时须审查来源、许可和规则覆盖变化。
 
-Dependabot 每周一上海时间 09:00 检查 npm 工具依赖和 Actions。`toolchain-updates.yml` 同时查询 Go 官方稳定版、Node 正式发行版、Adoptium JDK、ErBWs SDK 镜像及 npm pnpm，提出更高的 Go/Node/JDK 版本并同步 workflow 声明；SDK/pnpm 候选写入 PR 供配套兼容验证，镜像落后时不降级。pnpm 涉及供应商 wrapper 与 Zashboard 资源清单，不能由通用 npm bot 单独替换。SDK/Hvigor/ohpm 的配套版本由下载归档验证后一起更新，不能凭 SDK Release tag 猜测。
+Dependabot 每周一上海时间 09:00 检查 npm 工具依赖和 Actions。`toolchain-updates.yml` 同时查询 Go 官方稳定版、Node 正式发行版、Adoptium JDK、ErBWs SDK 镜像及 npm pnpm，仅在有更高的 Go/Node/JDK 版本时更新 `scripts/ci/toolchain.json` 并开出升级 PR；SDK/pnpm 候选记录在 workflow summary（及升级 PR 正文）供配套兼容验证，镜像落后时不降级。pnpm 涉及供应商 wrapper 与 Zashboard 资源清单，不能由通用 npm bot 单独替换。SDK/Hvigor/ohpm 的配套版本由下载归档验证后一起更新，不能凭 SDK Release tag 猜测。
 
 升级 PR 必须执行 Quick 和经审查 SHA 的人工 Full；自建 bot 显式调度 Quick，Full 不自动调度。升级失败不自动合并，main 继续使用已经验证的组合。没有自动合并配置。Dependabot/定时工作流在本 PR 合并 main 后才开始生效；自建更新 workflow 使用仅本仓库 `contents: write`、`pull-requests: write` 和 `actions: write`（显式调度 Quick，避免内置 Token 创建的 PR 不触发检查） 的内置 GITHUB_TOKEN，仓库还需允许 Actions 创建 PR。未获此设置权限时如实失败，不要求个人 PAT。API 故障也会失败，不伪造“已升级”。
 

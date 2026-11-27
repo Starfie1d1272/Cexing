@@ -92,13 +92,23 @@ jobs:
         run: |
           echo "CI_GO_DOWNLOAD_CACHE=$RUNNER_TEMP/public-go-downloads" >> "$GITHUB_ENV"
           echo "CI_TIMINGS_FILE=$RUNNER_TEMP/build-timings.jsonl" >> "$GITHUB_ENV"
+      - name: Read pinned toolchain versions
+        id: toolchain
+        run: |
+          python3 - <<'PYCODE' >> "$GITHUB_OUTPUT"
+          import json
+          pin = json.load(open('scripts/ci/toolchain.json'))
+          print(f"go={pin['go']}")
+          print(f"node={pin['node']}")
+          print(f"java={pin['javaMajor']}")
+          PYCODE
       - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         with:
-          go-version: '1.27.2'
+          go-version: ${{ steps.toolchain.outputs.go }}
           cache: false
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: '26.11.1'
+          node-version: ${{ steps.toolchain.outputs.node }}
       - name: Set selected Node home
         run: |
           selected_node_home="$(dirname "$(dirname "$(command -v node)")")"
@@ -108,7 +118,7 @@ jobs:
         if: inputs.runner != 'self-hosted'
         with:
           distribution: temurin
-          java-version: '27'
+          java-version: ${{ steps.toolchain.outputs.java }}
       - name: Install Linux SDK runtime dependencies
         if: inputs.runner != 'self-hosted'
         run: |
