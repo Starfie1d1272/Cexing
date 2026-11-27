@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Propose newer stable runtimes; report SDK/pnpm candidates without guessing compatibility."""
+"""Propose newer stable runtimes in toolchain.json; report SDK/pnpm candidates in summary."""
 
 import json
+import os
 import pathlib
 import re
-import urllib.request
 import urllib.error
+import urllib.request
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 PIN = ROOT / "scripts/ci/toolchain.json"
@@ -54,32 +55,29 @@ for key, candidate in [
     if version(candidate) > version(pin[key]):
         proposed[key] = candidate
 # These need coordinated SDK API/plugin/wrapper or resource validation before
-# changing the actual toolchain, so open a reviewable candidate record with links.
+# changing the actual toolchain, so report them in the workflow summary without
+# triggering candidate-only PRs.
 sdk = get("https://api.github.com/repos/ErBWs/ohos-sdk/releases/latest")
 pnpm = get("https://registry.npmjs.org/pnpm/latest")["version"]
-candidates = {
-    "policy": "prefer-latest-stable; validate-upgrade-before-merge",
-    "runtimeProposals": {k: proposed[k] for k in ["go", "node", "javaMajor"]},
-    "sdkMirrorLatest": sdk["tag_name"],
-    "sdkSource": sdk["html_url"],
-    "sdkRequiresCompatibilityReview": True,
-    "pnpmLatest": pnpm,
-    "pnpmRequiresSdkAndPanelCompatibilityReview": True,
-}
-PIN.write_text(json.dumps(proposed, indent=2) + "\n")
-for file in [".github/workflows/full.yml", ".github/workflows/quick.yml"]:
-    path = ROOT / file
-    text = path.read_text()
-    for key, field in [
-        ("go", "go-version"),
-        ("node", "node-version"),
-        ("javaMajor", "java-version"),
-    ]:
-        text = text.replace(f"{field}: '{pin[key]}'", f"{field}: '{proposed[key]}'")
-    path.write_text(text)
-(ROOT / "scripts/ci/toolchain-update-candidates.json").write_text(
-    json.dumps(candidates, indent=2) + "\n"
-)
+summary_lines = [
+    "### Toolchain update check",
+    "",
+    f"- Go: `{pin['go']}` -> `{proposed['go']}`",
+    f"- Node: `{pin['node']}` -> `{proposed['node']}`",
+    f"- JDK major: `{pin['javaMajor']}` -> `{proposed['javaMajor']}`",
+    f"- SDK mirror latest (manual compatibility review): [{sdk['tag_name']}]({sdk['html_url']}) (pinned: `{pin['sdk']}`)",
+    f"- pnpm latest (manual SDK/panel compatibility review): `{pnpm}` (pinned: `{pin['pnpm']}`)",
+    "",
+]
+summary_text = "\n".join(summary_lines)
+for env_name in ("GITHUB_STEP_SUMMARY", "CI_TOOLCHAIN_CANDIDATES_SUMMARY"):
+    target = os.environ.get(env_name)
+    if target:
+        with open(target, "a", encoding="utf-8") as handle:
+            handle.write(summary_text)
+if proposed != pin:
+    PIN.write_text(json.dumps(proposed, indent=2) + "\n")
+print(summary_text)
 print(
-    "Stable runtime proposals and SDK/pnpm review candidates written; no downgrade, SDK replacement or auto-merge"
+    "Checked stable runtime proposals and SDK/pnpm candidates; no downgrade, SDK replacement, workflow rewrite, or auto-merge"
 )
