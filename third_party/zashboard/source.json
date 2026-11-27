@@ -3,8 +3,8 @@
   "tag": "v3.29.1",
   "sha": "50717b02dac68425cdc5b80cb754bea768ee4fc9",
   "packageManager": "pnpm@11.20.0",
-  "lockSha256": "a3b76781a7f2ccf3a21ff979c80036945a673372fd47a3a3317ffab497d0820d",
-  "packageSha256": "c4f53052c0571231ea15867c1cfdc9da7d3216b8f9b5265d9cd592d4423f299b",
+  "lockSha256": "e6bb8f6bb7354f440e7338cc0746468c74809cf37c0c7d9f1d67324ee798e006",
+  "packageSha256": "9f9934819113dff618ccbaee58916578cc3b122df5420b9f8059b0f2366a80e6",
   "font": "firasans",
   "license": "MIT",
   "fontLicense": "SIL-OFL-1.1"

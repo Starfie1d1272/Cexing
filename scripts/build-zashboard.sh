@@ -11,8 +11,6 @@ git -C "$SOURCE" diff --cached --quiet HEAD -- || {
   echo 'Staged Zashboard source changes are not allowed; use a separate clean checkout' >&2
   exit 1
 }
-cmp "$SOURCE/pnpm-lock.yaml" "$PIN/pnpm-lock.yaml"
-cmp "$SOURCE/package.json" "$PIN/package.json"
 if [ -n "$(git -C "$SOURCE" ls-files --others --exclude-standard)" ]; then
   echo 'Untracked source files could alter the bundle; use a separate clean checkout' >&2
   exit 1
@@ -25,6 +23,9 @@ fi
 git -C "$SOURCE" diff HEAD --binary --unified=0 > "${TMPDIR:-/tmp}/zashboard-host-diff-$$"
 trap 'rm -f "${TMPDIR:-/tmp}/zashboard-host-diff-$$"' EXIT
 cmp "${TMPDIR:-/tmp}/zashboard-host-diff-$$" "$PIN/host.patch"
+# Dependency security fixes are part of the reviewed patch, not upstream source.
+cmp "$SOURCE/pnpm-lock.yaml" "$PIN/pnpm-lock.yaml"
+cmp "$SOURCE/package.json" "$PIN/package.json"
 cd "$SOURCE"
 ARGS=(install --frozen-lockfile)
 PREPARE_ARGS=(prepare "$SOURCE")

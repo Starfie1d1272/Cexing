@@ -1,6 +1,6 @@
 # 构建离线 Zashboard
 
-身份由 [source.json](../../third_party/zashboard/source.json)、原始 package.json 和 pnpm-lock.yaml 固定；本仓库仅维护必要的 [宿主补丁](../../third_party/zashboard/host.patch)。变更源码、锁或补丁后应审查资源清单和许可。保留独立上游 checkout，不复用用户工作目录，不通过 reset 清理修改。
+上游源码身份由 [source.json](../../third_party/zashboard/source.json) 的提交 SHA 固定；本仓库仅维护必要的 [宿主补丁](../../third_party/zashboard/host.patch)，包括依赖安全修复。package.json、pnpm-lock.yaml 及 source.json 中对应摘要固定应用补丁后的实际构建依赖，构建前核对完整补丁与这两个文件。变更源码、锁或补丁后应审查资源清单和许可。保留独立上游 checkout，不复用用户工作目录，不通过 reset 清理修改。
 
 ```bash
 git clone --depth 1 --branch v3.29.1 https://github.com/Zephyruso/zashboard.git /tmp/zashboard-source
