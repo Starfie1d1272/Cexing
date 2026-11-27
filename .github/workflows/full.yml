@@ -92,23 +92,33 @@ jobs:
         run: |
           echo "CI_GO_DOWNLOAD_CACHE=$RUNNER_TEMP/public-go-downloads" >> "$GITHUB_ENV"
           echo "CI_TIMINGS_FILE=$RUNNER_TEMP/build-timings.jsonl" >> "$GITHUB_ENV"
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      - name: Read pinned toolchain versions
+        id: toolchain
+        run: |
+          python3 - <<'PYCODE' >> "$GITHUB_OUTPUT"
+          import json
+          pin = json.load(open('scripts/ci/toolchain.json'))
+          print(f"go={pin['go']}")
+          print(f"node={pin['node']}")
+          print(f"java={pin['javaMajor']}")
+          PYCODE
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         with:
-          go-version: '1.27.2'
+          go-version: ${{ steps.toolchain.outputs.go }}
           cache: false
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: '26.11.1'
+          node-version: ${{ steps.toolchain.outputs.node }}
       - name: Set selected Node home
         run: |
           selected_node_home="$(dirname "$(dirname "$(command -v node)")")"
           echo "NODE_HOME=$selected_node_home" >> "$GITHUB_ENV"
           echo "DEVECO_NODE_HOME=$selected_node_home" >> "$GITHUB_ENV"
-      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+      - uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
         if: inputs.runner != 'self-hosted'
         with:
           distribution: temurin
-          java-version: '27'
+          java-version: ${{ steps.toolchain.outputs.java }}
       - name: Install Linux SDK runtime dependencies
         if: inputs.runner != 'self-hosted'
         run: |

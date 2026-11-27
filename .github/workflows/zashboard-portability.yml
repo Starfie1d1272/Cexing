@@ -3,6 +3,7 @@ on:
   pull_request:
     paths:
       - '.github/workflows/zashboard-portability.yml'
+      - 'scripts/ci/toolchain.json'
       - 'scripts/zashboard-assets.py'
       - 'scripts/zashboard_notices.py'
       - 'third_party/zashboard/**'
@@ -22,9 +23,17 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Read pinned Node version
+        id: toolchain
+        run: |
+          python3 - <<'PYCODE' >> "$GITHUB_OUTPUT"
+          import json
+          pin = json.load(open('scripts/ci/toolchain.json'))
+          print(f"node={pin['node']}")
+          PYCODE
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: '26.11.1'
+          node-version: ${{ steps.toolchain.outputs.node }}
       - run: npm ci --prefix scripts/ci --ignore-scripts --no-audit --no-fund
       - name: Build reviewed source and compare complete resource identity
         run: |
